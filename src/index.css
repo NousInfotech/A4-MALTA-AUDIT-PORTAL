@@ -2,41 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Professional Audit Portal Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core backgrounds */
+    --background: 0 0% 98%;
+    --foreground: 215 25% 27%;
 
+    /* Card system */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 27%;
 
+    /* Popover system */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 25% 27%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand colors - Professional navy and corporate blue */
+    --primary: 215 84% 16%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 215 84% 20%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary colors - Clean slate blue */
+    --secondary: 215 16% 95%;
+    --secondary-foreground: 215 25% 27%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted colors */
+    --muted: 215 16% 96%;
+    --muted-foreground: 215 10% 46%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent colors - Professional blue */
+    --accent: 214 88% 52%;
+    --accent-foreground: 0 0% 98%;
+    --accent-hover: 214 88% 58%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Interface elements */
+    --border: 215 16% 89%;
+    --input: 215 16% 94%;
+    --ring: 215 84% 16%;
 
-    --radius: 0.5rem;
+    /* Sidebar colors */
+    --sidebar-background: 215 30% 11%;
+    --sidebar-foreground: 215 16% 82%;
+    --sidebar-primary: 214 88% 52%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 215 25% 16%;
+    --sidebar-accent-foreground: 215 16% 82%;
+    --sidebar-border: 215 25% 18%;
+    --sidebar-ring: 214 88% 52%;
+
+    /* Professional gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--muted)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(215 25% 27% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(215 25% 27% / 0.1), 0 2px 4px -1px hsl(215 25% 27% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(215 25% 27% / 0.1), 0 4px 6px -2px hsl(215 25% 27% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(215 25% 27% / 0.1), 0 10px 10px -5px hsl(215 25% 27% / 0.04);
+
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
 
