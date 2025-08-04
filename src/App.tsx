@@ -24,6 +24,7 @@ import { AddClient } from "@/pages/employee/AddClient";
 import { EngagementManagement } from "@/pages/employee/EngagementManagement";
 import { CreateEngagement } from "@/pages/employee/CreateEngagement";
 import { EngagementDetails } from "@/pages/employee/EngagementDetails";
+import { Library } from "@/pages/employee/Library";
 
 // Client pages
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
@@ -71,6 +72,7 @@ const App = () => (
                 <Route path="engagements" element={<EngagementManagement />} />
                 <Route path="engagements/new" element={<CreateEngagement />} />
                 <Route path="engagements/:id" element={<EngagementDetails />} />
+                <Route path="library" element={<Library />} />
               </Route>
               
               {/* Client Routes */}

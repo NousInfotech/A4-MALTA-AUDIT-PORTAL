@@ -54,6 +54,12 @@ const navItems: NavItem[] = [
     icon: Briefcase,
     roles: ['employee']
   },
+  {
+    title: 'Library',
+    href: '/employee/library',
+    icon: FolderOpen,
+    roles: ['employee']
+  },
   
   // Client navigation
   {
