@@ -116,7 +116,7 @@ export const Sidebar = () => {
                   className={cn(
                     'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200',
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-primary-foreground'
+                      ? 'bg-sidebar-foreground text-sidebar-primary-foreground'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   )}
                 >

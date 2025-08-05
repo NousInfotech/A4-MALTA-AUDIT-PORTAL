@@ -31,52 +31,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        
-        if (session?.user) {
-          // Fetch user profile from our profiles table
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
+useEffect(() => {
+  const getCurrentSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
 
-          if (profile) {
-            const userData: User = {
-              id: profile.user_id,
-              email: session.user.email!,
-              name: profile.name,
-              role: profile.role as UserRole,
-              status: profile.status as 'pending' | 'approved' | 'rejected',
-              createdAt: profile.created_at,
-              companyName: profile.company_name,
-              companyNumber: profile.company_number,
-              industry: profile.industry
-            };
-            setUser(userData);
-          }
-        } else {
-          setUser(null);
-        }
-        
-        setIsLoading(false);
+    setSession(session);
+
+    if (session?.user) {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (profile && !error) {
+        const userData: User = {
+          id: profile.user_id,
+          email: session.user.email!,
+          name: profile.name,
+          role: profile.role as UserRole,
+          status: profile.status as 'pending' | 'approved' | 'rejected',
+          createdAt: profile.created_at,
+          companyName: profile.company_name,
+          companyNumber: profile.company_number,
+          industry: profile.industry,
+        };
+        setUser(userData);
+      } else {
+        setUser(null); // Profile fetch failed
       }
-    );
+    }
 
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      // The auth state change listener will handle setting the user
-      if (!session) {
-        setIsLoading(false);
-      }
-    });
+    setIsLoading(false);
+  };
 
-    return () => subscription.unsubscribe();
-  }, []);
+  getCurrentSession();
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+    getCurrentSession(); // Re-fetch session/profile
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);

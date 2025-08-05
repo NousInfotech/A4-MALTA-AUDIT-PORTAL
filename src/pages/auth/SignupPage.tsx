@@ -53,7 +53,8 @@ export const SignupPage = () => {
           ? "Your account is pending admin approval. You will receive an email when approved."
           : formData.role === 'admin'
           ? "Admin account created successfully. You can now sign in."
-          : "Please check your email to confirm your account, then you can sign in.",
+          // : "Please check your email to confirm your account, then you can sign in.",
+          :"Your account is pending admin approval. You will receive an email when approved."
       });
       navigate('/login');
     } else {
