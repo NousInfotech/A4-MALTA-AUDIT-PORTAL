@@ -51,6 +51,8 @@ export const SignupPage = () => {
         title: "Account created successfully",
         description: formData.role === 'employee' 
           ? "Your account is pending admin approval. You will receive an email when approved."
+          : formData.role === 'admin'
+          ? "Admin account created successfully. You can now sign in."
           : "Please check your email to confirm your account, then you can sign in.",
       });
       navigate('/login');
@@ -127,6 +129,7 @@ export const SignupPage = () => {
                 <SelectContent>
                   <SelectItem value="employee">Employee (Auditor)</SelectItem>
                   <SelectItem value="client">Client</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
