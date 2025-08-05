@@ -1,3 +1,4 @@
+// src/pages/auth/LoginPage.tsx
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,15 +95,6 @@ export const LoginPage = () => {
                 Sign up
               </Link>
             </p>
-          </div>
-          
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <p className="text-xs text-muted-foreground mb-2">Demo Credentials:</p>
-            <div className="text-xs space-y-1">
-              <div><strong>Admin:</strong> admin@auditportal.com / admin123</div>
-              <div><strong>Employee:</strong> auditor@company.com / auditor123</div>
-              <div><strong>Client:</strong> client@company.com / client123</div>
-            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
@@ -14,6 +15,7 @@ export interface User {
   companyName?: string; // for clients
   companyNumber?: string; // for clients
   industry?: string; // for clients
+  summary?: string; // for clients
 }
 
 interface AuthContextType {
@@ -55,6 +57,7 @@ useEffect(() => {
           companyName: profile.company_name,
           companyNumber: profile.company_number,
           industry: profile.industry,
+          summary:       profile.company_summary,
         };
         setUser(userData);
       } else {
@@ -77,54 +80,93 @@ useEffect(() => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
 
-    if (error || !data.user) {
+    // 1) Sign in and grab the session & user
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session || !data.user) {
       setIsLoading(false);
       return false;
     }
 
-    // Check if user is approved
-    const { data: profile } = await supabase
+    // 2) Immediately populate context
+    setSession(data.session);
+    
+    // 3) Fetch the full profile row
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('status')
+      .select('*')
       .eq('user_id', data.user.id)
       .single();
 
-    setIsLoading(false);
-    return profile?.status === 'approved';
-  };
-
-  const signup = async (userData: Partial<User> & { password: string }): Promise<boolean> => {
-    setIsLoading(true);
-    
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { data, error } = await supabase.auth.signUp({
-      email: userData.email!,
-      password: userData.password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          name: userData.name,
-          role: userData.role,
-          company_name: userData.companyName,
-          company_number: userData.companyNumber,
-          industry: userData.industry
-        }
-      }
-    });
-
-    setIsLoading(false);
-    
-    if (error) {
+    if (profileError || !profile) {
+      setIsLoading(false);
       return false;
     }
 
+    setUser({
+      id:            profile.user_id,
+      email:         data.user.email!,
+      name:          profile.name,
+      role:          profile.role as UserRole,
+      status:        profile.status as 'pending'|'approved'|'rejected',
+      createdAt:     profile.created_at,
+      companyName:   profile.company_name ?? undefined,
+      companyNumber: profile.company_number ?? undefined,
+      industry:      profile.industry ?? undefined,
+      summary:       profile.company_summary ?? undefined,
+    });
+
+    setIsLoading(false);
+    return true;
+  };
+
+  const signup = async (userData: {
+    name: string
+    email: string
+    password: string
+    role: UserRole
+    companyName?: string
+    companyNumber?: string
+    industry?: string
+    summary?: string
+  }): Promise<boolean> => {
+    setIsLoading(true);
+
+    // 1) create the auth user
+    const { data: signUpData, error: signUpError } =
+      await supabase.auth.signUp({
+        email:    userData.email!,
+        password: userData.password,
+        // no more options.data → we handle profiles manually
+      });
+    if (signUpError || !signUpData.user) {
+      setIsLoading(false);
+      return false;
+    }
+
+    // 2) upsert into your public.profiles table
+    const { error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          user_id:         signUpData.user.id,
+          name:            userData.name,
+          role:            userData.role,
+          status:          'pending',
+          company_name:    userData.companyName   || null,
+          company_number:  userData.companyNumber || null,
+          industry:        userData.industry      || null,
+          company_summary: userData.summary       || null,
+        },
+        { onConflict: 'user_id' }          // ← merge with any pre-existing row
+      );
+
+    if (upsertError) {
+      console.error('profiles upsert failed:', upsertError);
+      // you can still return true if you want the user to proceed
+    }
+
+    setIsLoading(false);
     return true;
   };
 

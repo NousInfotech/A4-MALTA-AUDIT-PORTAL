@@ -1,3 +1,4 @@
+// src/pages/auth/SignupPage.tsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -43,7 +44,8 @@ export const SignupPage = () => {
       role: formData.role,
       companyName: formData.companyName,
       companyNumber: formData.companyNumber,
-      industry: formData.industry
+      industry: formData.industry,
+      summary: formData.summary
     });
     
     if (success) {
