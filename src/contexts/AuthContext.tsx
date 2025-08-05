@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 export type UserRole = 'admin' | 'employee' | 'client';
 
@@ -24,110 +26,115 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users data
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: '1',
-    email: 'admin@auditportal.com',
-    password: 'admin123',
-    name: 'System Administrator',
-    role: 'admin',
-    status: 'approved',
-    createdAt: '2024-01-01'
-  },
-  {
-    id: '2',
-    email: 'auditor@company.com',
-    password: 'auditor123',
-    name: 'John Auditor',
-    role: 'employee',
-    status: 'approved',
-    createdAt: '2024-01-02'
-  },
-  {
-    id: '3',
-    email: 'client@company.com',
-    password: 'client123',
-    name: 'Jane Client',
-    role: 'client',
-    status: 'approved',
-    createdAt: '2024-01-03',
-    companyName: 'Tech Solutions Ltd',
-    companyNumber: 'TC123456',
-    industry: 'Technology'
-  }
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth
-    const storedUser = localStorage.getItem('auditPortalUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    // Set up auth state listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        
+        if (session?.user) {
+          // Fetch user profile from our profiles table
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (profile) {
+            const userData: User = {
+              id: profile.user_id,
+              email: session.user.email!,
+              name: profile.name,
+              role: profile.role as UserRole,
+              status: profile.status as 'pending' | 'approved' | 'rejected',
+              createdAt: profile.created_at,
+              companyName: profile.company_name,
+              companyNumber: profile.company_number,
+              industry: profile.industry
+            };
+            setUser(userData);
+          }
+        } else {
+          setUser(null);
+        }
+        
+        setIsLoading(false);
+      }
+    );
+
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // The auth state change listener will handle setting the user
+      if (!session) {
+        setIsLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const foundUser = mockUsers.find(u => u.email === email && u.password === password);
-    
-    if (foundUser && foundUser.status === 'approved') {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem('auditPortalUser', JSON.stringify(userWithoutPassword));
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error || !data.user) {
       setIsLoading(false);
-      return true;
+      return false;
     }
-    
+
+    // Check if user is approved
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('status')
+      .eq('user_id', data.user.id)
+      .single();
+
     setIsLoading(false);
-    return false;
+    return profile?.status === 'approved';
   };
 
   const signup = async (userData: Partial<User> & { password: string }): Promise<boolean> => {
     setIsLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const redirectUrl = `${window.location.origin}/`;
     
-    // Check if user already exists
-    const existingUser = mockUsers.find(u => u.email === userData.email);
-    if (existingUser) {
-      setIsLoading(false);
-      return false;
-    }
-    
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
+    const { data, error } = await supabase.auth.signUp({
       email: userData.email!,
       password: userData.password,
-      name: userData.name!,
-      role: userData.role!,
-      status: userData.role === 'employee' ? 'pending' as const : 'approved' as const,
-      createdAt: new Date().toISOString(),
-      ...(userData.role === 'client' && {
-        companyName: userData.companyName,
-        companyNumber: userData.companyNumber,
-        industry: userData.industry
-      })
-    };
-    
-    mockUsers.push(newUser);
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          name: userData.name,
+          role: userData.role,
+          company_name: userData.companyName,
+          company_number: userData.companyNumber,
+          industry: userData.industry
+        }
+      }
+    });
+
     setIsLoading(false);
+    
+    if (error) {
+      return false;
+    }
+
     return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('auditPortalUser');
+    setSession(null);
   };
 
   return (
