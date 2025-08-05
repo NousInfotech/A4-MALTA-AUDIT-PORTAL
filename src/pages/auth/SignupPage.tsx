@@ -36,18 +36,26 @@ export const SignupPage = () => {
       return;
     }
 
-    const success = await signup(formData);
+    const success = await signup({
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role,
+      companyName: formData.companyName,
+      companyNumber: formData.companyNumber,
+      industry: formData.industry
+    });
     
     if (success) {
       toast({
         title: "Account created successfully",
         description: formData.role === 'employee' 
-          ? "Your account is pending admin approval"
-          : "You can now sign in to your account",
+          ? "Your account is pending admin approval. You will receive an email when approved."
+          : "Please check your email to confirm your account, then you can sign in.",
       });
       navigate('/login');
     } else {
-      setError('Email already exists or signup failed');
+      setError('Email already exists or signup failed. Please try again.');
     }
   };
 
