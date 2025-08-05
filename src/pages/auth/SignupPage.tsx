@@ -49,12 +49,9 @@ export const SignupPage = () => {
     if (success) {
       toast({
         title: "Account created successfully",
-        description: formData.role === 'employee' 
-          ? "Your account is pending admin approval. You will receive an email when approved."
-          : formData.role === 'admin'
+        description: formData.role === 'admin'
           ? "Admin account created successfully. You can now sign in."
-          // : "Please check your email to confirm your account, then you can sign in.",
-          :"Your account is pending admin approval. You will receive an email when approved."
+          : "Your account is pending admin approval. You will receive an email when approved."
       });
       navigate('/login');
     } else {
