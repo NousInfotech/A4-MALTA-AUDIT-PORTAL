@@ -1,48 +1,118 @@
-import { useState } from 'react';
+import { useEffect,useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useData } from '@/contexts/DataContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useEngagements } from '@/hooks/useEngagements';
 import { ArrowLeft, Briefcase, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export const CreateEngagement = () => {
   const [formData, setFormData] = useState({
     clientId: '',
     title: '',
-    yearEndDate: ''
+    yearEndDate: '',
+    trialBalanceUrl: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { clients, addEngagement } = useData();
-  const { user } = useAuth();
+  const { createEngagement } = useEngagements();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  interface User {
+  summary: string;
+  id: string
+  name: string
+  email: string
+  role: "admin" | "employee" | "client"
+  status: "pending" | "approved" | "rejected"
+  createdAt: string
+  companyName?: string
+  companyNumber?: string
+  industry?: string
+}
+  const [loading, setLoading] = useState(true)
+
+const [clients, setClients] = useState<User[]>([])
+    useEffect(() => {
+      fetchClients()
+    }, [])
+  
+    const fetchClients = async () => {
+      try {
+        setLoading(true)
+
+        const user = await supabase.auth.getUser();
+  
+        // Simple query - only profiles table, no joins
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(`
+            user_id,
+            name,
+            role,
+            status,
+            created_at,
+            updated_at,
+            company_name,
+            company_number,
+            industry,
+            company_summary
+          `)
+          .order("created_at", { ascending: false })
+  
+        if (error) {
+          console.error("Supabase error:", error)
+          throw error
+        }
+  
+        console.log("Fetched profiles:", data)
+  
+        // Transform profiles to User format
+        const transformedClients: User[] =
+          data?.map((profile) => ({
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: user.data.user.email,// We'll handle email separately
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+            summary: profile.company_summary || undefined,
+          })) || []
+  
+        setClients(transformedClients.filter(client=>client.role==='client'))
+      } catch (error) {
+        console.error("Error fetching clients:", error)
+        toast({
+          title: "Error",
+          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const newEngagement = await createEngagement(formData);
       
-      addEngagement({
-        ...formData,
-        status: 'draft',
-        createdBy: user!.id
-      });
-
       toast({
         title: "Engagement created successfully",
         description: "You can now start uploading trial balance and managing this engagement.",
       });
 
-      navigate('/employee/engagements');
+      navigate(`/employee/engagements/${newEngagement._id}`);
     } catch (error) {
       toast({
         title: "Error",
@@ -134,6 +204,19 @@ export const CreateEngagement = () => {
                   onChange={(e) => handleChange('yearEndDate', e.target.value)}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trialBalanceUrl">Trial Balance URL</Label>
+                <Input
+                  id="trialBalanceUrl"
+                  value={formData.trialBalanceUrl}
+                  onChange={(e) => handleChange('trialBalanceUrl', e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                />
+                <p className="text-sm text-muted-foreground">
+                  Optional: You can add this later from the engagement details page
+                </p>
               </div>
               
               <div className="bg-muted/50 p-4 rounded-lg">

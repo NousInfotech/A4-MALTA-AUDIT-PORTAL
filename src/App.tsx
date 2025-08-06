@@ -33,6 +33,7 @@ import { DocumentRequests } from "@/pages/client/DocumentRequests";
 
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import { ClientDetail } from "./pages/employee/ClientDetail";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,7 @@ const App = () => (
               }>
                 <Route index element={<EmployeeDashboard />} />
                 <Route path="clients" element={<ClientManagement />} />
+                <Route path="clients/:id" element={<ClientDetail />} />
                 <Route path="clients/new" element={<AddClient />} />
                 <Route path="engagements" element={<EngagementManagement />} />
                 <Route path="engagements/new" element={<CreateEngagement />} />

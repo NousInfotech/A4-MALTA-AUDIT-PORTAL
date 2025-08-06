@@ -1,21 +1,98 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useData } from '@/contexts/DataContext';
-import { Building2, Plus, Search, Mail, Eye } from 'lucide-react';
+import { Building2, Plus, Search, Eye } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client"
+import { useToast } from '@/hooks/use-toast';
 
+interface User {
+  summary: string;
+  id: string
+  name: string
+  email: string
+  role: "admin" | "employee" | "client"
+  status: "pending" | "approved" | "rejected"
+  createdAt: string
+  companyName?: string
+  companyNumber?: string
+  industry?: string
+}
 export const ClientManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { clients, getClientEngagements } = useData();
+  const [clients, setClients] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+    const { toast } = useToast()
 
-  const filteredClients = clients.filter(client =>
-    client.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.industry.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    useEffect(() => {
+      fetchClients()
+    }, [])
+  
+    const fetchClients = async () => {
+      try {
+        setLoading(true)
+
+        const user = await supabase.auth.getUser();
+  
+        // Simple query - only profiles table, no joins
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(`
+            user_id,
+            name,
+            role,
+            status,
+            created_at,
+            updated_at,
+            company_name,
+            company_number,
+            industry,
+            company_summary
+          `)
+          .order("created_at", { ascending: false })
+  
+        if (error) {
+          console.error("Supabase error:", error)
+          throw error
+        }
+  
+        console.log("Fetched profiles:", data)
+  
+        // Transform profiles to User format
+        const transformedClients: User[] =
+          data?.map((profile) => ({
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: user.data.user.email,// We'll handle email separately
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+            summary: profile.company_summary || undefined,
+          })) || []
+  
+        setClients(transformedClients.filter(client=>client.role==='client'))
+      } catch (error) {
+        console.error("Error fetching clients:", error)
+        toast({
+          title: "Error",
+          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+  
+    const filteredClients = clients.filter(
+      (user) =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (user.companyName && user.companyName.toLowerCase().includes(searchTerm.toLowerCase())),
+    )
 
   return (
     <div className="space-y-6">
@@ -32,6 +109,7 @@ export const ClientManagement = () => {
             Add New Client
           </Link>
         </Button>
+
       </div>
 
       {/* Search and Filters */}
@@ -60,8 +138,8 @@ export const ClientManagement = () => {
       {/* Clients Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredClients.map((client) => {
-          const engagements = getClientEngagements(client.id);
-          const activeEngagements = engagements.filter(e => e.status === 'active').length;
+          // const engagements = getClientEngagements(client.id);
+          // const activeEngagements = engagements.filter(e => e.status === 'active').length;
           
           return (
             <Card key={client.id} className="hover:shadow-md transition-shadow">
@@ -91,12 +169,14 @@ export const ClientManagement = () => {
                 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Active Engagements</span>
-                  <span className="font-medium text-foreground">{activeEngagements}</span>
+                  <span className="font-medium text-foreground">2</span>
+                  {/* <span className="font-medium text-foreground">{activeEngagements}</span> */}
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Total Engagements</span>
-                  <span className="font-medium text-foreground">{engagements.length}</span>
+                  <span className="font-medium text-foreground">10</span>
+                  {/* <span className="font-medium text-foreground">{engagements.length}</span> */}
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
@@ -113,9 +193,9 @@ export const ClientManagement = () => {
                       View Details
                     </Link>
                   </Button>
-                  <Button size="sm" variant="ghost">
+                  {/* <Button size="sm" variant="ghost">
                     <Mail className="h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
               </CardContent>
             </Card>

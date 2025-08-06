@@ -1,11 +1,102 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useData } from '@/contexts/DataContext';
-import { Building2, Briefcase, FileText, TrendingUp, Plus } from 'lucide-react';
+import { useEngagements } from '@/hooks/useEngagements';
+import { useDocumentRequests } from '@/hooks/useDocumentRequests';
+import { Building2, Briefcase, FileText, TrendingUp, Plus, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export const EmployeeDashboard = () => {
-  const { clients, engagements, getEngagementRequests } = useData();
+  const { engagements, loading } = useEngagements();
+
+    const { toast } = useToast();
+
+  interface User {
+  summary: string;
+  id: string
+  name: string
+  email: string
+  role: "admin" | "employee" | "client"
+  status: "pending" | "approved" | "rejected"
+  createdAt: string
+  companyName?: string
+  companyNumber?: string
+  industry?: string
+}
+  const [isloading, setIsLoading] = useState(true)
+
+const [clients, setClients] = useState<User[]>([])
+    useEffect(() => {
+      fetchClients()
+    }, [])
+  
+    const fetchClients = async () => {
+      try {
+        setIsLoading(true)
+
+        const user = await supabase.auth.getUser();
+  
+        // Simple query - only profiles table, no joins
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(`
+            user_id,
+            name,
+            role,
+            status,
+            created_at,
+            updated_at,
+            company_name,
+            company_number,
+            industry,
+            company_summary
+          `)
+          .order("created_at", { ascending: false })
+  
+        if (error) {
+          console.error("Supabase error:", error)
+          throw error
+        }
+  
+        console.log("Fetched profiles:", data)
+  
+        // Transform profiles to User format
+        const transformedClients: User[] =
+          data?.map((profile) => ({
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: user.data.user.email,// We'll handle email separately
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+            summary: profile.company_summary || undefined,
+          })) || []
+  
+        setClients(transformedClients.filter(client=>client.role==='client'))
+      } catch (error) {
+        console.error("Error fetching clients:", error)
+        toast({
+          title: "Error",
+          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   const stats = [
     {
@@ -23,17 +114,15 @@ export const EmployeeDashboard = () => {
       trend: '+1 this week'
     },
     {
-      title: 'Pending Requests',
-      value: engagements.reduce((acc, eng) => {
-        return acc + getEngagementRequests(eng.id).filter(req => req.status === 'pending').length;
-      }, 0).toString(),
-      description: 'Document requests',
+      title: 'Total Engagements',
+      value: engagements.length.toString(),
+      description: 'All engagements',
       icon: FileText,
-      trend: '5 new today'
+      trend: `${engagements.filter(e => e.status === 'draft').length} drafts`
     },
     {
-      title: 'Completed Procedures',
-      value: '8',
+      title: 'Completed',
+      value: engagements.filter(e => e.status === 'completed').length.toString(),
       description: 'This month',
       icon: TrendingUp,
       trend: '+3 from last month'
@@ -113,10 +202,10 @@ export const EmployeeDashboard = () => {
               {recentEngagements.map((engagement) => {
                 const client = clients.find(c => c.id === engagement.clientId);
                 return (
-                  <div key={engagement.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                  <div key={engagement._id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div>
                       <p className="font-medium text-foreground">{engagement.title}</p>
-                      <p className="text-sm text-muted-foreground">{client?.companyName}</p>
+                      <p className="text-sm text-muted-foreground">{client?.companyName || 'Unknown Client'}</p>
                       <p className="text-xs text-muted-foreground">
                         Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
                       </p>
@@ -133,6 +222,11 @@ export const EmployeeDashboard = () => {
                   </div>
                 );
               })}
+              {recentEngagements.length === 0 && (
+                <p className="text-muted-foreground text-center py-8">
+                  No engagements yet. Create your first engagement to get started.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

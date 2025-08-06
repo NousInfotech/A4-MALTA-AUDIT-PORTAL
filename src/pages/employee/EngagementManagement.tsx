@@ -1,15 +1,98 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useData } from '@/contexts/DataContext';
-import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye } from 'lucide-react';
+import { useEngagements } from '@/hooks/useEngagements';
+import { useDocumentRequests } from '@/hooks/useDocumentRequests';
+import { useProcedures } from '@/hooks/useProcedures';
+import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { engagements, clients, getEngagementRequests, getEngagementProcedures } = useData();
+  const { engagements, loading } = useEngagements();
+
+      const { toast } = useToast();
+
+  interface User {
+  summary: string;
+  id: string
+  name: string
+  email: string
+  role: "admin" | "employee" | "client"
+  status: "pending" | "approved" | "rejected"
+  createdAt: string
+  companyName?: string
+  companyNumber?: string
+  industry?: string
+}
+  const [isloading, setIsLoading] = useState(true)
+
+const [clients, setClients] = useState<User[]>([])
+    useEffect(() => {
+      fetchClients()
+    }, [])
+  
+    const fetchClients = async () => {
+      try {
+        setIsLoading(true)
+
+        const user = await supabase.auth.getUser();
+  
+        // Simple query - only profiles table, no joins
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(`
+            user_id,
+            name,
+            role,
+            status,
+            created_at,
+            updated_at,
+            company_name,
+            company_number,
+            industry,
+            company_summary
+          `)
+          .order("created_at", { ascending: false })
+  
+        if (error) {
+          console.error("Supabase error:", error)
+          throw error
+        }
+  
+        console.log("Fetched profiles:", data)
+  
+        // Transform profiles to User format
+        const transformedClients: User[] =
+          data?.map((profile) => ({
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: user.data.user.email,// We'll handle email separately
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+            summary: profile.company_summary || undefined,
+          })) || []
+  
+        setClients(transformedClients.filter(client=>client.role==='client'))
+      } catch (error) {
+        console.error("Error fetching clients:", error)
+        toast({
+          title: "Error",
+          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
   const filteredEngagements = engagements.filter(engagement => {
     const client = clients.find(c => c.id === engagement.clientId);
@@ -31,6 +114,14 @@ export const EngagementManagement = () => {
         return 'bg-secondary text-secondary-foreground border-secondary-foreground';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -76,12 +167,9 @@ export const EngagementManagement = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredEngagements.map((engagement) => {
           const client = clients.find(c => c.id === engagement.clientId);
-          const requests = getEngagementRequests(engagement.id);
-          const procedures = getEngagementProcedures(engagement.id);
-          const pendingRequests = requests.filter(r => r.status === 'pending').length;
           
           return (
-            <Card key={engagement.id} className="hover:shadow-md transition-shadow">
+            <Card key={engagement._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -92,7 +180,7 @@ export const EngagementManagement = () => {
                       <CardTitle className="text-lg truncate">{engagement.title}</CardTitle>
                       <p className="text-sm text-muted-foreground flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
-                        {client?.companyName}
+                        {client?.companyName || 'Unknown Client'}
                       </p>
                     </div>
                   </div>
@@ -110,15 +198,15 @@ export const EngagementManagement = () => {
                 
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="text-center">
-                    <div className="font-medium text-foreground">{requests.length}</div>
+                    <div className="font-medium text-foreground">-</div>
                     <div className="text-muted-foreground">Requests</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-medium text-warning">{pendingRequests}</div>
+                    <div className="font-medium text-warning">-</div>
                     <div className="text-muted-foreground">Pending</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-medium text-foreground">{procedures.length}</div>
+                    <div className="font-medium text-foreground">-</div>
                     <div className="text-muted-foreground">Procedures</div>
                   </div>
                 </div>
@@ -132,13 +220,13 @@ export const EngagementManagement = () => {
                 
                 <div className="flex items-center gap-2 pt-2">
                   <Button size="sm" className="flex-1" asChild>
-                    <Link to={`/employee/engagements/${engagement.id}`}>
+                    <Link to={`/employee/engagements/${engagement._id}`}>
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </Link>
                   </Button>
                   <Button size="sm" variant="outline" asChild>
-                    <Link to={`/employee/engagements/${engagement.id}/requests`}>
+                    <Link to={`/employee/engagements/${engagement._id}`}>
                       Requests
                     </Link>
                   </Button>

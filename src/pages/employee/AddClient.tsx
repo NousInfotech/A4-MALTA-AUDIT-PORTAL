@@ -1,3 +1,4 @@
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useData } from '@/contexts/DataContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Building2, Loader2 } from 'lucide-react';
 
@@ -28,47 +28,63 @@ const industries = [
 
 export const AddClient = () => {
   const [formData, setFormData] = useState({
-    companyName: '',
-    companyNumber: '',
-    email: '',
-    industry: '',
-    summary: ''
-  });
+  name: '',
+  email: '',
+  password: '',
+  role: 'client' as UserRole,
+  companyName: '',
+  companyNumber: '',
+  industry: '',
+  summary: '',
+  customValue: '',          // ← new field
+});
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const { addClient } = useData();
-  const { user } = useAuth();
+  const [error, setError] = useState('');
+  const { signup, isLoading } = useAuth();
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    console.log("Handle submit")
+    setError('');
 
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      addClient({
-        ...formData,
-        createdBy: user!.id
-      });
-
-      toast({
-        title: "Client added successfully",
-        description: "The client has been created and will receive their login credentials via email.",
-      });
-
-      navigate('/employee/clients');
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add client. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
+    // Front-end validation
+    const { name, email, password, companyName, companyNumber, summary } =
+      formData;
+    if (!name || !email || !password || !companyName || !companyNumber || !summary) {
+      setError('Please fill in all the required fields');
+      return;
     }
+
+    const industry =
+      formData.industry === 'Other' ? formData.customValue : formData.industry;
+    
+    //API Call
+
+    // const success = await signup({
+    //   name,
+    //   email,
+    //   password,
+    //   role: 'client' as UserRole,
+    //   companyName,
+    //   companyNumber,
+    //   industry,
+    //   summary,
+    // });
+    // if (success) {
+    // console.log("success")
+    //   toast({
+    //     title: 'Client created',
+    //     description: 'The client account is pending admin approval.',
+    //   });
+    //   navigate('/employee/clients');
+    // } else {
+    // console.log("Error")
+    //   setError('Email already exists or signup failed. Please try again.');
+    // }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -159,6 +175,18 @@ export const AddClient = () => {
                     </SelectContent>
                   </Select>
                 </div>
+{formData.industry==='Other'&&(
+                <div className="space-y-2">
+  <Label htmlFor="customValue">Please Specify The Industry</Label>
+  <Input
+    id="customValue"
+    value={formData.customValue}
+    onChange={e => handleChange('customValue', e.target.value)}
+    placeholder="Enter your custom value"
+  />
+</div>
+)}
+
               </div>
               
               <div className="space-y-2">

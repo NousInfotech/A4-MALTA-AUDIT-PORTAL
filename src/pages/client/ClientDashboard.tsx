@@ -2,21 +2,61 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Briefcase, FileText, Clock, CheckCircle, Upload, Eye } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { engagementApi, documentRequestApi } from '@/services/api';
+import { Briefcase, FileText, Clock, CheckCircle, Upload, Eye, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export const ClientDashboard = () => {
   const { user } = useAuth();
-  const { engagements, getEngagementRequests } = useData();
+  const { toast } = useToast();
+  const [clientEngagements, setClientEngagements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [allRequests, setAllRequests] = useState([]);
 
-  // Filter engagements for current client
-  const clientEngagements = engagements.filter(eng => {
-    // In a real app, this would be based on the client's ID relationship
-    return user?.companyName; // For demo purposes, show all engagements
-  });
+  useEffect(() => {
+    const fetchClientData = async () => {
+      try {
+        setLoading(true);
+        // Fetch client-specific engagements
+        const engagements = await engagementApi.getAll();
+        // Filter engagements for current client (in real app, backend would filter)
+        const clientFilteredEngagements = engagements.filter(eng => eng.clientId === user?.id);
+        setClientEngagements(clientFilteredEngagements);
+        
+        // Fetch all document requests for client engagements
+        const requestsPromises = clientFilteredEngagements.map(eng => 
+          documentRequestApi.getByEngagement(eng._id).catch(() => [])
+        );
+        const requestsArrays = await Promise.all(requestsPromises);
+        const flatRequests = requestsArrays.flat();
+        setAllRequests(flatRequests);
+      } catch (error) {
+        console.error('Failed to fetch client data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch dashboard data",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const allRequests = clientEngagements.flatMap(eng => getEngagementRequests(eng.id));
+    if (user) {
+      fetchClientData();
+    }
+  }, [user, toast]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   const pendingRequests = allRequests.filter(req => req.status === 'pending');
   const completedRequests = allRequests.filter(req => req.status === 'completed');
 
@@ -57,7 +97,7 @@ export const ClientDashboard = () => {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Client Dashboard</h1>
           <p className="text-muted-foreground mt-2">
-            Welcome, {user?.companyName}! Track your audit engagements and document requests.
+            Welcome! Track your audit engagements and document requests.
           </p>
         </div>
         <div className="flex gap-3">
@@ -119,7 +159,7 @@ export const ClientDashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {clientEngagements.slice(0, 3).map((engagement) => (
-                <div key={engagement.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                <div key={engagement._id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div>
                     <p className="font-medium text-foreground">{engagement.title}</p>
                     <p className="text-sm text-muted-foreground">
@@ -164,7 +204,7 @@ export const ClientDashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {pendingRequests.slice(0, 3).map((request) => (
-                <div key={request.id} className="p-4 border border-border rounded-lg">
+                <div key={request._id} className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <Badge variant="secondary">{request.category}</Badge>
                     <span className="text-xs text-muted-foreground">
@@ -196,22 +236,22 @@ export const ClientDashboard = () => {
       {/* Company Information */}
       <Card>
         <CardHeader>
-          <CardTitle>Company Information</CardTitle>
-          <CardDescription>Your registered company details</CardDescription>
+          <CardTitle>User Information</CardTitle>
+          <CardDescription>Your account details</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <div className="text-sm text-muted-foreground">Company Name</div>
-              <div className="font-medium text-foreground">{user?.companyName || 'N/A'}</div>
+              <div className="text-sm text-muted-foreground">User ID</div>
+              <div className="font-medium text-foreground">{user?.id || 'N/A'}</div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground">Registration Number</div>
-              <div className="font-medium text-foreground">{user?.companyNumber || 'N/A'}</div>
+              <div className="text-sm text-muted-foreground">Role</div>
+              <div className="font-medium text-foreground">{user?.role || 'N/A'}</div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground">Industry</div>
-              <div className="font-medium text-foreground">{user?.industry || 'N/A'}</div>
+              <div className="text-sm text-muted-foreground">Email</div>
+              <div className="font-medium text-foreground">{user?.email || 'N/A'}</div>
             </div>
           </div>
         </CardContent>

@@ -1,36 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Upload, 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  Download,
-  Calendar,
-  Loader2 
-} from 'lucide-react';
+import { engagementApi, documentRequestApi } from '@/services/api';
+import { Upload, FileText, Clock, CheckCircle, Download, Calendar, Loader2 } from 'lucide-react';
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
-  const { engagements, getEngagementRequests, updateDocumentRequest } = useData();
   const { toast } = useToast();
+  const [clientEngagements, setClientEngagements] = useState([]);
+  const [allRequests, setAllRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: boolean }>({});
 
-  // Filter engagements and requests for current client
-  const clientEngagements = engagements.filter(eng => {
-    // In a real app, this would be based on the client's ID relationship
-    return user?.companyName; // For demo purposes, show all engagements
-  });
+  useEffect(() => {
+    const fetchClientData = async () => {
+      try {
+        setLoading(true);
+        // Fetch all engagements and filter for current client
+        const allEngagements = await engagementApi.getAll();
+        const clientFilteredEngagements = allEngagements.filter(eng => eng.clientId === user?.id);
+        setClientEngagements(clientFilteredEngagements);
+        
+        // Fetch all document requests for client engagements
+        const requestsPromises = clientFilteredEngagements.map(eng => 
+          documentRequestApi.getByEngagement(eng._id).catch(() => [])
+        );
+        const requestsArrays = await Promise.all(requestsPromises);
+        const flatRequests = requestsArrays.flat();
+        setAllRequests(flatRequests);
+      } catch (error) {
+        console.error('Failed to fetch client data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch document requests",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const allRequests = clientEngagements.flatMap(eng => getEngagementRequests(eng.id));
+    if (user) {
+      fetchClientData();
+    }
+  }, [user, toast]);
+
   const pendingRequests = allRequests.filter(req => req.status === 'pending');
   const completedRequests = allRequests.filter(req => req.status === 'completed');
 
@@ -40,27 +60,40 @@ export const DocumentRequests = () => {
     setUploadingFiles(prev => ({ ...prev, [requestId]: true }));
 
     try {
-      // Simulate file upload
+      // Simulate file upload delay
       await new Promise(resolve => setTimeout(resolve, 2000));
-
+      
       const uploadedDocuments = Array.from(files).map((file, index) => ({
-        id: `${requestId}-doc-${index}`,
         name: file.name,
         url: `#uploaded-${file.name}`,
         uploadedAt: new Date().toISOString()
       }));
 
-      updateDocumentRequest(requestId, {
+      // Update the document request
+      await documentRequestApi.update(requestId, {
         status: 'completed',
         completedAt: new Date().toISOString(),
         documents: uploadedDocuments
       });
+
+      // Update local state
+      setAllRequests(prev => prev.map(req => 
+        req._id === requestId 
+          ? { 
+              ...req, 
+              status: 'completed', 
+              completedAt: new Date().toISOString(), 
+              documents: uploadedDocuments 
+            }
+          : req
+      ));
 
       toast({
         title: "Documents uploaded successfully",
         description: `${files.length} file(s) have been uploaded and sent to your auditor.`,
       });
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Upload failed",
         description: "Failed to upload documents. Please try again.",
@@ -72,9 +105,17 @@ export const DocumentRequests = () => {
   };
 
   const getEngagementTitle = (engagementId: string) => {
-    const engagement = clientEngagements.find(e => e.id === engagementId);
+    const engagement = clientEngagements.find(e => e._id === engagementId);
     return engagement?.title || 'Unknown Engagement';
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -161,13 +202,13 @@ export const DocumentRequests = () => {
           ) : (
             <div className="space-y-4">
               {pendingRequests.map((request) => (
-                <Card key={request.id}>
+                <Card key={request._id}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
                         <CardTitle className="text-lg">{request.description}</CardTitle>
                         <CardDescription className="mt-1">
-                          Engagement: {getEngagementTitle(request.engagementId)}
+                          Engagement: {getEngagementTitle(request.engagement)}
                         </CardDescription>
                       </div>
                       <Badge variant="outline" className="text-warning border-warning">
@@ -190,7 +231,7 @@ export const DocumentRequests = () => {
                     <div className="border-2 border-dashed border-border rounded-lg p-6">
                       <div className="text-center">
                         <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                        <Label htmlFor={`file-${request.id}`} className="cursor-pointer">
+                        <Label htmlFor={`file-${request._id}`} className="cursor-pointer">
                           <span className="text-sm font-medium text-foreground">
                             Click to upload files
                           </span>
@@ -199,16 +240,16 @@ export const DocumentRequests = () => {
                           </span>
                         </Label>
                         <Input
-                          id={`file-${request.id}`}
+                          id={`file-${request._id}`}
                           type="file"
                           multiple
                           className="hidden"
-                          onChange={(e) => handleFileUpload(request.id, e.target.files)}
-                          disabled={uploadingFiles[request.id]}
+                          onChange={(e) => handleFileUpload(request._id, e.target.files)}
+                          disabled={uploadingFiles[request._id]}
                         />
                       </div>
                       
-                      {uploadingFiles[request.id] && (
+                      {uploadingFiles[request._id] && (
                         <div className="mt-4 flex items-center justify-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
                           <span className="text-sm text-muted-foreground">Uploading files...</span>
@@ -238,13 +279,13 @@ export const DocumentRequests = () => {
           ) : (
             <div className="space-y-4">
               {completedRequests.map((request) => (
-                <Card key={request.id}>
+                <Card key={request._id}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div>
                         <CardTitle className="text-lg">{request.description}</CardTitle>
                         <CardDescription className="mt-1">
-                          Engagement: {getEngagementTitle(request.engagementId)}
+                          Engagement: {getEngagementTitle(request.engagement)}
                         </CardDescription>
                       </div>
                       <Badge variant="outline" className="text-success border-success">
@@ -268,8 +309,8 @@ export const DocumentRequests = () => {
                       <div>
                         <h4 className="font-medium mb-2">Uploaded Documents:</h4>
                         <div className="space-y-2">
-                          {request.documents.map((doc) => (
-                            <div key={doc.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                          {request.documents.map((doc, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-sm font-medium">{doc.name}</span>

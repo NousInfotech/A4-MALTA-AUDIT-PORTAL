@@ -1,18 +1,54 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Briefcase, Calendar, FileText, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { engagementApi, documentRequestApi } from '@/services/api';
+import { Briefcase, Calendar, FileText, Clock, Loader2 } from 'lucide-react';
 
 export const ClientEngagements = () => {
   const { user } = useAuth();
-  const { engagements, getEngagementRequests } = useData();
+  const { toast } = useToast();
+  const [clientEngagements, setClientEngagements] = useState([]);
+  const [engagementRequests, setEngagementRequests] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // Filter engagements for current client
-  const clientEngagements = engagements.filter(eng => {
-    // In a real app, this would be based on the client's ID relationship
-    return user?.companyName; // For demo purposes, show all engagements
-  });
+  useEffect(() => {
+    const fetchClientData = async () => {
+      try {
+        setLoading(true);
+        // Fetch all engagements and filter for current client
+        const allEngagements = await engagementApi.getAll();
+        const clientFilteredEngagements = allEngagements.filter(eng => eng.clientId === user?.id);
+        setClientEngagements(clientFilteredEngagements);
+        
+        // Fetch document requests for each engagement
+        const requestsData = {};
+        for (const engagement of clientFilteredEngagements) {
+          try {
+            const requests = await documentRequestApi.getByEngagement(engagement._id);
+            requestsData[engagement._id] = requests;
+          } catch (error) {
+            requestsData[engagement._id] = [];
+          }
+        }
+        setEngagementRequests(requestsData);
+      } catch (error) {
+        console.error('Failed to fetch client data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch engagements",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchClientData();
+    }
+  }, [user, toast]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -27,6 +63,14 @@ export const ClientEngagements = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -39,12 +83,12 @@ export const ClientEngagements = () => {
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {clientEngagements.map((engagement) => {
-          const requests = getEngagementRequests(engagement.id);
+          const requests = engagementRequests[engagement._id] || [];
           const pendingRequests = requests.filter(r => r.status === 'pending').length;
           const completedRequests = requests.filter(r => r.status === 'completed').length;
           
           return (
-            <Card key={engagement.id} className="hover:shadow-md transition-shadow">
+            <Card key={engagement._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
