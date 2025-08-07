@@ -9,13 +9,16 @@ import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { ArrowLeft, Briefcase, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const CreateEngagement = () => {
+  const {user} = useAuth();
   const [formData, setFormData] = useState({
     clientId: '',
     title: '',
     yearEndDate: '',
-    trialBalanceUrl: ''
+    trialBalanceUrl: '',
+    createdBy:user.name
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -70,7 +73,6 @@ const [clients, setClients] = useState<User[]>([])
           throw error
         }
   
-        console.log("Fetched profiles:", data)
   
         // Transform profiles to User format
         const transformedClients: User[] =

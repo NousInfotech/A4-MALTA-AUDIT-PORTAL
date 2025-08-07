@@ -16,106 +16,71 @@ export const DocumentRequests = () => {
   const [clientEngagements, setClientEngagements] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: boolean }>({});
+  const [uploadingFiles, setUploadingFiles] = useState({});
 
   useEffect(() => {
     const fetchClientData = async () => {
       try {
         setLoading(true);
-        // Fetch all engagements and filter for current client
         const allEngagements = await engagementApi.getAll();
-        const clientFilteredEngagements = allEngagements.filter(eng => eng.clientId === user?.id);
-        setClientEngagements(clientFilteredEngagements);
-        
-        // Fetch all document requests for client engagements
-        const requestsPromises = clientFilteredEngagements.map(eng => 
-          documentRequestApi.getByEngagement(eng._id).catch(() => [])
-        );
-        const requestsArrays = await Promise.all(requestsPromises);
-        const flatRequests = requestsArrays.flat();
-        setAllRequests(flatRequests);
-      } catch (error) {
-        console.error('Failed to fetch client data:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch document requests",
-          variant: "destructive"
-        });
+        const clientFiltered = allEngagements.filter(e => e.clientId === user?.id);
+        setClientEngagements(clientFiltered);
+
+        const promises = clientFiltered.map(e =>
+          documentRequestApi.getByEngagement(e._id).catch(() => []));
+        const arrays = await Promise.all(promises);
+        setAllRequests(arrays.flat());
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Error', description: 'Failed to fetch requests', variant: 'destructive' });
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
-      fetchClientData();
-    }
+    if (user) fetchClientData();
   }, [user, toast]);
 
-  const pendingRequests = allRequests.filter(req => req.status === 'pending');
-  const completedRequests = allRequests.filter(req => req.status === 'completed');
+  const pendingRequests = allRequests.filter(r => r.status === 'pending');
+  const completedRequests = allRequests.filter(r => r.status === 'completed');
 
-  const handleFileUpload = async (requestId: string, files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
+  const handleFileUpload = async (requestId, files) => {
+    if (!files?.length) return;
     setUploadingFiles(prev => ({ ...prev, [requestId]: true }));
 
     try {
-      // Simulate file upload delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const uploadedDocuments = Array.from(files).map((file, index) => ({
-        name: file.name,
-        url: `#uploaded-${file.name}`,
-        uploadedAt: new Date().toISOString()
-      }));
+      const formData = new FormData();
+      Array.from(files).forEach(file => formData.append('files', file));
+      formData.append('markCompleted', 'true'); // optional flag
 
-      // Update the document request
-      await documentRequestApi.update(requestId, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-        documents: uploadedDocuments
-      });
+      // Call the real upload endpoint
+      const updatedReq = await documentRequestApi.uploadDocuments(requestId, formData);
 
-      // Update local state
+      // Sync local state with response
       setAllRequests(prev => prev.map(req => 
-        req._id === requestId 
-          ? { 
-              ...req, 
-              status: 'completed', 
-              completedAt: new Date().toISOString(), 
-              documents: uploadedDocuments 
-            }
-          : req
+        req._id === requestId ? updatedReq : req
       ));
 
       toast({
-        title: "Documents uploaded successfully",
-        description: `${files.length} file(s) have been uploaded and sent to your auditor.`,
+        title: 'Documents uploaded successfully',
+        description: `${files.length} file(s) sent to your auditor.`,
       });
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: "Failed to upload documents. Please try again.",
-        variant: "destructive"
-      });
+      toast({ title: 'Upload failed', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setUploadingFiles(prev => ({ ...prev, [requestId]: false }));
     }
   };
 
-  const getEngagementTitle = (engagementId: string) => {
-    const engagement = clientEngagements.find(e => e._id === engagementId);
-    return engagement?.title || 'Unknown Engagement';
-  };
+  const getEngagementTitle = id =>
+    clientEngagements.find(e => e._id === id)?.title || 'Unknown Engagement';
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-8 w-8 animate-spin" />
+    </div>
+  );
 
   return (
     <div className="space-y-6">

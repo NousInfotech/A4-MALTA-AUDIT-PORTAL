@@ -46,28 +46,19 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
 
 // Engagement API
 export const engagementApi = {
-  create: async (data: {
-    clientId: string;
-    title: string;
-    yearEndDate: string;
-    trialBalanceUrl: string;
-  }) => {
+  create: async (data) => {
     return apiCall('/api/engagements', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
-  
+
   getClientEngagements: async () => {
     return apiCall('/api/engagements/getClientEngagements');
   },
 
   getAll: async () => {
     return apiCall('/api/engagements');
-  },
-
-  getById: async (id: string) => {
-    return apiCall(`/api/engagements/${id}`);
   },
 
   update: async (id: string, data: any) => {
@@ -86,6 +77,71 @@ export const engagementApi = {
 
   getTrialBalance: async (id: string) => {
     return apiCall(`/api/engagements/${id}/trial-balance`);
+  },
+
+  // ←–– Add this:
+  addFileToFolder: async (
+    id: string,
+    payload: { category: string; name: string; url: string }
+  ) => {
+    return apiCall(`/api/engagements/${id}/files`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  uploadToLibrary: async (engagementId: string, file: File, category: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+    const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload file');
+    }
+
+    return response.json();
+  },
+
+  // Get library files for engagement
+  getLibraryFiles: async (engagementId: string) => {
+    const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch library files');
+    }
+
+    return response.json();
+  },
+
+  // Get engagement by ID
+  getById: async (id: string) => {
+    const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch engagement');
+    }
+
+    return response.json();
   },
 };
 
@@ -112,7 +168,40 @@ export const documentRequestApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    
   },
+
+  // New: upload documents via Supabase-backed endpoint
+uploadDocuments: async (id, formData) => {
+  // 1. Make sure this function is async
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+
+  // 2. Pass a single options object to fetch, including method, headers, and body
+  const response = await fetch(
+    `${API_URL}/api/document-requests/${id}/documents`,
+    {
+      method: 'POST',
+      // 3. Let the browser set Content-Type (with the correct boundary)
+      headers: {
+        Authorization: `Bearer ${data.session?.access_token}`,
+      },
+      body: formData,
+    }
+  );
+
+  // 4. Handle non-2xx responses
+  if (!response.ok) {
+    const err = await response
+      .json()
+      .catch(() => ({ message: 'Network error' }));
+    throw new Error(err.message || 'API request failed');
+  }
+
+  // 5. Return the parsed JSON
+  return response.json();
+}
+
 };
 
 // Procedures API

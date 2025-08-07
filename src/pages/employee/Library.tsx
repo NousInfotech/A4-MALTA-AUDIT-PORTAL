@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,248 +6,249 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Folder, File, Plus, Upload, Search, MoreVertical, Download, Trash2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LibraryFolder {
-  id: string;
   name: string;
+  path: string; // folder prefix
   createdAt: string;
   documentsCount: number;
 }
 
 interface LibraryDocument {
-  id: string;
   name: string;
-  folderId: string;
-  size: string;
+  path: string;
+  size: number;
   type: string;
   uploadedAt: string;
   uploadedBy: string;
 }
 
-const mockFolders: LibraryFolder[] = [
-  { id: '1', name: 'Audit Templates', createdAt: '2024-01-15', documentsCount: 12 },
-  { id: '2', name: 'Regulatory Guidelines', createdAt: '2024-01-20', documentsCount: 8 },
-  { id: '3', name: 'Client Agreements', createdAt: '2024-02-01', documentsCount: 15 }
-];
-
-const mockDocuments: LibraryDocument[] = [
-  { id: '1', name: 'Financial Audit Checklist.pdf', folderId: '1', size: '2.3 MB', type: 'PDF', uploadedAt: '2024-01-16', uploadedBy: 'John Smith' },
-  { id: '2', name: 'Internal Controls Assessment.docx', folderId: '1', size: '1.8 MB', type: 'Word', uploadedAt: '2024-01-18', uploadedBy: 'Sarah Johnson' },
-  { id: '3', name: 'SOX Compliance Guide.pdf', folderId: '2', size: '4.1 MB', type: 'PDF', uploadedAt: '2024-01-22', uploadedBy: 'Mike Wilson' }
-];
-
 export const Library = () => {
-  const [folders, setFolders] = useState<LibraryFolder[]>(mockFolders);
-  const [documents, setDocuments] = useState<LibraryDocument[]>(mockDocuments);
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [documents, setDocuments] = useState<LibraryDocument[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const bucket = 'engagement-documents';
 
-  const filteredFolders = folders.filter(folder =>
-    folder.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredDocuments = documents.filter(doc =>
-    (!selectedFolder || doc.folderId === selectedFolder) &&
-    doc.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const createFolder = () => {
-    if (!newFolderName.trim()) return;
-    
-    const newFolder: LibraryFolder = {
-      id: Date.now().toString(),
-      name: newFolderName,
-      createdAt: new Date().toISOString().split('T')[0],
-      documentsCount: 0
-    };
-    
-    setFolders(prev => [...prev, newFolder]);
-    setNewFolderName('');
-    setIsCreateFolderOpen(false);
+  // Fetch folders by listing top-level prefixes
+  const fetchFolders = async () => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list('', { limit: 100, offset: 0, search: '' });
+    if (error) {
+      console.error('Error fetching folders:', error);
+      return;
+    }
+    // Filter to directories (prefixes)
+    const prefixes = data.filter(item => item.name.endsWith('/'));
+    const folderList = prefixes.map(pref => ({
+      name: pref.name.replace(/\/$/, ''),
+      path: pref.name,
+      createdAt: new Date(pref.created_at).toISOString().split('T')[0],
+      documentsCount: pref.size || 0
+    }));
+    setFolders(folderList);
   };
 
-  const uploadDocument = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Fetch documents for selected folder
+  const fetchDocuments = async (folderPath: string) => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(folderPath, { limit: 100, offset: 0 });
+    if (error) {
+      console.error('Error fetching documents:', error);
+      return;
+    }
+    const docs: LibraryDocument[] = data
+      .filter(item => !item.name.endsWith('/'))
+      .map(d => ({
+        name: d.name,
+        path: `${folderPath}${d.name}`,
+        size: d.size,
+        type: d.name.split('.').pop() || 'file',
+        uploadedAt: new Date(d.updated_at).toISOString().split('T')[0],
+        uploadedBy: '' // could fetch metadata
+      }));
+    setDocuments(docs);
+  };
+
+  useEffect(() => {
+    fetchFolders();
+  }, []);
+
+  useEffect(() => {
+    if (selectedFolder) {
+      fetchDocuments(selectedFolder);
+    } else {
+      setDocuments([]);
+    }
+  }, [selectedFolder]);
+
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return;
+    const folderPath = `${newFolderName.trim()}/`;
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(`${folderPath}.keep`, '', { upsert: false });
+    if (error) {
+      console.error('Error creating folder:', error);
+    } else {
+      setNewFolderName('');
+      setIsCreateFolderOpen(false);
+      fetchFolders();
+    }
+  };
+
+  const uploadDocument = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || !selectedFolder) return;
-
-    Array.from(files).forEach(file => {
-      const newDoc: LibraryDocument = {
-        id: Date.now().toString() + Math.random(),
-        name: file.name,
-        folderId: selectedFolder,
-        size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        type: file.type.includes('pdf') ? 'PDF' : file.type.includes('word') ? 'Word' : 'File',
-        uploadedAt: new Date().toISOString().split('T')[0],
-        uploadedBy: 'Current User'
-      };
-      
-      setDocuments(prev => [...prev, newDoc]);
-      setFolders(prev => prev.map(folder =>
-        folder.id === selectedFolder
-          ? { ...folder, documentsCount: folder.documentsCount + 1 }
-          : folder
-      ));
-    });
-    
+    for (const file of Array.from(files)) {
+      const filePath = `${selectedFolder}${file.name}`;
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file, { upsert: true });
+      if (error) console.error('Upload error:', error);
+    }
     setIsUploadOpen(false);
+    fetchDocuments(selectedFolder);
+    fetchFolders();
   };
 
-  const deleteFolder = (folderId: string) => {
-    setFolders(prev => prev.filter(f => f.id !== folderId));
-    setDocuments(prev => prev.filter(d => d.folderId !== folderId));
-    if (selectedFolder === folderId) {
+  const deleteDocument = async (docPath: string) => {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([docPath]);
+    if (error) console.error('Delete error:', error);
+    fetchDocuments(selectedFolder!);
+    fetchFolders();
+  };
+
+  const deleteFolder = async (folderPath: string) => {
+    // Remove all items under prefix
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(folderPath, { recursive: true });
+    if (error) {
+      console.error('List error:', error);
+    } else {
+      const paths = data.map(d => `${folderPath}${d.name}`);
+      const { error: delErr } = await supabase.storage
+        .from(bucket)
+        .remove(paths);
+      if (delErr) console.error('Delete folder error:', delErr);
       setSelectedFolder(null);
+      fetchFolders();
     }
   };
 
-  const deleteDocument = (docId: string) => {
-    const doc = documents.find(d => d.id === docId);
-    if (doc) {
-      setDocuments(prev => prev.filter(d => d.id !== docId));
-      setFolders(prev => prev.map(folder =>
-        folder.id === doc.folderId
-          ? { ...folder, documentsCount: Math.max(0, folder.documentsCount - 1) }
-          : folder
-      ));
-    }
-  };
+  const filteredFolders = folders.filter(f =>
+    f.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const filteredDocuments = documents.filter(d =>
+    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Document Library</h1>
-          <p className="text-muted-foreground mt-1">
-            Organize and manage your audit documents and templates
-          </p>
+          <p className="text-muted-foreground mt-1">Organize and manage your documents</p>
         </div>
-        
         <div className="flex gap-3">
           <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                New Folder
-              </Button>
+              <Button variant="outline"><Plus className="h-4 w-4 mr-2"/>New Folder</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Folder</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Create New Folder</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <Input
                   placeholder="Folder name"
                   value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onChange={e => setNewFolderName(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <Button onClick={createFolder} disabled={!newFolderName.trim()}>
-                    Create Folder
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>
-                    Cancel
-                  </Button>
+                  <Button onClick={createFolder} disabled={!newFolderName.trim()}>Create Folder</Button>
+                  <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>Cancel</Button>
                 </div>
               </div>
             </DialogContent>
           </Dialog>
-          
           {selectedFolder && (
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Documents
-                </Button>
+                <Button><Upload className="h-4 w-4 mr-2"/>Upload Documents</Button>
               </DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Upload Documents</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <input
-                    type="file"
-                    multiple
-                    onChange={uploadDocument}
-                    className="w-full p-2 border border-input rounded-md"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Select one or more files to upload to the selected folder
-                  </p>
-                </div>
+                <DialogHeader><DialogTitle>Upload Documents</DialogTitle></DialogHeader>
+                <input
+                  type="file"
+                  multiple
+                  onChange={uploadDocument}
+                  className="w-full p-2 border border-input rounded-md"
+                />
               </DialogContent>
             </Dialog>
           )}
         </div>
       </div>
 
+      {/* Search and Back */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search folders and documents..."
+            placeholder="Search..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={e => setSearchTerm(e.target.value)}
             className="pl-10"
           />
         </div>
-        
         {selectedFolder && (
-          <Button 
-            variant="outline" 
-            onClick={() => setSelectedFolder(null)}
-          >
-            Back to Folders
-          </Button>
+          <Button variant="outline" onClick={() => setSelectedFolder(null)}>Back to Folders</Button>
         )}
       </div>
 
+      {/* Folder/List View */}
       {!selectedFolder ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredFolders.map((folder) => (
-            <Card 
-              key={folder.id} 
-              className="p-4 hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => setSelectedFolder(folder.id)}
+          {filteredFolders.map(folder => (
+            <Card
+              key={folder.path}
+              className="p-4 hover:shadow-md cursor-pointer"
+              onClick={() => setSelectedFolder(folder.path)}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Folder className="h-8 w-8 text-primary" />
                   <div>
                     <h3 className="font-semibold text-foreground">{folder.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {folder.documentsCount} documents
-                    </p>
+                    <p className="text-sm text-muted-foreground">{folder.documentsCount} items</p>
                   </div>
                 </div>
-                
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="sm">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={e => e.stopPropagation()}>
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteFolder(folder.id);
-                      }}
+                    <DropdownMenuItem
+                      onClick={e => { e.stopPropagation(); deleteFolder(folder.path); }}
                       className="text-destructive"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Folder
+                      <Trash2 className="h-4 w-4 mr-2"/>Delete Folder
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              
-              <div className="mt-3 text-xs text-muted-foreground">
-                Created: {folder.createdAt}
-              </div>
+              <div className="mt-3 text-xs text-muted-foreground">Created: {folder.createdAt}</div>
             </Card>
           ))}
         </div>
@@ -255,42 +256,36 @@ export const Library = () => {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Folder className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">
-              {folders.find(f => f.id === selectedFolder)?.name}
-            </h2>
+            <h2 className="text-xl font-semibold">{selectedFolder.replace(/\/$/, '')}</h2>
           </div>
-          
           <div className="grid grid-cols-1 gap-3">
-            {filteredDocuments.map((doc) => (
-              <Card key={doc.id} className="p-4">
+            {filteredDocuments.map(doc => (
+              <Card key={doc.path} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <File className="h-6 w-6 text-muted-foreground" />
                     <div>
                       <h3 className="font-medium text-foreground">{doc.name}</h3>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>{doc.size}</span>
-                        <Badge variant="secondary">{doc.type}</Badge>
-                        <span>Uploaded by {doc.uploadedBy}</span>
+                        <span>{(doc.size/1024/1024).toFixed(1)} MB</span>
+                        <Badge variant="secondary">{doc.type.toUpperCase()}</Badge>
                         <span>{doc.uploadedAt}</span>
                       </div>
                     </div>
                   </div>
-                  
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.open(supabase.storage.from(bucket).getPublicUrl(doc.path).publicUrl, '_blank')}
+                    >
+                      <Download className="h-4 w-4"/>
                     </Button>
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreVertical className="h-4 w-4"/></Button></DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => deleteDocument(doc.id)} className="text-destructive">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Document
+                        <DropdownMenuItem onClick={() => deleteDocument(doc.path)} className="text-destructive">
+                          <Trash2 className="h-4 w-4 mr-2"/>Delete Document
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -298,7 +293,6 @@ export const Library = () => {
                 </div>
               </Card>
             ))}
-            
             {filteredDocuments.length === 0 && (
               <div className="text-center py-12">
                 <File className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -313,4 +307,4 @@ export const Library = () => {
       )}
     </div>
   );
-};
+}

@@ -75,7 +75,6 @@ export const EmployeeDashboard = () => {
         throw error;
       }
 
-      console.log("Fetched profiles:", data);
 
       // Transform profiles to User format
       const transformedClients: User[] =

@@ -64,7 +64,6 @@ const [clients, setClients] = useState<User[]>([])
           throw error
         }
   
-        console.log("Fetched profiles:", data)
   
         // Transform profiles to User format
         const transformedClients: User[] =
