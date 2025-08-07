@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Search, Eye } from 'lucide-react';
+import { Building2, Plus, Search, Eye, Loader2 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from '@/hooks/use-toast';
+import { useEngagements } from '@/hooks/useEngagements';
 
 interface User {
   summary: string;
@@ -23,76 +24,114 @@ interface User {
 export const ClientManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [clients, setClients] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+    const { engagements, loading } = useEngagements();
+  
     const { toast } = useToast()
 
     useEffect(() => {
       fetchClients()
     }, [])
   
-    const fetchClients = async () => {
-      try {
-        setLoading(true)
+  const fetchClients = async () => {
+    try {
+      setIsLoading(true);
 
-        const user = await supabase.auth.getUser();
-  
-        // Simple query - only profiles table, no joins
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(`
-            user_id,
-            name,
-            role,
-            status,
-            created_at,
-            updated_at,
-            company_name,
-            company_number,
-            industry,
-            company_summary
-          `)
-          .order("created_at", { ascending: false })
-  
-        if (error) {
-          console.error("Supabase error:", error)
-          throw error
-        }
-  
-        console.log("Fetched profiles:", data)
-  
-        // Transform profiles to User format
-        const transformedClients: User[] =
-          data?.map((profile) => ({
-            id: profile.user_id,
-            name: profile.name || "Unknown User",
-            email: user.data.user.email,// We'll handle email separately
-            role: profile.role as "admin" | "employee" | "client",
-            status: profile.status as "pending" | "approved" | "rejected",
-            createdAt: profile.created_at,
-            companyName: profile.company_name || undefined,
-            companyNumber: profile.company_number || undefined,
-            industry: profile.industry || undefined,
-            summary: profile.company_summary || undefined,
-          })) || []
-  
-        setClients(transformedClients.filter(client=>client.role==='client'))
-      } catch (error) {
-        console.error("Error fetching clients:", error)
-        toast({
-          title: "Error",
-          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
-          variant: "destructive",
+      // First get all client profiles
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select(`
+          user_id,
+          name,
+          role,
+          status,
+          created_at,
+          updated_at,
+          company_name,
+          company_number,
+          industry,
+          company_summary
+        `)
+        .eq('role', 'client') // Only fetch clients
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch emails for all clients in parallel
+      const clientsWithEmails = await Promise.all(
+        profiles.map(async (profile) => {
+          try {
+            const email = await getClientEmail(profile.user_id);
+            return {
+              id: profile.user_id,
+              name: profile.name || "Unknown User",
+              email: email,
+              role: profile.role as "admin" | "employee" | "client",
+              status: profile.status as "pending" | "approved" | "rejected",
+              createdAt: profile.created_at,
+              companyName: profile.company_name || undefined,
+              companyNumber: profile.company_number || undefined,
+              industry: profile.industry || undefined,
+              summary: profile.company_summary || undefined,
+            };
+          } catch (err) {
+            console.error(`Failed to get email for client ${profile.user_id}:`, err);
+            return {
+              ...profile,
+              email: "email-not-found@example.com", // fallback
+            };
+          }
         })
-      } finally {
-        setLoading(false)
-      }
+      );
+
+      setClients(clientsWithEmails);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
+  };
+  const getClientEmail = async (id: string): Promise<string> => {
+    try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.session?.access_token}`
+        }
+      });
   
-    const filteredClients = clients.filter(
-      (user) =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (user.companyName && user.companyName.toLowerCase().includes(searchTerm.toLowerCase())),
-    )
+      if (!response.ok) {
+        throw new Error('Failed to fetch client email');
+      }
+  
+      const res = await response.json();
+      return res.clientData.email;
+    } catch (error) {
+      console.error('Error fetching client email:', error);
+      throw error;
+    }
+  };
+
+  const filteredClients = clients.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.companyName && user.companyName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())),
+  );
+      if (isLoading)
+        return (
+          <div className="flex items-center justify-center min-h-screen">
+            <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
+          </div>
+        );
 
   return (
     <div className="space-y-6">
@@ -169,13 +208,13 @@ export const ClientManagement = () => {
                 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Active Engagements</span>
-                  <span className="font-medium text-foreground">2</span>
+                  <span className="font-medium text-foreground">{engagements.filter(eng => eng.clientId === client.id && eng.status==='active').length}</span>
                   {/* <span className="font-medium text-foreground">{activeEngagements}</span> */}
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Total Engagements</span>
-                  <span className="font-medium text-foreground">10</span>
+                  <span className="font-medium text-foreground">{engagements.filter(eng => eng.clientId === client.id).length}</span>
                   {/* <span className="font-medium text-foreground">{engagements.length}</span> */}
                 </div>
                 

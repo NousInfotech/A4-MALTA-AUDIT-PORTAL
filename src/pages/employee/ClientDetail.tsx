@@ -34,14 +34,40 @@ export const ClientDetail: React.FC = () => {
   const [client, setClient] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+ useEffect(() => {
     if (id) fetchClient(id);
   }, [id]);
+
+const getClientEmail = async (id: string): Promise<string> => {
+  try {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.session?.access_token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch client email');
+    }
+
+    const res = await response.json();
+    return res.clientData.email;
+  } catch (error) {
+    console.error('Error fetching client email:', error);
+    throw error;
+  }
+};
 
   const fetchClient = async (userId: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch profile data
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(
           `user_id, name, role, status, created_at, updated_at, company_name, company_number, industry, company_summary`
@@ -49,26 +75,36 @@ export const ClientDetail: React.FC = () => {
         .eq('user_id', userId)
         .single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      const authData = await supabase.from('profiles')
+      // Fetch email separately
+      let email = 'Email not available';
+      try {
+        email = await getClientEmail(userId);
+      } catch (emailError) {
+        console.warn('Could not fetch email:', emailError);
+      }
 
       setClient({
-        id: data.user_id,
-        name: data.name,
-        email: 'Email not available',
-        role: data.role,
-        status: data.status,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-        companyName: data.company_name,
-        companyNumber: data.company_number,
-        industry: data.industry,
-        summary: data.company_summary,
+        id: profileData.user_id,
+        name: profileData.name,
+        email: email,
+        role: profileData.role,
+        status: profileData.status,
+        createdAt: profileData.created_at,
+        updatedAt: profileData.updated_at,
+        companyName: profileData.company_name,
+        companyNumber: profileData.company_number,
+        industry: profileData.industry,
+        summary: profileData.company_summary,
       });
     } catch (err: any) {
       console.error('Error fetching client:', err);
-      toast({ title: 'Error', description: `Unable to load client: ${err.message}`, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: `Unable to load client: ${err.message}`, 
+        variant: 'destructive' 
+      });
       navigate('/employee/clients');
     } finally {
       setLoading(false);
@@ -122,9 +158,9 @@ export const ClientDetail: React.FC = () => {
             <div>
               <p className="text-xs uppercase text-gray-400 mb-1">Contact</p>
               <p className="text-lg font-medium text-gray-800">{client.name}</p>
-              {/* {client.email && (
+              {client.email && (
                 <p className="text-sm text-gray-500">{client.email}</p>
-              )} */}
+              )}
             </div>
 
             <div>

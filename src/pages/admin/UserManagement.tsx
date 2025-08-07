@@ -34,69 +34,100 @@ interface User {
 
 export const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState("")
-  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const { toast } = useToast()
+  const [users, setUsers] = useState<User[]>([])
 
   // Fetch users from Supabase profiles table only
   useEffect(() => {
     fetchUsers()
   }, [])
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true)
+const fetchUsers = async () => {
+  try {
+    setLoading(true);
 
-      // Simple query - only profiles table, no joins
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(`
-          user_id,
-          name,
-          role,
-          status,
-          created_at,
-          updated_at,
-          company_name,
-          company_number,
-          industry
-        `)
-        .order("created_at", { ascending: false })
+    // First get all profiles
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select(`
+        user_id,
+        name,
+        role,
+        status,
+        created_at,
+        updated_at,
+        company_name,
+        company_number,
+        industry
+      `)
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Supabase error:", error)
-        throw error
-      }
+    if (error) throw error;
 
-      console.log("Fetched profiles:", data)
-
-      // Transform profiles to User format
-      const transformedUsers: User[] =
-        data?.map((profile) => ({
-          id: profile.user_id,
-          name: profile.name || "Unknown User",
-          email: "Email not available", // We'll handle email separately
-          role: profile.role as "admin" | "employee" | "client",
-          status: profile.status as "pending" | "approved" | "rejected",
-          createdAt: profile.created_at,
-          companyName: profile.company_name || undefined,
-          companyNumber: profile.company_number || undefined,
-          industry: profile.industry || undefined,
-        })) || []
-
-      setUsers(transformedUsers)
-    } catch (error) {
-      console.error("Error fetching users:", error)
-      toast({
-        title: "Error",
-        description: `Failed to fetch users: ${error.message || "Unknown error"}`,
-        variant: "destructive",
+    // Transform profiles to User format with emails
+    const usersWithEmails = await Promise.all(
+      profiles.map(async (profile) => {
+        try {
+          const email = await getClientEmail(profile.user_id);
+          return {
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: email,
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+          };
+        } catch (err) {
+          console.error(`Failed to get email for user ${profile.user_id}:`, err);
+          return {
+            ...profile,
+            email: "email-not-found@example.com", // fallback
+          };
+        }
       })
-    } finally {
-      setLoading(false)
-    }
+    );
+
+    setUsers(usersWithEmails);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    toast({
+      title: "Error",
+      description: `Failed to fetch users: ${error.message || "Unknown error"}`,
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
   }
+};
+
+const getClientEmail = async (id: string): Promise<string> => {
+  try {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.session?.access_token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch client email');
+    }
+
+    const res = await response.json();
+    return res.clientData.email;
+  } catch (error) {
+    console.error('Error fetching client email:', error);
+    throw error;
+  }
+};
 
   const filteredUsers = users.filter(
     (user) =>

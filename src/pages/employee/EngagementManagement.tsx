@@ -211,12 +211,12 @@ const [clients, setClients] = useState<User[]>([])
                   </div>
                 </div>
                 
-                {engagement.trialBalanceUrl && (
+                
                   <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Trial Balance: Uploaded</span>
+                    <span className="text-sm text-muted-foreground">Trial Balance: {engagement.trialBalanceUrl?"Uploaded":"Not Uploaded"}</span>
                   </div>
-                )}
+              
                 
                 <div className="flex items-center gap-2 pt-2">
                   <Button size="sm" className="flex-1" asChild>

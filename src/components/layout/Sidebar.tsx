@@ -96,7 +96,7 @@ export const Sidebar = () => {
         <div className="flex items-center gap-2">
           <Shield className="h-8 w-8 text-sidebar-primary" />
           <div>
-            <h1 className="text-xl font-bold text-sidebar-primary-foreground">AuditPortal</h1>
+            <h1 className="text-xl font-bold text-sidebar-foreground">AuditPortal</h1>
             <p className="text-sm text-sidebar-foreground/60 capitalize">{user.role} Panel</p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export const Sidebar = () => {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-primary-foreground truncate">
+            <p className="text-sm font-medium text-sidebar-foreground truncate">
               {user.name}
             </p>
             <p className="text-xs text-sidebar-foreground/60 truncate">
