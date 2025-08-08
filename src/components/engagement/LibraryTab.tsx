@@ -20,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FolderInputIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight,
