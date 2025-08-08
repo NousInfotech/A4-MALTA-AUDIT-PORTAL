@@ -9,9 +9,18 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Edit2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Mail, Edit2, Loader2, Calendar, FileText, Eye, Building2, Briefcase, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+ const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-success/10 text-success border-success';
+      case 'completed': return 'bg-muted text-muted-foreground border-muted-foreground';
+      case 'draft': return 'bg-warning/10 text-warning border-warning';
+      default: return 'bg-secondary text-secondary-foreground border-secondary-foreground';
+    }
+  };
+import { useEngagements } from '@/hooks/useEngagements';
 
 interface User {
   id: string;
@@ -32,7 +41,9 @@ export const ClientDetail: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [client, setClient] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const { engagements, loading } = useEngagements();
+  
 
  useEffect(() => {
     if (id) fetchClient(id);
@@ -61,10 +72,11 @@ const getClientEmail = async (id: string): Promise<string> => {
     throw error;
   }
 };
+const filtered = engagements.filter(e=>e.clientId===id);
 
   const fetchClient = async (userId: string) => {
     try {
-      setLoading(true);
+      setIsLoading(true);
       
       // Fetch profile data
       const { data: profileData, error: profileError } = await supabase
@@ -107,11 +119,11 @@ const getClientEmail = async (id: string): Promise<string> => {
       });
       navigate('/employee/clients');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  if (loading)
+  if (isLoading)
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
@@ -144,7 +156,7 @@ const getClientEmail = async (id: string): Promise<string> => {
               <Edit2 className="h-4 w-4 mr-1" /> Edit
             </Button>
           </Link>
-          <Button variant="ghost" size="sm" className="flex items-center">
+          <Button variant="outline" size="sm" className="flex items-center">
             <Mail className="h-4 w-4 mr-1" /> Message
           </Button>
         </div> */}
@@ -217,6 +229,71 @@ const getClientEmail = async (id: string): Promise<string> => {
           </div>
         </CardContent>
       </Card>
+      {/* Engagements Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {filtered.map(engagement => {
+          return (
+            <Card key={engagement._id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                      <Briefcase className="h-6 w-6 text-accent" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate">{engagement.title}</CardTitle>
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />{client?.companyName || 'Unknown Client'}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={getStatusStyle(engagement.status)}>
+                    {engagement.status}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}</span>
+                </div>
+                <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button variant='outline' size="sm" className="flex-1 border-sidebar-foreground" asChild>
+                    <Link to={`/employee/engagements/${engagement._id}`}>
+                      <Eye className="h-4 w-4 mr-2" />View Details
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              No engagements yet for {client.companyName}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Start by creating your first audit engagement for {client.companyName}
+            </p>
+              <Button asChild>
+                <Link to="/employee/engagements/new">
+                  <Plus className="h-4 w-4 mr-2" />Create {client.companyName}'s First Engagement
+                </Link>
+              </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

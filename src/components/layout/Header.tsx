@@ -27,7 +27,7 @@ export const Header = () => {
           </div>
           
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={logout}
             className="text-destructive hover:text-destructive-foreground hover:bg-destructive"

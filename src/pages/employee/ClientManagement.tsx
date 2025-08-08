@@ -142,7 +142,7 @@ export const ClientManagement = () => {
             Manage your client companies and their information
           </p>
         </div>
-        <Button asChild>
+        <Button className="border-sidebar-foreground" variant='outline' asChild>
           <Link to="/employee/clients/new">
             <Plus className="h-4 w-4 mr-2" />
             Add New Client
@@ -226,13 +226,13 @@ export const ClientManagement = () => {
                 </div>
                 
                 <div className="flex items-center gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1" asChild>
+                  <Button className="border-sidebar-foreground flex-1" size="sm" variant="outline" asChild>
                     <Link to={`/employee/clients/${client.id}`}>
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
                     </Link>
                   </Button>
-                  {/* <Button size="sm" variant="ghost">
+                  {/* <Button size="sm" variant="outline">
                     <Mail className="h-4 w-4" />
                   </Button> */}
                 </div>

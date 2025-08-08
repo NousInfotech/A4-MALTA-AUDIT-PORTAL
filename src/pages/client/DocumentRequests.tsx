@@ -280,7 +280,7 @@ export const DocumentRequests = () => {
                                 <FileText className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-sm font-medium">{doc.name}</span>
                               </div>
-                              <Button size="sm" variant="ghost">
+                              <Button size="sm" variant="outline">
                                 <Download className="h-4 w-4" />
                               </Button>
                             </div>

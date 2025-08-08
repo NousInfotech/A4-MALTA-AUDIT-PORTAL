@@ -407,7 +407,7 @@ const getClientEmail = async (id: string): Promise<string> => {
                           </>
                         )}
 
-                        {/* <Button size="sm" variant="ghost">
+                        {/* <Button size="sm" variant="outline">
                           <Mail className="h-4 w-4" />
                         </Button> */}
                       </div>

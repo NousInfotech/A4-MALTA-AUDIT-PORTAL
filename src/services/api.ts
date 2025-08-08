@@ -79,7 +79,6 @@ export const engagementApi = {
     return apiCall(`/api/engagements/${id}/trial-balance`);
   },
 
-  // ←–– Add this:
   addFileToFolder: async (
     id: string,
     payload: { category: string; name: string; url: string }
@@ -89,12 +88,13 @@ export const engagementApi = {
       body: JSON.stringify(payload),
     });
   },
+
   uploadToLibrary: async (engagementId: string, file: File, category: string) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
     const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
+    if (error) throw error
     const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
       method: 'POST',
       headers: {
@@ -110,10 +110,62 @@ export const engagementApi = {
     return response.json();
   },
 
-  // Get library files for engagement
+  deleteFromLibrary: async (engagementId: string, url: string) => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${data.session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to delete file');
+    }
+
+    return await response.json();
+  },
+
+  changeFolder: async (engagementId: string, category: string, url: string) => {
+    const { data: sessionData, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library/change`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${sessionData.session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url, category }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to change folder');
+      }
+
+      return await response.json();
+    } catch (err) {
+      console.error('Error changing folder:', err);
+      throw err;
+    }
+  },
+
   getLibraryFiles: async (engagementId: string) => {
     const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
+    if (error) throw error
     const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
       headers: {
         'Authorization': `Bearer ${data.session?.access_token}`,
@@ -127,10 +179,9 @@ export const engagementApi = {
     return response.json();
   },
 
-  // Get engagement by ID
   getById: async (id: string) => {
     const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
+    if (error) throw error
     const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${id}`, {
       headers: {
         'Authorization': `Bearer ${data.session?.access_token}`,
@@ -168,40 +219,32 @@ export const documentRequestApi = {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
-    
   },
 
-  // New: upload documents via Supabase-backed endpoint
-uploadDocuments: async (id, formData) => {
-  // 1. Make sure this function is async
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
+  uploadDocuments: async (id, formData) => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
 
-  // 2. Pass a single options object to fetch, including method, headers, and body
-  const response = await fetch(
-    `${API_URL}/api/document-requests/${id}/documents`,
-    {
-      method: 'POST',
-      // 3. Let the browser set Content-Type (with the correct boundary)
-      headers: {
-        Authorization: `Bearer ${data.session?.access_token}`,
-      },
-      body: formData,
+    const response = await fetch(
+      `${API_URL}/api/document-requests/${id}/documents`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.session?.access_token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response
+        .json()
+        .catch(() => ({ message: 'Network error' }));
+      throw new Error(err.message || 'API request failed');
     }
-  );
 
-  // 4. Handle non-2xx responses
-  if (!response.ok) {
-    const err = await response
-      .json()
-      .catch(() => ({ message: 'Network error' }));
-    throw new Error(err.message || 'API request failed');
+    return response.json();
   }
-
-  // 5. Return the parsed JSON
-  return response.json();
-}
-
 };
 
 // Procedures API
@@ -229,13 +272,18 @@ export const procedureApi = {
   },
 };
 
-// Checklist API
+// Simplified Checklist API (no create/delete)
 export const checklistApi = {
   getByEngagement: async (engagementId: string) => {
     return apiCall(`/api/checklist/engagement/${engagementId}`);
   },
 
-  updateItem: async (id: string, data: { completed: boolean }) => {
+  updateItem: async (id: string, data: { 
+    completed?: boolean; 
+    textValue?: string; 
+    dateValue?: string; 
+    selectValue?: string; 
+  }) => {
     return apiCall(`/api/checklist/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

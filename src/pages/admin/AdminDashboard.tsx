@@ -418,7 +418,7 @@ const getClientEmail = async (id: string): Promise<string> => {
                 </CardDescription>
               </div>
               <Link to={"/admin/users"}>
-                <Button variant="ghost" size="sm">
+                <Button variant="outline" size="sm">
                   View All
                 </Button>
               </Link>

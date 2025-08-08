@@ -181,7 +181,7 @@ export const EmployeeDashboard = () => {
               Add Client
             </Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="border-sidebar-foreground">
             <Link to="/employee/engagements/new">
               <Plus className="h-4 w-4 mr-2" />
               New Engagement
@@ -225,7 +225,7 @@ export const EmployeeDashboard = () => {
                 <CardTitle>Recent Engagements</CardTitle>
                 <CardDescription>Your latest audit projects</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild>
                 <Link to="/employee/engagements">View All</Link>
               </Button>
             </div>
@@ -287,7 +287,7 @@ export const EmployeeDashboard = () => {
                 <CardTitle>Recent Clients</CardTitle>
                 <CardDescription>Your latest client additions</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild>
                 <Link to="/employee/clients">View All</Link>
               </Button>
             </div>
@@ -312,7 +312,7 @@ export const EmployeeDashboard = () => {
                       </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" asChild>
+                  <Button variant="outline" size="sm" asChild>
                     <Link to={`/employee/clients/${client.id}`}>View</Link>
                   </Button>
                 </div>

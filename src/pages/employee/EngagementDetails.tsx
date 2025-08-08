@@ -1,4 +1,3 @@
-import { useChecklist } from "@/hooks/useChecklist";
 import { useTrialBalance } from "@/hooks/useTrialBalance";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
 import { useProcedures } from "@/hooks/useProcedures";
@@ -21,8 +20,6 @@ import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 
-  
-
 export const EngagementDetails = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error }) => {
@@ -31,6 +28,7 @@ export const EngagementDetails = () => {
       if (token) initializeSocket(token);
     });
   }, []);
+
   const { id } = useParams<{ id: string }>();
   const [engagement, setEngagement] = useState<any>(null);
   const [trialBalanceUrl, setTrialBalanceUrl] = useState("");
@@ -42,7 +40,6 @@ export const EngagementDetails = () => {
   const [isGeneratingProcedures, setIsGeneratingProcedures] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const { checklist, toggle } = useChecklist(id);
   const {
     loading: tbLoading,
     fetchTrialBalance,
@@ -208,7 +205,7 @@ export const EngagementDetails = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
+        <Button variant="outline" size="icon" asChild>
           <Link to="/employee/engagements">
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -306,10 +303,7 @@ export const EngagementDetails = () => {
         </TabsContent>
 
         <TabsContent value="checklist" className="space-y-6">
-          <ChecklistTab
-            checklist={checklist}
-            toggle={toggle}
-          />
+          <ChecklistTab engagementId={id!} />
         </TabsContent>
       </Tabs>
     </div>

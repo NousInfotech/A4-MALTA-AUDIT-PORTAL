@@ -151,7 +151,7 @@ export const ClientDashboard = () => {
                 <CardTitle>Your Engagements</CardTitle>
                 <CardDescription>Current audit projects</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild>
                 <Link to="/client/engagements">View All</Link>
               </Button>
             </div>
@@ -196,7 +196,7 @@ export const ClientDashboard = () => {
                 <CardTitle>Pending Requests</CardTitle>
                 <CardDescription>Documents needed from you</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild>
                 <Link to="/client/requests">View All</Link>
               </Button>
             </div>

@@ -1,7 +1,26 @@
+// Add these imports at the top
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FolderInputIcon, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { FolderInputIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight,
@@ -56,13 +75,53 @@ interface LibraryFile {
   fileName: string;
   createdAt: string;
 }
+interface DeleteConfirmationDialogProps {
+  deleteDialogOpen: boolean;
+  setDeleteDialogOpen: (open: boolean) => void;
+  fileToDelete: LibraryFile | null;
+  handleDelete: () => Promise<void>;
+  deletingId: string | null;
+}
+
+const DeleteConfirmationDialog = ({
+  deleteDialogOpen,
+  setDeleteDialogOpen,
+  fileToDelete,
+  handleDelete,
+  deletingId,
+}: DeleteConfirmationDialogProps) => (
+  <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+        <AlertDialogDescription>
+          Are you sure you want to permanently delete "
+          {decodeURIComponent(fileToDelete?.fileName)}"?
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          onClick={handleDelete}
+          disabled={deletingId !== null}
+          className="bg-red-600 hover:bg-red-700"
+        >
+          {deletingId ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Trash2 className="h-4 w-4 mr-2" />
+          )}
+          Delete
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+);
 
 export const LibraryTab = ({
   engagement,
   requests,
   procedures,
-  handleGenerateProcedures,
-  isGeneratingProcedures,
 }: LibraryTabProps) => {
   const [selectedFolder, setSelectedFolder] = useState(categories[0]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
@@ -74,6 +133,36 @@ export const LibraryTab = ({
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { toast } = useToast();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<LibraryFile | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // In your LibraryTab component
+  const handleDelete = async () => {
+    if (!fileToDelete) return;
+    setLoading(true)
+    try {
+      setDeletingId(fileToDelete._id);
+      await engagementApi.deleteFromLibrary(engagement._id, fileToDelete.url);
+      await fetchLibraryFiles(); // Refresh the file list
+      toast({
+        title: "Success",
+        description: "File deleted successfully",
+      });
+    } catch (error: any) {
+      console.error("Delete error", error);
+      toast({
+        title: "Delete failed",
+        description: error.message || "Failed to delete file",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+      setFileToDelete(null);
+      setDeleteDialogOpen(false);
+    setLoading(false)
+    }
+  };
 
   const handleDownload = async (file: LibraryFile) => {
     try {
@@ -132,14 +221,14 @@ export const LibraryTab = ({
   };
 
   const fetchLibraryFiles = async () => {
-      setLoading(true)
+    setLoading(true);
     try {
       const files = await engagementApi.getLibraryFiles(engagement._id);
       setLibraryFiles(files);
-      setLoading(false)
+      setLoading(false);
     } catch (error) {
       console.error("Failed to fetch library files:", error);
-      setLoading(false)
+      setLoading(false);
       toast({
         title: "Error",
         description: "Failed to fetch library files",
@@ -178,6 +267,29 @@ export const LibraryTab = ({
     }
   };
 
+  // Somewhere in your component…
+  const changeFolder = async (category: string, url: string) => {
+    setLoading(true);
+    try {
+      // send { category, url } in the JSON body
+      await engagementApi.changeFolder(engagement._id, category, url);
+      await fetchLibraryFiles();
+      toast({
+        title: "Success",
+        description: `Moved to ${category} successfully`,
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: "Operation failed",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter files by selected folder and search term
   const filteredFiles = libraryFiles.filter((file) => {
     const matchesFolder = file.category === selectedFolder;
@@ -192,12 +304,12 @@ export const LibraryTab = ({
     acc[file.category] = (acc[file.category] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-    if (loading)
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-        </div>
-      );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
+      </div>
+    );
 
   return (
     <div className="h-[800px] flex flex-col bg-gray-50 rounded-lg border">
@@ -216,18 +328,18 @@ export const LibraryTab = ({
           <div className="flex items-center space-x-2">
             <div className="flex items-center border rounded-md">
               <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
+                className="rounded-r-none border-sidebar-foreground"
+                variant={viewMode === "list" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("list")}
-                className="rounded-r-none"
               >
                 <List className="h-4 w-4" />
               </Button>
               <Button
-                variant={viewMode === "grid" ? "default" : "ghost"}
+                className="rounded-l-none border-sidebar-foreground"
+                variant={viewMode === "grid" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className="rounded-l-none"
               >
                 <Grid3X3 className="h-4 w-4" />
               </Button>
@@ -267,7 +379,6 @@ export const LibraryTab = ({
               <Badge variant="secondary">{procedures.length} Procedures</Badge>
             </div>
           </div>
-
 
           {/* Folder tree */}
           <div className="flex-1 overflow-y-auto p-2">
@@ -336,9 +447,10 @@ export const LibraryTab = ({
               <div className="space-y-1">
                 {/* Header */}
                 <div className="grid grid-cols-12 gap-4 p-2 text-xs font-medium text-gray-500 border-b">
-                  <div className="col-span-8">Name</div>
+                  <div className="col-span-6">Name</div>
                   <div className="col-span-2">Type</div>
                   <div className="col-span-2">Modified</div>
+                  <div className="col-span-2">Actions</div>
                 </div>
                 {/* Files */}
                 {filteredFiles.length > 0 ? (
@@ -347,9 +459,11 @@ export const LibraryTab = ({
                       key={file._id}
                       className="grid grid-cols-12 gap-4 p-2 hover:bg-gray-50 rounded cursor-pointer group"
                     >
-                      <div className="col-span-8 flex items-center space-x-2">
+                      <div className="col-span-6 flex items-center space-x-2">
                         {getFileIcon(file.fileName || "")}
-                        <span className="text-sm">{file.fileName}</span>
+                        <span className="text-sm">
+                          {decodeURIComponent(file.fileName)}
+                        </span>
                       </div>
                       <div className="col-span-2 items-center flex text-sm text-gray-500">
                         {file.fileName?.split(".").pop()?.toUpperCase()} File
@@ -358,19 +472,64 @@ export const LibraryTab = ({
                         <span className="text-sm text-gray-500">
                           {new Date(file.createdAt).toLocaleDateString()}
                         </span>
+                        </div>
+                        <div className="col-span-2 flex items-center">
+                          <Button
+                            onClick={() => handleDownload(file)}
+                            disabled={downloadingId === file._id}
+                            className="p-2 rounded bg-inherit hover:bg-gray-200"
+                          >
+                            {downloadingId === file._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
+                            ) : (
+                              <Download className="h-4 w-4 text-gray-600" />
+                            )}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                                <FolderInputIcon className="h-4 w-4 text-gray-600" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              className="max-h-44 overflow-y-auto"
+                            >
+                              {categories.map((category) => (
+                                <DropdownMenuItem
+                                  key={category}
+                                  className="bg-inherit hover:bg-sidebar-foreground"
+                                  onClick={() =>
+                                    changeFolder(category, file.url)
+                                  }
+                                  disabled={file.category === category}
+                                >
+                                  Move to {category}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <Button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setFileToDelete(file);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="
+                                p-2 
+                                rounded 
+                                bg-inherit 
+                                hover:bg-gray-200 
+                                text-gray-600       /* default icon color */
+                                hover:text-red-600  /* icon turns red when BUTTON is hovered */
+                              "
+                          >
+                            {/* no explicit color on the icon! it will pick up the button’s text color */}
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          
+                        </div>
                         {/* Direct download link only */}
-                        <Button
-                          onClick={() => handleDownload(file)}
-                          disabled={downloadingId === file._id}
-                          className="p-2 rounded bg-inherit hover:bg-gray-200"
-                        >
-                          {downloadingId === file._id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
-                          ) : (
-                            <Download className="h-4 w-4 text-gray-600" />
-                          )}
-                        </Button>
-                      </div>
                     </div>
                   ))
                 ) : (
@@ -399,19 +558,60 @@ export const LibraryTab = ({
                       className="text-sm font-medium truncate"
                       title={file.fileName}
                     >
-                      {file.fileName}
+                      {decodeURIComponent(file.fileName)}
                     </div>
                     <Button
-                          onClick={() => handleDownload(file)}
-                          disabled={downloadingId === file._id}
-                          className="p-2 rounded bg-inherit hover:bg-gray-200"
-                        >
-                          {downloadingId === file._id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
-                          ) : (
-                            <Download className="h-4 w-4 text-gray-600" />
-                          )}
+                      onClick={() => handleDownload(file)}
+                      disabled={downloadingId === file._id}
+                      className="p-2 rounded bg-inherit hover:bg-gray-200"
+                    >
+                      {downloadingId === file._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
+                      ) : (
+                        <Download className="h-4 w-4 text-gray-600" />
+                      )}
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setFileToDelete(file);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="
+    p-2 
+    rounded 
+    bg-inherit 
+    hover:bg-gray-200 
+    text-gray-600       /* default icon color */
+    hover:text-red-600  /* icon turns red when BUTTON is hovered */
+  "
+                    >
+                      {/* no explicit color on the icon! it will pick up the button’s text color */}
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                          <FolderInputIcon className="h-4 w-4 text-gray-600" />
                         </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="max-h-44 overflow-y-auto"
+                      >
+                        {categories.map((category) => (
+                          <DropdownMenuItem
+                            key={category}
+                            className="bg-inherit hover:bg-sidebar-foreground"
+                            onClick={() => changeFolder(category, file.url)}
+                            disabled={file.category === category}
+                          >
+                            Move to {category}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 ))}
               </div>
@@ -431,6 +631,13 @@ export const LibraryTab = ({
           </div>
         </div>
       </div>
+      <DeleteConfirmationDialog
+        deleteDialogOpen={deleteDialogOpen}
+        setDeleteDialogOpen={setDeleteDialogOpen}
+        fileToDelete={fileToDelete}
+        handleDelete={handleDelete}
+        deletingId={deletingId}
+      />
     </div>
   );
 };
