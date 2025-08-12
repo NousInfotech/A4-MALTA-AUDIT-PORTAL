@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "../../integrations/supabase/client"
 
 interface TrialBalanceTabProps {
-  engagement: any
+  engagement: any,
+  setEngagement: any
 }
 
 // 🔹 Auth fetch helper
@@ -39,8 +40,8 @@ const formatClassificationForDisplay = (c: string) => {
   return top
 }
 
-export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement }) => {
-  const [activeTab, setActiveTab] = useState("etb") // ETB is first/active
+export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement,setEngagement }) => {
+  const [activeTab, setActiveTab] = useState("upload") // ETB is first/active
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null)
   const [classifications, setClassifications] = useState<string[]>([])
   const [selectedClassification, setSelectedClassification] = useState<string>("")
@@ -94,6 +95,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement }) 
   const handleUploadSuccess = (data: any) => {
     setTrialBalanceData(data)
     setActiveTab("etb")
+    setEngagement((prev) => ({
+        ...prev,
+        status: "active",
+      }));
     toast({
       title: "Success",
       description: "Trial Balance uploaded successfully. You can now proceed to the Extended Trial Balance.",

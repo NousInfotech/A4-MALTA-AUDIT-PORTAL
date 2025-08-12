@@ -11,7 +11,7 @@ import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye, Loader2 } 
 
 export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'draft'|'active'|'completed'>('active');
+  const [statusFilter, setStatusFilter] = useState<'All'|'draft'|'active'|'completed'>('active');
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
 
@@ -72,17 +72,20 @@ export const EngagementManagement = () => {
       setIsLoadingClients(false);
     }
   };
-
+let filtered = null;
   // Filter and sort engagements
-  const filtered = engagements
-    .filter(e => e.status === statusFilter)
-    .filter(e => {
+  if(statusFilter==='All'){
+    filtered = engagements
+  }
+  else{
+    filtered = engagements.filter(e => e.status === statusFilter).filter(e => {
       const client = clients.find(c => c.id === e.clientId);
       return (
         e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     });
+  }
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -147,7 +150,7 @@ export const EngagementManagement = () => {
         </CardHeader>
         <CardContent>
           <div className="flex space-x-4">
-            {['draft', 'active', 'completed'].map(status => (
+            {['All','draft', 'active', 'completed'].map(status => (
               <Button
               className="border-sidebar-foreground"
                 key={status}

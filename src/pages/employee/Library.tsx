@@ -66,6 +66,12 @@ export default function GlobalLibraryPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { toast } = useToast()
 
+  useEffect(()=>{
+   if(selectedFolder && selectedFolder?.name)
+     setRenameFolderName(selectedFolder?.name);
+    console.log(selectedFolder)
+  },[selectedFolder])
+
   const filteredFiles = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return files.filter((f) => !term || f.name.toLowerCase().includes(term))

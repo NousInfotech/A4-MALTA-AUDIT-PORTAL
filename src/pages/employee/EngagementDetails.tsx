@@ -280,6 +280,7 @@ export const EngagementDetails = () => {
             trialBalanceUrl={trialBalanceUrl}
             setTrialBalanceUrl={setTrialBalanceUrl}
             trialBalanceData={trialBalanceData}
+            setEngagement={setEngagement}
             handleUploadTrialBalance={handleUploadTrialBalance}
             tbLoading={tbLoading}
           />
