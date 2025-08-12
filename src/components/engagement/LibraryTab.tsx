@@ -1,3 +1,7 @@
+"use client"
+
+import type React from "react"
+
 // Add these imports at the top
 import {
   AlertDialog,
@@ -8,19 +12,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { FolderInputIcon, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/alert-dialog"
+import { FolderInputIcon, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
 import {
   ChevronRight,
   ChevronDown,
@@ -36,14 +35,14 @@ import {
   Home,
   Upload,
   Download,
-  Bot,
   Loader2,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { engagementApi } from "@/services/api";
-import { supabase } from "@/integrations/supabase/client";
+} from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { engagementApi } from "@/services/api"
+import { supabase } from "@/integrations/supabase/client"
 
 const categories = [
+  "Trial Balance",
   "Planning",
   "Capital & Reserves",
   "Property, plant and equipment",
@@ -51,35 +50,36 @@ const categories = [
   "Investment Property",
   "Investment in Subsidiaries & Associates investments",
   "Receivables",
-  "Payables Inventory",
+  "Payables",
+  "Inventory",
   "Bank & Cash",
   "Borrowings & loans",
   "Taxation",
   "Going Concern",
   "Others",
-];
+]
 
 interface LibraryTabProps {
-  engagement: any;
-  requests: any[];
-  procedures: any[];
-  handleGenerateProcedures: () => void;
-  isGeneratingProcedures: boolean;
+  engagement: any
+  requests: any[]
+  procedures: any[]
+  handleGenerateProcedures: () => void
+  isGeneratingProcedures: boolean
 }
 
 interface LibraryFile {
-  _id: string;
-  category: string;
-  url: string;
-  fileName: string;
-  createdAt: string;
+  _id: string
+  category: string
+  url: string
+  fileName: string
+  createdAt: string
 }
 interface DeleteConfirmationDialogProps {
-  deleteDialogOpen: boolean;
-  setDeleteDialogOpen: (open: boolean) => void;
-  fileToDelete: LibraryFile | null;
-  handleDelete: () => Promise<void>;
-  deletingId: string | null;
+  deleteDialogOpen: boolean
+  setDeleteDialogOpen: (open: boolean) => void
+  fileToDelete: LibraryFile | null
+  handleDelete: () => Promise<void>
+  deletingId: string | null
 }
 
 const DeleteConfirmationDialog = ({
@@ -94,8 +94,7 @@ const DeleteConfirmationDialog = ({
       <AlertDialogHeader>
         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
         <AlertDialogDescription>
-          Are you sure you want to permanently delete "
-          {decodeURIComponent(fileToDelete?.fileName)}"?
+          Are you sure you want to permanently delete "{decodeURIComponent(fileToDelete?.fileName)}"?
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
@@ -105,210 +104,201 @@ const DeleteConfirmationDialog = ({
           disabled={deletingId !== null}
           className="bg-red-600 hover:bg-red-700"
         >
-          {deletingId ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Trash2 className="h-4 w-4 mr-2" />
-          )}
+          {deletingId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
           Delete
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
-);
+)
 
-export const LibraryTab = ({
-  engagement,
-  requests,
-  procedures,
-}: LibraryTabProps) => {
-  const [selectedFolder, setSelectedFolder] = useState(categories[0]);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-  const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
+export const LibraryTab = ({ engagement, requests, procedures }: LibraryTabProps) => {
+  const [selectedFolder, setSelectedFolder] = useState(categories[0])
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list")
+  const [uploading, setUploading] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([])
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("")
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  const { toast } = useToast();
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [fileToDelete, setFileToDelete] = useState<LibraryFile | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { toast } = useToast()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [fileToDelete, setFileToDelete] = useState<LibraryFile | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // In your LibraryTab component
   const handleDelete = async () => {
-    if (!fileToDelete) return;
+    if (!fileToDelete) return
     setLoading(true)
     try {
-      setDeletingId(fileToDelete._id);
-      await engagementApi.deleteFromLibrary(engagement._id, fileToDelete.url);
-      await fetchLibraryFiles(); // Refresh the file list
+      setDeletingId(fileToDelete._id)
+      await engagementApi.deleteFromLibrary(engagement._id, fileToDelete.url)
+      await fetchLibraryFiles() // Refresh the file list
       toast({
         title: "Success",
         description: "File deleted successfully",
-      });
+      })
     } catch (error: any) {
-      console.error("Delete error", error);
+      console.error("Delete error", error)
       toast({
         title: "Delete failed",
         description: error.message || "Failed to delete file",
         variant: "destructive",
-      });
+      })
     } finally {
-      setDeletingId(null);
-      setFileToDelete(null);
-      setDeleteDialogOpen(false);
-    setLoading(false)
+      setDeletingId(null)
+      setFileToDelete(null)
+      setDeleteDialogOpen(false)
+      setLoading(false)
     }
-  };
+  }
 
   const handleDownload = async (file: LibraryFile) => {
     try {
-      setDownloadingId(file._id);
+      setDownloadingId(file._id)
       // build the storage path
-      const path = `${engagement._id}/${file.category}/${file.fileName}`;
+      const path = `${engagement._id}/${file.category}/${file.fileName}`
 
       // fetch the file as a blob
-      const { data, error } = await supabase.storage
-        .from("engagement-documents")
-        .download(path);
+      const { data, error } = await supabase.storage.from("engagement-documents").download(path)
 
-      if (error || !data) throw error || new Error("No data");
+      if (error || !data) throw error || new Error("No data")
 
       // create a blob URL and click it
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(data)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = file.fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (err: any) {
-      console.error("Download error", err);
+      console.error("Download error", err)
       toast({
         title: "Download failed",
         description: err.message,
         variant: "destructive",
-      });
+      })
     } finally {
-      setDownloadingId(null);
+      setDownloadingId(null)
     }
-  };
+  }
 
   const getFileIcon = (fileName: string) => {
-    const ext = fileName.split(".").pop()?.toLowerCase();
+    const ext = fileName.split(".").pop()?.toLowerCase()
     switch (ext) {
       case "pdf":
-        return <FileText className="h-4 w-4 text-red-500" />;
+        return <FileText className="h-4 w-4 text-red-500" />
       case "xlsx":
       case "xls":
-        return <FileText className="h-4 w-4 text-green-600" />;
+        return <FileText className="h-4 w-4 text-green-600" />
       case "docx":
       case "doc":
-        return <FileText className="h-4 w-4 text-blue-600" />;
+        return <FileText className="h-4 w-4 text-blue-600" />
       case "jpg":
       case "png":
       case "gif":
-        return <Image className="h-4 w-4 text-purple-500" />;
+        return <Image className="h-4 w-4 text-purple-500" />
       case "zip":
-        return <File className="h-4 w-4 text-yellow-600" />;
+        return <File className="h-4 w-4 text-yellow-600" />
       default:
-        return <File className="h-4 w-4 text-gray-500" />;
+        return <File className="h-4 w-4 text-gray-500" />
     }
-  };
+  }
 
   const fetchLibraryFiles = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const files = await engagementApi.getLibraryFiles(engagement._id);
-      setLibraryFiles(files);
-      setLoading(false);
+      const files = await engagementApi.getLibraryFiles(engagement._id)
+      setLibraryFiles(files)
+      setLoading(false)
     } catch (error) {
-      console.error("Failed to fetch library files:", error);
-      setLoading(false);
+      console.error("Failed to fetch library files:", error)
+      setLoading(false)
       toast({
         title: "Error",
         description: "Failed to fetch library files",
         variant: "destructive",
-      });
+      })
     }
-  };
+  }
 
   useEffect(() => {
     if (engagement?._id) {
-      fetchLibraryFiles();
+      fetchLibraryFiles()
     }
-  }, [engagement?._id]);
+  }, [engagement?._id])
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    setUploading(true);
+    setUploading(true)
     try {
-      await engagementApi.uploadToLibrary(engagement._id, file, selectedFolder);
-      await fetchLibraryFiles();
+      await engagementApi.uploadToLibrary(engagement._id, file, selectedFolder)
+      await fetchLibraryFiles()
       toast({
         title: "Success",
         description: "File uploaded successfully",
-      });
+      })
     } catch (error: any) {
-      console.error(error);
+      console.error(error)
       toast({
         title: "Upload failed",
         description: error.message || "Something went wrong",
         variant: "destructive",
-      });
+      })
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  };
+  }
 
   // Somewhere in your component…
   const changeFolder = async (category: string, url: string) => {
-    setLoading(true);
+    setLoading(true)
     try {
       // send { category, url } in the JSON body
-      await engagementApi.changeFolder(engagement._id, category, url);
-      await fetchLibraryFiles();
+      await engagementApi.changeFolder(engagement._id, category, url)
+      await fetchLibraryFiles()
       toast({
         title: "Success",
         description: `Moved to ${category} successfully`,
-      });
+      })
     } catch (error: any) {
-      console.error(error);
+      console.error(error)
       toast({
         title: "Operation failed",
         description: error.message || "Something went wrong",
         variant: "destructive",
-      });
+      })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   // Filter files by selected folder and search term
   const filteredFiles = libraryFiles.filter((file) => {
-    const matchesFolder = file.category === selectedFolder;
-    const matchesSearch =
-      searchTerm === "" ||
-      file.fileName?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFolder && matchesSearch;
-  });
+    const matchesFolder = file.category === selectedFolder
+    const matchesSearch = searchTerm === "" || file.fileName?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesFolder && matchesSearch
+  })
 
   // Group files by category for folder counts
-  const filesByCategory = libraryFiles.reduce((acc, file) => {
-    acc[file.category] = (acc[file.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const filesByCategory = libraryFiles.reduce(
+    (acc, file) => {
+      acc[file.category] = (acc[file.category] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>,
+  )
   if (loading)
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
       </div>
-    );
+    )
 
   return (
     <div className="h-[800px] flex flex-col bg-gray-50 rounded-lg border">
@@ -359,11 +349,7 @@ export const LibraryTab = ({
               <Card className="p-3">
                 <div className="text-xs text-gray-500">Trial Balance</div>
                 <div
-                  className={`text-sm font-medium ${
-                    engagement.trialBalanceUrl
-                      ? "text-green-600"
-                      : "text-gray-400"
-                  }`}
+                  className={`text-sm font-medium ${engagement.trialBalanceUrl ? "text-green-600" : "text-gray-400"}`}
                 >
                   {engagement.trialBalanceUrl ? "✓ Uploaded" : "Pending"}
                 </div>
@@ -392,9 +378,7 @@ export const LibraryTab = ({
                   <div
                     key={folder}
                     className={`flex items-center space-x-1 p-2 hover:bg-gray-100 rounded cursor-pointer ${
-                      selectedFolder === folder
-                        ? "bg-blue-50 border-l-2 border-blue-500"
-                        : ""
+                      selectedFolder === folder ? "bg-blue-50 border-l-2 border-blue-500" : ""
                     }`}
                     onClick={() => setSelectedFolder(folder)}
                   >
@@ -426,12 +410,7 @@ export const LibraryTab = ({
                 />
               </div>
               <div className="flex items-center space-x-2">
-                <Input
-                  type="file"
-                  onChange={onFileChange}
-                  disabled={uploading}
-                  className="w-56"
-                />
+                <Input type="file" onChange={onFileChange} disabled={uploading} className="w-56" />
                 <Button disabled={uploading}>
                   <Upload className="h-4 w-4 mr-2" />
                   {uploading ? "Uploading..." : "Upload"}
@@ -460,61 +439,52 @@ export const LibraryTab = ({
                     >
                       <div className="col-span-6 flex items-center space-x-2">
                         {getFileIcon(file.fileName || "")}
-                        <span className="text-sm">
-                          {decodeURIComponent(file.fileName)}
-                        </span>
+                        <span className="text-sm">{decodeURIComponent(file.fileName)}</span>
                       </div>
                       <div className="col-span-2 items-center flex text-sm text-gray-500">
                         {file.fileName?.split(".").pop()?.toUpperCase()} File
                       </div>
                       <div className="col-span-2 flex items-center justify-between">
-                        <span className="text-sm text-gray-500">
-                          {new Date(file.createdAt).toLocaleDateString()}
-                        </span>
-                        </div>
-                        <div className="col-span-2 flex items-center">
-                          <Button
-                            onClick={() => handleDownload(file)}
-                            disabled={downloadingId === file._id}
-                            className="p-2 rounded bg-inherit hover:bg-gray-200"
-                          >
-                            {downloadingId === file._id ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
-                            ) : (
-                              <Download className="h-4 w-4 text-gray-600" />
-                            )}
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
-                                <FolderInputIcon className="h-4 w-4 text-gray-600" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="start"
-                              className="max-h-44 overflow-y-auto"
-                            >
-                              {categories.map((category) => (
-                                <DropdownMenuItem
-                                  key={category}
-                                  className="bg-inherit hover:bg-sidebar-foreground"
-                                  onClick={() =>
-                                    changeFolder(category, file.url)
-                                  }
-                                  disabled={file.category === category}
-                                >
-                                  Move to {category}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <Button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setFileToDelete(file);
-                              setDeleteDialogOpen(true);
-                            }}
-                            className="
+                        <span className="text-sm text-gray-500">{new Date(file.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="col-span-2 flex items-center">
+                        <Button
+                          onClick={() => handleDownload(file)}
+                          disabled={downloadingId === file._id}
+                          className="p-2 rounded bg-inherit hover:bg-gray-200"
+                        >
+                          {downloadingId === file._id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
+                          ) : (
+                            <Download className="h-4 w-4 text-gray-600" />
+                          )}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                              <FolderInputIcon className="h-4 w-4 text-gray-600" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
+                            {categories.map((category) => (
+                              <DropdownMenuItem
+                                key={category}
+                                className="bg-inherit hover:bg-sidebar-foreground"
+                                onClick={() => changeFolder(category, file.url)}
+                                disabled={file.category === category}
+                              >
+                                Move to {category}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setFileToDelete(file)
+                            setDeleteDialogOpen(true)
+                          }}
+                          className="
                                 p-2 
                                 rounded 
                                 bg-inherit 
@@ -522,22 +492,19 @@ export const LibraryTab = ({
                                 text-gray-600       /* default icon color */
                                 hover:text-red-600  /* icon turns red when BUTTON is hovered */
                               "
-                          >
-                            {/* no explicit color on the icon! it will pick up the button’s text color */}
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          
-                        </div>
-                        {/* Direct download link only */}
+                        >
+                          {/* no explicit color on the icon! it will pick up the button’s text color */}
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {/* Direct download link only */}
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-12 text-gray-500">
                     <Folder className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                     <p>This folder is empty</p>
-                    <p className="text-sm">
-                      Drag files here or use the upload button
-                    </p>
+                    <p className="text-sm">Drag files here or use the upload button</p>
                   </div>
                 )}
               </div>
@@ -549,14 +516,9 @@ export const LibraryTab = ({
                     className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer text-center group"
                   >
                     <div className="mb-2 flex justify-center">
-                      <div className="p-3 bg-gray-100 rounded-lg">
-                        {getFileIcon(file.fileName || "")}
-                      </div>
+                      <div className="p-3 bg-gray-100 rounded-lg">{getFileIcon(file.fileName || "")}</div>
                     </div>
-                    <div
-                      className="text-sm font-medium truncate"
-                      title={file.fileName}
-                    >
+                    <div className="text-sm font-medium truncate" title={file.fileName}>
                       {decodeURIComponent(file.fileName)}
                     </div>
                     <Button
@@ -572,9 +534,9 @@ export const LibraryTab = ({
                     </Button>
                     <Button
                       onClick={(e) => {
-                        e.preventDefault();
-                        setFileToDelete(file);
-                        setDeleteDialogOpen(true);
+                        e.preventDefault()
+                        setFileToDelete(file)
+                        setDeleteDialogOpen(true)
                       }}
                       className="
     p-2 
@@ -595,10 +557,7 @@ export const LibraryTab = ({
                           <FolderInputIcon className="h-4 w-4 text-gray-600" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        className="max-h-44 overflow-y-auto"
-                      >
+                      <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
                         {categories.map((category) => (
                           <DropdownMenuItem
                             key={category}
@@ -623,9 +582,7 @@ export const LibraryTab = ({
               <span>
                 {filteredFiles.length} items in {selectedFolder}
               </span>
-              <span>
-                Created: {new Date(engagement.createdAt).toLocaleDateString()}
-              </span>
+              <span>Created: {new Date(engagement.createdAt).toLocaleDateString()}</span>
             </div>
           </div>
         </div>
@@ -638,5 +595,5 @@ export const LibraryTab = ({
         deletingId={deletingId}
       />
     </div>
-  );
-};
+  )
+}
