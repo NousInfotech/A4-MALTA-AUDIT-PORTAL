@@ -1,215 +1,244 @@
-"use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { RefreshCw, Download, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from "../../integrations/supabase/client" // make sure this path is correct
+import type React from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCw, ExternalLink, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ClassificationSectionProps {
-  engagement: any
-  classification: string
-  onClose?: () => void
+  engagement: any;
+  classification: string;
+  onClose?: () => void;
+  onClassificationJump?: (classification: string) => void;
 }
 
 interface ETBRow {
-  id: string
-  code: string
-  accountName: string
-  currentYear: number
-  priorYear: number
-  adjustments: number
-  finalBalance: number
-  classification: string
+  id: string;
+  code: string;
+  accountName: string;
+  currentYear: number;
+  priorYear: number;
+  adjustments: number;
+  finalBalance: number;
+  classification: string;
 }
 
-// Helper that always attaches Supabase auth token
+// 🔹 Auth fetch helper: attaches Supabase Bearer token
 async function authFetch(url: string, options: RequestInit = {}) {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  return fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
-  })
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const headers = new Headers(options.headers || {});
+  if (data.session?.access_token) {
+    headers.set("Authorization", `Bearer ${data.session.access_token}`);
+  }
+  return fetch(url, { ...options, headers });
 }
+
+const isTopCategory = (c: string) =>
+  ["Equity", "Income", "Expenses"].includes(c);
+const isAdjustments = (c: string) => c === "Adjustments";
+const isETB = (c: string) => c === "ETB";
+
+const TOP_CATEGORIES = ["Equity", "Income", "Expenses"];
+
+const groupByClassification = (
+  rows: ETBRow[],
+  collapseToTopCategory = false
+) => {
+  const grouped: Record<string, ETBRow[]> = {};
+  for (const r of rows) {
+    let key = r.classification || "Unclassified";
+    if (collapseToTopCategory && key.includes(" > ")) {
+      const top = key.split(" > ")[0];
+      if (TOP_CATEGORIES.includes(top)) key = top;
+    }
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  }
+  return grouped;
+};
+
+// ✅ Unified display rule
+const formatClassificationForDisplay = (c: string) => {
+  if (!c) return "—";
+  if (isAdjustments(c)) return "Adjustments";
+  if (isETB(c)) return "Extended Trial Balance";
+  const parts = c.split(" > ");
+  const top = parts[0];
+  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
+  return top;
+};
 
 export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   engagement,
   classification,
   onClose,
+  onClassificationJump,
 }) => {
-  const [loading, setLoading] = useState(false)
-  const [sectionData, setSectionData] = useState<ETBRow[]>([])
-  const [spreadsheetUrl, setSpreadsheetUrl] = useState<string>("")
-  const { toast } = useToast()
+  const [loading, setLoading] = useState(false);
+  const [sectionData, setSectionData] = useState<ETBRow[]>([]);
+  const [viewSpreadsheetUrl, setViewSpreadsheetUrl] = useState<string>("");
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadSectionData()
-  }, [classification])
+    loadSectionData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classification]);
 
   const loadSectionData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
-          classification,
-        )}`,
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to load section data")
+      if (isAdjustments(classification) || isETB(classification)) {
+        // Use the same ETB endpoint; no new APIs
+        const etbResp = await authFetch(
+          `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`
+        );
+        if (!etbResp.ok) throw new Error("Failed to load ETB");
+        const etb = await etbResp.json();
+        const rows: ETBRow[] = Array.isArray(etb.rows) ? etb.rows : [];
+        setSectionData(
+          isAdjustments(classification)
+            ? rows.filter((r) => Number(r.adjustments) !== 0)
+            : rows
+        );
+        return;
       }
 
-      const data = await response.json()
-      setSectionData(data.rows || [])
-      setSpreadsheetUrl(data.spreadsheetUrl || "")
+      // Normal paths (server provides data by classification or by category)
+      const endpoint = isTopCategory(classification)
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
+            engagement._id
+          }/etb/category/${encodeURIComponent(classification)}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${
+            engagement._id
+          }/etb/classification/${encodeURIComponent(classification)}`;
+
+      const response = await authFetch(endpoint);
+      if (!response.ok) throw new Error("Failed to load section data");
+      const data = await response.json();
+      setSectionData(Array.isArray(data.rows) ? data.rows : []);
     } catch (error: any) {
-      console.error("Load error:", error)
+      console.error("Load error:", error);
       toast({
         title: "Load failed",
         description: error.message,
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const reloadDataFromETB = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
-          classification,
-        )}/reload`,
-        {
-          method: "POST",
-        },
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to reload data from ETB")
+      if (isAdjustments(classification) || isETB(classification)) {
+        await loadSectionData();
+        toast({
+          title: "Success",
+          description: "Data reloaded from ETB successfully",
+        });
+        return;
       }
 
-      const data = await response.json()
-      setSectionData(data.rows || [])
+      const endpoint = isTopCategory(classification)
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
+            engagement._id
+          }/etb/category/${encodeURIComponent(classification)}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${
+            engagement._id
+          }/etb/classification/${encodeURIComponent(classification)}/reload`;
 
-      if (spreadsheetUrl) {
-        await updateSpreadsheet(data.rows)
-      }
+      const response = await authFetch(endpoint, {
+        method: isTopCategory(classification) ? "GET" : "POST",
+      });
+      if (!response.ok) throw new Error("Failed to reload data from ETB");
 
+      const data = await response.json();
+      setSectionData(Array.isArray(data.rows) ? data.rows : []);
       toast({
         title: "Success",
         description: "Data reloaded from ETB successfully",
-      })
+      });
     } catch (error: any) {
-      console.error("Reload error:", error)
+      console.error("Reload error:", error);
       toast({
         title: "Reload failed",
         description: error.message,
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const createSpreadsheet = async () => {
-    setLoading(true)
+  const createViewSpreadsheet = async () => {
+    setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
-          classification,
-        )}/spreadsheet`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(classification)}/view-spreadsheet`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            data: sectionData,
-          }),
-        },
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to create spreadsheet")
-      }
-
-      const result = await response.json()
-      setSpreadsheetUrl(result.spreadsheetUrl)
-
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: sectionData }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to create view spreadsheet");
+      const result = await response.json();
+      setViewSpreadsheetUrl(result.viewUrl);
+      //window.open(result.viewUrl, "_blank");
       toast({
         title: "Success",
-        description: "Spreadsheet created successfully",
-      })
+        description: "Spreadsheet Saved in Library",
+      });
     } catch (error: any) {
-      console.error("Create spreadsheet error:", error)
+      console.error("Create view spreadsheet error:", error);
       toast({
         title: "Create failed",
         description: error.message,
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
+  };
+
+  const totals = useMemo(
+    () =>
+      sectionData.reduce(
+        (acc, row) => ({
+          currentYear: acc.currentYear + (Number(row.currentYear) || 0),
+          priorYear: acc.priorYear + (Number(row.priorYear) || 0),
+          adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+          finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
+        }),
+        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+      ),
+    [sectionData]
+  );
+
+  // Grouping for Adjustments view
+  const groupedForAdjustments = useMemo(
+    () =>
+      isAdjustments(classification)
+        ? groupByClassification(sectionData, true)
+        : {},
+    [classification, sectionData]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+        <span>Loading…</span>
+      </div>
+    );
   }
-
-  const updateSpreadsheet = async (data: ETBRow[]) => {
-    try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
-          classification,
-        )}/spreadsheet/update`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            data: data || sectionData,
-            spreadsheetUrl,
-          }),
-        },
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to update spreadsheet")
-      }
-    } catch (error: any) {
-      console.error("Update spreadsheet error:", error)
-      toast({
-        title: "Update failed",
-        description: error.message,
-        variant: "destructive",
-      })
-    }
-  }
-
-  const getClassificationDisplayName = (classification: string) => {
-    const parts = classification.split(" > ")
-    return parts[parts.length - 1]
-  }
-
-  const calculateTotals = () => {
-    return sectionData.reduce(
-      (acc, row) => ({
-        currentYear: acc.currentYear + row.currentYear,
-        priorYear: acc.priorYear + row.priorYear,
-        adjustments: acc.adjustments + row.adjustments,
-        finalBalance: acc.finalBalance + row.finalBalance,
-      }),
-      { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 },
-    )
-  }
-
-  const totals = calculateTotals()
 
   return (
     <div className="h-full flex flex-col">
@@ -217,88 +246,330 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">{getClassificationDisplayName(classification)}</CardTitle>
+              <CardTitle className="text-lg">
+                {formatClassificationForDisplay(classification)}
+              </CardTitle>
               <Badge variant="outline" className="mt-1">
-                {sectionData.length} accounts
+                {sectionData.length}{" "}
+                {sectionData.length === 1 ? "account" : "accounts"}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={reloadDataFromETB} disabled={loading} variant="outline" size="sm">
-                {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              <Button onClick={reloadDataFromETB} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
                 Reload Data
               </Button>
-              {!spreadsheetUrl && (
-                <Button onClick={createSpreadsheet} disabled={loading || sectionData.length === 0} size="sm">
-                  Create Spreadsheet
-                </Button>
-              )}
+              {/* {!isAdjustments&&( */}
+              <Button
+                onClick={createViewSpreadsheet}
+                disabled={sectionData.length === 0}
+                size="sm"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Save As Spreadsheet
+              </Button>
+              {/* )} */}
             </div>
           </div>
         </CardHeader>
+
         <CardContent className="flex-1 flex flex-col">
           {/* Summary Cards */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             <Card className="p-3">
               <div className="text-xs text-gray-500">Current Year</div>
-              <div className="text-lg font-semibold">{totals.currentYear.toLocaleString()}</div>
+              <div className="text-lg font-semibold">
+                {totals.currentYear.toLocaleString()}
+              </div>
             </Card>
             <Card className="p-3">
               <div className="text-xs text-gray-500">Prior Year</div>
-              <div className="text-lg font-semibold">{totals.priorYear.toLocaleString()}</div>
+              <div className="text-lg font-semibold">
+                {totals.priorYear.toLocaleString()}
+              </div>
             </Card>
             <Card className="p-3">
               <div className="text-xs text-gray-500">Adjustments</div>
-              <div className="text-lg font-semibold">{totals.adjustments.toLocaleString()}</div>
+              <div className="text-lg font-semibold">
+                {totals.adjustments.toLocaleString()}
+              </div>
             </Card>
             <Card className="p-3">
               <div className="text-xs text-gray-500">Final Balance</div>
-              <div className="text-lg font-semibold">{totals.finalBalance.toLocaleString()}</div>
+              <div className="text-lg font-semibold">
+                {totals.finalBalance.toLocaleString()}
+              </div>
             </Card>
           </div>
 
-          {/* Embedded Spreadsheet */}
-          <div className="flex-1 border rounded-lg overflow-hidden">
-            {spreadsheetUrl ? (
-              <iframe
-                src={`${spreadsheetUrl}?embedded=true`}
-                className="w-full h-full min-h-[500px]"
-                frameBorder="0"
-                title={`${getClassificationDisplayName(classification)} Spreadsheet`}
-              />
-            ) : (
-              // <div className="flex items-center justify-center h-full bg-gray-50">
-              //   <div className="text-center">
-              //     <h3 className="text-lg font-medium text-gray-900 mb-2">No Spreadsheet Created</h3>
-              //     <p className="text-gray-500 mb-4">Create a spreadsheet to work with this classification data</p>
-              //     <Button onClick={createSpreadsheet} disabled={loading || sectionData.length === 0}>
-              //       {loading ? (
-              //         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              //       ) : (
-              //         <Download className="h-4 w-4 mr-2" />
-              //       )}
-              //       Create Spreadsheet
-              //     </Button>
-              //   </div>
-              // </div>
-              <></>
-            )}
-          </div>
-
-          {/* Account List */}
-          <div className="mt-4 border-t pt-4">
-            <h4 className="font-medium mb-2">Accounts in this classification:</h4>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {sectionData.map((row) => (
-                <div key={row.id} className="flex items-center justify-between text-sm">
-                  <span className="font-mono text-xs">{row.code}</span>
-                  <span className="flex-1 mx-2">{row.accountName}</span>
-                  <span className="font-medium">{row.finalBalance.toLocaleString()}</span>
-                </div>
-              ))}
+          {/* Tables */}
+          {isETB(classification) ? (
+            // ETB view
+            <div className="flex-1 border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left">Account Name</th>
+                      <th className="px-4 py-2 text-right">Current Year</th>
+                      <th className="px-4 py-2 text-right">Prior Year</th>
+                      <th className="px-4 py-2 text-right">Adjustments</th>
+                      <th className="px-4 py-2 text-right">Final Balance</th>
+                      <th className="px-4 py-2 text-left">Classification</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sectionData.map((row) => (
+                      <tr key={row.id} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-2 font-mono text-xs">
+                          {row.code}
+                        </td>
+                        <td className="px-4 py-2">{row.accountName}</td>
+                        <td className="px-4 py-2 text-right">
+                          {row.currentYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.priorYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.adjustments.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+                        {/* ✅ formatted display */}
+                        <td>
+                        <button
+                          onClick={() =>
+                            onClassificationJump(row.classification)
+                          }
+                          className="flex items-center gap-2"
+                        >
+                          {/* Show formatted name next to dropdown for quick glance */}
+                          <Badge variant="outline">
+                            {formatClassificationForDisplay(row.classification)}
+                          </Badge>
+                        </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sectionData.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-4 py-8 text-center text-gray-500"
+                        >
+                          No ETB rows found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : isAdjustments(classification) ? (
+            // Adjustments view: grouped by top categories
+            <div className="space-y-6">
+              {Object.entries(groupedForAdjustments).map(([cls, items]) => {
+                const subtotal = items.reduce(
+                  (acc, r) => ({
+                    currentYear: acc.currentYear + (Number(r.currentYear) || 0),
+                    priorYear: acc.priorYear + (Number(r.priorYear) || 0),
+                    adjustments: acc.adjustments + (Number(r.adjustments) || 0),
+                    finalBalance:
+                      acc.finalBalance + (Number(r.finalBalance) || 0),
+                  }),
+                  {
+                    currentYear: 0,
+                    priorYear: 0,
+                    adjustments: 0,
+                    finalBalance: 0,
+                  }
+                );
+                return (
+                  <div key={cls} className="border rounded-lg overflow-hidden">
+                    <div className="px-4 py-2 border-b bg-gray-50 font-medium">
+                      {formatClassificationForDisplay(cls) || "Unclassified"}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr>
+                            <th className="px-4 py-2 text-left">Code</th>
+                            <th className="px-4 py-2 text-left">
+                              Account Name
+                            </th>
+                            <th className="px-4 py-2 text-right">
+                              Current Year
+                            </th>
+                            <th className="px-4 py-2 text-right">Prior Year</th>
+                            <th className="px-4 py-2 text-right">
+                              Adjustments
+                            </th>
+                            <th className="px-4 py-2 text-right">
+                              Final Balance
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="border-t hover:bg-gray-50"
+                            >
+                              <td className="px-4 py-2 font-mono text-xs">
+                                {row.code}
+                              </td>
+                              <td className="px-4 py-2">{row.accountName}</td>
+                              <td className="px-4 py-2 text-right">
+                                {row.currentYear.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                {row.priorYear.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-2 text-right font-medium">
+                                {row.adjustments.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                {row.finalBalance.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-muted/50 font-medium border-t">
+                            <td className="px-4 py-2" colSpan={2}>
+                              Subtotal
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {subtotal.currentYear.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {subtotal.priorYear.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {subtotal.adjustments.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {subtotal.finalBalance.toLocaleString()}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Grand Totals for Adjustments */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="px-4 py-2 border-b bg-gray-50 font-medium">
+                  Adjustments — Grand Total
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr>
+                        <td className="px-4 py-2 font-medium">Current Year</td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.currentYear.toLocaleString()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium">Prior Year</td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.priorYear.toLocaleString()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium">Adjustments</td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.adjustments.toLocaleString()}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-2 font-medium">Final Balance</td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.finalBalance.toLocaleString()}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Normal classification/category table (✅ totals row included here)
+            <div className="flex-1 border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left">Account Name</th>
+                      <th className="px-4 py-2 text-right">Current Year</th>
+                      <th className="px-4 py-2 text-right">Prior Year</th>
+                      <th className="px-4 py-2 text-right">Adjustments</th>
+                      <th className="px-4 py-2 text-right">Final Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sectionData.map((row) => (
+                      <tr key={row.id} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-2 font-mono text-xs">
+                          {row.code}
+                        </td>
+                        <td className="px-4 py-2">{row.accountName}</td>
+                        <td className="px-4 py-2 text-right">
+                          {row.currentYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.priorYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.adjustments.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                    {sectionData.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-8 text-center text-gray-500"
+                        >
+                          No data available for this classification
+                        </td>
+                      </tr>
+                    )}
+                    {/* Totals row for normal sections */}
+                    {sectionData.length > 0 && (
+                      <tr className="bg-muted/50 font-medium">
+                        <td className="px-4 py-2" colSpan={2}>
+                          TOTALS
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.currentYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.priorYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.adjustments.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {totals.finalBalance.toLocaleString()}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
-  )
-}
+  );
+};

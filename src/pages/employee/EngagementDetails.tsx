@@ -247,7 +247,7 @@ export const EngagementDetails = () => {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
+          <TabsTrigger value="trial-balance">Audit</TabsTrigger>
           <TabsTrigger value="requests">Document Requests</TabsTrigger>
           <TabsTrigger value="procedures">Procedures</TabsTrigger>
           <TabsTrigger value="checklist">Checklist</TabsTrigger>

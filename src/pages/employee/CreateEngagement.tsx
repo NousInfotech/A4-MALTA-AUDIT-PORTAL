@@ -208,7 +208,7 @@ const [clients, setClients] = useState<User[]>([])
                 />
               </div>
 
-              <div className="space-y-2">
+              {/* <div className="space-y-2">
                 <Label htmlFor="trialBalanceUrl">Trial Balance URL</Label>
                 <Input
                   id="trialBalanceUrl"
@@ -219,7 +219,7 @@ const [clients, setClients] = useState<User[]>([])
                 <p className="text-sm text-muted-foreground">
                   Optional: You can add this later from the engagement details page
                 </p>
-              </div>
+              </div> */}
               
               <div className="bg-muted/50 p-4 rounded-lg">
                 <h4 className="font-medium text-foreground mb-2">Next Steps</h4>

@@ -43,6 +43,7 @@ import { supabase } from "@/integrations/supabase/client"
 
 const categories = [
   "Trial Balance",
+  "Audit Sections",
   "Planning",
   "Capital & Reserves",
   "Property, plant and equipment",

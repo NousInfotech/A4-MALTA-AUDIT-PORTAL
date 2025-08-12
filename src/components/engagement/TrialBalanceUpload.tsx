@@ -11,7 +11,17 @@ import { Upload, FileSpreadsheet, Link, AlertCircle, CheckCircle2, Loader2 } fro
 import { useToast } from "@/hooks/use-toast"
 import * as XLSX from "xlsx"
 import Papa from "papaparse"
-import { supabase } from "../../integrations/supabase/client" // adjust path if needed
+import { supabase } from "@/integrations/supabase/client"
+
+// 🔹 Auth fetch helper: attaches Supabase Bearer token
+async function authFetch(url: string, options: RequestInit = {}) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  const headers = new Headers(options.headers || {})
+  // don't force Content-Type here; caller sets it for JSON. For FormData, leave it unset.
+  headers.set("Authorization", `Bearer ${data.session?.access_token}`)
+  return fetch(url, { ...options, headers })
+}
 
 interface TrialBalanceUploadProps {
   engagement: any
@@ -25,19 +35,6 @@ interface ValidationResult {
 }
 
 const REQUIRED_COLUMNS = ["Code", "Account Name", "Current Year", "Prior Year"]
-
-// 🔹 Helper to always send Supabase token
-async function authFetch(url: string, options: RequestInit = {}) {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  return fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
-  })
-}
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {
   const [uploading, setUploading] = useState(false)
@@ -93,11 +90,8 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       Papa.parse(file, {
         header: false,
         complete: (result) => {
-          if (result.errors.length > 0) {
-            reject(new Error(`CSV parsing error: ${result.errors[0].message}`))
-          } else {
-            resolve(result.data as any[])
-          }
+          if (result.errors.length > 0) reject(new Error(`CSV parsing error: ${result.errors[0].message}`))
+          else resolve(result.data as any[])
         },
         error: (error) => reject(error),
       })
@@ -132,13 +126,10 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
 
     try {
       let parsedData: any[]
-      if (file.name.toLowerCase().endsWith(".csv")) {
-        parsedData = await parseCSVFile(file)
-      } else if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")) {
+      if (file.name.toLowerCase().endsWith(".csv")) parsedData = await parseCSVFile(file)
+      else if (file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls"))
         parsedData = await parseExcelFile(file)
-      } else {
-        throw new Error("Unsupported file format. Please upload CSV or Excel files only.")
-      }
+      else throw new Error("Unsupported file format. Please upload CSV or Excel files only.")
 
       const validation = validateTrialBalance(parsedData)
       if (!validation.isValid) {
@@ -146,17 +137,22 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         return
       }
 
-      // Upload file to library (authFetch without setting Content-Type for FormData)
+      // delete existing TB (if your API supports it)
+      await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance`, {
+        method: "DELETE",
+      })
+
+      // Upload file to engagement library (FormData -> don't set Content-Type)
       const formData = new FormData()
       formData.append("file", file)
       formData.append("category", "Trial Balance")
-      const uploadResponse = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/library`,
-        { method: "POST", body: formData },
-      )
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload file to library")
-      }
+      formData.append("replaceExisting", "true")
+
+      const response = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/library`, {
+        method: "POST",
+        body: formData,
+      })
+      if (!response.ok) throw new Error("Failed to upload file to library")
 
       // Save trial balance data
       const tbResponse = await authFetch(
@@ -167,9 +163,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
           body: JSON.stringify({ data: validation.data, fileName: file.name }),
         },
       )
-      if (!tbResponse.ok) {
-        throw new Error("Failed to save trial balance data")
-      }
+      if (!tbResponse.ok) throw new Error("Failed to save trial balance data")
 
       const trialBalanceData = await tbResponse.json()
       setUploadSuccess(true)
@@ -189,11 +183,16 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       setValidationErrors(["Please enter a Google Sheets URL"])
       return
     }
+
     setUploading(true)
     setValidationErrors([])
     setUploadSuccess(false)
 
     try {
+      await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance`, {
+        method: "DELETE",
+      })
+
       const response = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance/google-sheets`,
         {
@@ -202,8 +201,9 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
           body: JSON.stringify({ sheetUrl: googleSheetUrl }),
         },
       )
+
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || "Failed to fetch Google Sheets data")
       }
 
@@ -224,7 +224,8 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="h-5 w-5" /> Upload Trial Balance
+          <FileSpreadsheet className="h-5 w-5" />
+          Upload Trial Balance
         </CardTitle>
         <CardDescription>
           Upload your Trial Balance file (CSV/Excel) or import from Google Sheets. Required columns: Code, Account Name,
@@ -232,10 +233,12 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* File Upload */}
+        {/* File Upload Section */}
         <div className="space-y-4">
           <div>
-            <Label htmlFor="file-upload" className="text-sm font-medium">Upload CSV or Excel File</Label>
+            <Label htmlFor="file-upload" className="text-sm font-medium">
+              Upload CSV or Excel File
+            </Label>
             <div className="mt-2 flex items-center gap-4">
               <Input
                 id="file-upload"
@@ -247,21 +250,26 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
                 className="flex-1"
               />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} variant="outline">
-                <Upload className="h-4 w-4 mr-2" /> Browse
+                <Upload className="h-4 w-4 mr-2" />
+                Browse
               </Button>
             </div>
           </div>
 
           <div className="relative">
-            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">Or</span>
             </div>
           </div>
 
-          {/* Google Sheets */}
+          {/* Google Sheets Section */}
           <div className="space-y-2">
-            <Label htmlFor="google-sheets-url" className="text-sm font-medium">Import from Google Sheets</Label>
+            <Label htmlFor="google-sheets-url" className="text-sm font-medium">
+              Import from Google Sheets
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="google-sheets-url"
@@ -279,7 +287,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
           </div>
         </div>
 
-        {/* Errors */}
+        {/* Validation Errors */}
         {validationErrors.length > 0 && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -287,25 +295,32 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
               <div className="space-y-1">
                 <div className="font-medium">Please fix the following errors:</div>
                 <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.map((err, i) => <li key={i} className="text-sm">{err}</li>)}
+                  {validationErrors.map((error, index) => (
+                    <li key={index} className="text-sm">
+                      {error}
+                    </li>
+                  ))}
                 </ul>
               </div>
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Success */}
+        {/* Success Message */}
         {uploadSuccess && (
           <Alert>
             <CheckCircle2 className="h-4 w-4" />
-            <AlertDescription>Trial Balance uploaded successfully! You can now proceed to the Extended Trial Balance.</AlertDescription>
+            <AlertDescription>
+              Trial Balance uploaded successfully! You can now proceed to the Extended Trial Balance.
+            </AlertDescription>
           </Alert>
         )}
 
-        {/* Loading */}
+        {/* Loading State */}
         {uploading && (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" /> <span>Processing Trial Balance...</span>
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Processing Trial Balance...</span>
           </div>
         )}
       </CardContent>

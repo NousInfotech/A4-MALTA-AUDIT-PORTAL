@@ -1,52 +1,54 @@
-import { useState } from 'react';
-import { engagementApi } from '@/services/api';
-import { useToast } from '@/hooks/use-toast';
+"use client"
 
-export interface TrialBalanceData {
-  _id: string;
-  engagement: string;
-  headers: string[];
-  rows: any[][];
-  fetchedAt: string;
+import { useState, useEffect } from "react"
+
+interface TrialBalanceData {
+  _id: string
+  engagement: string
+  headers: string[]
+  rows: any[][]
+  fetchedAt: string
 }
 
-export const useTrialBalance = () => {
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+export const useTrialBalance = (engagementId: string) => {
+  const [trialBalance, setTrialBalance] = useState<TrialBalanceData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const fetchTrialBalance = async (engagementId: string, sheetUrl?: string) => {
+  const fetchTrialBalance = async () => {
+    if (!engagementId) return
+
+    setLoading(true)
+    setError(null)
+
     try {
-      setLoading(true);
-      const data = await engagementApi.fetchTrialBalance(engagementId, sheetUrl);
-      toast({
-        title: "Success",
-        description: "Trial balance data fetched successfully",
-      });
-      return data;
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch trial balance data",
-        variant: "destructive"
-      });
-      throw error;
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/trial-balance`)
+      if (!response.ok) {
+        if (response.status === 404) {
+          setTrialBalance(null)
+          return
+        }
+        throw new Error("Failed to fetch trial balance")
+      }
+
+      const data = await response.json()
+      setTrialBalance(data)
+    } catch (err: any) {
+      setError(err.message)
+      setTrialBalance(null)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const getTrialBalance = async (engagementId: string) => {
-    try {
-      return await engagementApi.getTrialBalance(engagementId);
-    } catch (error) {
-      // Don't show error toast for missing trial balance
-      return null;
-    }
-  };
+  useEffect(() => {
+    fetchTrialBalance()
+  }, [engagementId])
 
   return {
+    trialBalance,
     loading,
-    fetchTrialBalance,
-    getTrialBalance
-  };
-};
+    error,
+    refetch: fetchTrialBalance,
+  }
+}
