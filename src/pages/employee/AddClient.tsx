@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useData } from "@/contexts/DataContext";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Building2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,7 +49,7 @@ export const AddClient = () => {
     companyNumber: "",
     industry: "",
     summary: "",
-    customValue: "", // ← new field
+    customValue: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,40 +59,23 @@ export const AddClient = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Update the handleSubmit function in your AddClient component
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    console.log("1");
     setIsSubmitting(true);
 
-    // Front-end validation
-    const { name, email, password, companyName, companyNumber, summary } =
-      formData;
-    // if (
-    //   !name ||
-    //   !email ||
-    //   !password ||
-    //   !companyName ||
-    //   !companyNumber ||
-    //   !summary
-    // ) {
-    //   setError("Please fill in all the required fields");
-    //   setIsSubmitting(false);
-    //   return;
-    // }
+    const { name, email, password, companyName, companyNumber, summary } = formData;
 
     const industry =
       formData.industry === "Other" ? formData.customValue : formData.industry;
       
-      try {
-        console.log("2");
-        const { data, error } = await supabase.auth.getSession()
-        const response = await fetch(`${import.meta.env.VITE_APIURL}/api/clients`, {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/clients`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${data.session?.access_token}`, // Assuming you store token here
+          Authorization: `Bearer ${data.session?.access_token}`,
         },
         body: JSON.stringify({
           email,
@@ -107,7 +89,6 @@ export const AddClient = () => {
       });
 
       const res = await response.json();
-      console.log("3" + res);
 
       if (!response.ok) {
         throw new Error(res.error || "Failed to create client");
@@ -125,6 +106,7 @@ export const AddClient = () => {
       setIsSubmitting(false);
     }
   };
+
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -161,6 +143,7 @@ export const AddClient = () => {
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Client Name *</Label>
@@ -211,8 +194,9 @@ export const AddClient = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
+              {/* Industry */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="industry">Industry *</Label>
                   <Select
@@ -248,7 +232,7 @@ export const AddClient = () => {
                 )}
               </div>
 
-
+              {/* Summary */}
               <div className="space-y-2">
                 <Label htmlFor="summary">Company Summary</Label>
                 <Textarea
@@ -260,7 +244,8 @@ export const AddClient = () => {
                 />
               </div>
 
-              <div className="flex items-center gap-3 pt-4">
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-4 flex-wrap">
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

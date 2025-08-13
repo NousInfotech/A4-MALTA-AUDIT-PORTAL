@@ -22,68 +22,23 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  // Admin navigation
-  {
-    title: 'Dashboard',
-    href: '/admin',
-    icon: BarChart3,
-    roles: ['admin']
-  },
-  {
-    title: 'User Management',
-    href: '/admin/users',
-    icon: UserCheck,
-    roles: ['admin']
-  },
-  
-  // Employee navigation
-  {
-    title: 'Dashboard',
-    href: '/employee',
-    icon: BarChart3,
-    roles: ['employee']
-  },
-  {
-    title: 'Clients',
-    href: '/employee/clients',
-    icon: Building2,
-    roles: ['employee']
-  },
-  {
-    title: 'Engagements',
-    href: '/employee/engagements',
-    icon: Briefcase,
-    roles: ['employee']
-  },
-  {
-    title: 'Library',
-    href: '/employee/library',
-    icon: FolderOpen,
-    roles: ['employee']
-  },
-  
-  // Client navigation
-  {
-    title: 'Dashboard',
-    href: '/client',
-    icon: BarChart3,
-    roles: ['client']
-  },
-  {
-    title: 'My Engagements',
-    href: '/client/engagements',
-    icon: FolderOpen,
-    roles: ['client']
-  },
-  {
-    title: 'Document Requests',
-    href: '/client/requests',
-    icon: FileText,
-    roles: ['client']
-  }
+  // Admin
+  { title: 'Dashboard', href: '/admin', icon: BarChart3, roles: ['admin'] },
+  { title: 'User Management', href: '/admin/users', icon: UserCheck, roles: ['admin'] },
+
+  // Employee
+  { title: 'Dashboard', href: '/employee', icon: BarChart3, roles: ['employee'] },
+  { title: 'Clients', href: '/employee/clients', icon: Building2, roles: ['employee'] },
+  { title: 'Engagements', href: '/employee/engagements', icon: Briefcase, roles: ['employee'] },
+  { title: 'Library', href: '/employee/library', icon: FolderOpen, roles: ['employee'] },
+
+  // Client
+  { title: 'Dashboard', href: '/client', icon: BarChart3, roles: ['client'] },
+  { title: 'My Engagements', href: '/client/engagements', icon: FolderOpen, roles: ['client'] },
+  { title: 'Document Requests', href: '/client/requests', icon: FileText, roles: ['client'] }
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user } = useAuth();
 
@@ -92,8 +47,13 @@ export const Sidebar = () => {
   const filteredNavItems = navItems.filter(item => item.roles.includes(user.role));
 
   return (
-    <div className="w-64 bg-sidebar text-sidebar-foreground flex flex-col">
-      <div className="p-6 border-b border-sidebar-border">
+    <div
+      className={cn(
+        "fixed inset-y-0 left-0 w-64 bg-sidebar text-sidebar-foreground flex flex-col transform transition-transform duration-300 ease-in-out z-50 md:translate-x-0 md:static md:z-auto",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}
+    >
+      <div className="p-6 border-b border-sidebar-border flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Shield className="h-8 w-8 text-sidebar-primary" />
           <div>
@@ -101,19 +61,25 @@ export const Sidebar = () => {
             <p className="text-sm text-sidebar-foreground/60 capitalize">{user.role} Panel</p>
           </div>
         </div>
+        {/* Close button for mobile */}
+        <button className="md:hidden p-2" onClick={onClose} aria-label="Close Menu">
+          ✕
+        </button>
       </div>
 
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto">
         <ul className="space-y-2">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.href || 
+            const isActive =
+              location.pathname === item.href ||
               (item.href !== `/${user.role}` && location.pathname.startsWith(item.href));
 
             return (
               <li key={item.href}>
                 <Link
                   to={item.href}
+                  onClick={onClose}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200',
                     isActive

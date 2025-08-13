@@ -6,22 +6,22 @@ import {
   CardHeader,
   CardContent,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Edit2, Loader2, Calendar, FileText, Eye, Building2, Briefcase, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, Eye, Building2, Briefcase, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
- const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-success/10 text-success border-success';
-      case 'completed': return 'bg-muted text-muted-foreground border-muted-foreground';
-      case 'draft': return 'bg-warning/10 text-warning border-warning';
-      default: return 'bg-secondary text-secondary-foreground border-secondary-foreground';
-    }
-  };
 import { useEngagements } from '@/hooks/useEngagements';
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'active': return 'bg-success/10 text-success border-success';
+    case 'completed': return 'bg-muted text-muted-foreground border-muted-foreground';
+    case 'draft': return 'bg-warning/10 text-warning border-warning';
+    default: return 'bg-secondary text-secondary-foreground border-secondary-foreground';
+  }
+};
 
 interface User {
   id: string;
@@ -43,54 +43,44 @@ export const ClientDetail: React.FC = () => {
   const { toast } = useToast();
   const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { engagements, loading } = useEngagements();
-  
+  const { engagements } = useEngagements();
 
- useEffect(() => {
+  useEffect(() => {
     if (id) fetchClient(id);
   }, [id]);
 
-const getClientEmail = async (id: string): Promise<string> => {
-  try {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${data.session?.access_token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch client email');
+  const getClientEmail = async (id: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.session?.access_token}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch client email');
+      const res = await response.json();
+      return res.clientData.email;
+    } catch (error) {
+      console.error('Error fetching client email:', error);
+      throw error;
     }
+  };
 
-    const res = await response.json();
-    return res.clientData.email;
-  } catch (error) {
-    console.error('Error fetching client email:', error);
-    throw error;
-  }
-};
-const filtered = engagements.filter(e=>e.clientId===id);
+  const filtered = engagements.filter(e => e.clientId === id);
 
   const fetchClient = async (userId: string) => {
     try {
       setIsLoading(true);
-      
-      // Fetch profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select(
-          `user_id, name, role, status, created_at, updated_at, company_name, company_number, industry, company_summary`
-        )
+        .select(`user_id, name, role, status, created_at, updated_at, company_name, company_number, industry, company_summary`)
         .eq('user_id', userId)
         .single();
-
       if (profileError) throw profileError;
 
-      // Fetch email separately
       let email = 'Email not available';
       try {
         email = await getClientEmail(userId);
@@ -101,7 +91,7 @@ const filtered = engagements.filter(e=>e.clientId===id);
       setClient({
         id: profileData.user_id,
         name: profileData.name,
-        email: email,
+        email,
         role: profileData.role,
         status: profileData.status,
         createdAt: profileData.created_at,
@@ -113,10 +103,10 @@ const filtered = engagements.filter(e=>e.clientId===id);
       });
     } catch (err: any) {
       console.error('Error fetching client:', err);
-      toast({ 
-        title: 'Error', 
-        description: `Unable to load client: ${err.message}`, 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: `Unable to load client: ${err.message}`,
+        variant: 'destructive'
       });
       navigate('/employee/clients');
     } finally {
@@ -124,17 +114,18 @@ const filtered = engagements.filter(e=>e.clientId===id);
     }
   };
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
       </div>
     );
+  }
 
   if (!client) return null;
 
   return (
-    <div className="max-w-4xl mx-auto p-8 bg-gray-50 min-h-screen space-y-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8 bg-gray-50 min-h-screen space-y-8">
       {/* Back Navigation */}
       <Link
         to="/employee/clients"
@@ -151,16 +142,6 @@ const filtered = engagements.filter(e=>e.clientId===id);
           </h1>
           <p className="text-sm text-gray-500">{client.companyNumber}</p>
         </div>
-        {/* <div className="flex space-x-2">
-          <Link to={`/employee/clients/${client.id}/edit`}>  
-            <Button variant="outline" size="sm" className="flex items-center">
-              <Edit2 className="h-4 w-4 mr-1" /> Edit
-            </Button>
-          </Link>
-          <Button variant="outline" size="sm" className="flex items-center">
-            <Mail className="h-4 w-4 mr-1" /> Message
-          </Button>
-        </div> */}
       </div>
 
       {/* Details Card */}
@@ -172,7 +153,7 @@ const filtered = engagements.filter(e=>e.clientId===id);
               <p className="text-xs uppercase text-gray-400 mb-1">Contact</p>
               <p className="text-lg font-medium text-gray-800">{client.name}</p>
               {client.email && (
-                <p className="text-sm text-gray-500">{client.email}</p>
+                <p className="text-sm text-gray-500 break-all">{client.email}</p>
               )}
             </div>
 
@@ -230,14 +211,15 @@ const filtered = engagements.filter(e=>e.clientId===id);
           </div>
         </CardContent>
       </Card>
+
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filtered.map(engagement => {
           return (
             <Card key={engagement._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
+                  <div className="flex items-center gap-3 w-full">
                     <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
                       <Briefcase className="h-6 w-6 text-accent" />
                     </div>
@@ -284,14 +266,9 @@ const filtered = engagements.filter(e=>e.clientId===id);
             <h3 className="text-lg font-medium text-foreground mb-2">
               No engagements yet for {client.companyName}
             </h3>
-            <p className="text-muted-foreground mb-4">
-              Start by creating your first audit engagement for {client.companyName}
+            <p className="text-muted-foreground">
+              This client has no engagements at the moment.
             </p>
-              <Button asChild>
-                <Link to="/employee/engagements/new">
-                  <Plus className="h-4 w-4 mr-2" />Create {client.companyName}'s First Engagement
-                </Link>
-              </Button>
           </CardContent>
         </Card>
       )}

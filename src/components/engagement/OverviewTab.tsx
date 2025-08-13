@@ -23,10 +23,10 @@ export const OverviewTab = ({
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Status Overview</CardTitle>
+          <CardTitle className="text-lg truncate">Status Overview</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-muted-foreground">Trial Balance</span>
             <span
               className={
@@ -38,11 +38,11 @@ export const OverviewTab = ({
               {engagement.trialBalanceUrl ? "Uploaded" : "Pending"}
             </span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-muted-foreground">Document Requests</span>
             <span className="text-foreground">{requests.length}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-muted-foreground">Procedures</span>
             <span className="text-foreground">{procedures.length}</span>
           </div>
@@ -51,16 +51,16 @@ export const OverviewTab = ({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Engagement Information</CardTitle>
+          <CardTitle className="text-lg truncate">Engagement Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-sm text-muted-foreground">Created</div>
             <div className="font-medium">
               {new Date(engagement.createdAt).toLocaleDateString()}
             </div>
           </div>
-          <div>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-sm text-muted-foreground">Status</div>
             <div className="font-medium">{engagement.status}</div>
           </div>
@@ -69,7 +69,7 @@ export const OverviewTab = ({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Quick Actions</CardTitle>
+          <CardTitle className="text-lg truncate">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button

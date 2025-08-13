@@ -205,15 +205,18 @@ export const EngagementDetails = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link to="/employee/engagements">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+      {/* Header: stack on mobile, unchanged on desktop */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex">
+          <Button variant="outline" size="icon" asChild className="sm:mr-4">
+            <Link to="/employee/engageme  nts">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-foreground">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <h1 className="text-3xl font-bold text-foreground break-words">
               {engagement.title}
             </h1>
             <Badge
@@ -229,31 +232,35 @@ export const EngagementDetails = () => {
               {engagement.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              <span>Client ID: {engagement.clientId}</span>
+
+          {/* Meta row: wrap on mobile, unchanged on desktop */}
+          <div className="flex flex-wrap items-center gap-4 mt-2 text-muted-foreground">
+            <div className="flex items-center gap-2 min-w-0">
+              <Building2 className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">Client ID: {engagement.clientId}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-4 w-4 flex-shrink-0" />
               <span>
-                Year End:{" "}
-                {new Date(engagement.yearEndDate).toLocaleDateString()}
+                Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
               </span>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Tabs: horizontal scroll on mobile, unchanged on desktop */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trial-balance">Audit</TabsTrigger>
-          <TabsTrigger value="requests">Document Requests</TabsTrigger>
-          <TabsTrigger value="procedures">Procedures</TabsTrigger>
-          <TabsTrigger value="checklist">Checklist</TabsTrigger>
-          <TabsTrigger value="library">Library</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+          <TabsList className="min-w-max sm:min-w-0">
+            <TabsTrigger value="overview" className="whitespace-nowrap">Overview</TabsTrigger>
+            <TabsTrigger value="trial-balance" className="whitespace-nowrap">Audit</TabsTrigger>
+            <TabsTrigger value="requests" className="whitespace-nowrap">Document Requests</TabsTrigger>
+            <TabsTrigger value="procedures" className="whitespace-nowrap">Procedures</TabsTrigger>
+            <TabsTrigger value="checklist" className="whitespace-nowrap">Checklist</TabsTrigger>
+            <TabsTrigger value="library" className="whitespace-nowrap">Library</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6">
           <OverviewTab

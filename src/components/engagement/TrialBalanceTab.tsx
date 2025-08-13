@@ -165,20 +165,22 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement,set
       <div className="flex-1">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
           {/* ETB tab first */}
-          <TabsList className="grid w-full grid-cols-3">     
-            <TabsTrigger value="upload" className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Upload TB
-            </TabsTrigger>
-            <TabsTrigger value="etb" disabled={!trialBalanceData} className="flex items-center gap-2">
-              <Calculator className="h-4 w-4" />
-              Extended TB
-            </TabsTrigger>
-            <TabsTrigger value="sections" className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4" />
-              Sections
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-2 px-2 md:mx-0 md:px-0">
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-3 min-w-max md:min-w-0">
+              <TabsTrigger value="upload" className="flex items-center gap-2 whitespace-nowrap">
+                <FileSpreadsheet className="h-4 w-4" />
+                Upload TB
+              </TabsTrigger>
+              <TabsTrigger value="etb" disabled={!trialBalanceData} className="flex items-center gap-2 whitespace-nowrap">
+                <Calculator className="h-4 w-4" />
+                Extended TB
+              </TabsTrigger>
+              <TabsTrigger value="sections" className="flex items-center gap-2 whitespace-nowrap">
+                <FolderOpen className="h-4 w-4" />
+                Sections
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="etb" className="h-full">
             {trialBalanceData && (
@@ -196,9 +198,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement,set
           </TabsContent>
 
           <TabsContent value="sections" className="h-full">
-            <div className="flex h-full">
+            <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
-              <div className="w-80 border-r bg-gray-50">
+              <div className="w-full md:w-80 border-r bg-gray-50">
                 <div className="p-4 border-b">
                   <h3 className="font-semibold">Sections</h3>
                   <p className="text-sm text-gray-600 mt-1">Quick views and classifications</p>
@@ -254,7 +256,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement,set
                               {formatClassificationForDisplay(key)}
                             </div>
                             <div className="flex flex-wrap gap-1 mt-1">
-                                {classificationList.map((classification) => (
+                              {classificationList.map((classification) => (
                                 <Badge key={classification} variant="secondary" className="text-xs">
                                   {getClassificationDisplayName(classification)}
                                 </Badge>
@@ -285,7 +287,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement,set
                     onClassificationJump={jumpToClassification}
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full">
+                  <div className="flex items-center justify-center h-full p-6">
                     <div className="text-center">
                       <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Section</h3>

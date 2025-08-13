@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
@@ -16,20 +15,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command"
-import {
-  Save,
-  Calculator,
-  Loader2,
-  AlertCircle,
-  Plus,
-  Trash2,
-  ChevronsUpDown,
-  Check,
-  RefreshCw,
-  ExternalLink,
-  CloudUpload,
-  CloudDownload,
-} from "lucide-react"
+import { Save, Calculator, Loader2, AlertCircle, Plus, Trash2, ChevronsUpDown, Check, RefreshCw, ExternalLink, CloudUpload, CloudDownload } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { cn } from "@/lib/utils"
@@ -186,7 +172,7 @@ function SearchableSelect({
   className,
   emptyText = "No results.",
   disabled,
-  widthClass = "w-40",
+  widthClass = "w-32 sm:w-40",
 }: {
   value: string
   onChange: (value: string) => void
@@ -215,13 +201,13 @@ function SearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("justify-between", widthClass, className)}
+          className={cn("justify-between text-xs sm:text-sm", widthClass, className)}
           disabled={disabled}
         >
           <span className={cn("truncate", !value && "text-muted-foreground")}>
             {selectedLabel || placeholder || "Select"}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className={cn("p-0", widthClass)}>
@@ -556,13 +542,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
         <SearchableSelect
           value={level1}
           onChange={onL1}
           options={getUniqueLevel1()}
           placeholder="Level 1"
           className="max-h-44 overflow-y-auto"
+          widthClass="w-full sm:w-32"
         />
         {level2Options.length > 0 && (
           <SearchableSelect
@@ -571,6 +558,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             onChange={onL2}
             options={level2Options}
             placeholder="Level 2"
+            widthClass="w-full sm:w-32"
           />
         )}
         {level3Options.length > 0 && (
@@ -580,6 +568,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             options={level3Options}
             placeholder="Level 3"
             className="max-h-44 w-auto overflow-y-auto"
+            widthClass="w-full sm:w-40"
           />
         )}
       </div>
@@ -591,29 +580,35 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       {/* ----- Main ETB Card (original UI preserved) ----- */}
       <Card className="border-muted-foreground/10 flex-1">
-        <CardHeader className=" top-0 z-10 bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
-          <div className="flex items-center gap-2">
+        <CardHeader className="top-0 z-10 bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <CardTitle className="flex items-center gap-2">
               <Calculator className="h-5 w-5" />
               Extended Trial Balance
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={openInExcel} title="Create/Reuse workbook and open">
-                <ExternalLink className="h-4 w-4 mr-2" /> Open in Excel Online
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={openInExcel} title="Create/Reuse workbook and open" className="text-xs sm:text-sm">
+                <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" /> 
+                <span className="hidden sm:inline">Open in Excel Online</span>
+                <span className="sm:hidden">Excel</span>
               </Button>
-              <Button size="sm" variant="outline" onClick={pushToCloud} title="Overwrite Excel from current ETB">
-                <CloudUpload className="h-4 w-4 mr-2" /> Push to Cloud
+              <Button size="sm" variant="outline" onClick={pushToCloud} title="Overwrite Excel from current ETB" className="text-xs sm:text-sm">
+                <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" /> 
+                <span className="hidden sm:inline">Push to Cloud</span>
+                <span className="sm:hidden">Push</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={pullFromCloud} title="Fetch Excel back into ETB">
-                <CloudDownload className="h-4 w-4 mr-2" /> Fetch from Cloud
+              <Button variant="outline" size="sm" onClick={pullFromCloud} title="Fetch Excel back into ETB" className="text-xs sm:text-sm">
+                <CloudDownload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" /> 
+                <span className="hidden sm:inline">Fetch from Cloud</span>
+                <span className="sm:hidden">Fetch</span>
               </Button>
               
-              <Button variant="outline" onClick={() => saveETB(true)} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              <Button variant="outline" onClick={() => saveETB(true)} disabled={saving} size="sm" className="text-xs sm:text-sm">
+                {saving ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" /> : <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />}
                 Save ETB
               </Button>
-              <Button onClick={addNewRow} variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button onClick={addNewRow} variant="outline" size="sm" className="text-xs sm:text-sm">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
             </div>
@@ -637,14 +632,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead className="min-w-[6rem]">Code</TableHead>
-                    <TableHead className="min-w-[16rem]">Account Name</TableHead>
-                    <TableHead className="text-right min-w-[8rem]">Current Year</TableHead>
-                    <TableHead className="text-right min-w-[8rem]">Prior Year</TableHead>
-                    <TableHead className="text-right min-w-[8rem]">Adjustments</TableHead>
-                    <TableHead className="text-right min-w-[10rem]">Final Balance</TableHead>
-                    <TableHead className="min-w-[22rem]">Classification</TableHead>
-                    <TableHead className="w-[4rem]">Actions</TableHead>
+                    <TableHead className="min-w-[4rem] sm:min-w-[6rem] text-xs sm:text-sm">Code</TableHead>
+                    <TableHead className="min-w-[12rem] sm:min-w-[16rem] text-xs sm:text-sm">Account Name</TableHead>
+                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">Current Year</TableHead>
+                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">Prior Year</TableHead>
+                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">Adjustments</TableHead>
+                    <TableHead className="text-right min-w-[8rem] sm:min-w-[10rem] text-xs sm:text-sm">Final Balance</TableHead>
+                    <TableHead className="min-w-[18rem] sm:min-w-[22rem] text-xs sm:text-sm">Classification</TableHead>
+                    <TableHead className="w-[3rem] sm:w-[4rem] text-xs sm:text-sm">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -657,14 +652,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                         <Input
                           value={row.code}
                           onChange={(e) => updateRow(row.id, "code", e.target.value)}
-                          className="w-24 font-mono text-sm"
+                          className="w-16 sm:w-24 font-mono text-xs sm:text-sm"
                         />
                       </TableCell>
                       <TableCell>
                         <Input
                           value={row.accountName}
                           onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
-                          className="min-w-64"
+                          className="min-w-48 sm:min-w-64 text-xs sm:text-sm"
                         />
                       </TableCell>
                       <TableCell className="text-right">
@@ -672,7 +667,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           type="number"
                           value={row.currentYear}
                           onChange={(e) => updateRow(row.id, "currentYear", Number(e.target.value))}
-                          className="w-28 text-right"
+                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
@@ -681,7 +676,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           type="number"
                           value={row.priorYear}
                           onChange={(e) => updateRow(row.id, "priorYear", Number(e.target.value))}
-                          className="w-28 text-right"
+                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
@@ -690,18 +685,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           type="number"
                           value={row.adjustments}
                           onChange={(e) => updateRow(row.id, "adjustments", Number(e.target.value))}
-                          className="w-28 text-right"
+                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
+                      <TableCell className="text-right font-medium tabular-nums text-xs sm:text-sm">
                         {Number(row.finalBalance).toLocaleString()}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                           <Badge
                             variant="outline"
-                            className="cursor-pointer"
+                            className="cursor-pointer text-xs"
                             title="Jump to section"
                             onClick={() => row.classification && onClassificationJump?.(row.classification)}
                           >
@@ -715,10 +710,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           variant="ghost"
                           size="icon"
                           onClick={() => deleteRow(row.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
                           aria-label="Delete row"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -726,11 +721,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
-                    <TableCell colSpan={2}>TOTALS</TableCell>
-                    <TableCell className="text-right">{totals.currentYear.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{totals.priorYear.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{totals.adjustments.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-bold">{totals.finalBalance.toLocaleString()}</TableCell>
+                    <TableCell colSpan={2} className="text-xs sm:text-sm">TOTALS</TableCell>
+                    <TableCell className="text-right text-xs sm:text-sm">{totals.currentYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-xs sm:text-sm">{totals.priorYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-xs sm:text-sm">{totals.adjustments.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-bold text-xs sm:text-sm">{totals.finalBalance.toLocaleString()}</TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>
                 </TableBody>
@@ -739,7 +734,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           </div>
 
           {/* Footer actions & summary */}
-          <div className="mt-6 flex items-center justify-between gap-2">
+          <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
               {[...new Set(etbRows.map((row) => row.classification).filter(Boolean))].map((classification) => {
                 const count = etbRows.filter((row) => row.classification === classification).length
@@ -747,7 +742,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   <Badge
                     key={classification}
                     variant="secondary"
-                    className="cursor-pointer"
+                    className="cursor-pointer text-xs"
                     onClick={() => onClassificationJump?.(classification)}
                     title="Open in Sections"
                   >
@@ -756,13 +751,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 )
               })}
             </div>
-            <div className="flex gap-2">
-              <Button onClick={addNewRow} variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={addNewRow} variant="outline" size="sm" className="text-xs sm:text-sm">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
-              <Button onClick={() => saveETB(true)} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              <Button onClick={() => saveETB(true)} disabled={saving} size="sm" className="text-xs sm:text-sm">
+                {saving ? <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" /> : <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />}
                 Save
               </Button>
             </div>

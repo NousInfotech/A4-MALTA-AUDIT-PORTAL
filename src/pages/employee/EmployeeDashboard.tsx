@@ -76,7 +76,6 @@ export const EmployeeDashboard = () => {
         throw error;
       }
 
-
       // Transform profiles to User format
       const transformedClients: User[] =
         data?.map((profile) => ({
@@ -121,7 +120,9 @@ export const EmployeeDashboard = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const completedEngMonth = engagements.filter((user) => user.status==='completed'&& new Date(user.createdAt) >= startOfMonth).length
+  const completedEngMonth = engagements.filter(
+    (user) => user.status === "completed" && new Date(user.createdAt) >= startOfMonth
+  ).length;
   const stats = [
     {
       title: "Total Clients",
@@ -166,23 +167,28 @@ export const EmployeeDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold text-foreground truncate">
             Employee Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">
             Manage your audit engagements and client relationships
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button asChild>
+        <div className="flex flex-col gap-3 w-full sm:w-auto sm:flex-row">
+          <Button asChild className="w-full sm:w-auto">
             <Link to="/employee/clients/new">
               <Plus className="h-4 w-4 mr-2" />
               Add Client
             </Link>
           </Button>
-          <Button asChild variant="outline" className="border-sidebar-foreground">
+          <Button
+            asChild
+            variant="outline"
+            className="w-full sm:w-auto border-sidebar-foreground"
+          >
             <Link to="/employee/engagements/new">
               <Plus className="h-4 w-4 mr-2" />
               New Engagement
@@ -221,12 +227,12 @@ export const EmployeeDashboard = () => {
         {/* Recent Engagements */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <CardTitle>Recent Engagements</CardTitle>
                 <CardDescription>Your latest audit projects</CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to="/employee/engagements">View All</Link>
               </Button>
             </div>
@@ -240,13 +246,13 @@ export const EmployeeDashboard = () => {
                 return (
                   <div
                     key={engagement._id}
-                    className="flex items-center justify-between p-4 border border-border rounded-lg"
+                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-border rounded-lg"
                   >
-                    <div>
-                      <p className="font-medium text-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
                         {engagement.title}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {client?.companyName || "Unknown Client"}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -254,9 +260,9 @@ export const EmployeeDashboard = () => {
                         {new Date(engagement.yearEndDate).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        className={`px-2 py-1 rounded-full text-xs font-medium inline-block ${
                           engagement.status === "active"
                             ? "bg-success/10 text-success"
                             : engagement.status === "completed"
@@ -283,12 +289,12 @@ export const EmployeeDashboard = () => {
         {/* Recent Clients */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Recent Clients</CardTitle>
                 <CardDescription>Your latest client additions</CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to="/employee/clients">View All</Link>
               </Button>
             </div>
@@ -298,22 +304,22 @@ export const EmployeeDashboard = () => {
               {recentClients.map((client) => (
                 <div
                   key={client.id}
-                  className="flex items-center justify-between p-4 border border-border rounded-lg"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border border-border rounded-lg"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
                         {client.companyName}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {client.industry}
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                     <Link to={`/employee/clients/${client.id}`}>View</Link>
                   </Button>
                 </div>

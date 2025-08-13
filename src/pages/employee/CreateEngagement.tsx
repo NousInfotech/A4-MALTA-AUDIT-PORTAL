@@ -145,7 +145,7 @@ const [clients, setClients] = useState<User[]>([])
         </div>
       </div>
 
-      <div className="max-w-2xl">
+      <div className="w-full">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -174,7 +174,7 @@ const [clients, setClients] = useState<User[]>([])
                       <SelectItem key={client.id} value={client.id}>
                         <div>
                           <div className="font-medium">{client.companyName}</div>
-                          <div className="text-sm text-muted-foreground">{client.industry}</div>
+                          <div className="font-light">{client.industry}</div>
                         </div>
                       </SelectItem>
                     ))}
@@ -240,7 +240,7 @@ const [clients, setClients] = useState<User[]>([])
                 <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                   Cancel
                 </Button>
-              </div>
+              </div>/
             </form>
           </CardContent>
         </Card>

@@ -63,7 +63,7 @@ export const EngagementManagement = () => {
       }));
 
       setClients(transformed.filter(c => c.role === 'client'));
-    } catch (err) {
+    } catch (err: any) {
       toast({
         title: 'Error',
         description: `Failed to fetch clients: ${err.message || 'Unknown error'}`,
@@ -73,19 +73,21 @@ export const EngagementManagement = () => {
       setIsLoadingClients(false);
     }
   };
-let filtered = null;
+
+  let filtered = null as any;
   // Filter and sort engagements
-  if(statusFilter==='All'){
+  if (statusFilter === 'All') {
+    filtered = engagements;
+  } else {
     filtered = engagements
-  }
-  else{
-    filtered = engagements.filter(e => e.status === statusFilter).filter(e => {
-      const client = clients.find(c => c.id === e.clientId);
-      return (
-        e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
+      .filter(e => e.status === statusFilter)
+      .filter(e => {
+        const client = clients.find(c => c.id === e.clientId);
+        return (
+          e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
   }
 
   const getStatusStyle = (status: string) => {
@@ -108,84 +110,88 @@ let filtered = null;
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Engagement Management</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold text-foreground ">Engagement Management</h1>
           <p className="text-muted-foreground mt-2">Manage your audit engagements and track progress</p>
         </div>
-        <Button asChild className="border-sidebar-foreground" variant='outline'>
+        <Button asChild className="border-sidebar-foreground self-stretch sm:self-auto" variant="outline">
           <Link to="/employee/engagements/new">
-            <Plus className="h-4 w-4 mr-2" />New Engagement
+            <Plus className="h-4 w-4 mr-2" />
+            New Engagement
           </Link>
         </Button>
       </div>
 
-      {/* Search Card */}
-      <Card className='flex'>
-        <div className='w-full'>
-          
-        <CardHeader>
-          <CardTitle>Search Engagements</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Search by engagement title or client company."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="pl-10 w-full"
-              />
+      {/* Search + Status Card */}
+      <Card className="flex flex-col md:flex-row">
+        {/* Left: Search */}
+        <div className="w-full md:w-1/2">
+          <CardHeader>
+            <CardTitle>Search Engagements</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search by engagement title or client company."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full"
+                />
+              </div>
             </div>
-          </div>
-            <div className=" p-4 flex items-center text-sm text-muted-foreground">
+            <div className="p-4 flex items-center text-sm text-muted-foreground">
               {filtered.length} of {engagements.length} engagements
             </div>
-        </CardContent>
+          </CardContent>
         </div>
-        <div className='w-full'>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-          <CardDescription>Select which engagements to view</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex space-x-4">
-            {['All','draft', 'active', 'completed'].map(status => (
-              <Button
-              className="border-sidebar-foreground"
-                key={status}
-                variant={statusFilter === status ? 'default' : 'outline'}
-                onClick={() => setStatusFilter(status as any)}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
+
+        {/* Right: Status */}
+        <div className="w-full md:w-1/2">
+          <CardHeader>
+            <CardTitle>Status</CardTitle>
+            <CardDescription>Select which engagements to view</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {['All', 'draft', 'active', 'completed'].map(status => (
+                <Button
+                  className="border-sidebar-foreground"
+                  key={status}
+                  variant={statusFilter === status ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter(status as any)}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
         </div>
       </Card>
 
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filtered.map(engagement => {
+        {filtered.map((engagement: any) => {
           const client = clients.find(c => c.id === engagement.clientId);
           return (
             <Card key={engagement._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Briefcase className="h-6 w-6 text-accent" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-lg truncate">{engagement.title}</CardTitle>
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />{client?.companyName || 'Unknown Client'}
+                      <p className="text-sm text-muted-foreground flex items-center gap-2 min-w-0">
+                        <Building2 className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{client?.companyName || 'Unknown Client'}</span>
                       </p>
                     </div>
                   </div>
-                  <Badge variant="outline" className={getStatusStyle(engagement.status)}>
+                  <Badge variant="outline" className={`${getStatusStyle(engagement.status)} self-start`}>
                     {engagement.status}
                   </Badge>
                 </div>
@@ -202,9 +208,10 @@ let filtered = null;
                   </span>
                 </div>
                 <div className="flex items-center gap-2 pt-2">
-                  <Button variant='outline' size="sm" className="flex-1 border-sidebar-foreground" asChild>
+                  <Button variant="outline" size="sm" className="flex-1 border-sidebar-foreground w-full sm:w-auto" asChild>
                     <Link to={`/employee/engagements/${engagement._id}`}>
-                      <Eye className="h-4 w-4 mr-2" />View Details
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
                     </Link>
                   </Button>
                 </div>
@@ -227,7 +234,8 @@ let filtered = null;
             {!searchTerm && (
               <Button asChild>
                 <Link to="/employee/engagements/new">
-                  <Plus className="h-4 w-4 mr-2" />Create Your First Engagement
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Engagement
                 </Link>
               </Button>
             )}

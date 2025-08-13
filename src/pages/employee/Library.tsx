@@ -231,27 +231,23 @@ export default function GlobalLibraryPage() {
     }
   }
 
-const handleDownload = async (file: GlobalFile) => {
-  try {
-    setDownloading(file.name);
-    
-    const response = await fetch(file.publicUrl);
-    const blob = await response.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    
-    // Clean up
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-  } finally {
-    setDownloading(null);
-  }
-};
+  const handleDownload = async (file: GlobalFile) => {
+    try {
+      setDownloading(file.name);
+      const response = await fetch(file.publicUrl);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const handleMoveFile = async (file: GlobalFile, toFolder: GlobalFolder) => {
     if (!selectedFolder) return
@@ -290,15 +286,15 @@ const handleDownload = async (file: GlobalFile) => {
   return (
     <main className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Global Document Library</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold text-foreground truncate">Global Document Library</h1>
           <p className="text-muted-foreground mt-1">Company-wide folders and documents</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full sm:w-auto">
           <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 New Folder
               </Button>
@@ -328,7 +324,7 @@ const handleDownload = async (file: GlobalFile) => {
           {selectedFolder && (
             <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="w-full sm:w-auto">
                   <Pencil className="h-4 w-4 mr-2" />
                   Rename Folder
                 </Button>
@@ -362,20 +358,20 @@ const handleDownload = async (file: GlobalFile) => {
       {/* Toolbar */}
       <div className="bg-white border rounded-lg">
         <div className="bg-white border-b border-gray-200 px-4 py-2 rounded-t-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1 text-sm text-gray-600">
-                <Home className="h-4 w-4" />
-                <span className="font-medium">Global Library</span>
+              <div className="flex items-center space-x-1 text-sm text-gray-600 min-w-0">
+                <Home className="h-4 w-4 flex-shrink-0" />
+                <span className="font-medium truncate">Global Library</span>
                 {selectedFolder ? (
                   <>
                     <span className="mx-1 text-gray-400">/</span>
-                    <span className="text-gray-700">{selectedFolder.name}</span>
+                    <span className="text-gray-700 truncate">{selectedFolder.name}</span>
                   </>
                 ) : null}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center border rounded-md">
                 <Button
                   className="rounded-r-none"
@@ -394,276 +390,295 @@ const handleDownload = async (file: GlobalFile) => {
                   <Grid3X3 className="h-4 w-4" />
                 </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => {
-                refreshFolders()
-                refreshFiles(selectedFolder)
-              }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  refreshFolders()
+                  refreshFiles(selectedFolder)
+                }}
+              >
                 <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
               </Button>
             </div>
           </div>
         </div>
-        {loading?(
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-      </div>
-):
-(
-        <div className="flex">
-          {/* Sidebar: Folders */}
-          <aside className="w-80 bg-white border-r border-gray-200">
-            <div className="p-3 border-b">
-              <div className="text-sm text-gray-600 mb-2">Folders</div>
-              <Input
-                placeholder="Search folders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="p-2 space-y-1 max-h-[60vh] overflow-auto">
-              {folders
-                .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((folder) => (
-                  <div
-                    key={folder._id}
-                    className={cn(
-                      "flex items-center gap-2 p-2 rounded hover:bg-gray-100 cursor-pointer group",
-                      selectedFolder?._id === folder._id ? "bg-blue-50 border-l-2 border-blue-500" : ""
-                    )}
-                    onClick={() => setSelectedFolder(folder)}
-                  >
-                    <Folder className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm">{folder.name}</span>
-                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="outline" className="h-7 w-7">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedFolder(folder)
-                              setRenameFolderName(folder.name)
-                              setIsRenameFolderOpen(true)
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              confirmDeleteFolder(folder)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                ))}
-              {folders.length === 0 && (
-                <div className="text-sm text-muted-foreground p-4">
-                  No folders yet. Create one to get started.
-                </div>
-              )}
-            </div>
-          </aside>
 
-          {/* Main content */}
-          <section className="flex-1">
-            {/* Search and upload */}
-            <div className="p-4 border-b flex items-center gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
+          </div>
+        ) : (
+          <div className="flex flex-col md:flex-row">
+            {/* Sidebar: Folders */}
+            <aside className="w-full md:w-80 bg-white border-r border-gray-200">
+              <div className="p-3 border-b">
+                <div className="text-sm text-gray-600 mb-2">Folders</div>
                 <Input
-                  placeholder="Search files..."
-                  className="pl-10"
+                  placeholder="Search folders..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  disabled={!selectedFolder || uploading}
-                  onChange={onFileInputChange}
-                  className="w-56"
-                />
-                <Button disabled={!selectedFolder || uploading} onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? "Uploading..." : "Upload"}
-                </Button>
-              </div>
-            </div>
-
-            {/* Files list/grid */}
-            <div className="p-4">
-              {!selectedFolder ? (
-                <div className="text-center py-16">
-                  <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <div className="text-lg font-medium">No folder selected</div>
-                  <div className="text-sm text-muted-foreground">
-                    Choose a folder on the left to view its files.
-                  </div>
-                </div>
-              ) : viewMode === "list" ? (
-                <div className="space-y-1">
-                  {/* Header */}
-                  <div className="grid grid-cols-12 gap-4 p-2 text-xs font-medium text-gray-500 border-b">
-                    <div className="col-span-6">Name</div>
-                    <div className="col-span-2">Type</div>
-                    <div className="col-span-2">Modified</div>
-                    <div className="col-span-2">Actions</div>
-                  </div>
-                  {/* Rows */}
-                  {filteredFiles.length > 0 ? (
-                    filteredFiles.map((file) => (
-                      <div key={file.name} className="grid grid-cols-12 gap-4 p-2 hover:bg-gray-50 rounded group">
-                        <div className="col-span-6 flex items-center gap-2">
-                          {getFileIcon(file.name)}
-                          <span className="text-sm">{decodeURIComponent(file.name)}</span>
-                        </div>
-                        <div className="col-span-2 flex items-center text-sm text-gray-500">
-                          {(file.name.split(".").pop() || "").toUpperCase()} File
-                        </div>
-                        <div className="col-span-2 flex items-center text-sm text-gray-500">
-                          {new Date(file.updatedAt).toLocaleDateString()}
-                        </div>
-                        <div className="col-span-2 flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleDownload(file)}
-                            disabled={downloading === file.name}
-                          >
-                            {downloading === file.name ? (
-                              <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4 " />
-                            )}
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="icon">
-                                <FolderInputIcon className="h-4 w-4 " />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto">
-                              {folders
-                                .filter((f) => selectedFolder && f._id !== selectedFolder._id)
-                                .map((f) => (
-                                  <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)}>
-                                    Move to {f.name}
-                                  </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <Button
-                              onClick={() => setFileToDelete(file)}
-                            className="
-                                p-2 
-                                rounded 
-                                bg-inherit 
-                                hover:bg-gray-200 
-                                text-gray-600       /* default icon color */
-                                hover:text-red-600  /* icon turns red when BUTTON is hovered */
-                              "
-                          >
-                            {/* no explicit color on the icon! it will pick up the button’s text color */}
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          
-                        </div>
+              <div className="p-2 space-y-1 max-h-[60vh] overflow-auto">
+                {folders
+                  .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((folder) => (
+                    <div
+                      key={folder._id}
+                      className={cn(
+                        "flex items-center gap-2 p-2 rounded hover:bg-gray-100 cursor-pointer group",
+                        selectedFolder?._id === folder._id ? "bg-blue-50 border-l-2 border-blue-500" : ""
+                      )}
+                      onClick={() => setSelectedFolder(folder)}
+                    >
+                      <Folder className="h-4 w-4 text-yellow-600" />
+                      <span className="text-sm truncate">{folder.name}</span>
+                      <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="outline" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedFolder(folder)
+                                setRenameFolderName(folder.name)
+                                setIsRenameFolderOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                confirmDeleteFolder(folder)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>This folder is empty</p>
-                      <p className="text-sm">Upload documents to get started</p>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {filteredFiles.length > 0 ? (
-                    filteredFiles.map((file) => (
-                      <Card key={file.name} className="p-4 text-center">
-                        <div className="mb-3 flex justify-center">
-                          <div className="p-3 bg-gray-100 rounded-lg">{getFileIcon(file.name)}</div>
-                        </div>
-                        <div className="text-sm font-medium truncate" title={file.name}>
-                          {decodeURIComponent(file.name)}
-                        </div>
-                        <div className="mt-2 flex justify-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleDownload(file)}
-                            disabled={downloading === file.name}
-                          >
-                            {downloading === file.name ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="icon">
-                                <FolderInputIcon className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto">
-                              {folders
-                                .filter((f) => selectedFolder && f._id !== selectedFolder._id)
-                                .map((f) => (
-                                  <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)}>
-                                    Move to {f.name}
-                                  </DropdownMenuItem>
-                                ))}
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => setFileToDelete(file)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete File
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </Card>
-                    ))
-                  ) : (
-                    <div className="col-span-full text-center py-12 text-gray-500">
-                      <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>This folder is empty</p>
-                      <p className="text-sm">Upload documents to get started</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                  ))}
+                {folders.length === 0 && (
+                  <div className="text-sm text-muted-foreground p-4">
+                    No folders yet. Create one to get started.
+                  </div>
+                )}
+              </div>
+            </aside>
 
-            {/* Status bar */}
-            <div className="border-t px-4 py-2 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
-              <span>
-                {filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
-              </span>
-              <span>{loading ? "Refreshing..." : ""}</span>
-            </div>
-          </section>
-        </div>
-)}
+            {/* Main content */}
+            <section className="flex-1">
+              {/* Search and upload */}
+              <div className="p-4 border-b flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search files..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    disabled={!selectedFolder || uploading}
+                    onChange={onFileInputChange}
+                    className="w-full sm:w-56"
+                  />
+                  
+                  <Button
+                    disabled={!selectedFolder || uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full hidden md:block"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? "Uploading..." : "Upload"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Files list/grid */}
+              <div className="p-4">
+                {!selectedFolder ? (
+                  <div className="text-center py-16">
+                    <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <div className="text-lg font-medium">No folder selected</div>
+                    <div className="text-sm text-muted-foreground">
+                      Choose a folder on the left to view its files.
+                    </div>
+                  </div>
+                ) : viewMode === "list" ? (
+                  <div className="space-y-1">
+                    {/* Header (hidden on mobile) */}
+                    <div className="hidden sm:grid grid-cols-12 gap-4 p-2 text-xs font-medium text-gray-500 border-b">
+                      <div className="col-span-6">Name</div>
+                      <div className="col-span-2">Type</div>
+                      <div className="col-span-2">Modified</div>
+                      <div className="col-span-2">Actions</div>
+                    </div>
+                    {/* Rows */}
+                    {filteredFiles.length > 0 ? (
+                      filteredFiles.map((file) => (
+                        <div
+                          key={file.name}
+                          className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-2 hover:bg-gray-50 rounded group"
+                        >
+                          {/* Name */}
+                          <div className="flex items-center gap-2 sm:col-span-6 min-w-0">
+                            {getFileIcon(file.name)}
+                            <span className="text-sm truncate">{decodeURIComponent(file.name)}</span>
+                          </div>
+
+                          {/* Type/Modified (stacked on mobile) */}
+                          <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-gray-500">
+                            {(file.name.split(".").pop() || "").toUpperCase()} File
+                          </div>
+                          <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-gray-500">
+                            {new Date(file.updatedAt).toLocaleDateString()}
+                          </div>
+                          <div className="sm:hidden text-xs text-gray-500 -mt-2">
+                            {(file.name.split(".").pop() || "").toUpperCase()} • {new Date(file.updatedAt).toLocaleDateString()}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="sm:col-span-2 flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDownload(file)}
+                              disabled={downloading === file.name}
+                              className="shrink-0"
+                            >
+                              {downloading === file.name ? (
+                                <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4 " />
+                              )}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon" className="shrink-0">
+                                  <FolderInputIcon className="h-4 w-4 " />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto">
+                                {folders
+                                  .filter((f) => selectedFolder && f._id !== selectedFolder._id)
+                                  .map((f) => (
+                                    <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)}>
+                                      Move to {f.name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                <DropdownMenuItem
+                                  className="text-destructive sm:hidden"
+                                  onClick={() => setFileToDelete(file)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete File
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button
+                              onClick={() => setFileToDelete(file)}
+                              className="p-2 rounded bg-inherit hover:bg-gray-200 text-gray-600 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>This folder is empty</p>
+                        <p className="text-sm">Upload documents to get started</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {filteredFiles.length > 0 ? (
+                      filteredFiles.map((file) => (
+                        <Card key={file.name} className="p-4 text-center">
+                          <div className="mb-3 flex justify-center">
+                            <div className="p-3 bg-gray-100 rounded-lg">{getFileIcon(file.name)}</div>
+                          </div>
+                          <div className="text-sm font-medium truncate" title={file.name}>
+                            {decodeURIComponent(file.name)}
+                          </div>
+                          <div className="mt-2 flex justify-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDownload(file)}
+                              disabled={downloading === file.name}
+                            >
+                              {downloading === file.name ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                  <FolderInputIcon className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto">
+                                {folders
+                                  .filter((f) => selectedFolder && f._id !== selectedFolder._id)
+                                  .map((f) => (
+                                    <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)}>
+                                      Move to {f.name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => setFileToDelete(file)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete File
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </Card>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center py-12 text-gray-500">
+                        <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>This folder is empty</p>
+                        <p className="text-sm">Upload documents to get started</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Status bar */}
+              <div className="border-t px-4 py-2 bg-gray-50 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-xs text-gray-500">
+                <span>
+                  {filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
+                </span>
+                <span>{loading ? "Refreshing..." : ""}</span>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
 
       {/* Delete folder confirmation */}
