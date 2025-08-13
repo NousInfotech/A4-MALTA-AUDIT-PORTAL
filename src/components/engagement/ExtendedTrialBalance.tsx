@@ -25,12 +25,20 @@ import {
   Trash2,
   ChevronsUpDown,
   Check,
+  RefreshCw,
+  ExternalLink,
+  CloudUpload,
+  CloudDownload,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { cn } from "@/lib/utils"
 
-// Helper to ensure each row has a unique client-only ID
+/* -------------------------------------------------------
+   Helpers & Types
+------------------------------------------------------- */
+
+// Ensure each row has a unique client-only ID
 const withClientIds = <T extends object>(rows: T[]) =>
   rows.map((r: any, i: number) => ({
     ...r,
@@ -55,7 +63,10 @@ interface ExtendedTrialBalanceProps {
   onClassificationJump?: (classification: string) => void
 }
 
-/** ---------- Domain data ---------- */
+/* -------------------------------------------------------
+   Domain data
+------------------------------------------------------- */
+
 const CLASSIFICATION_OPTIONS = [
   "Assets > Current > Cash & Cash Equivalents",
   "Assets > Current > Trade Receivables",
@@ -114,7 +125,6 @@ const CLASSIFICATION_OPTIONS = [
   "Expenses > Other > Exceptional/Impairment",
 ]
 
-// Auto-classification rules
 const CLASSIFICATION_RULES = [
   { keywords: ["bank", "cash", "petty"], classification: "Assets > Current > Cash & Cash Equivalents" },
   { keywords: ["trade receivable", "trade debtor", "accounts receivable", "debtors"], classification: "Assets > Current > Trade Receivables" },
@@ -137,7 +147,10 @@ const CLASSIFICATION_RULES = [
   { keywords: ["depreciation", "amortisation"], classification: "Expenses > Administrative Expenses > Depreciation & Amortisation" },
 ]
 
-/** ---------- classification split helpers ---------- */
+/* -------------------------------------------------------
+   Classification split helpers
+------------------------------------------------------- */
+
 const getClassificationLevels = (classification: string) => {
   const parts = (classification || "").split(" > ")
   return { level1: parts[0] || "", level2: parts[1] || "", level3: parts[2] || "" }
@@ -160,7 +173,10 @@ const formatClassificationForDisplay = (c: string) => {
 }
 const hasNonZeroAdjustments = (rows: ETBRow[]) => rows.some((r) => Number(r.adjustments) !== 0)
 
-/** ---------- Searchable Combobox (shadcn style) ---------- */
+/* -------------------------------------------------------
+   Searchable Combobox (shadcn style)
+------------------------------------------------------- */
+
 type ComboOption = { value: string; label?: string }
 function SearchableSelect({
   value,
@@ -234,7 +250,24 @@ function SearchableSelect({
   )
 }
 
-/** ---------- Component ---------- */
+/* -------------------------------------------------------
+   Auth fetch helper (Supabase token)
+------------------------------------------------------- */
+
+async function authFetch(url: string, options: RequestInit = {}) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  const headers = new Headers(options.headers || {})
+  if (data.session?.access_token) {
+    headers.set("Authorization", `Bearer ${data.session.access_token}`)
+  }
+  return fetch(url, { ...options, headers })
+}
+
+/* -------------------------------------------------------
+   Component
+------------------------------------------------------- */
+
 export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   engagement,
   trialBalanceData,
@@ -244,6 +277,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [etbRows, setEtbRows] = useState<ETBRow[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [excelUrl, setExcelUrl] = useState<string>("")
   const { toast } = useToast()
 
   const refreshClassificationSummary = (rows: ETBRow[]) => {
@@ -361,7 +395,135 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     refreshClassificationSummary(newRows)
   }
 
-  /** Searchable classification controls (3-level) */
+  // Save ETB (optionally mute toast)
+  const saveETB = async (showToast = true) => {
+    setSaving(true)
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) throw error
+      if (!data.session?.access_token) throw new Error("Not authenticated")
+
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ rows: etbRows }),
+        }
+      )
+
+      if (!response.ok) throw new Error("Failed to save Extended Trial Balance")
+
+      refreshClassificationSummary(etbRows)
+      if (showToast) toast({ title: "Success", description: "Extended Trial Balance saved successfully" })
+    } catch (error: any) {
+      console.error("Save error:", error)
+      toast({ title: "Save failed", description: error.message, variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* ---------------------------------------------
+     Excel Cloud actions (init/open, push, pull)
+  --------------------------------------------- */
+
+  async function openInExcel() {
+    setLoading(true)
+    try {
+      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/init`, {
+        method: "POST",
+      })
+      if (!res.ok) throw new Error("Failed to initialize Excel workbook.")
+      const json = await res.json()
+      setExcelUrl(json.url)
+      window.open(json.url, "_blank")
+      toast({ title: "Excel Online", description: "Workbook is ready and opened in a new tab." })
+    } catch (e: any) {
+      console.error(e)
+      toast({ title: "Excel error", description: e.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function pushToCloud() {
+    setLoading(true)
+    try {
+      // Save ETB before push (so backend reads latest rows)
+      await saveETB(false)
+
+      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/push`, {
+        method: "POST",
+      })
+      if (!res.ok) throw new Error("Failed to push ETB to Excel.")
+      const json = await res.json()
+      setExcelUrl(json.url)
+      toast({ title: "Pushed", description: "ETB uploaded to Excel Online." })
+    } catch (e: any) {
+      console.error(e)
+      toast({ title: "Push failed", description: e.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function pullFromCloud() {
+    setLoading(true)
+    try {
+      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/pull`, {
+        method: "POST",
+      })
+      if (!res.ok) throw new Error("Failed to fetch data from Excel Online.")
+      const etb = await res.json()
+      const withIds = (etb.rows || []).map((r: any, i: number) => ({ id: r.id || `row-${i}-${Date.now()}`, ...r }))
+      setEtbRows(withIds)
+      refreshClassificationSummary(withIds)
+      toast({ title: "Fetched", description: "Latest data pulled from Excel into ETB." })
+    } catch (e: any) {
+      console.error(e)
+      toast({ title: "Fetch failed", description: e.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /* ---------------------------------------------
+     Totals & UI
+  --------------------------------------------- */
+
+  const totals = useMemo(
+    () =>
+      etbRows.reduce(
+        (acc, row) => ({
+          currentYear: acc.currentYear + Number(row.currentYear) || 0,
+          priorYear: acc.priorYear + Number(row.priorYear) || 0,
+          adjustments: acc.adjustments + Number(row.adjustments) || 0,
+          finalBalance: acc.finalBalance + Number(row.finalBalance) || 0,
+        }),
+        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 },
+      ),
+    [etbRows],
+  )
+
+  const unclassifiedRows = etbRows.filter((row) => !row.classification)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+        <span>Loading Extended Trial Balance...</span>
+      </div>
+    )
+  }
+
+  /* ---------------------------------------------
+     Row-level Classification Controls
+  --------------------------------------------- */
+
   const ClassificationCombos: React.FC<{ row: ETBRow }> = ({ row }) => {
     const levels = getClassificationLevels(row.classification)
     const [level1, setLevel1] = useState(levels.level1)
@@ -369,7 +531,6 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     const [level3, setLevel3] = useState(levels.level3)
 
     useEffect(() => {
-      // keep local state in sync if row changes externally
       const lv = getClassificationLevels(row.classification)
       setLevel1(lv.level1); setLevel2(lv.level2); setLevel3(lv.level3)
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -425,229 +586,199 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     )
   }
 
-  const saveETB = async () => {
-    setSaving(true)
-    try {
-      const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
-      if (!data.session?.access_token) throw new Error("Not authenticated")
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${data.session.access_token}`,
-          },
-          body: JSON.stringify({ rows: etbRows }),
-        }
-      )
-
-      if (!response.ok) throw new Error("Failed to save Extended Trial Balance")
-
-      refreshClassificationSummary(etbRows)
-      toast({ title: "Success", description: "Extended Trial Balance saved successfully" })
-    } catch (error: any) {
-      console.error("Save error:", error)
-      toast({ title: "Save failed", description: error.message, variant: "destructive" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const totals = useMemo(
-    () =>
-      etbRows.reduce(
-        (acc, row) => ({
-          currentYear: acc.currentYear + row.currentYear,
-          priorYear: acc.priorYear + row.priorYear,
-          adjustments: acc.adjustments + row.adjustments,
-          finalBalance: acc.finalBalance + row.finalBalance,
-        }),
-        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 },
-      ),
-    [etbRows],
-  )
-
-  const unclassifiedRows = etbRows.filter((row) => !row.classification)
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading Extended Trial Balance...</span>
-      </div>
-    )
-  }
-
   return (
-    <Card className="border-muted-foreground/10">
-      <CardHeader className=" top-0 z-10 bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Extended Trial Balance
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button onClick={addNewRow} variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Row
-            </Button>
-            <Button onClick={saveETB} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              Save ETB
-            </Button>
+    <div className="h-full flex flex-col">
+
+      {/* ----- Main ETB Card (original UI preserved) ----- */}
+      <Card className="border-muted-foreground/10 flex-1">
+        <CardHeader className=" top-0 z-10 bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
+          <div className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Extended Trial Balance
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={openInExcel} title="Create/Reuse workbook and open">
+                <ExternalLink className="h-4 w-4 mr-2" /> Open in Excel Online
+              </Button>
+              <Button size="sm" variant="outline" onClick={pushToCloud} title="Overwrite Excel from current ETB">
+                <CloudUpload className="h-4 w-4 mr-2" /> Push to Cloud
+              </Button>
+              <Button variant="outline" size="sm" onClick={pullFromCloud} title="Fetch Excel back into ETB">
+                <CloudDownload className="h-4 w-4 mr-2" /> Fetch from Cloud
+              </Button>
+              
+              <Button variant="outline" onClick={() => saveETB(true)} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Save ETB
+              </Button>
+              <Button onClick={addNewRow} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Row
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="pt-4">
-        {unclassifiedRows.length > 0 && (
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {unclassifiedRows.length} rows are unclassified. You can save the ETB and classify them later.
-            </AlertDescription>
-          </Alert>
-        )}
+        <CardContent className="pt-4">
+          {/* Unclassified notice */}
+          {unclassifiedRows.length > 0 && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {unclassifiedRows.length} rows are unclassified. You can save the ETB and classify them later.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        <div className="rounded-lg border overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="min-w-[6rem]">Code</TableHead>
-                  <TableHead className="min-w-[16rem]">Account Name</TableHead>
-                  <TableHead className="text-right min-w-[8rem]">Current Year</TableHead>
-                  <TableHead className="text-right min-w-[8rem]">Prior Year</TableHead>
-                  <TableHead className="text-right min-w-[8rem]">Adjustments</TableHead>
-                  <TableHead className="text-right min-w-[10rem]">Final Balance</TableHead>
-                  <TableHead className="min-w-[22rem]">Classification</TableHead>
-                  <TableHead className="w-[4rem]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {etbRows.map((row, idx) => (
-                  <TableRow
-                    key={row.id}
-                    className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}
-                  >
-                    <TableCell>
-                      <Input
-                        value={row.code}
-                        onChange={(e) => updateRow(row.id, "code", e.target.value)}
-                        className="w-24 font-mono text-sm"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={row.accountName}
-                        onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
-                        className="min-w-64"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={row.currentYear}
-                        onChange={(e) => updateRow(row.id, "currentYear", Number(e.target.value))}
-                        className="w-28 text-right"
-                        step="0.01"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={row.priorYear}
-                        onChange={(e) => updateRow(row.id, "priorYear", Number(e.target.value))}
-                        className="w-28 text-right"
-                        step="0.01"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={row.adjustments}
-                        onChange={(e) => updateRow(row.id, "adjustments", Number(e.target.value))}
-                        className="w-28 text-right"
-                        step="0.01"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {row.finalBalance.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="cursor-pointer"
-                          title="Jump to section"
-                          onClick={() => row.classification && onClassificationJump?.(row.classification)}
-                        >
-                          {formatClassificationForDisplay(row.classification)}
-                        </Badge>
-                        <ClassificationCombos row={row} />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteRow(row.id)}
-                        className="text-red-600 hover:text-red-700"
-                        aria-label="Delete row"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+          {/* Grid */}
+          <div className="rounded-lg border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="min-w-[6rem]">Code</TableHead>
+                    <TableHead className="min-w-[16rem]">Account Name</TableHead>
+                    <TableHead className="text-right min-w-[8rem]">Current Year</TableHead>
+                    <TableHead className="text-right min-w-[8rem]">Prior Year</TableHead>
+                    <TableHead className="text-right min-w-[8rem]">Adjustments</TableHead>
+                    <TableHead className="text-right min-w-[10rem]">Final Balance</TableHead>
+                    <TableHead className="min-w-[22rem]">Classification</TableHead>
+                    <TableHead className="w-[4rem]">Actions</TableHead>
                   </TableRow>
-                ))}
+                </TableHeader>
+                <TableBody>
+                  {etbRows.map((row, idx) => (
+                    <TableRow
+                      key={row.id}
+                      className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}
+                    >
+                      <TableCell>
+                        <Input
+                          value={row.code}
+                          onChange={(e) => updateRow(row.id, "code", e.target.value)}
+                          className="w-24 font-mono text-sm"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={row.accountName}
+                          onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
+                          className="min-w-64"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          value={row.currentYear}
+                          onChange={(e) => updateRow(row.id, "currentYear", Number(e.target.value))}
+                          className="w-28 text-right"
+                          step="0.01"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          value={row.priorYear}
+                          onChange={(e) => updateRow(row.id, "priorYear", Number(e.target.value))}
+                          className="w-28 text-right"
+                          step="0.01"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          value={row.adjustments}
+                          onChange={(e) => updateRow(row.id, "adjustments", Number(e.target.value))}
+                          className="w-28 text-right"
+                          step="0.01"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {Number(row.finalBalance).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="cursor-pointer"
+                            title="Jump to section"
+                            onClick={() => row.classification && onClassificationJump?.(row.classification)}
+                          >
+                            {formatClassificationForDisplay(row.classification)}
+                          </Badge>
+                          <ClassificationCombos row={row} />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteRow(row.id)}
+                          className="text-red-600 hover:text-red-700"
+                          aria-label="Delete row"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
 
-                {/* Totals Row */}
-                <TableRow className="bg-muted/60 font-medium">
-                  <TableCell colSpan={2}>TOTALS</TableCell>
-                  <TableCell className="text-right">{totals.currentYear.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{totals.priorYear.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{totals.adjustments.toLocaleString()}</TableCell>
-                  <TableCell className="text-right font-bold">{totals.finalBalance.toLocaleString()}</TableCell>
-                  <TableCell colSpan={2}></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                  {/* Totals Row */}
+                  <TableRow className="bg-muted/60 font-medium">
+                    <TableCell colSpan={2}>TOTALS</TableCell>
+                    <TableCell className="text-right">{totals.currentYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{totals.priorYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{totals.adjustments.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-bold">{totals.finalBalance.toLocaleString()}</TableCell>
+                    <TableCell colSpan={2}></TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
 
-        {/* Footer actions */}
-        <div className="mt-6 flex items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            {[...new Set(etbRows.map((row) => row.classification).filter(Boolean))].map((classification) => {
-              const count = etbRows.filter((row) => row.classification === classification).length
-              return (
-                <Badge
-                  key={classification}
-                  variant="secondary"
-                  className="cursor-pointer"
-                  onClick={() => onClassificationJump?.(classification)}
-                  title="Open in Sections"
-                >
-                  {formatClassificationForDisplay(classification)} ({count})
-                </Badge>
-              )
-            })}
+          {/* Footer actions & summary */}
+          <div className="mt-6 flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {[...new Set(etbRows.map((row) => row.classification).filter(Boolean))].map((classification) => {
+                const count = etbRows.filter((row) => row.classification === classification).length
+                return (
+                  <Badge
+                    key={classification}
+                    variant="secondary"
+                    className="cursor-pointer"
+                    onClick={() => onClassificationJump?.(classification)}
+                    title="Open in Sections"
+                  >
+                    {formatClassificationForDisplay(classification)} ({count})
+                  </Badge>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={addNewRow} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Row
+              </Button>
+              <Button onClick={() => saveETB(true)} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Save
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={addNewRow} variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Row
-            </Button>
-            <Button onClick={saveETB} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              Save ETB
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {!!excelUrl && (
+            <div className="mt-2 text-xs">
+              <a className="underline" href={excelUrl} target="_blank" rel="noreferrer">
+                Reopen Excel Online
+              </a>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
+
+export default ExtendedTrialBalance

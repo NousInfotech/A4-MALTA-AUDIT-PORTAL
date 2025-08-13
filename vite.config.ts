@@ -10,7 +10,19 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: [
+          // other Babel plugins
+          [
+            "@locator/babel-jsx/dist",
+            {
+              env: "development",
+            },
+          ],
+        ],
+      },
+    }),
     mode === 'development' &&
     componentTagger(),
   ].filter(Boolean),
