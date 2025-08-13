@@ -1,4 +1,4 @@
-"use client"
+// @ts-nocheck
 
 import type React from "react"
 

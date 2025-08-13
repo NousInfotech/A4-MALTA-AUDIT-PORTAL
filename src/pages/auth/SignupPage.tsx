@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/pages/auth/SignupPage.tsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";

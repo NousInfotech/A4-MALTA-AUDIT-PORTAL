@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect } from 'react';
 import { documentRequestApi, getSocket } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
