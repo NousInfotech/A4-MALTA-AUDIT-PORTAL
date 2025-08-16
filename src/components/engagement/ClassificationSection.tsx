@@ -447,6 +447,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       </td>
                     </tr>
                   ))}
+                  {sectionData.length > 0 && (
+                    <tr className="bg-muted/50 font-medium">
+                      <td className="px-4 py-2" colSpan={2}>
+                        TOTALS
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {totals.currentYear.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {totals.priorYear.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {totals.adjustments.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {totals.finalBalance.toLocaleString()}
+                      </td>
+                    </tr>
+                  )}
                   {sectionData.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
