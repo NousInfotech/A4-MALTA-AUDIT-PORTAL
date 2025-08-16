@@ -225,7 +225,7 @@ const [clients, setClients] = useState<User[]>([])
               <div className="bg-muted/50 p-4 rounded-lg">
                 <h4 className="font-medium text-foreground mb-2">Next Steps</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Upload trial balance data via Google Sheets link</li>
+                  <li>• Upload trial balance data</li>
                   <li>• Send document requests to the client</li>
                   <li>• Generate and complete audit procedures</li>
                   <li>• Export final reports</li>
@@ -240,7 +240,7 @@ const [clients, setClients] = useState<User[]>([])
                 <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                   Cancel
                 </Button>
-              </div>/
+              </div>
             </form>
           </CardContent>
         </Card>

@@ -235,38 +235,58 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  const createViewSpreadsheet = async () => {
-    setLoading(true);
-    try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/view-spreadsheet`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: sectionData }),
-        }
-      );
-      if (!response.ok) throw new Error("Failed to create view spreadsheet");
-      const result = await response.json();
-      setViewSpreadsheetUrl(result.viewUrl);
-      // window.open(result.viewUrl, "_blank");
-      toast({
-        title: "Success",
-        description: "Spreadsheet Saved in Library",
-      });
-    } catch (error: any) {
-      console.error("Create view spreadsheet error:", error);
-      toast({
-        title: "Create failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+// put this helper near the top of the file (outside the component)
+// put this helper near the top of the file (outside the component)
+function withVersion(rawUrl: string) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    if (!u.searchParams.has("v")) u.searchParams.set("v", String(Date.now()));
+    else u.searchParams.set("v", String(Date.now())); // refresh existing
+    return u.toString();
+  } catch {
+    const join = rawUrl.includes("?") ? "&" : "?";
+    return `${rawUrl}${join}v=${Date.now()}`;
+  }
+}
+
+
+
+const createViewSpreadsheet = async () => {
+  setLoading(true);
+  try {
+    const response = await authFetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${
+        engagement._id
+      }/sections/${encodeURIComponent(classification)}/view-spreadsheet`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: sectionData }),
+      }
+    );
+    if (!response.ok) throw new Error("Failed to create view spreadsheet");
+
+    const result = await response.json();
+
+    // ALWAYS use a cache-busted URL before storing/opening
+    const freshUrl = withVersion(result.viewUrl);
+    setViewSpreadsheetUrl(freshUrl);
+
+    // Optional: force-open the latest file
+    // window.open(freshUrl, "_blank", "noopener,noreferrer");
+
+    toast({ title: "Success", description: "Spreadsheet Saved in Library" });
+  } catch (error: any) {
+    console.error("Create view spreadsheet error:", error);
+    toast({ title: "Create failed", description: error.message, variant: "destructive" });
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
 
   const totals = useMemo(
     () =>

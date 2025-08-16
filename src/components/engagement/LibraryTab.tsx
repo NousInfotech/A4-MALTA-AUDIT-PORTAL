@@ -154,38 +154,67 @@ export const LibraryTab = ({ engagement, requests, procedures }: LibraryTabProps
       setLoading(false)
     }
   }
-
-  const handleDownload = async (file: LibraryFile) => {
-    try {
-      setDownloadingId(file._id)
-      // build the storage path
-      const path = `${engagement._id}/${file.category}/${file.fileName}`
-
-      // fetch the file as a blob
-      const { data, error } = await supabase.storage.from("engagement-documents").download(path)
-
-      if (error || !data) throw error || new Error("No data")
-
-      // create a blob URL and click it
-      const url = URL.createObjectURL(data)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = file.fileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err: any) {
-      console.error("Download error", err)
-      toast({
-        title: "Download failed",
-        description: err.message,
-        variant: "destructive",
-      })
-    } finally {
-      setDownloadingId(null)
+  // put this near the top, outside the component
+function withVersion(url: string, addDownload = false) {
+  try {
+    const u = new URL(url);
+    if (addDownload && !u.searchParams.has("download")) {
+      // makes the CDN return with Content-Disposition: attachment
+      u.searchParams.set("download", "");
     }
+    // force a fresh URL every time to avoid disk cache
+    u.searchParams.set("v", String(Date.now()));
+    return u.toString();
+  } catch {
+    const join = url.includes("?") ? "&" : "?";
+    const download = addDownload ? `${join}download=&` : join;
+    return `${url}${download}v=${Date.now()}`;
   }
+}
+
+
+ const handleDownload = async (file: LibraryFile) => {
+  try {
+    setDownloadingId(file._id);
+
+    // Prefer the stored public URL (it may already include a version flag).
+    // Fall back to path-based download only if url is missing.
+    let downloadUrl = file.url
+      ? withVersion(file.url, true)
+      : (() => {
+          const path = `${engagement._id}/${file.category}/${file.fileName}`;
+          // Generate a fresh public URL from the path as a fallback
+          const { data } = supabase.storage
+            .from("engagement-documents")
+            .getPublicUrl(path);
+          return withVersion(data.publicUrl, true);
+        })();
+
+    // Use fetch to control cache behavior explicitly
+    const resp = await fetch(downloadUrl, { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading file`);
+    const blob = await resp.blob();
+
+    // Create a blob URL and download
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = file.fileName || "download.xlsx"; // fallback name
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (err: any) {
+    console.error("Download error", err);
+    toast({
+      title: "Download failed",
+      description: err.message || "Unexpected error",
+      variant: "destructive",
+    });
+  } finally {
+    setDownloadingId(null);
+  }
+};
+
 
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase()

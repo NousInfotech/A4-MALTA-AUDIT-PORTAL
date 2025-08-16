@@ -96,66 +96,79 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* Nav */}
       <nav className="flex-1 p-3 md:p-4 overflow-y-auto">
         <ul className="space-y-1.5">
-          {filteredNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              location.pathname === item.href ||
-              (item.href !== `/${user.role}` && location.pathname.startsWith(item.href));
+  {filteredNavItems.map((item) => {
+    const Icon = item.icon;
+    const isActive =
+      location.pathname === item.href ||
+      (item.href !== `/${user.role}` &&
+        location.pathname.startsWith(item.href));
 
-            return (
-              <li key={item.href}>
-                <Link
-                  to={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    'group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200',
-                    isActive
-                      ? 'bg-sidebar-foreground text-sidebar-primary-foreground'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  {/* Label animates width/opacity on desktop collapse */}
-                  <span
-                    className={cn(
-                      "font-medium transition-all duration-300 ease-in-out",
-                      "md:overflow-hidden md:whitespace-nowrap",
-                      isCollapsed ? "md:w-0 md:opacity-0 md:scale-95" : "md:w-auto md:opacity-100 md:scale-100"
-                    )}
-                  >
-                    {item.title}
-                  </span>
-                </Link>
-                
-              </li>
-              
-            );
-          })}
-          {/* Desktop collapse toggle */}
-          <div className={`w-full flex items-center  ${isCollapsed ? "justify-center":"justify-start"}`}>
-        <button
-          type="button"
-          
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          onClick={() => setIsCollapsed(v => !v)}
+    return (
+      <li key={item.href}>
+        <Link
+          to={item.href}
+          onClick={onClose}
           className={cn(
-            "hidden md:inline-flex items-center justify-center rounded-md border border-sidebar-border",
-            "text-sidebar-foreground hover:bg-sidebar-accent/50",
-            "transition-all duration-200",
-            isCollapsed ? "w-10 h-10 p-1 " : "w-auto h-auto p-1 shrink-0"
+            'group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200',
+            isActive
+              ? 'bg-sidebar-foreground text-sidebar-primary-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
           )}
-          title={isCollapsed ? "Expand" : "Collapse"}
-        >{isCollapsed ? "" : "Collapse sidebar"}
-          <svg
-            className={cn("h-4 w-4 transition-transform duration-300", isCollapsed ? "rotate-180" : "rotate-0")}
-            viewBox="0 0 20 20" fill="currentColor"
+        >
+          <Icon className="h-5 w-5 shrink-0" />
+          <span
+            className={cn(
+              "font-medium transition-all duration-300 ease-in-out",
+              "md:overflow-hidden md:whitespace-nowrap",
+              isCollapsed
+                ? "md:w-0 md:opacity-0 md:scale-95"
+                : "md:w-auto md:opacity-100 md:scale-100"
+            )}
           >
-            
-            <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414l4-4a1 1 0 1 1 1.414 1.414L10.414 10l2.293 2.293a1 1 0 0 1 0 1.414z" />
-          </svg>
-        </button>
-          </div>
-        </ul>
+            {item.title}
+          </span>
+        </Link>
+      </li>
+    );
+  })}
+
+  {/* Collapse toggle as a nav item */}
+  <li>
+    <button
+      type="button"
+      onClick={() => setIsCollapsed((v) => !v)}
+      aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      title={isCollapsed ? "Expand" : "Collapse"}
+      className={cn(
+        "group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200 w-full text-left",
+        "text-sidebar-foreground hover:bg-sidebar-accent/50"
+      )}
+    >
+      <svg
+        className={cn(
+          "h-5 w-5 shrink-0 transition-transform duration-300",
+          isCollapsed ? "rotate-180" : "rotate-0"
+        )}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+      >
+        <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414l4-4a1 1 0 1 1 1.414 1.414L10.414 10l2.293 2.293a1 1 0 0 1 0 1.414z" />
+      </svg>
+      <span
+        className={cn(
+          "font-medium transition-all duration-300 ease-in-out",
+          "md:overflow-hidden md:whitespace-nowrap",
+          isCollapsed
+            ? "md:w-0 md:opacity-0 md:scale-95"
+            : "md:w-auto md:opacity-100 md:scale-100"
+        )}
+      >
+        {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      </span>
+    </button>
+  </li>
+</ul>
+
       </nav>
 
       {/* Footer / User */}
