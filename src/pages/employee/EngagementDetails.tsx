@@ -209,7 +209,7 @@ export const EngagementDetails = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex">
           <Button variant="outline" size="icon" asChild className="sm:mr-4">
-            <Link to="/employee/engageme  nts">
+            <Link to="/employee/engagements">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
