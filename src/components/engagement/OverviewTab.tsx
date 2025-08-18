@@ -1,15 +1,16 @@
+"use client"
+
 // @ts-nocheck
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Download, Bot, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Download, Bot, Loader2 } from "lucide-react"
 
 interface OverviewTabProps {
-  engagement: any;
-  requests: any[];
-  procedures: any[];
-  handleGenerateProcedures: () => void;
-  isGeneratingProcedures: boolean;
+  engagement: any
+  requests: any[]
+  procedures: any[]
+  handleGenerateProcedures: () => void
+  isGeneratingProcedures: boolean
 }
 
 export const OverviewTab = ({
@@ -28,13 +29,7 @@ export const OverviewTab = ({
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-muted-foreground">Trial Balance</span>
-            <span
-              className={
-                engagement.trialBalanceUrl
-                  ? "text-success"
-                  : "text-muted-foreground"
-              }
-            >
+            <span className={engagement.trialBalanceUrl ? "text-success" : "text-muted-foreground"}>
               {engagement.trialBalanceUrl ? "Uploaded" : "Pending"}
             </span>
           </div>
@@ -56,9 +51,7 @@ export const OverviewTab = ({
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-sm text-muted-foreground">Created</div>
-            <div className="font-medium">
-              {new Date(engagement.createdAt).toLocaleDateString()}
-            </div>
+            <div className="font-medium">{new Date(engagement.createdAt).toLocaleDateString()}</div>
           </div>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-sm text-muted-foreground">Status</div>
@@ -73,7 +66,7 @@ export const OverviewTab = ({
         </CardHeader>
         <CardContent className="space-y-3">
           <Button
-            className="w-full"
+            className="w-full bg-transparent"
             variant="outline"
             onClick={handleGenerateProcedures}
             disabled={isGeneratingProcedures}
@@ -85,12 +78,12 @@ export const OverviewTab = ({
             )}
             Generate Procedures
           </Button>
-          <Button className="w-full" variant="outline">
+          <Button className="w-full bg-transparent" variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}

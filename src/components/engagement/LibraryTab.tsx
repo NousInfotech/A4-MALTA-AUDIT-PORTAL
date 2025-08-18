@@ -1,3 +1,5 @@
+"use client"
+
 // @ts-nocheck
 
 import type React from "react"
@@ -13,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { FolderInputIcon, Trash2 } from "lucide-react"
+import { FolderInputIcon, Trash2, ImageIcon } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,7 +29,6 @@ import {
   FolderOpen,
   File,
   FileText,
-  Image,
   Grid3X3,
   List,
   Search,
@@ -40,6 +41,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { engagementApi } from "@/services/api"
 import { supabase } from "@/integrations/supabase/client"
+import { EnhancedLoader } from "../ui/enhanced-loader"
 
 const categories = [
   "Trial Balance",
@@ -155,66 +157,62 @@ export const LibraryTab = ({ engagement, requests, procedures }: LibraryTabProps
     }
   }
   // put this near the top, outside the component
-function withVersion(url: string, addDownload = false) {
-  try {
-    const u = new URL(url);
-    if (addDownload && !u.searchParams.has("download")) {
-      // makes the CDN return with Content-Disposition: attachment
-      u.searchParams.set("download", "");
+  function withVersion(url: string, addDownload = false) {
+    try {
+      const u = new URL(url)
+      if (addDownload && !u.searchParams.has("download")) {
+        // makes the CDN return with Content-Disposition: attachment
+        u.searchParams.set("download", "")
+      }
+      // force a fresh URL every time to avoid disk cache
+      u.searchParams.set("v", String(Date.now()))
+      return u.toString()
+    } catch {
+      const join = url.includes("?") ? "&" : "?"
+      const download = addDownload ? `${join}download=&` : join
+      return `${url}${download}v=${Date.now()}`
     }
-    // force a fresh URL every time to avoid disk cache
-    u.searchParams.set("v", String(Date.now()));
-    return u.toString();
-  } catch {
-    const join = url.includes("?") ? "&" : "?";
-    const download = addDownload ? `${join}download=&` : join;
-    return `${url}${download}v=${Date.now()}`;
   }
-}
 
+  const handleDownload = async (file: LibraryFile) => {
+    try {
+      setDownloadingId(file._id)
 
- const handleDownload = async (file: LibraryFile) => {
-  try {
-    setDownloadingId(file._id);
+      // Prefer the stored public URL (it may already include a version flag).
+      // Fall back to path-based download only if url is missing.
+      const downloadUrl = file.url
+        ? withVersion(file.url, true)
+        : (() => {
+            const path = `${engagement._id}/${file.category}/${file.fileName}`
+            // Generate a fresh public URL from the path as a fallback
+            const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
+            return withVersion(data.publicUrl, true)
+          })()
 
-    // Prefer the stored public URL (it may already include a version flag).
-    // Fall back to path-based download only if url is missing.
-    let downloadUrl = file.url
-      ? withVersion(file.url, true)
-      : (() => {
-          const path = `${engagement._id}/${file.category}/${file.fileName}`;
-          // Generate a fresh public URL from the path as a fallback
-          const { data } = supabase.storage
-            .from("engagement-documents")
-            .getPublicUrl(path);
-          return withVersion(data.publicUrl, true);
-        })();
+      // Use fetch to control cache behavior explicitly
+      const resp = await fetch(downloadUrl, { cache: "no-store" })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading file`)
+      const blob = await resp.blob()
 
-    // Use fetch to control cache behavior explicitly
-    const resp = await fetch(downloadUrl, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading file`);
-    const blob = await resp.blob();
-
-    // Create a blob URL and download
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = file.fileName || "download.xlsx"; // fallback name
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  } catch (err: any) {
-    console.error("Download error", err);
-    toast({
-      title: "Download failed",
-      description: err.message || "Unexpected error",
-      variant: "destructive",
-    });
-  } finally {
-    setDownloadingId(null);
+      // Create a blob URL and download
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = file.fileName || "download.xlsx" // fallback name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(a.href)
+    } catch (err: any) {
+      console.error("Download error", err)
+      toast({
+        title: "Download failed",
+        description: err.message || "Unexpected error",
+        variant: "destructive",
+      })
+    } finally {
+      setDownloadingId(null)
+    }
   }
-};
-
 
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase()
@@ -230,7 +228,7 @@ function withVersion(url: string, addDownload = false) {
       case "jpg":
       case "png":
       case "gif":
-        return <Image className="h-4 w-4 text-purple-500" />
+        return <ImageIcon className="h-4 w-4 text-purple-500" />
       case "zip":
         return <File className="h-4 w-4 text-yellow-600" />
       default:
@@ -323,12 +321,13 @@ function withVersion(url: string, addDownload = false) {
     },
     {} as Record<string, number>,
   )
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-      </div>
-    )
+  if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading Engagement Library..." />
+        </div>
+      )
+    }
 
   return (
     <div className="h-[800px] flex flex-col bg-gray-50 rounded-lg border">

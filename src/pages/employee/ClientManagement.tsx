@@ -9,6 +9,7 @@ import { Building2, Plus, Search, Eye, Loader2 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
+import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 interface User {
   summary: string;
@@ -123,12 +124,13 @@ export const ClientManagement = () => {
       (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
-  if (isLoading)
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-      </div>
-    );
+  if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
 
   return (
     <div className="space-y-6">

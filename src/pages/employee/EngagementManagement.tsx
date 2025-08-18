@@ -9,6 +9,7 @@ import { useEngagements } from '@/hooks/useEngagements';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye, Loader2 } from 'lucide-react';
+import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,8 +103,8 @@ export const EngagementManagement = () => {
   if (loading || isLoadingClients) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+                <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+              </div>
     );
   }
 

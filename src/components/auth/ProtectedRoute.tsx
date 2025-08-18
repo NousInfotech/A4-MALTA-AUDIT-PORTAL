@@ -1,5 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
+import { EnhancedLoader } from '../ui/enhanced-loader';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,12 +12,12 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;

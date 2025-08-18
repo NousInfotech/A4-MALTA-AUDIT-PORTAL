@@ -51,12 +51,12 @@ export const ClientDashboard = () => {
   }, [user, toast]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
 
   const pendingRequests = allRequests.filter(req => req.status === 'pending');
   const completedRequests = allRequests.filter(req => req.status === 'completed');

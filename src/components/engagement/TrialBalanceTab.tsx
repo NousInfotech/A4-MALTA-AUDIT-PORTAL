@@ -1,3 +1,4 @@
+
 // @ts-nocheck
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
@@ -170,7 +171,11 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                 <FileSpreadsheet className="h-4 w-4" />
                 Upload TB
               </TabsTrigger>
-              <TabsTrigger value="etb" disabled={!trialBalanceData} className="flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger
+                value="etb"
+                disabled={!trialBalanceData}
+                className="flex items-center gap-2 whitespace-nowrap"
+              >
                 <Calculator className="h-4 w-4" />
                 Extended TB
               </TabsTrigger>
@@ -242,23 +247,23 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                     <div className="mt-1" />
                     {Object.entries(groupedClassifications).map(([key, classificationList]) => (
                       <div key={key}>
-                        {key!=="Adjustments"&&(
-                        <Button
-                          variant={selectedClassification === key ? "default" : "outline"}
-                          className="w-full justify-start text-left h-auto p-3"
-                          onClick={() => setSelectedClassification(key)}
-                        >
-                          <div className="flex flex-col items-start">
-                            <div className="font-medium">{formatClassificationForDisplay(key)}</div>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {classificationList.map((classification) => (
-                                <Badge key={classification} variant="secondary" className="text-xs">
-                                  {getClassificationDisplayName(classification)}
-                                </Badge>
-                              ))}
+                        {key !== "Adjustments" && (
+                          <Button
+                            variant={selectedClassification === key ? "default" : "outline"}
+                            className="w-full justify-start text-left h-auto p-3"
+                            onClick={() => setSelectedClassification(key)}
+                          >
+                            <div className="flex flex-col items-start">
+                              <div className="font-medium">{formatClassificationForDisplay(key)}</div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {classificationList.map((classification) => (
+                                  <Badge key={classification} variant="secondary" className="text-xs">
+                                    {getClassificationDisplayName(classification)}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        </Button>
+                          </Button>
                         )}
                       </div>
                     ))}
@@ -285,7 +290,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                       <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Section</h3>
                       <p className="text-gray-500">
-                        Pick <strong>Extended Trial Balance</strong>, <strong>Adjustments</strong>, or any classification from the sidebar.
+                        Pick <strong>Extended Trial Balance</strong>, <strong>Adjustments</strong>, or any
+                        classification from the sidebar.
                       </p>
                     </div>
                   </div>

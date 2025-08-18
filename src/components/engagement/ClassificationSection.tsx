@@ -3,7 +3,7 @@
 // @ts-nocheck
 
 import type React from "react"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { EnhancedLoader } from "../ui/enhanced-loader"
 
 interface ClassificationSectionProps {
   engagement: any
@@ -158,13 +159,34 @@ function FullscreenOverlay({
   )
 }
 
+// 🧭 small helpers for tab persistence via ?tab=
+function getTabFromSearch(): "lead-sheet" | "working-papers" {
+  try {
+    const sp = new URLSearchParams(window.location.search)
+    const t = sp.get("tab")
+    return t === "working-papers" ? "working-papers" : "lead-sheet"
+  } catch {
+    return "lead-sheet"
+  }
+}
+function setTabInSearch(tab: "lead-sheet" | "working-papers") {
+  try {
+    const url = new URL(window.location.href)
+    url.searchParams.set("tab", tab)
+    window.history.replaceState({}, "", url.toString())
+  } catch {
+    // ignore
+  }
+}
+
 export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   engagement,
   classification,
   onClose,
   onClassificationJump,
 }) => {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)                 // global loader (ETB / lead-sheet)
+  const [wpHydrating, setWpHydrating] = useState(false)        // dedicated loader for WP tab pulls
   const [sectionData, setSectionData] = useState<ETBRow[]>([])
   const [viewSpreadsheetUrl, setViewSpreadsheetUrl] = useState<string>("")
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -182,30 +204,93 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewRowData, setViewRowData] = useState<ViewRowData | null>(null)
   const [viewRowLoading, setViewRowLoading] = useState(false)
 
+  // 🔖 keep the tab stable across refresh / navigation
+  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers">(() => getTabFromSearch())
+  useEffect(() => setTabInSearch(activeTab), [activeTab])
+
   const { toast } = useToast()
 
+  // 🔒 mounted ref to prevent setting state after unmount
+  const mountedRef = useRef(true)
   useEffect(() => {
-    loadSectionData()
-    if (shouldHaveWorkingPapers(classification)) {
-      checkWorkingPapersStatus()
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // 🔁 AUTO-PULL guard: avoid duplicate pulls for the same classification
+  const lastPulledRef = useRef<string | null>(null)
+
+  // 1) On classification change: clear UI immediately, then load fresh data and WP status
+  useEffect(() => {
+    let cancelled = false
+
+    const run = async () => {
+      // Immediately clear previous content to show loaders instead of “popping” data
+      if (mountedRef.current) {
+        setSectionData([])
+        setWorkingPapersInitialized(false)
+        setWorkingPapersUrl("")
+        setWorkingPapersId("")
+        setAvailableSheets([])
+        setViewRowDialog(false)
+        setViewRowData(null)
+      }
+
+      // If user is already on WP tab, show a dedicated WP loader while we hydrate
+      const showWpLoader = shouldHaveWorkingPapers(classification) && activeTab === "working-papers"
+      if (showWpLoader) setWpHydrating(true)
+      setLoading(true)
+
+      try {
+        await loadSectionData()
+
+        if (shouldHaveWorkingPapers(classification)) {
+          const status = await checkWorkingPapersStatus()
+          // AUTO-PULL into Working Papers with a visible WP loader (not global flash)
+          if (status?.initialized && activeTab === "working-papers" && lastPulledRef.current !== classification) {
+            await pullFromWorkingPaper(classification, { mode: "wp" })
+            if (!cancelled) lastPulledRef.current = classification
+          }
+        } else {
+          // Hard sections like ETB/Adjustments: ensure flags are reset
+          if (!cancelled && mountedRef.current) {
+            setWorkingPapersInitialized(false)
+            setWorkingPapersUrl("")
+            setWorkingPapersId("")
+            setAvailableSheets([])
+          }
+        }
+      } catch (e) {
+        // errors already toasted in helpers
+      } finally {
+        if (!cancelled && mountedRef.current) {
+          setLoading(false)
+          setWpHydrating(false)
+        }
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classification])
 
   const loadSectionData = async () => {
-    setLoading(true)
     try {
       if (isAdjustments(classification) || isETB(classification)) {
-        // Use the same ETB endpoint; no new APIs
         const etbResp = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`)
         if (!etbResp.ok) throw new Error("Failed to load ETB")
         const etb = await etbResp.json()
         const rows: ETBRow[] = Array.isArray(etb.rows) ? etb.rows : []
+        if (!mountedRef.current) return
         setSectionData(isAdjustments(classification) ? rows.filter((r) => Number(r.adjustments) !== 0) : rows)
         return
       }
 
-      // Normal paths (server provides data by classification or by category)
       const endpoint = isTopCategory(classification)
         ? `${import.meta.env.VITE_APIURL}/api/engagements/${
             engagement._id
@@ -217,6 +302,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const response = await authFetch(endpoint)
       if (!response.ok) throw new Error("Failed to load section data")
       const data = await response.json()
+      if (!mountedRef.current) return
       setSectionData(Array.isArray(data.rows) ? data.rows : [])
     } catch (error: any) {
       console.error("Load error:", error)
@@ -225,8 +311,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         description: error.message,
         variant: "destructive",
       })
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -235,10 +319,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     try {
       if (isAdjustments(classification) || isETB(classification)) {
         await loadSectionData()
-        toast({
-          title: "Success",
-          description: "Data reloaded from ETB successfully",
-        })
+        toast({ title: "Success", description: "Data reloaded from ETB successfully" })
         return
       }
 
@@ -250,37 +331,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             engagement._id
           }/etb/classification/${encodeURIComponent(classification)}/reload`
 
-      const response = await authFetch(endpoint, {
-        method: isTopCategory(classification) ? "GET" : "POST",
-      })
+      const response = await authFetch(endpoint, { method: isTopCategory(classification) ? "GET" : "POST" })
       if (!response.ok) throw new Error("Failed to reload data from ETB")
 
       const data = await response.json()
-      setSectionData(Array.isArray(data.rows) ? data.rows : [])
-      toast({
-        title: "Success",
-        description: "Data reloaded from ETB successfully",
-      })
+      if (mountedRef.current) setSectionData(Array.isArray(data.rows) ? data.rows : [])
+      toast({ title: "Success", description: "Data reloaded from ETB successfully" })
     } catch (error: any) {
       console.error("Reload error:", error)
-      toast({
-        title: "Reload failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Reload failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
   }
 
-  // put this helper near the top of the file (outside the component)
-  // put this helper near the top of the file (outside the component)
+  // one helper to cache-bust a url
   function withVersion(rawUrl: string) {
     if (!rawUrl) return rawUrl
     try {
       const u = new URL(rawUrl)
-      if (!u.searchParams.has("v")) u.searchParams.set("v", String(Date.now()))
-      else u.searchParams.set("v", String(Date.now())) // refresh existing
+      u.searchParams.set("v", String(Date.now()))
       return u.toString()
     } catch {
       const join = rawUrl.includes("?") ? "&" : "?"
@@ -304,34 +374,39 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to create view spreadsheet")
 
       const result = await response.json()
-
-      // ALWAYS use a cache-busted URL before storing/opening
       const freshUrl = withVersion(result.viewUrl)
-      setViewSpreadsheetUrl(freshUrl)
-
-      // Optional: force-open the latest file
-      // window.open(freshUrl, "_blank", "noopener,noreferrer");
+      if (mountedRef.current) setViewSpreadsheetUrl(freshUrl)
 
       toast({ title: "Success", description: "Spreadsheet Saved in Library" })
     } catch (error: any) {
       console.error("Create view spreadsheet error:", error)
       toast({ title: "Create failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
   }
 
+  // ⬇️ RETURN status so the caller can decide to auto-pull
   const checkWorkingPapersStatus = async () => {
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/status`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/status`,
       )
       if (response.ok) {
         const data = await response.json()
+        if (!mountedRef.current) return
         setWorkingPapersInitialized(data.initialized)
         setWorkingPapersUrl(data.url || "")
         setWorkingPapersId(data.spreadsheetId || "")
         setAvailableSheets(data.sheets || [])
+        return data as {
+          initialized: boolean
+          url?: string
+          spreadsheetId?: string
+          sheets?: string[]
+        }
       }
     } catch (error) {
       console.error("Error checking working papers status:", error)
@@ -339,10 +414,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
 
   const initializeWorkingPapers = async () => {
+    // For init, keep a dedicated WP loader if user is on WP tab
+    if (activeTab === "working-papers") setWpHydrating(true)
     setLoading(true)
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/init`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/init`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -353,35 +432,38 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to initialize working papers")
 
       const result = await response.json()
+      if (!mountedRef.current) return
+
       setWorkingPapersInitialized(true)
       setWorkingPapersUrl(result.url)
       setWorkingPapersId(result.spreadsheetId)
       setAvailableSheets(result.sheets || [])
+      // Reset lastPulled so first visit to WP will pull freshly
+      lastPulledRef.current = null
 
-      // Open the Excel sheet
       window.open(result.url, "_blank", "noopener,noreferrer")
 
-      toast({
-        title: "Success",
-        description: "Working papers initialized with lead sheet data",
-      })
+      toast({ title: "Success", description: "Working papers initialized with lead sheet data" })
     } catch (error: any) {
       console.error("Initialize working papers error:", error)
-      toast({
-        title: "Initialize failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Initialize failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        setLoading(false)
+        setWpHydrating(false)
+      }
     }
   }
 
   const pushToWorkingPapers = async () => {
-    setLoading(true)
+    // show a WP-local loader if we are on the WP tab
+    if (activeTab === "working-papers") setWpHydrating(true)
+    else setLoading(true)
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/push`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/push`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -391,60 +473,63 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       if (!response.ok) throw new Error("Failed to push to working papers")
 
-      toast({
-        title: "Success",
-        description: "Changes pushed to working papers successfully",
-      })
+      toast({ title: "Success", description: "Changes pushed to working papers successfully" })
     } catch (error: any) {
       console.error("Push to working papers error:", error)
-      toast({
-        title: "Push failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Push failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        if (activeTab === "working-papers") setWpHydrating(false)
+        else setLoading(false)
+      }
     }
   }
 
-  const pullFromWorkingPapers = async () => {
-    setLoading(true)
+  // 🔧 pull now supports an explicit loader mode so WP tab can show its own loader
+  const pullFromWorkingPaper = async (
+    clas: string,
+    opts?: { mode?: "global" | "wp" },
+  ) => {
+    const mode = opts?.mode || (activeTab === "working-papers" ? "wp" : "global")
+    if (mode === "wp") setWpHydrating(true)
+    else setLoading(true)
+
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/pull`,
-        {
-          method: "POST",
-        },
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          clas,
+        )}/working-papers/pull`,
+        { method: "POST" },
       )
 
       if (!response.ok) throw new Error("Failed to pull from working papers")
 
       const result = await response.json()
+      if (!mountedRef.current) return
       setSectionData(result.rows)
       setAvailableSheets(result.sheets || [])
 
-      toast({
-        title: "Success",
-        description: "Changes pulled from working papers successfully",
-      })
+      toast({ title: "Success", description: "Changes pulled from working papers successfully" })
     } catch (error: any) {
       console.error("Pull from working papers error:", error)
-      toast({
-        title: "Pull failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Pull failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        if (mode === "wp") setWpHydrating(false)
+        else setLoading(false)
+      }
     }
   }
 
   const fetchRowsFromSheets = async (row: ETBRow) => {
     setSelectedRowForFetch(row)
-    setLoading(true)
+    // show dialog-level UX quickly; also indicate WP hydration
+    if (activeTab === "working-papers") setWpHydrating(true)
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/fetch-rows`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/fetch-rows`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -455,27 +540,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to fetch rows from sheets")
 
       const result = await response.json()
+      if (!mountedRef.current) return
       setAvailableRows(result.rows)
       setFetchRowsDialog(true)
     } catch (error: any) {
       console.error("Fetch rows error:", error)
-      toast({
-        title: "Fetch failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Fetch failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setWpHydrating(false)
     }
   }
 
   const selectRowFromSheets = async () => {
     if (!selectedRow || !selectedRowForFetch) return
+    if (activeTab === "working-papers") setWpHydrating(true)
 
-    setLoading(true)
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/select-row`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/select-row`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -489,34 +573,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to select row")
 
       const result = await response.json()
+      if (!mountedRef.current) return
       setSectionData(result.rows)
       setFetchRowsDialog(false)
       setSelectedRow(null)
       setSelectedRowForFetch(null)
 
-      toast({
-        title: "Success",
-        description: "Row selected and data updated",
-      })
+      toast({ title: "Success", description: "Row selected and data updated" })
     } catch (error: any) {
       console.error("Select row error:", error)
-      toast({
-        title: "Select failed",
-        description: error.message,
-        variant: "destructive",
-      })
+      toast({ title: "Select failed", description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setWpHydrating(false)
     }
   }
 
   const viewSelectedRow = async (row: ETBRow) => {
     if (!row.reference) return
-
+    if (activeTab === "working-papers") setWpHydrating(true)
     setViewRowLoading(true)
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/view-row`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification,
+        )}/working-papers/view-row`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -527,17 +607,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to view selected row")
 
       const result = await response.json()
+      if (!mountedRef.current) return
       setViewRowData(result)
       setViewRowDialog(true)
     } catch (error: any) {
       console.error("View row error:", error)
       toast({
-        title: "View failed",
+        title: "View failed, Does the Row Exist?",
         description: error.message,
         variant: "destructive",
       })
     } finally {
-      setViewRowLoading(false)
+      if (mountedRef.current) {
+        setViewRowLoading(false)
+        setWpHydrating(false)
+      }
     }
   }
 
@@ -561,11 +645,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     [classification, sectionData],
   )
 
-  if (loading) {
+  // Global loader (covers Lead Sheet / ETB loads and first mount)
+  if (loading && activeTab !== "working-papers") {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading…</span>
+      <div className="flex items-center justify-center h-64">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading Classifications..." />
       </div>
     )
   }
@@ -622,7 +706,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         {!workingPapersInitialized ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={initializeWorkingPapers} size="sm">
+              <Button onClick={initializeWorkingPapers} size="sm" disabled={wpHydrating}>
                 <Plus className="h-4 w-4 mr-2" />
                 Initialize
               </Button>
@@ -635,7 +719,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={pushToWorkingPapers} variant="outline" size="sm">
+                <Button onClick={pushToWorkingPapers} variant="outline" size="sm" disabled={wpHydrating}>
                   <Upload className="h-4 w-4 mr-2" />
                   Push
                 </Button>
@@ -647,7 +731,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={pullFromWorkingPapers} variant="outline" size="sm">
+                <Button
+                  onClick={() => pullFromWorkingPaper(classification, { mode: "wp" })}
+                  variant="outline"
+                  size="sm"
+                  disabled={wpHydrating}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Pull
                 </Button>
@@ -664,6 +753,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     onClick={() => window.open(workingPapersUrl, "_blank", "noopener,noreferrer")}
                     variant="outline"
                     size="sm"
+                    disabled={wpHydrating}
                   >
                     <FileSpreadsheet className="h-4 w-4 mr-2" />
                     Open Excel
@@ -696,14 +786,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       <CardContent className="flex-1 flex flex-col">
         {shouldHaveWorkingPapers(classification) ? (
-          <Tabs defaultValue="lead-sheet" className="flex-1 flex flex-col">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
               <TabsTrigger value="working-papers">Working Papers</TabsTrigger>
             </TabsList>
 
             <TabsContent value="lead-sheet" className="flex-1 flex flex-col">
-              {renderLeadSheetContent()}
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <EnhancedLoader variant="pulse" size="lg" text="Loading Lead Sheet..." />
+                </div>
+              ) : (
+                renderLeadSheetContent()
+              )}
             </TabsContent>
 
             <TabsContent value="working-papers" className="flex-1 flex flex-col">
@@ -711,11 +807,28 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <h3 className="text-lg font-medium">Working Papers</h3>
                 {workingPapersActions}
               </div>
-              {workingPapersInitialized ? renderWorkingPapersContent() : renderWorkingPapersEmpty()}
+
+              {/* WP-specific loader */}
+              {wpHydrating ? (
+                <div className="flex items-center justify-center h-64">
+                  <EnhancedLoader variant="glow" size="lg" text="Syncing Working Papers..." />
+                </div>
+              ) : workingPapersInitialized ? (
+                renderWorkingPapersContent()
+              ) : (
+                renderWorkingPapersEmpty()
+              )}
             </TabsContent>
           </Tabs>
         ) : (
-          renderLeadSheetContent()
+          // ETB / Adjustments live outside WP
+          loading ? (
+            <div className="flex items-center justify-center h-64">
+              <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+            </div>
+          ) : (
+            renderLeadSheetContent()
+          )
         )}
 
         {/* Fetch Rows Dialog */}
@@ -787,7 +900,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               <DialogDescription>Viewing the referenced data for the selected account</DialogDescription>
             </DialogHeader>
 
-            {viewRowData && (
+            {viewRowData ? (
               <div className="space-y-6">
                 {/* Lead Sheet Row Info */}
                 <div className="p-4 border rounded-lg bg-blue-50">
@@ -803,7 +916,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <span className="font-medium">Current Year:</span>{" "}
                       {viewRowData.leadSheetRow.currentYear.toLocaleString()}
                     </div>
-                    
+
                     <div>
                       <span className="font-medium">Adjustments:</span>{" "}
                       {viewRowData.leadSheetRow.adjustments.toLocaleString()}
@@ -842,9 +955,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   <Button onClick={() => setViewRowDialog(false)}>Close</Button>
                 </div>
               </div>
-            )}
-
-            {!viewRowData && (
+            ) : (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" />
                 <span>Loading reference data...</span>
@@ -918,11 +1029,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <FileSpreadsheet className="h-16 w-16 text-gray-400 mx-auto" />
           <div>
             <h3 className="text-lg font-medium text-gray-900">Working Papers Not Initialized</h3>
-            <p className="text-gray-500 mt-1">
-              Click the Initialize button to create working papers with lead sheet data
-            </p>
+            <p className="text-gray-500 mt-1">Click the Initialize button to create working papers with lead sheet data</p>
           </div>
-          <Button onClick={initializeWorkingPapers} size="lg">
+          <Button onClick={initializeWorkingPapers} size="lg" disabled={wpHydrating}>
             <Plus className="h-5 w-5 mr-2" />
             Initialize Working Papers
           </Button>
@@ -958,21 +1067,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   <td className="px-4 py-2 text-right font-medium">{row.finalBalance.toLocaleString()}</td>
                   <td className="px-4 py-2 text-center">
                     <div className="flex items-center gap-1 justify-center">
-                     
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => viewSelectedRow(row)}
-                        disabled={!row.reference || viewRowLoading}
+                        disabled={!row.reference || viewRowLoading || wpHydrating}
                       >
                         <Eye className="h-3 w-3 mr-1" />
                         View
                       </Button>
-                       <Button
+                      <Button
                         size="sm"
                         variant="outline"
                         onClick={() => fetchRowsFromSheets(row)}
-                        disabled={availableSheets.length <= 1}
+                        disabled={availableSheets.length <= 1 || wpHydrating}
                       >
                         <Search className="h-3 w-3 mr-1" />
                         Fetch Rows
@@ -1080,12 +1188,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 adjustments: acc.adjustments + (Number(r.adjustments) || 0),
                 finalBalance: acc.finalBalance + (Number(r.finalBalance) || 0),
               }),
-              {
-                currentYear: 0,
-                priorYear: 0,
-                adjustments: 0,
-                finalBalance: 0,
-              },
+              { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 },
             )
             return (
               <div key={cls} className="border rounded-lg ">

@@ -1,3 +1,5 @@
+
+
 // @ts-nocheck
 import { useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -100,13 +102,13 @@ function SearchableSelect({
 }
 
 interface DocumentRequestsTabProps {
-  requests: any[];
+  requests: any[]
   documentRequest: {
-    category: string;
-    description: string;
-  };
-  setDocumentRequest: (request: any) => void;
-  handleSendDocumentRequest: () => void;
+    category: string
+    description: string
+  }
+  setDocumentRequest: (request: any) => void
+  handleSendDocumentRequest: () => void
 }
 
 export const DocumentRequestsTab = ({
@@ -115,7 +117,8 @@ export const DocumentRequestsTab = ({
   setDocumentRequest,
   handleSendDocumentRequest,
 }: DocumentRequestsTabProps) => {
-  const canSend = (documentRequest.category?.trim()?.length || 0) > 0 && (documentRequest.description?.trim()?.length || 0) > 0
+  const canSend =
+    (documentRequest.category?.trim()?.length || 0) > 0 && (documentRequest.description?.trim()?.length || 0) > 0
   const descLen = documentRequest.description?.length || 0
   const DESC_MAX = 800
 
@@ -162,9 +165,15 @@ export const DocumentRequestsTab = ({
               className="resize-y"
             />
             <div className="flex flex-wrap gap-2 text-xs">
-              <Badge variant="outline" className="cursor-default">Tip: include date range</Badge>
-              <Badge variant="outline" className="cursor-default">Specify format (PDF/XLSX)</Badge>
-              <Badge variant="outline" className="cursor-default">Add due date</Badge>
+              <Badge variant="outline" className="cursor-default">
+                Tip: include date range
+              </Badge>
+              <Badge variant="outline" className="cursor-default">
+                Specify format (PDF/XLSX)
+              </Badge>
+              <Badge variant="outline" className="cursor-default">
+                Add due date
+              </Badge>
             </div>
           </div>
 
@@ -200,10 +209,7 @@ export const DocumentRequestsTab = ({
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge
                     variant={request.status === "completed" ? "outline" : "secondary"}
-                    className={cn(
-                      "capitalize",
-                      request.status === "completed" && "text-green-600 border-green-600"
-                    )}
+                    className={cn("capitalize", request.status === "completed" && "text-green-600 border-green-600")}
                   >
                     {request.status}
                   </Badge>

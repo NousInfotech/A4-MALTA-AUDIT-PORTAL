@@ -42,6 +42,7 @@ import {
   type GlobalFile,
   type GlobalFolder,
 } from "@/lib/api/global-library"
+import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 
 export default function GlobalLibraryPage() {
   const [folders, setFolders] = useState<GlobalFolder[]>([])
@@ -405,9 +406,9 @@ export default function GlobalLibraryPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center min-h-[40vh]">
-            <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-          </div>
+          <div className="flex items-center justify-center h-64">
+                    <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+                  </div>
         ) : (
           <div className="flex flex-col md:flex-row">
             {/* Sidebar: Folders */}

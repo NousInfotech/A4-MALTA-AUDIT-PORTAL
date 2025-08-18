@@ -232,13 +232,12 @@ const getClientEmail = async (id: string): Promise<string> => {
   const approvedCount = users.filter((user) => user.status === "approved").length
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading users...</span>
-      </div>
-    )
-  }
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading Users..." />
+        </div>
+      )
+    }
 
   return (
     <div className="space-y-6">

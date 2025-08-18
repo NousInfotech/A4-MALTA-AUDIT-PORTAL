@@ -20,6 +20,7 @@ import { ProceduresTab } from "@/components/engagement/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
+import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -87,8 +88,8 @@ export const EngagementDetails = () => {
   if (loading || !engagement) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+                <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+              </div>
     );
   }
 

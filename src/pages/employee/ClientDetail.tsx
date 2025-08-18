@@ -13,6 +13,7 @@ import { ArrowLeft, Calendar, FileText, Eye, Building2, Briefcase, Loader2 } fro
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
+import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -115,12 +116,12 @@ export const ClientDetail: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
-      </div>
-    );
-  }
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
 
   if (!client) return null;
 

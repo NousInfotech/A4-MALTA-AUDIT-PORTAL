@@ -77,11 +77,13 @@ export const DocumentRequests = () => {
   const getEngagementTitle = id =>
     clientEngagements.find(e => e._id === id)?.title || 'Unknown Engagement';
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="h-8 w-8 animate-spin" />
-    </div>
-  );
+  if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
 
   return (
     <div className="space-y-6">
