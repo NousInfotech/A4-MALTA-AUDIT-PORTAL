@@ -74,6 +74,7 @@ interface ExtendedTrialBalanceProps {
   trialBalanceData: any;
   onClassificationChange: (classifications: string[]) => void;
   onClassificationJump?: (classification: string) => void;
+  loadExistingData:any;
 }
 
 /* -------------------------------------------------------
@@ -286,6 +287,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   engagement,
   trialBalanceData,
   onClassificationChange,
+  loadExistingData,
   onClassificationJump,
 }) => {
   const [etbRows, setEtbRows] = useState<ETBRow[]>([]);
@@ -442,6 +444,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       toast({ title: "Save failed", description: error.message, variant: "destructive" });
     } finally {
       setSaving(false);
+      loadExistingData();
     }
   };
 
