@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { engagementApi, documentRequestApi } from '@/services/api';
-import { Briefcase, FileText, Clock, CheckCircle, Upload, Eye, Loader2 } from 'lucide-react';
+import { Briefcase, FileText, Clock, CheckCircle, Upload, Eye } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 export const ClientDashboard = () => {
   const { user } = useAuth();
@@ -25,9 +26,9 @@ export const ClientDashboard = () => {
         // Filter engagements for current client (in real app, backend would filter)
         const clientFilteredEngagements = engagements.filter(eng => eng.clientId === user?.id);
         setClientEngagements(clientFilteredEngagements);
-        
+
         // Fetch all document requests for client engagements
-        const requestsPromises = clientFilteredEngagements.map(eng => 
+        const requestsPromises = clientFilteredEngagements.map(eng =>
           documentRequestApi.getByEngagement(eng._id).catch(() => [])
         );
         const requestsArrays = await Promise.all(requestsPromises);
@@ -51,12 +52,12 @@ export const ClientDashboard = () => {
   }, [user, toast]);
 
   if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-        </div>
-      )
-    }
+    return (
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+      </div>
+    );
+  }
 
   const pendingRequests = allRequests.filter(req => req.status === 'pending');
   const completedRequests = allRequests.filter(req => req.status === 'completed');
@@ -94,31 +95,32 @@ export const ClientDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Client Dashboard</h1>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Client Dashboard</h1>
           <p className="text-muted-foreground mt-2">
             Welcome! Track your audit engagements and document requests.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button asChild variant="outline">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Button asChild variant="outline" className="w-full sm:w-auto">
             <Link to="/client/engagements">
-              <Eye className="h-4 w-4 mr-2" />
-              View Engagements
+              <Eye className="h-4 w-4 mr-2 shrink-0" />
+              <span className="truncate">View Engagements</span>
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link to="/client/requests">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Documents
+              <Upload className="h-4 w-4 mr-2 shrink-0" />
+              <span className="truncate">Upload Documents</span>
             </Link>
           </Button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -143,16 +145,17 @@ export const ClientDashboard = () => {
         })}
       </div>
 
+      {/* Two-column section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Engagements */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Your Engagements</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="truncate">Your Engagements</CardTitle>
                 <CardDescription>Current audit projects</CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to="/client/engagements">View All</Link>
               </Button>
             </div>
@@ -160,25 +163,33 @@ export const ClientDashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {clientEngagements.slice(0, 3).map((engagement) => (
-                <div key={engagement._id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                  <div>
-                    <p className="font-medium text-foreground">{engagement.title}</p>
+                <div
+                  key={engagement._id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-border rounded-lg"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{engagement.title}</p>
                     <p className="text-sm text-muted-foreground">
                       Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className={
-                      engagement.status === 'active' ? 'text-success border-success' :
-                      engagement.status === 'completed' ? 'text-muted border-muted' :
-                      'text-warning border-warning'
-                    }>
+                  <div className="sm:text-right">
+                    <Badge
+                      variant="outline"
+                      className={
+                        engagement.status === 'active'
+                          ? 'text-success border-success'
+                          : engagement.status === 'completed'
+                          ? 'text-muted border-muted'
+                          : 'text-warning border-warning'
+                      }
+                    >
                       {engagement.status}
                     </Badge>
                   </div>
                 </div>
               ))}
-              
+
               {clientEngagements.length === 0 && (
                 <div className="text-center py-8">
                   <Briefcase className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -192,12 +203,12 @@ export const ClientDashboard = () => {
         {/* Pending Requests */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Pending Requests</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="truncate">Pending Requests</CardTitle>
                 <CardDescription>Documents needed from you</CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
                 <Link to="/client/requests">View All</Link>
               </Button>
             </div>
@@ -206,14 +217,14 @@ export const ClientDashboard = () => {
             <div className="space-y-4">
               {pendingRequests.slice(0, 3).map((request) => (
                 <div key={request._id} className="p-4 border border-border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary">{request.category}</Badge>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                    <Badge variant="secondary" className="w-fit">{request.category}</Badge>
                     <span className="text-xs text-muted-foreground">
                       {new Date(request.requestedAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-sm text-foreground mb-2">{request.description}</p>
-                  <Button size="sm" asChild>
+                  <p className="text-sm text-foreground mb-3">{request.description}</p>
+                  <Button size="sm" asChild className="w-full sm:w-auto">
                     <Link to={`/client/requests`}>
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Documents
@@ -221,7 +232,7 @@ export const ClientDashboard = () => {
                   </Button>
                 </div>
               ))}
-              
+
               {pendingRequests.length === 0 && (
                 <div className="text-center py-8">
                   <CheckCircle className="h-8 w-8 text-success mx-auto mb-2" />
@@ -234,17 +245,17 @@ export const ClientDashboard = () => {
         </Card>
       </div>
 
-      {/* Company Information */}
+      {/* User Information */}
       <Card>
         <CardHeader>
           <CardTitle>User Information</CardTitle>
           <CardDescription>Your account details</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             <div>
               <div className="text-sm text-muted-foreground">User ID</div>
-              <div className="font-medium text-foreground">{user?.id || 'N/A'}</div>
+              <div className="font-medium text-foreground break-all">{user?.id || 'N/A'}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Role</div>
@@ -252,7 +263,7 @@ export const ClientDashboard = () => {
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Email</div>
-              <div className="font-medium text-foreground">{user?.email || 'N/A'}</div>
+              <div className="font-medium text-foreground break-all">{user?.email || 'N/A'}</div>
             </div>
           </div>
         </CardContent>

@@ -141,7 +141,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       title={isCollapsed ? "Expand" : "Collapse"}
       className={cn(
-        "group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200 w-full text-left",
+        "group hidden md:flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-200 w-full text-left",
         "text-sidebar-foreground hover:bg-sidebar-accent/50"
       )}
     >

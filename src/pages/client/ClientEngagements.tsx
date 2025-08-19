@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { engagementApi, documentRequestApi } from '@/services/api';
 import { Briefcase, Calendar, FileText, Clock, Loader2 } from 'lucide-react';
+import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 export const ClientEngagements = () => {
   const { user } = useAuth();
@@ -64,7 +65,7 @@ export const ClientEngagements = () => {
     }
   };
 
-  if (isLoading) {
+  if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
           <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
