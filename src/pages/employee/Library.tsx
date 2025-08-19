@@ -71,7 +71,6 @@ export default function GlobalLibraryPage() {
   useEffect(()=>{
    if(selectedFolder && selectedFolder?.name)
      setRenameFolderName(selectedFolder?.name);
-    //console.log(selectedFolder)
   },[selectedFolder])
 
   const filteredFiles = useMemo(() => {
@@ -285,14 +284,14 @@ export default function GlobalLibraryPage() {
   }
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold text-foreground truncate">Global Document Library</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Global Document Library</h1>
           <p className="text-muted-foreground mt-1">Company-wide folders and documents</p>
         </div>
-        <div className="flex gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="w-full sm:w-auto">
@@ -310,12 +309,12 @@ export default function GlobalLibraryPage() {
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                 />
-                <div className="flex gap-2">
-                  <Button onClick={handleCreateFolder} disabled={!newFolderName.trim() || creating}>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button onClick={handleCreateFolder} disabled={!newFolderName.trim() || creating} className="w-full sm:w-auto">
                     {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Create Folder
                   </Button>
-                  <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)} className="w-full sm:w-auto">
                     Cancel
                   </Button>
                 </div>
@@ -340,12 +339,12 @@ export default function GlobalLibraryPage() {
                     value={renameFolderName}
                     onChange={(e) => setRenameFolderName(e.target.value)}
                   />
-                  <div className="flex gap-2">
-                    <Button onClick={handleRenameFolder} disabled={!renameFolderName.trim() || renaming}>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button onClick={handleRenameFolder} disabled={!renameFolderName.trim() || renaming} className="w-full sm:w-auto">
                       {renaming ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                       Rename
                     </Button>
-                    <Button variant="outline" onClick={() => setIsRenameFolderOpen(false)}>
+                    <Button variant="outline" onClick={() => setIsRenameFolderOpen(false)} className="w-full sm:w-auto">
                       Cancel
                     </Button>
                   </div>
@@ -358,7 +357,7 @@ export default function GlobalLibraryPage() {
 
       {/* Toolbar */}
       <div className="bg-white border rounded-lg">
-        <div className="bg-white border-b border-gray-200 px-4 py-2 rounded-t-lg">
+        <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2 rounded-t-lg">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1 text-sm text-gray-600 min-w-0">
@@ -406,9 +405,9 @@ export default function GlobalLibraryPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-                    <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-                  </div>
+          <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+            <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+          </div>
         ) : (
           <div className="flex flex-col md:flex-row">
             {/* Sidebar: Folders */}
@@ -416,12 +415,12 @@ export default function GlobalLibraryPage() {
               <div className="p-3 border-b">
                 <div className="text-sm text-gray-600 mb-2">Folders</div>
                 <Input
-                  placeholder="Search folders..."
+                  placeholder="Search files or folders..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="p-2 space-y-1 max-h-[60vh] overflow-auto">
+              <div className="p-2 space-y-1 max-h-[60vh] md:max-h-[70vh] overflow-auto">
                 {folders
                   .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
                   .map((folder) => (
@@ -478,18 +477,18 @@ export default function GlobalLibraryPage() {
             </aside>
 
             {/* Main content */}
-            <section className="flex-1">
+            <section className="flex-1 min-w-0">
               {/* Search and upload */}
               <div className="p-4 border-b flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative flex-1">
+                {/* <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     placeholder="Search files..."
-                    className="pl-10"
+                    className="pl-10 w-full"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
-                </div>
+                </div> */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <Input
                     ref={fileInputRef}
@@ -499,13 +498,12 @@ export default function GlobalLibraryPage() {
                     onChange={onFileInputChange}
                     className="w-full sm:w-56"
                   />
-                  
                   <Button
                     disabled={!selectedFolder || uploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full hidden md:block"
+                    className="w-full md:w-auto hidden md:block"
                   >
-                    <Upload className="h-4 w-4 " />
+                    <Upload className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -561,17 +559,18 @@ export default function GlobalLibraryPage() {
                               onClick={() => handleDownload(file)}
                               disabled={downloading === file.name}
                               className="shrink-0"
+                              aria-label={`Download ${file.name}`}
                             >
                               {downloading === file.name ? (
                                 <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
                               ) : (
-                                <Download className="h-4 w-4 " />
+                                <Download className="h-4 w-4" />
                               )}
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className="shrink-0">
-                                  <FolderInputIcon className="h-4 w-4 " />
+                                <Button variant="outline" size="icon" className="shrink-0" aria-label={`Move ${file.name}`}>
+                                  <FolderInputIcon className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto">
@@ -594,6 +593,7 @@ export default function GlobalLibraryPage() {
                             <Button
                               onClick={() => setFileToDelete(file)}
                               className="p-2 rounded bg-inherit hover:bg-gray-200 text-gray-600 hover:text-red-600"
+                              aria-label={`Delete ${file.name}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -625,6 +625,7 @@ export default function GlobalLibraryPage() {
                               size="icon"
                               onClick={() => handleDownload(file)}
                               disabled={downloading === file.name}
+                              aria-label={`Download ${file.name}`}
                             >
                               {downloading === file.name ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -634,7 +635,7 @@ export default function GlobalLibraryPage() {
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon">
+                                <Button variant="outline" size="icon" aria-label={`Move ${file.name}`}>
                                   <FolderInputIcon className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -671,7 +672,7 @@ export default function GlobalLibraryPage() {
 
               {/* Status bar */}
               <div className="border-t px-4 py-2 bg-gray-50 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-xs text-gray-500">
-                <span>
+                <span className="truncate">
                   {filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
                 </span>
                 <span>{loading ? "Refreshing..." : ""}</span>
@@ -713,7 +714,7 @@ export default function GlobalLibraryPage() {
             <AlertDialogTitle>Delete file?</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete{" "}
-              <span className="font-medium">{fileToDelete?.name}</span>?
+              <span className="font-medium break-all">{fileToDelete?.name}</span>?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

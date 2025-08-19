@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { useEngagements } from '@/hooks/useEngagements';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye, Loader2 } from 'lucide-react';
+import { Briefcase, Plus, Search, Calendar, Building2, FileText, Eye } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
 export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'All'|'draft'|'active'|'completed'>('active');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'draft' | 'active' | 'completed'>('active');
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
 
@@ -50,7 +50,7 @@ export const EngagementManagement = () => {
 
       if (error) throw error;
 
-      const transformed = data.map(profile => ({
+      const transformed = data.map((profile) => ({
         id: profile.user_id,
         name: profile.name || 'Unknown User',
         email: userData?.user?.email || '',
@@ -63,7 +63,7 @@ export const EngagementManagement = () => {
         summary: profile.company_summary || undefined,
       }));
 
-      setClients(transformed.filter(c => c.role === 'client'));
+      setClients(transformed.filter((c) => c.role === 'client'));
     } catch (err: any) {
       toast({
         title: 'Error',
@@ -75,36 +75,48 @@ export const EngagementManagement = () => {
     }
   };
 
-  let filtered = null as any;
-  // Filter and sort engagements
-  if (statusFilter === 'All') {
-    filtered = engagements;
-  } else {
-    filtered = engagements
-      .filter(e => e.status === statusFilter)
-      .filter(e => {
-        const client = clients.find(c => c.id === e.clientId);
-        return (
-          e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
-  }
+  // ✅ Fixed & improved filtering: works for "All" and includes title + client fields (+ status/industry)
+  const filteredEngagements = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return engagements.filter((e) => {
+      const matchesStatus = statusFilter === 'All' ? true : e.status === statusFilter;
+      if (!matchesStatus) return false;
+
+      if (!term) return true;
+
+      const client = clients.find((c) => c.id === e.clientId);
+      const haystack = [
+        e.title,
+        e.status,
+        client?.companyName,
+        client?.industry,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(term);
+    });
+  }, [engagements, clients, searchTerm, statusFilter]);
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-success/10 text-success border-success';
-      case 'completed': return 'bg-muted text-muted-foreground border-muted-foreground';
-      case 'draft': return 'bg-warning/10 text-warning border-warning';
-      default: return 'bg-secondary text-secondary-foreground border-secondary-foreground';
+      case 'active':
+        return 'bg-success/10 text-success border-success';
+      case 'completed':
+        return 'bg-muted text-muted-foreground border-muted-foreground';
+      case 'draft':
+        return 'bg-warning/10 text-warning border-warning';
+      default:
+        return 'bg-secondary text-secondary-foreground border-secondary-foreground';
     }
   };
 
   if (loading || isLoadingClients) {
     return (
-      <div className="flex items-center justify-center h-64">
-                <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-              </div>
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+      </div>
     );
   }
 
@@ -113,10 +125,10 @@ export const EngagementManagement = () => {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold text-foreground ">Engagement Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Engagement Management</h1>
           <p className="text-muted-foreground mt-2">Manage your audit engagements and track progress</p>
         </div>
-        <Button asChild className="border-sidebar-foreground self-stretch sm:self-auto" variant="outline">
+        <Button asChild className="border-sidebar-foreground w-full sm:w-auto" variant="outline">
           <Link to="/employee/engagements/new">
             <Plus className="h-4 w-4 mr-2" />
             New Engagement
@@ -136,15 +148,15 @@ export const EngagementManagement = () => {
               <div className="relative flex-1 max-w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search by engagement title or client company."
+                  placeholder="Search by engagement title, status, client company, or industry."
                   value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 w-full"
                 />
               </div>
             </div>
             <div className="p-4 flex items-center text-sm text-muted-foreground">
-              {filtered.length} of {engagements.length} engagements
+              {filteredEngagements.length} of {engagements.length} engagements
             </div>
           </CardContent>
         </div>
@@ -157,7 +169,7 @@ export const EngagementManagement = () => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {['All', 'draft', 'active', 'completed'].map(status => (
+              {['All', 'draft', 'active', 'completed'].map((status) => (
                 <Button
                   className="border-sidebar-foreground"
                   key={status}
@@ -174,8 +186,8 @@ export const EngagementManagement = () => {
 
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filtered.map((engagement: any) => {
-          const client = clients.find(c => c.id === engagement.clientId);
+        {filteredEngagements.map((engagement: any) => {
+          const client = clients.find((c) => c.id === engagement.clientId);
           return (
             <Card key={engagement._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-4">
@@ -209,7 +221,12 @@ export const EngagementManagement = () => {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1 border-sidebar-foreground w-full sm:w-auto" asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-sidebar-foreground w-full sm:w-auto"
+                    asChild
+                  >
                     <Link to={`/employee/engagements/${engagement._id}`}>
                       <Eye className="h-4 w-4 mr-2" />
                       View Details
@@ -222,7 +239,7 @@ export const EngagementManagement = () => {
         })}
       </div>
 
-      {filtered.length === 0 && (
+      {filteredEngagements.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

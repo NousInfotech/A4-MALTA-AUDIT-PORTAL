@@ -9,23 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { engagementApi } from "@/services/api";
-import { ArrowLeft, Building2, Calendar, Loader2 } from 'lucide-react';
-
-// Import modular components
+import { ArrowLeft, Building2, Calendar } from 'lucide-react';
+import { initializeSocket } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
+import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { OverviewTab } from "@/components/engagement/OverviewTab";
 import { LibraryTab } from "@/components/engagement/LibraryTab";
 import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
 import { ProceduresTab } from "@/components/engagement/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
-import { initializeSocket } from "@/services/api";
-import { supabase } from "@/integrations/supabase/client";
-import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 
 export const EngagementDetails = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error }) => {
-      if (error) throw error;
+      if (error) return;
       const token = data.session?.access_token;
       if (token) initializeSocket(token);
     });
@@ -58,20 +56,18 @@ export const EngagementDetails = () => {
         setLoading(true);
         const engagementData = await engagementApi.getById(id);
         setEngagement(engagementData);
-        
-        // Get trial balance if exists
+
         try {
           const tbData = await engagementApi.getTrialBalance(id);
           setTrialBalanceData(tbData);
-        } catch (error) {
-          // Trial balance might not exist yet
-          //console.log('No trial balance found');
+        } catch {
+          // ignore if no TB
         }
-        
+
         if (engagementData.trialBalanceUrl) {
           setTrialBalanceUrl(engagementData.trialBalanceUrl);
         }
-      } catch (error) {
+      } catch {
         toast({
           title: "Error",
           description: "Failed to fetch engagement details",
@@ -87,9 +83,9 @@ export const EngagementDetails = () => {
 
   if (loading || !engagement) {
     return (
-      <div className="flex items-center justify-center h-64">
-                <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-              </div>
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+      </div>
     );
   }
 
@@ -106,19 +102,18 @@ export const EngagementDetails = () => {
     try {
       const data = await engagementApi.fetchTrialBalance(id!, trialBalanceUrl);
       setTrialBalanceData(data);
-      
-      // Update engagement with trial balance URL
+
       await engagementApi.update(id!, {
         trialBalanceUrl,
         status: "active",
       });
-      
+
       setEngagement((prev) => ({
         ...prev,
         trialBalanceUrl,
         status: "active",
       }));
-      
+
       toast({
         title: "Success",
         description: "Trial balance uploaded successfully",
@@ -126,7 +121,7 @@ export const EngagementDetails = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to upload trial balance",
+        description: error?.message || "Failed to upload trial balance",
         variant: "destructive",
       });
     }
@@ -153,7 +148,7 @@ export const EngagementDetails = () => {
         title: "Success",
         description: "Document request sent successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to send document request",
@@ -165,7 +160,6 @@ export const EngagementDetails = () => {
   const handleGenerateProcedures = async () => {
     setIsGeneratingProcedures(true);
     try {
-      // Simulate AI generation delay
       await new Promise((resolve) => setTimeout(resolve, 3000));
       const mockTasks = [
         {
@@ -188,12 +182,12 @@ export const EngagementDetails = () => {
         title: `${documentRequest.category || "General"} Audit Procedures`,
         tasks: mockTasks,
       });
-      
+
       toast({
         title: "Success",
         description: "Procedures generated successfully",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to generate procedures",
@@ -206,18 +200,24 @@ export const EngagementDetails = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header: stack on mobile, unchanged on desktop */}
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex">
-          <Button variant="outline" size="icon" asChild className="sm:mr-4">
+          <Button
+            variant="outline"
+            size="icon"
+            asChild
+            className="sm:mr-4"
+            aria-label="Back to engagements"
+          >
             <Link to="/employee/engagements">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <h1 className="text-3xl font-bold text-foreground break-words">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground break-words">
               {engagement.title}
             </h1>
             <Badge
@@ -234,25 +234,22 @@ export const EngagementDetails = () => {
             </Badge>
           </div>
 
-          {/* Meta row: wrap on mobile, unchanged on desktop */}
           <div className="flex flex-wrap items-center gap-4 mt-2 text-muted-foreground">
             <div className="flex items-center gap-2 min-w-0">
-              <Building2 className="h-4 w-4 flex-shrink-0" />
+              <Building2 className="h-4 w-4 shrink-0" />
               <span className="truncate">Client ID: {engagement.clientId}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 flex-shrink-0" />
-              <span>
-                Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
-              </span>
+              <Calendar className="h-4 w-4 shrink-0" />
+              <span>Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs: horizontal scroll on mobile, unchanged on desktop */}
+      {/* Tabs with visible scrollbar on mobile */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+        <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent sm:scrollbar-none">
           <TabsList className="min-w-max sm:min-w-0">
             <TabsTrigger value="overview" className="whitespace-nowrap">Overview</TabsTrigger>
             <TabsTrigger value="trial-balance" className="whitespace-nowrap">Audit</TabsTrigger>
