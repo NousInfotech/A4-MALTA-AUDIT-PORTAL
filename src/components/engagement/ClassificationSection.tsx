@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Eye,
+  Save,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -249,10 +250,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // 🔁 AUTO-PULL guard: avoid duplicate pulls for the same classification
   const lastPulledRef = useRef<string | null>(null);
 
+  // NEW: track whether we've already auto-loaded from DB for a given classification
+  const wpFirstLoadedRef = useRef<Set<string>>(new Set());
+
   // 1) On classification change: clear UI immediately, then load fresh data and WP status
   useEffect(() => {
     let cancelled = false;
-
+    console.log(cancelled, "Cancelled");
     const run = async () => {
       // Immediately clear previous content to show loaders instead of “popping” data
       if (mountedRef.current) {
@@ -274,17 +278,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       try {
         await loadSectionData();
-
+        await loadWorkingPaperFromDB(true);
         if (shouldHaveWorkingPapers(classification)) {
           const status = await checkWorkingPapersStatus();
-          // AUTO-PULL into Working Papers with a visible WP loader (not global flash)
+
+          // Old behavior auto-pulled on first visit; we now prefer DB first when user opens WP tab.
+          // So we DO NOT auto-pull here. Pull remains available on the button.
           if (
             status?.initialized &&
             activeTab === "working-papers" &&
             lastPulledRef.current !== classification
           ) {
-            await pullFromWorkingPaper(classification, { mode: "wp" });
-            if (!cancelled) lastPulledRef.current = classification;
+            // No-op: we rely on the WP-tab effect below to load from DB first.
           }
         } else {
           // Hard sections like ETB/Adjustments: ensure flags are reset
@@ -494,7 +499,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setWorkingPapersUrl(result.url);
       setWorkingPapersId(result.spreadsheetId);
       setAvailableSheets(result.sheets || []);
-      // Reset lastPulled so first visit to WP will pull freshly
+      // Reset lastPulled so first visit to WP will pull freshly (if desired)
       lastPulledRef.current = null;
 
       window.open(result.url, "_blank", "noopener,noreferrer");
@@ -515,6 +520,74 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setLoading(false);
         setWpHydrating(false);
       }
+    }
+  };
+
+  // Save Working Paper (DB)
+  const saveWorkingPaperToDB = async () => {
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: sectionData }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to save Working Paper to DB");
+      toast({ title: "Saved", description: "Working Paper saved to database." });
+    } catch (error: any) {
+      console.error("Save WP to DB error:", error);
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Load Working Paper (DB)
+  // ⬅️ returns boolean: true if rows were loaded from DB, false otherwise
+  const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
+      );
+      if (response.ok) {
+        const json = await response.json();
+        if (!mountedRef.current) return false;
+        setSectionData(Array.isArray(json.rows) ? json.rows : []);
+        if (!silent) {
+          toast({
+            title: "Loaded",
+            description: "Working Paper loaded from database.",
+          });
+        }
+        return true;
+      } else {
+        // 404 = nothing saved yet, that's fine — keep current view
+        if (!silent && response.status !== 404) {
+          toast({
+            title: "Load failed",
+            description: `(${response.status})`,
+            variant: "destructive",
+          });
+        }
+        return false;
+      }
+    } catch (error: any) {
+      if (!silent) {
+        console.error("Load WP from DB error:", error);
+        toast({
+          title: "Load failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+      return false;
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -743,6 +816,29 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     [classification, sectionData]
   );
 
+  // NEW: when switching to the Working Papers tab for the FIRST time on a classification,
+  // load rows from DB and show them.
+  useEffect(() => {
+    const doFirstLoad = async () => {
+      if (
+        activeTab === "working-papers" &&
+        shouldHaveWorkingPapers(classification) &&
+        !wpFirstLoadedRef.current.has(classification)
+      ) {
+        // Mark as attempted to avoid duplicate fires
+        wpFirstLoadedRef.current.add(classification);
+
+        // Ensure we know the Excel status (optional, but keeps header flags correct)
+        await checkWorkingPapersStatus();
+
+        // Load from DB (non-silent so user sees feedback)
+        await loadWorkingPaperFromDB(false);
+      }
+    };
+    doFirstLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, classification]);
+
   // Global loader (covers Lead Sheet / ETB loads and first mount)
   if (loading && activeTab !== "working-papers") {
     return (
@@ -797,6 +893,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               onClick={createViewSpreadsheet}
               disabled={sectionData.length === 0}
               size="sm"
+              variant="outline"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Save As Spreadsheet
@@ -809,93 +906,123 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       </TooltipProvider>
     </div>
   );
-
   const workingPapersActions = (
-    <div className="flex items-center gap-2">
-      <TooltipProvider delayDuration={200}>
-        {!workingPapersInitialized ? (
+  <div className="flex items-center gap-2">
+    <TooltipProvider delayDuration={200}>
+      {!workingPapersInitialized ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={initializeWorkingPapers}
+              size="sm"
+              disabled={wpHydrating}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Initialize
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="center">
+            Initialize working papers with lead sheet data
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                onClick={initializeWorkingPapers}
+                onClick={pushToWorkingPapers}
+                variant="outline"
                 size="sm"
                 disabled={wpHydrating}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Initialize
+                <Upload className="h-4 w-4 mr-2" />
+                Push
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" align="center">
-              Initialize working papers with lead sheet data
+              Push changes to working papers
             </TooltipContent>
           </Tooltip>
-        ) : (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={pushToWorkingPapers}
-                  variant="outline"
-                  size="sm"
-                  disabled={wpHydrating}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Push
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="center">
-                Push changes to working papers
-              </TooltipContent>
-            </Tooltip>
 
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => pullFromWorkingPaper(classification, { mode: "wp" })}
+                variant="outline"
+                size="sm"
+                disabled={wpHydrating}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Pull
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="center">
+              Pull changes from working papers
+            </TooltipContent>
+          </Tooltip>
+
+          {workingPapersUrl && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   onClick={() =>
-                    pullFromWorkingPaper(classification, { mode: "wp" })
+                    window.open(workingPapersUrl, "_blank", "noopener,noreferrer")
                   }
                   variant="outline"
                   size="sm"
                   disabled={wpHydrating}
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Pull
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Open Excel
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" align="center">
-                Pull changes from working papers
+                Open working papers in Excel
               </TooltipContent>
             </Tooltip>
+          )}
 
-            {workingPapersUrl && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() =>
-                      window.open(
-                        workingPapersUrl,
-                        "_blank",
-                        "noopener,noreferrer"
-                      )
-                    }
-                    variant="outline"
-                    size="sm"
-                    disabled={wpHydrating}
-                  >
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Open Excel
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="center">
-                  Open working papers in Excel
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </>
-        )}
-      </TooltipProvider>
-    </div>
-  );
+          {/* NEW: Save to DB */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={saveWorkingPaperToDB}
+                size="sm"
+                variant="outline"
+                disabled={wpHydrating || sectionData.length === 0}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Working Papers
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="center">
+              Save current Working Paper rows to the database
+            </TooltipContent>
+          </Tooltip>
+
+          {/* NEW: Load from DB */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => loadWorkingPaperFromDB(false)}
+                size="sm"
+                variant="outline"
+                disabled={wpHydrating}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load from DB
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="center">
+              Load saved Working Paper rows from the database
+            </TooltipContent>
+          </Tooltip>
+        </>
+      )}
+    </TooltipProvider>
+  </div>
+);
+
 
   const content = (
     <Card className="flex-1">
