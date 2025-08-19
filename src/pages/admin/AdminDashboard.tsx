@@ -30,10 +30,10 @@ import {
   Building2,
   Briefcase,
   Activity,
-  Settings,
-  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EnhancedLoader } from "@/components/ui/enhanced-loader";
+
 interface User {
   id: string;
   name: string;
@@ -52,92 +52,92 @@ export const AdminDashboard = () => {
   const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
   const [users, setUsers] = useState<User[]>([]);
 
   // Fetch users from Supabase profiles table only
   useEffect(() => {
     fetchUsers();
   }, []);
-    const handleApprove = async (userId: string) => {
-      try {
-        setActionLoading(userId)
-  
-        const { error } = await supabase
-          .from("profiles")
-          .update({
-            status: "approved",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("user_id", userId)
-  
-        if (error) {
-          throw error
-        }
-  
-        // Update local state
-        setUsers(users.map((user) => (user.id === userId ? { ...user, status: "approved" as const } : user)))
-  
-        toast({
-          title: "User approved",
-          description: "User has been approved successfully.",
-        })
-      } catch (error) {
-        console.error("Error approving user:", error)
-        toast({
-          title: "Error",
-          description: `Failed to approve user: ${error.message || "Unknown error"}`,
-          variant: "destructive",
-        })
-      } finally {
-        setActionLoading(null)
-      }
-    }
-  
-    const handleReject = async (userId: string) => {
-      try {
-        setActionLoading(userId)
-  
-        const { error } = await supabase
-          .from("profiles")
-          .update({
-            status: "rejected",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("user_id", userId)
-  
-        if (error) {
-          throw error
-        }
-  
-        // Update local state
-        setUsers(users.map((user) => (user.id === userId ? { ...user, status: "rejected" as const } : user)))
-  
-        toast({
-          title: "User rejected",
-          description: "User has been rejected.",
-          variant: "destructive",
-        })
-      } catch (error) {
-        console.error("Error rejecting user:", error)
-        toast({
-          title: "Error",
-          description: `Failed to reject user: ${error.message || "Unknown error"}`,
-          variant: "destructive",
-        })
-      } finally {
-        setActionLoading(null)
-      }
-    }
 
-const fetchUsers = async () => {
-  try {
-    setLoading(true);
+  const handleApprove = async (userId: string) => {
+    try {
+      setActionLoading(userId)
 
-    // First get all profiles
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select(`
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "approved",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setUsers(users.map((user) => (user.id === userId ? { ...user, status: "approved" as const } : user)))
+
+      toast({
+        title: "User approved",
+        description: "User has been approved successfully.",
+      })
+    } catch (error) {
+      console.error("Error approving user:", error)
+      toast({
+        title: "Error",
+        description: `Failed to approve user: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleReject = async (userId: string) => {
+    try {
+      setActionLoading(userId)
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+
+      if (error) {
+        throw error
+      }
+
+      // Update local state
+      setUsers(users.map((user) => (user.id === userId ? { ...user, status: "rejected" as const } : user)))
+
+      toast({
+        title: "User rejected",
+        description: "User has been rejected.",
+        variant: "destructive",
+      })
+    } catch (error) {
+      console.error("Error rejecting user:", error)
+      toast({
+        title: "Error",
+        description: `Failed to reject user: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+
+      // First get all profiles
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select(`
         user_id,
         name,
         role,
@@ -148,72 +148,72 @@ const fetchUsers = async () => {
         company_number,
         industry
       `)
-      .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Transform profiles to User format with emails
-    const usersWithEmails = await Promise.all(
-      profiles.map(async (profile) => {
-        try {
-          const email = await getClientEmail(profile.user_id);
-          return {
-            id: profile.user_id,
-            name: profile.name || "Unknown User",
-            email: email,
-            role: profile.role as "admin" | "employee" | "client",
-            status: profile.status as "pending" | "approved" | "rejected",
-            createdAt: profile.created_at,
-            companyName: profile.company_name || undefined,
-            companyNumber: profile.company_number || undefined,
-            industry: profile.industry || undefined,
-          };
-        } catch (err) {
-          console.error(`Failed to get email for user ${profile.user_id}:`, err);
-          return {
-            ...profile,
-            email: "email-not-found@example.com", // fallback
-          };
-        }
-      })
-    );
+      // Transform profiles to User format with emails
+      const usersWithEmails = await Promise.all(
+        profiles.map(async (profile) => {
+          try {
+            const email = await getClientEmail(profile.user_id);
+            return {
+              id: profile.user_id,
+              name: profile.name || "Unknown User",
+              email: email,
+              role: profile.role as "admin" | "employee" | "client",
+              status: profile.status as "pending" | "approved" | "rejected",
+              createdAt: profile.created_at,
+              companyName: profile.company_name || undefined,
+              companyNumber: profile.company_number || undefined,
+              industry: profile.industry || undefined,
+            };
+          } catch (err) {
+            console.error(`Failed to get email for user ${profile.user_id}:`, err);
+            return {
+              ...profile,
+              email: "email-not-found@example.com", // fallback
+            };
+          }
+        })
+      );
 
-    setUsers(usersWithEmails);
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    toast({
-      title: "Error",
-      description: `Failed to fetch users: ${error.message || "Unknown error"}`,
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
-const getClientEmail = async (id: string): Promise<string> => {
-  try {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${data.session?.access_token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch client email');
+      setUsers(usersWithEmails);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch users: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const res = await response.json();
-    return res.clientData.email;
-  } catch (error) {
-    console.error('Error fetching client email:', error);
-    throw error;
-  }
-};
+  const getClientEmail = async (id: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) throw error
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.session?.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch client email');
+      }
+
+      const res = await response.json();
+      return res.clientData.email;
+    } catch (error) {
+      console.error('Error fetching client email:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const fetchRealData = async () => {
@@ -246,8 +246,7 @@ const getClientEmail = async (id: string): Promise<string> => {
     fetchRealData();
   }, [toast]);
 
-  // Calculate stats using real and mock data
-
+  // Calculate stats
   const pendingUsers = users.filter((user) => user.status === "pending");
   const approvedUsers = users.filter((user) => user.status === "approved");
   const activeEmployees = users.filter(
@@ -260,7 +259,7 @@ const getClientEmail = async (id: string): Promise<string> => {
   const newUsersToday = users.filter(
     (user) => new Date(user.createdAt) >= today
   ).length;
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // 1st day of current month
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const newEmployeesThisMonth = users.filter(
     (user) =>
@@ -287,7 +286,7 @@ const getClientEmail = async (id: string): Promise<string> => {
       title: "Pending Approvals",
       value: pendingUsers.length.toString(),
       description: "Awaiting approval",
-      icon: UserCheck,
+      icon: Users,
       trend: `+${newUsersToday} today`,
     },
     {
@@ -306,7 +305,7 @@ const getClientEmail = async (id: string): Promise<string> => {
     },
   ];
 
-  // Generate recent activity from real and mock data
+  // Generate recent activity (kept logic intact)
   const recentActivity = [
     ...pendingUsers.slice(0, 2).map((user) => ({
       id: `user-${user.id}`,
@@ -322,7 +321,6 @@ const getClientEmail = async (id: string): Promise<string> => {
       time: formatTimeAgo(user.createdAt),
       status: "completed" as const,
     })),
-    // Add engagement activities from real data
     ...engagements.slice(0, 2).map((eng) => ({
       id: `engagement-${eng._id}`,
       action: "New engagement created",
@@ -353,36 +351,37 @@ const getClientEmail = async (id: string): Promise<string> => {
   }
 
   if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-        </div>
-      )
-    }
+    return (
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">
             Admin Dashboard
           </h1>
           <p className="text-muted-foreground mt-2">
             Monitor and manage your audit portal users and system overview
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link to={"/admin/users"}>
-            <Button variant="outline">
-              <Users className="h-4 w-4 mr-2" />
-              Manage Users
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Link to={"/admin/users"} className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto">
+              <Users className="h-4 w-4 mr-2 shrink-0" />
+              <span className="truncate">Manage Users</span>
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Grid (desktop unchanged) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -411,15 +410,15 @@ const getClientEmail = async (id: string): Promise<string> => {
         {/* Pending Approvals */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Pending Approvals</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="truncate">Pending Approvals</CardTitle>
                 <CardDescription>
                   Users waiting for account approval
                 </CardDescription>
               </div>
-              <Link to={"/admin/users"}>
-                <Button variant="outline" size="sm">
+              <Link to={"/admin/users"} className="w-full sm:w-auto">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
                   View All
                 </Button>
               </Link>
@@ -430,88 +429,91 @@ const getClientEmail = async (id: string): Promise<string> => {
               {pendingUsers.slice(0, 3).map((user) => (
                 <div
                   key={user.id}
-                  className="flex items-center justify-between p-4 border border-border rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-border rounded-lg"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-warning" />
-                    <div>
-                      <p className="font-medium text-foreground">{user.name}</p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {user.role}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {user.email}
-                        </span>
+                  <div className="flex items-start sm:items-center gap-3 min-w-0">
+                    <div className="w-2 h-2 mt-1.5 sm:mt-0 rounded-full bg-warning shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">{user.name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">{user.role}</Badge>
+                        <span className="text-xs text-muted-foreground break-all">{user.email}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
-                                  disabled={actionLoading === user.id}
-                                >
-                                  {actionLoading === user.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <UserCheck className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Approve User</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to approve {user.name}? They will be able to access the
-                                    system.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleApprove(user.id)}>Approve</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
 
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
-                                  disabled={actionLoading === user.id}
-                                >
-                                  {actionLoading === user.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <UserX className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Reject User</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to reject {user.name}? They won't be able to access the
-                                    system.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleReject(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Reject
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
+                  <div className="flex items-center gap-2">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
+                          disabled={actionLoading === user.id}
+                        >
+                          {actionLoading === user.id ? (
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
+                              <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" strokeWidth="4" fill="none" />
+                            </svg>
+                          ) : (
+                            <UserCheck className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Approve User</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to approve {user.name}? They will be able to access the
+                            system.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleApprove(user.id)}>Approve</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
+                          disabled={actionLoading === user.id}
+                        >
+                          {actionLoading === user.id ? (
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
+                              <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" strokeWidth="4" fill="none" />
+                            </svg>
+                          ) : (
+                            <UserX className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reject User</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to reject {user.name}? They won't be able to access the
+                            system.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleReject(user.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Reject
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               ))}
 
@@ -545,21 +547,21 @@ const getClientEmail = async (id: string): Promise<string> => {
               {recentActivity.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex items-center justify-between p-4 border border-border rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-border rounded-lg"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-start sm:items-center gap-3">
                     <div
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2 h-2 mt-1.5 sm:mt-0 rounded-full ${
                         activity.status === "pending"
                           ? "bg-warning"
                           : "bg-success"
                       }`}
                     />
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium text-foreground">
                         {activity.action}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground truncate">
                         {activity.user}
                       </p>
                     </div>
@@ -581,7 +583,7 @@ const getClientEmail = async (id: string): Promise<string> => {
         </Card>
       </div>
 
-      {/* System Overview with Real Data */}
+      {/* System Overview */}
       <Card>
         <CardHeader>
           <CardTitle>System Overview</CardTitle>
@@ -590,7 +592,7 @@ const getClientEmail = async (id: string): Promise<string> => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             <div className="text-center">
               <div className="text-2xl font-bold text-foreground">
                 {engagements.length}

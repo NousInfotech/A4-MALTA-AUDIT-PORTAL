@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Search, UserCheck, UserX, Mail, Loader2 } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
+import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 
 interface User {
   id: string
@@ -45,14 +46,14 @@ export const UserManagement = () => {
     fetchUsers()
   }, [])
 
-const fetchUsers = async () => {
-  try {
-    setLoading(true);
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
 
-    // First get all profiles
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select(`
+      // First get all profiles
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select(`
         user_id,
         name,
         role,
@@ -63,72 +64,72 @@ const fetchUsers = async () => {
         company_number,
         industry
       `)
-      .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Transform profiles to User format with emails
-    const usersWithEmails = await Promise.all(
-      profiles.map(async (profile) => {
-        try {
-          const email = await getClientEmail(profile.user_id);
-          return {
-            id: profile.user_id,
-            name: profile.name || "Unknown User",
-            email: email,
-            role: profile.role as "admin" | "employee" | "client",
-            status: profile.status as "pending" | "approved" | "rejected",
-            createdAt: profile.created_at,
-            companyName: profile.company_name || undefined,
-            companyNumber: profile.company_number || undefined,
-            industry: profile.industry || undefined,
-          };
-        } catch (err) {
-          console.error(`Failed to get email for user ${profile.user_id}:`, err);
-          return {
-            ...profile,
-            email: "email-not-found@example.com", // fallback
-          };
-        }
-      })
-    );
+      // Transform profiles to User format with emails
+      const usersWithEmails = await Promise.all(
+        profiles.map(async (profile) => {
+          try {
+            const email = await getClientEmail(profile.user_id);
+            return {
+              id: profile.user_id,
+              name: profile.name || "Unknown User",
+              email: email,
+              role: profile.role as "admin" | "employee" | "client",
+              status: profile.status as "pending" | "approved" | "rejected",
+              createdAt: profile.created_at,
+              companyName: profile.company_name || undefined,
+              companyNumber: profile.company_number || undefined,
+              industry: profile.industry || undefined,
+            };
+          } catch (err) {
+            console.error(`Failed to get email for user ${profile.user_id}:`, err);
+            return {
+              ...profile,
+              email: "email-not-found@example.com", // fallback
+            };
+          }
+        })
+      );
 
-    setUsers(usersWithEmails);
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    toast({
-      title: "Error",
-      description: `Failed to fetch users: ${error.message || "Unknown error"}`,
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
-const getClientEmail = async (id: string): Promise<string> => {
-  try {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${data.session?.access_token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch client email');
+      setUsers(usersWithEmails);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch users: ${error.message || "Unknown error"}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const res = await response.json();
-    return res.clientData.email;
-  } catch (error) {
-    console.error('Error fetching client email:', error);
-    throw error;
-  }
-};
+  const getClientEmail = async (id: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) throw error
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.session?.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch client email');
+      }
+
+      const res = await response.json();
+      return res.clientData.email;
+    } catch (error) {
+      console.error('Error fetching client email:', error);
+      throw error;
+    }
+  };
 
   const filteredUsers = users.filter(
     (user) =>
@@ -232,22 +233,22 @@ const getClientEmail = async (id: string): Promise<string> => {
   const approvedCount = users.filter((user) => user.status === "approved").length
 
   if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading Users..." />
-        </div>
-      )
-    }
+    return (
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading Users..." />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">User Management</h1>
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">User Management</h1>
         <p className="text-muted-foreground mt-2">Manage user registrations, approvals, and account status</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Pending Approvals</CardTitle>
@@ -282,141 +283,142 @@ const getClientEmail = async (id: string): Promise<string> => {
       {/* User Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>All Users</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="truncate">All Users</CardTitle>
               <CardDescription>Manage user accounts and approval status</CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              <Button onClick={fetchUsers} variant="outline" size="sm">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              <Button onClick={fetchUsers} variant="outline" size="sm" className="w-full sm:w-auto">
                 Refresh
               </Button>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 w-full"
                 />
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>User ID</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Registered</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers.length === 0 ? (
+          {/* Keep desktop table intact; enable horizontal scroll on small screens */}
+          <div className="overflow-x-auto">
+            <Table className="min-w-[720px]">
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    {searchTerm ? "No users found matching your search." : "No users found."}
-                  </TableCell>
+                  <TableHead>Name</TableHead>
+                  <TableHead>User ID</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Registered</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : (
-                filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="font-mono text-sm">{user.id.slice(0, 8)}...</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="capitalize">
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{user.companyName || "-"}</TableCell>
-                    <TableCell>{getStatusBadge(user.status)}</TableCell>
-                    <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {user.status === "pending" && (
-                          <>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
-                                  disabled={actionLoading === user.id}
-                                >
-                                  {actionLoading === user.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <UserCheck className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Approve User</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to approve {user.name}? They will be able to access the
-                                    system.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleApprove(user.id)}>Approve</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
-                                  disabled={actionLoading === user.id}
-                                >
-                                  {actionLoading === user.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <UserX className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Reject User</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to reject {user.name}? They won't be able to access the
-                                    system.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleReject(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Reject
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
-                        )}
-
-                        {/* <Button size="sm" variant="outline">
-                          <Mail className="h-4 w-4" />
-                        </Button> */}
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {searchTerm ? "No users found matching your search." : "No users found."}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium max-w-[220px] truncate">{user.name}</TableCell>
+                      <TableCell className="font-mono text-sm whitespace-nowrap">{user.id.slice(0, 8)}...</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="capitalize">{user.role}</Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[240px] truncate">{user.companyName || "-"}</TableCell>
+                      <TableCell>{getStatusBadge(user.status)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {user.status === "pending" && (
+                            <>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
+                                    disabled={actionLoading === user.id}
+                                  >
+                                    {actionLoading === user.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <UserCheck className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Approve User</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to approve {user.name}? They will be able to access the
+                                      system.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleApprove(user.id)}>Approve</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
+                                    disabled={actionLoading === user.id}
+                                  >
+                                    {actionLoading === user.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <UserX className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Reject User</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to reject {user.name}? They won't be able to access the
+                                      system.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleReject(user.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Reject
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+
+                          {/* <Button size="sm" variant="outline">
+                            <Mail className="h-4 w-4" />
+                          </Button> */}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
