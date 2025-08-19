@@ -505,8 +505,7 @@ export default function GlobalLibraryPage() {
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full hidden md:block"
                   >
-                    <Upload className="h-4 w-4 mr-2" />
-                    {uploading ? "Uploading..." : "Upload"}
+                    <Upload className="h-4 w-4 " />
                   </Button>
                 </div>
               </div>
