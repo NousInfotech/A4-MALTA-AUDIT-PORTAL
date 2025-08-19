@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
@@ -300,20 +299,46 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [excelUrl, setExcelUrl] = useState<string>("")
   const { toast } = useToast()
 
+  // stable key per engagement to persist the workbook URL across remounts/prop hiccups
+  const storageKey = useMemo(
+    () => `etb_excel_url_${engagement?._id || "unknown"}`,
+    [engagement?._id]
+  )
+
+  // rehydrate from localStorage on mount/remount
+  useEffect(() => {
+    if (!excelUrl) {
+      try {
+        const cached = localStorage.getItem(storageKey)
+        if (cached) setExcelUrl(cached)
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey])
+
+  // seed local url from props only if empty, and persist it
+  useEffect(() => {
+    if (!excelUrl && engagement?.excelURL) {
+      setExcelUrl(engagement.excelURL)
+      try { localStorage.setItem(storageKey, engagement.excelURL) } catch {}
+    }
+  }, [engagement?.excelURL, excelUrl, storageKey])
+
+  // effective url drives the UI (prevents flicker if props go undefined temporarily)
+  const effectiveExcelUrl = excelUrl || engagement?.excelURL || ""
+  const hasWorkbook = !!effectiveExcelUrl
+
   const refreshClassificationSummary = (rows: ETBRow[]) => {
     const unique = new Set(rows.map((r) => r.classification).filter(Boolean))
     if (hasNonZeroAdjustments(rows)) unique.add("Adjustments")
     onClassificationChange([...unique])
   }
 
+  // init rows once
   useEffect(() => {
-    if (trialBalanceData) initializeETB()
-    // pick up existing workbook url if present
-    if (engagement?.excelURL) setExcelUrl(engagement.excelURL)
+    if (trialBalanceData && etbRows.length === 0) initializeETB()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trialBalanceData, engagement?.excelURL])
-
-  const isExcelInitialized = Boolean(excelUrl)
+  }, [trialBalanceData])
 
   const autoClassify = (accountName: string): string => {
     const name = (accountName || "").toLowerCase()
@@ -343,6 +368,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           const rowsWithIds = withClientIds(existingETB.rows)
           setEtbRows(rowsWithIds)
           refreshClassificationSummary(rowsWithIds)
+          // only seed from props if we don't already have one (effect above also handles this)
+          if (!excelUrl && engagement?.excelURL) {
+            setExcelUrl(engagement.excelURL)
+            try { localStorage.setItem(storageKey, engagement.excelURL) } catch {}
+          }
           setLoading(false)
           return
         }
@@ -443,6 +473,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setSaving(false)
       loadExistingData()
+      // DO NOT touch excelUrl here; prevents hiding the buttons
     }
   }
 
@@ -460,6 +491,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const json = await res.json()
       if (!json?.url) throw new Error("Server did not return an Excel URL.")
       setExcelUrl(json.url)
+      try { localStorage.setItem(storageKey, json.url) } catch {}
       toast({ title: "Excel initialized", description: "Workbook created. You can now open, push, or fetch." })
     } catch (e: any) {
       console.error(e)
@@ -470,7 +502,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   }
 
   async function openInExcel() {
-    if (!isExcelInitialized) {
+    if (!effectiveExcelUrl) {
       toast({
         title: "Workbook not initialized",
         description: "Click “Initialize Excel” first.",
@@ -497,8 +529,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           </body>
         </html>
       `)
-      // navigate
-      popup.location.href = excelUrl
+      // navigate using the effective URL (prevents undefined flicker)
+      popup.location.href = effectiveExcelUrl
     }
     toast({ title: "Excel Online", description: "Workbook opened in a new tab." })
   }
@@ -512,7 +544,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       })
       if (!res.ok) throw new Error("Failed to push ETB to Excel.")
       const json = await res.json()
-      if (json?.url) setExcelUrl(json.url)
+      if (json?.url) {
+        setExcelUrl(json.url)
+        try { localStorage.setItem(storageKey, json.url) } catch {}
+      }
       toast({ title: "Pushed", description: "ETB uploaded to Excel Online." })
     } catch (e: any) {
       console.error(e)
@@ -566,12 +601,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const unclassifiedRows = etbRows.filter((row) => !row.classification)
 
   if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading Extended Trial Balance..." />
-        </div>
-      )
-    }
+    return (
+      <div className="flex items-center justify-center h-64">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading Extended Trial Balance..." />
+      </div>
+    )
+  }
 
   /* ---------------------------------------------
      Row-level Classification Controls
@@ -657,7 +692,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
             {/* Button group */}
             <div className="flex flex-wrap items-center gap-2">
-              {!isExcelInitialized ? (
+              {!hasWorkbook ? (
                 <Button
                   size="sm"
                   variant="outline"

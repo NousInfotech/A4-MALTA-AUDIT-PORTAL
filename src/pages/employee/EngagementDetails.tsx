@@ -65,7 +65,7 @@ export const EngagementDetails = () => {
           setTrialBalanceData(tbData);
         } catch (error) {
           // Trial balance might not exist yet
-          console.log('No trial balance found');
+          //console.log('No trial balance found');
         }
         
         if (engagementData.trialBalanceUrl) {

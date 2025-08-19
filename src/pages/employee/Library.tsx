@@ -71,7 +71,7 @@ export default function GlobalLibraryPage() {
   useEffect(()=>{
    if(selectedFolder && selectedFolder?.name)
      setRenameFolderName(selectedFolder?.name);
-    console.log(selectedFolder)
+    //console.log(selectedFolder)
   },[selectedFolder])
 
   const filteredFiles = useMemo(() => {
