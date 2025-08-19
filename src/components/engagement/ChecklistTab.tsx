@@ -118,7 +118,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
               />
               
             </div>
-            <div className="flex gap-4 space-y-2 flex-1">
+            <div className="flex flex-col md:flex-row gap-4 space-y-2 flex-1">
               <Label className="text-sm font-medium">{item.description}</Label>
               <Input
                 placeholder="Enter text..."
@@ -149,7 +149,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
               />
               
             </div>
-            <div className="flex-1 flex items-center gap-2">
+            <div className="flex-1 flex flex-col md:flex-row  items-center gap-2">
               <Label className="text-sm font-medium">{item.description}</Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -198,7 +198,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
               />
               
             </div>
-            <div className="flex-1 flex items-center gap-2">
+            <div className="flex-1 flex  flex-col md:flex-row  items-center gap-2">
               <Label className="text-sm font-medium">{item.description}</Label>
               <Select
                 value={item.selectValue || ""}
