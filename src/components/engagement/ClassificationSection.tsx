@@ -256,7 +256,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // 1) On classification change: clear UI immediately, then load fresh data and WP status
   useEffect(() => {
     let cancelled = false;
-    console.log(cancelled, "Cancelled");
+    //console.log(cancelled, "Cancelled");
     const run = async () => {
       // Immediately clear previous content to show loaders instead of “popping” data
       if (mountedRef.current) {
