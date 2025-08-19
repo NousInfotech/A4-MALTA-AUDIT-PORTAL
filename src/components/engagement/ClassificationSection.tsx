@@ -1,4 +1,5 @@
 // @ts-nocheck
+// @ts-nocheck
 
 import type React from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -19,6 +20,7 @@ import {
   Search,
   Eye,
   Save,
+  TableOfContents, // ⬅️ NEW: icon for Fetch Tabs
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,6 +78,20 @@ interface ViewRowData {
     rowIndex: number;
     data: any[];
   };
+  leadSheetRow: {
+    code: string;
+    accountName: string;
+    currentYear: number;
+    priorYear: number;
+    adjustments: number;
+    finalBalance: number;
+  };
+}
+
+// ⬇️ NEW: for viewing full-sheet references
+interface ViewSheetData {
+  type: "sheet";
+  sheet: { sheetName: string; data: any[][] };
   leadSheetRow: {
     code: string;
     accountName: string;
@@ -230,6 +246,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewRowData, setViewRowData] = useState<ViewRowData | null>(null);
   const [viewRowLoading, setViewRowLoading] = useState(false);
 
+  // ⬇️ NEW: Fetch Tabs state
+  const [fetchTabsDialog, setFetchTabsDialog] = useState(false);
+  const [availableTabs, setAvailableTabs] = useState<string[]>([]);
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+
+  // ⬇️ NEW: View full-sheet dialog state
+  const [viewSheetDialog, setViewSheetDialog] = useState(false);
+  const [viewSheetData, setViewSheetData] = useState<ViewSheetData | null>(null);
+  const [viewSheetLoading, setViewSheetLoading] = useState(false);
+
   // 🔖 keep the tab stable across refresh / navigation
   const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers">(
     () => getTabFromSearch()
@@ -256,9 +282,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // 1) On classification change: clear UI immediately, then load fresh data and WP status
   useEffect(() => {
     let cancelled = false;
-    //console.log(cancelled, "Cancelled");
     const run = async () => {
-      // Immediately clear previous content to show loaders instead of “popping” data
       if (mountedRef.current) {
         setSectionData([]);
         setWorkingPapersInitialized(false);
@@ -267,9 +291,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setAvailableSheets([]);
         setViewRowDialog(false);
         setViewRowData(null);
+        // clear new dialogs as well
+        setFetchTabsDialog(false);
+        setAvailableTabs([]);
+        setSelectedTab(null);
+        setViewSheetDialog(false);
+        setViewSheetData(null);
       }
 
-      // If user is already on WP tab, show a dedicated WP loader while we hydrate
       const showWpLoader =
         shouldHaveWorkingPapers(classification) &&
         activeTab === "working-papers";
@@ -280,19 +309,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         await loadSectionData();
         await loadWorkingPaperFromDB(true);
         if (shouldHaveWorkingPapers(classification)) {
-          const status = await checkWorkingPapersStatus();
-
-          // Old behavior auto-pulled on first visit; we now prefer DB first when user opens WP tab.
-          // So we DO NOT auto-pull here. Pull remains available on the button.
-          if (
-            status?.initialized &&
-            activeTab === "working-papers" &&
-            lastPulledRef.current !== classification
-          ) {
-            // No-op: we rely on the WP-tab effect below to load from DB first.
-          }
+          await checkWorkingPapersStatus();
         } else {
-          // Hard sections like ETB/Adjustments: ensure flags are reset
           if (!cancelled && mountedRef.current) {
             setWorkingPapersInitialized(false);
             setWorkingPapersUrl("");
@@ -475,7 +493,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   };
 
   const initializeWorkingPapers = async () => {
-    // For init, keep a dedicated WP loader if user is on WP tab
     if (activeTab === "working-papers") setWpHydrating(true);
     setLoading(true);
     try {
@@ -499,7 +516,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setWorkingPapersUrl(result.url);
       setWorkingPapersId(result.spreadsheetId);
       setAvailableSheets(result.sheets || []);
-      // Reset lastPulled so first visit to WP will pull freshly (if desired)
       lastPulledRef.current = null;
 
       window.open(result.url, "_blank", "noopener,noreferrer");
@@ -566,7 +582,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         }
         return true;
       } else {
-        // 404 = nothing saved yet, that's fine — keep current view
         if (!silent && response.status !== 404) {
           toast({
             title: "Load failed",
@@ -592,7 +607,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   };
 
   const pushToWorkingPapers = async () => {
-    // show a WP-local loader if we are on the WP tab
     if (activeTab === "working-papers") setWpHydrating(true);
     else setLoading(true);
     try {
@@ -674,7 +688,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const fetchRowsFromSheets = async (row: ETBRow) => {
     setSelectedRowForFetch(row);
-    // show dialog-level UX quickly; also indicate WP hydration
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
@@ -754,8 +767,117 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
+  // ⬇️ NEW: Fetch list of worksheet tabs (excluding Sheet1)
+  const fetchTabsForRow = async (row: ETBRow) => {
+    setSelectedRowForFetch(row);
+    if (activeTab === "working-papers") setWpHydrating(true);
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/fetch-tabs`,
+        { method: "POST" }
+      );
+      if (!response.ok) throw new Error("Failed to fetch tabs");
+      const result = await response.json();
+      if (!mountedRef.current) return;
+      setAvailableTabs(Array.isArray(result.tabs) ? result.tabs : []);
+      setSelectedTab(null);
+      setFetchTabsDialog(true);
+    } catch (error: any) {
+      console.error("Fetch tabs error:", error);
+      toast({
+        title: "Fetch failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) setWpHydrating(false);
+    }
+  };
+
+  // ⬇️ NEW: Select a worksheet to reference the full sheet (server makes it mutually exclusive with row ref)
+  const selectTabForRow = async () => {
+    if (!selectedTab || !selectedRowForFetch) return;
+    if (activeTab === "working-papers") setWpHydrating(true);
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/select-tab`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rowId: selectedRowForFetch.id, sheetName: selectedTab }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to select sheet");
+      const result = await response.json();
+      if (!mountedRef.current) return;
+      setSectionData(result.rows);
+      setFetchTabsDialog(false);
+      setSelectedTab(null);
+      setSelectedRowForFetch(null);
+      toast({ title: "Success", description: "Sheet selected. Reference updated." });
+    } catch (error: any) {
+      console.error("Select tab error:", error);
+      toast({
+        title: "Select failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) {
+        setWpHydrating(false);
+        setFetchTabsDialog(false);
+      }
+    }
+  };
+
+  // ✅ KEEP existing row-view flow, and ADD transparent support for sheet-view (no behavior change for rows)
   const viewSelectedRow = async (row: ETBRow) => {
     if (!row.reference) return;
+
+    // If the reference is a full-sheet ref like "Sheet:Summary", use the new endpoint,
+    // but DON'T alter the existing row-view behavior otherwise.
+    if (typeof row.reference === "string" && row.reference.startsWith("Sheet:")) {
+      if (activeTab === "working-papers") setWpHydrating(true);
+      setViewSheetLoading(true);
+      try {
+        const response = await authFetch(
+          `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+            classification
+          )}/working-papers/view-reference`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rowId: row.id }),
+          }
+        );
+        if (!response.ok) throw new Error("Failed to view sheet reference");
+        const result = await response.json();
+        if (!mountedRef.current) return;
+
+        // Expecting: { type: 'sheet', sheet: { sheetName, data }, leadSheetRow: {...} }
+        setViewSheetData(result);
+        setViewSheetDialog(true);
+      } catch (error: any) {
+        console.error("View sheet error:", error);
+        toast({
+          title: "View failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        if (mountedRef.current) {
+          setViewSheetLoading(false);
+          setWpHydrating(false);
+        }
+      }
+      return;
+    }
+
+    // —— original row-view behavior (unchanged) ——
     if (activeTab === "working-papers") setWpHydrating(true);
     setViewRowLoading(true);
     try {
@@ -825,13 +947,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         shouldHaveWorkingPapers(classification) &&
         !wpFirstLoadedRef.current.has(classification)
       ) {
-        // Mark as attempted to avoid duplicate fires
         wpFirstLoadedRef.current.add(classification);
-
-        // Ensure we know the Excel status (optional, but keeps header flags correct)
         await checkWorkingPapersStatus();
-
-        // Load from DB (non-silent so user sees feedback)
         await loadWorkingPaperFromDB(false);
       }
     };
@@ -1101,7 +1218,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           renderLeadSheetContent()
         )}
 
-        {/* Fetch Rows Dialog */}
+        {/* Fetch Rows Dialog (existing) */}
         <Dialog open={fetchRowsDialog} onOpenChange={setFetchRowsDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[200]">
             <DialogHeader>
@@ -1127,7 +1244,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <SelectValue placeholder="Select a row..." />
                     </SelectTrigger>
 
-                    {/* ⬇️ Add these props/classes */}
                     <SelectContent
                       position="popper"
                       sideOffset={8}
@@ -1186,6 +1302,49 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </DialogContent>
         </Dialog>
 
+        {/* ⬇️ NEW: Fetch Tabs Dialog */}
+        <Dialog open={fetchTabsDialog} onOpenChange={setFetchTabsDialog}>
+          <DialogContent className="max-w-xl z-[200]">
+            <DialogHeader>
+              <DialogTitle>Select a Worksheet</DialogTitle>
+              <DialogDescription>
+                Choose a worksheet to reference the <em>entire sheet</em> for{" "}
+                {selectedRowForFetch?.accountName}.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {availableTabs.length > 0 ? (
+                <>
+                  <Select onValueChange={(v) => setSelectedTab(v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a worksheet..." />
+                    </SelectTrigger>
+                    <SelectContent position="popper" sideOffset={8} className="z-[300]">
+                      {availableTabs.map((name) => (
+                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setFetchTabsDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={selectTabForRow} disabled={!selectedTab || wpHydrating}>
+                      {wpHydrating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Select Sheet
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No extra worksheets found</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Existing Row View Dialog (unchanged) */}
         <Dialog open={viewRowDialog} onOpenChange={setViewRowDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[200]">
             <DialogHeader>
@@ -1263,6 +1422,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <Loader2 className="h-6 w-6 animate-spin mr-2" />
                 <span>Loading reference data...</span>
               </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ⬇️ NEW: View Full-Sheet Dialog */}
+        <Dialog open={viewSheetDialog} onOpenChange={setViewSheetDialog}>
+          <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto z-[200]">
+            <DialogHeader>
+              <DialogTitle>Reference Preview (Full Sheet)</DialogTitle>
+              <DialogDescription>
+                {viewSheetData?.type === "sheet"
+                  ? <>Full sheet: <strong>{viewSheetData.sheet.sheetName}</strong></>
+                  : "—"}
+              </DialogDescription>
+            </DialogHeader>
+
+            {viewSheetLoading ? (
+              <div className="flex items-center justify-center h-48">
+                <EnhancedLoader variant="pulse" size="lg" text="Loading preview..." />
+              </div>
+            ) : viewSheetData?.type === "sheet" ? (
+              renderSheetTable(viewSheetData.sheet.data)
+            ) : (
+              <p className="text-muted-foreground">No reference to preview.</p>
             )}
           </DialogContent>
         </Dialog>
@@ -1423,6 +1606,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <Search className="h-3 w-3 mr-1" />
                         Fetch Rows
                       </Button>
+                      {/* ⬇️ NEW: Fetch Tabs button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => fetchTabsForRow(row)}
+                        disabled={availableSheets.length <= 1 || wpHydrating}
+                      >
+                        <TableOfContents className="h-3 w-3 mr-1" />
+                        Fetch Tabs
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -1465,6 +1658,35 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
   }
 
+  // ⬇️ NEW: pretty table renderer for full-sheet preview
+  function renderSheetTable(data: any[][]) {
+    if (!data?.length) return <p className="text-center text-muted-foreground py-6">Empty sheet</p>;
+    const hdr = data[0] || [];
+    const rows = data.slice(1);
+    return (
+      <div className="overflow-hidden rounded-xl border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              {hdr.map((h: any, i: number) => (
+                // <th key={i} className="px-3 py-2 text-left">{String(h ?? "")}</th>
+                <td key={i} className="px-3 py-2">{String(h ?? "")}</td>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r: any[], ri: number) => (
+              <tr key={ri} className="border-t">
+                {r.map((c: any, ci: number) => (
+                  <td key={ci} className="px-3 py-2">{String(c ?? "")}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   function renderDataTable() {
     if (isETB(classification)) {
       // ETB view
