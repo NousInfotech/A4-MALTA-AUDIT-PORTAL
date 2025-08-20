@@ -54,7 +54,7 @@ export const ClientDetail: React.FC = () => {
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
-      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/client/email/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/users/email/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
