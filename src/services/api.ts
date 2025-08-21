@@ -261,9 +261,9 @@ export const procedureApi = {
     });
   },
 
-  getByEngagement: async (engagementId: string) => {
-    return apiCall(`/api/procedures/engagement/${engagementId}`);
-  },
+  // getByEngagement: async (engagementId: string) => {
+  //   return apiCall(`/apngagement/${engagementId}`);
+  // },
 
   updateTask: async (procedureId: string, taskId: string, data: { completed: boolean }) => {
     return apiCall(`/api/procedures/${procedureId}/tasks/${taskId}`, {

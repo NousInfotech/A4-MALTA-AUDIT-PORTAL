@@ -17,7 +17,7 @@ import { OverviewTab } from "@/components/engagement/OverviewTab";
 import { LibraryTab } from "@/components/engagement/LibraryTab";
 import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
-import { ProceduresTab } from "@/components/engagement/ProceduresTab";
+import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 
 export const EngagementDetails = () => {
@@ -304,6 +304,7 @@ export const EngagementDetails = () => {
         <TabsContent value="procedures" className="space-y-6">
           <ProceduresTab
             procedures={procedures}
+            engagement={engagement}
             handleGenerateProcedures={handleGenerateProcedures}
             isGeneratingProcedures={isGeneratingProcedures}
           />
