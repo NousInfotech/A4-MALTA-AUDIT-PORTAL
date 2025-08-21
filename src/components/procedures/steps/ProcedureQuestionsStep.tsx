@@ -101,6 +101,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   const [editedAnswer, setEditedAnswer] = useState("")
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [rawResult, setRawResult] = useState<any>(null)
+  const [recommendations,setRecommendations] = useState([])
   const [showDebug, setShowDebug] = useState(false)
   const { toast } = useToast()
 
@@ -187,13 +188,15 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
       // Prefer the server-provided questions
       let nextQuestions: any[] = result?.procedure?.questions || []
 
-      // Fallback: build from procedures if questions are empty
-      if ((!nextQuestions || nextQuestions.length === 0) && Array.isArray(result?.procedure?.procedures)) {
-        nextQuestions = proceduresToQuestionsFallback(result)
-      }
+      // // Fallback: build from procedures if questions are empty
+      // if ((!nextQuestions || nextQuestions.length === 0) && Array.isArray(result?.procedure?.procedures)) {
+      //   nextQuestions = proceduresToQuestionsFallback(result)
+      // }
 
       setQuestions(nextQuestions || [])
-      setProcessingStatus(result?.processingResults || [])
+      console.log("recommendations ",result)
+      setRecommendations(result?.procedure?.recommendations || [])
+      setProcessingStatus(result?.procedure?.aiProcessingStatus || [])
 
       toast({
         title: "Procedures Generated",
@@ -282,7 +285,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
       return
     }
 
-    onComplete({ questions })
+    onComplete({ questions, recommendations })
   }
 
   const getQuestionsByClassification = () => {

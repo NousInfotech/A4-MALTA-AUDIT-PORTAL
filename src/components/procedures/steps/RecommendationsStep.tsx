@@ -60,18 +60,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
         ?.map((q: any) => `${q.question}: ${q.answer || "No answer provided"}`)
         .join("\n")
 
-      // TODO: call your backend AI service instead of hardcoding
-      const sampleRecommendations = `### Audit Recommendations for ${engagement.title}
-
-#### 1. Internal Control Weaknesses Identified (ISA 265)
-- **Priority Level**: High
-- **Specific Recommendation**: Strengthen internal controls over cash handling.
-- **Rationale**: Weaknesses identified in payables reconciliations.
-- **Follow-up**: Quarterly internal audit review.
-
-...`
-
-      setRecommendations(sampleRecommendations)
+      setRecommendations(stepData.recommendations)
     } catch (error) {
       console.error("Error generating AI recommendations:", error)
       toast({
