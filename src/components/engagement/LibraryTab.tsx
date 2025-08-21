@@ -65,9 +65,6 @@ const categories = [
 interface LibraryTabProps {
   engagement: any
   requests: any[]
-  procedures: any[]
-  handleGenerateProcedures: () => void
-  isGeneratingProcedures: boolean
 }
 
 interface LibraryFile {
@@ -115,7 +112,7 @@ const DeleteConfirmationDialog = ({
   </AlertDialog>
 )
 
-export const LibraryTab = ({ engagement, requests, procedures }: LibraryTabProps) => {
+export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [selectedFolder, setSelectedFolder] = useState(categories[0])
   const [viewMode, setViewMode] = useState<"grid" | "list">("list")
   const [uploading, setUploading] = useState(false)
@@ -390,7 +387,6 @@ export const LibraryTab = ({ engagement, requests, procedures }: LibraryTabProps
             </div>
             <div className="flex space-x-2">
               <Badge variant="secondary">{requests.length} Requests</Badge>
-              <Badge variant="secondary">{procedures.length} Procedures</Badge>
             </div>
           </div>
 

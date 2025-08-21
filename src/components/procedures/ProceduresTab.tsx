@@ -110,12 +110,12 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           <h2 className="font-heading text-2xl text-foreground">Audit Procedures</h2>
           {getProcedureStatusBadge()}
         </div>
-        {procedure?.status === "completed" && (
+        {/* {procedure?.status === "completed" && (
           <Button variant="outline" onClick={handleRegenerate} className="flex items-center gap-2 bg-transparent">
             <RefreshCw className="h-4 w-4" />
             Regenerate
           </Button>
-        )}
+        )} */}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">

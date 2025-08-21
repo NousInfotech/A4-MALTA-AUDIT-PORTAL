@@ -1,0 +1,199 @@
+Date : 2025-08-21 15:53:44
+Directory : d:\Axtra Studios\Projects\Audit Portal\audit-portal
+Total : 137 files,  29672 codes, 588 comments, 1920 blanks, all 32180 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| TypeScript JSX     |         91 |     16,160 |        404 |      1,501 |     18,065 |
+| JSON               |          5 |      9,557 |          4 |          9 |      9,570 |
+| JavaScript         |          7 |      2,175 |          0 |        133 |      2,308 |
+| TypeScript         |         16 |      1,211 |        131 |        175 |      1,517 |
+| MS SQL             |         12 |        358 |         35 |         28 |        421 |
+| PostCSS            |          2 |        131 |         14 |         40 |        185 |
+| Markdown           |          1 |         45 |          0 |         29 |         74 |
+| JSON with Comments |          1 |         19 |          0 |          1 |         20 |
+| HTML               |          1 |         15 |          0 |          4 |         19 |
+| XML                |          1 |          1 |          0 |          0 |          1 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++---------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                            | files      | code       | comment    | blank      | total      |
++---------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                               |        137 |     29,672 |        588 |      1,920 |     32,180 |
+| . (Files)                                                                                                                       |         12 |      9,820 |          6 |         50 |      9,876 |
+| public                                                                                                                          |          1 |          1 |          0 |          0 |          1 |
+| src                                                                                                                             |        112 |     19,493 |        547 |      1,842 |     21,882 |
+| src (Files)                                                                                                                     |          5 |        220 |         22 |         56 |        298 |
+| src\components                                                                                                                  |         69 |     11,009 |        264 |      1,071 |     12,344 |
+| src\components\auth                                                                                                             |          1 |         28 |          0 |          7 |         35 |
+| src\components\engagement                                                                                                       |          8 |      4,396 |        173 |        333 |      4,902 |
+| src\components\layout                                                                                                           |          3 |        231 |         19 |         29 |        279 |
+| src\components\procedures                                                                                                       |          7 |      1,966 |         40 |        182 |      2,188 |
+| src\components\procedures (Files)                                                                                               |          3 |        623 |         19 |         69 |        711 |
+| src\components\procedures\steps                                                                                                 |          4 |      1,343 |         21 |        113 |      1,477 |
+| src\components\ui                                                                                                               |         50 |      4,388 |         32 |        520 |      4,940 |
+| src\contexts                                                                                                                    |          2 |        401 |         11 |         53 |        465 |
+| src\hooks                                                                                                                       |          8 |        508 |        110 |         99 |        717 |
+| src\integrations                                                                                                                |          2 |        203 |          6 |         13 |        222 |
+| src\integrations\supabase                                                                                                       |          2 |        203 |          6 |         13 |        222 |
+| src\lib                                                                                                                         |          2 |        126 |          2 |         14 |        142 |
+| src\lib (Files)                                                                                                                 |          1 |          5 |          0 |          2 |          7 |
+| src\lib\api                                                                                                                     |          1 |        121 |          2 |         12 |        135 |
+| src\pages                                                                                                                       |         18 |      4,648 |        122 |        359 |      5,129 |
+| src\pages (Files)                                                                                                               |          2 |         50 |          0 |         11 |         61 |
+| src\pages\admin                                                                                                                 |          2 |      1,138 |         24 |         86 |      1,248 |
+| src\pages\auth                                                                                                                  |          3 |        378 |          5 |         31 |        414 |
+| src\pages\client                                                                                                                |          3 |        677 |         18 |         55 |        750 |
+| src\pages\employee                                                                                                              |          8 |      2,405 |         75 |        176 |      2,656 |
+| src\services                                                                                                                    |          1 |        237 |         10 |         47 |        294 |
+| src\static                                                                                                                      |          5 |      2,141 |          0 |        130 |      2,271 |
+| supabase                                                                                                                        |         12 |        358 |         35 |         28 |        421 |
+| supabase\migrations                                                                                                             |         12 |        358 |         35 |         28 |        421 |
++---------------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++---------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                                                        | language           | code       | comment    | blank      | total      |
++---------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\README.md                                                                   | Markdown           |         45 |          0 |         29 |         74 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\components.json                                                             | JSON               |         20 |          0 |          0 |         20 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\eslint.config.js                                                            | JavaScript         |         28 |          0 |          2 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\index.html                                                                  | HTML               |         15 |          0 |          4 |         19 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\package-lock.json                                                           | JSON               |      9,401 |          0 |          1 |      9,402 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\package.json                                                                | JSON               |         93 |          0 |          1 |         94 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\postcss.config.js                                                           | JavaScript         |          6 |          0 |          1 |          7 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\public\placeholder.svg                                                      | XML                |          1 |          0 |          0 |          1 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\App.css                                                                 | PostCSS            |         37 |          0 |          6 |         43 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\App.tsx                                                                 | TypeScript JSX     |         81 |          7 |         13 |        101 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\auth\ProtectedRoute.tsx                                      | TypeScript JSX     |         28 |          0 |          7 |         35 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ChecklistTab.tsx                                  | TypeScript JSX     |        312 |         11 |         29 |        352 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ClassificationSection.tsx                         | TypeScript JSX     |      1,796 |         61 |        116 |      1,973 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\DocumentRequestsTab.tsx                           | TypeScript JSX     |        232 |          1 |         16 |        249 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ExtendedTrialBalance.tsx                          | TypeScript JSX     |        831 |         47 |         62 |        940 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\LibraryTab.tsx                                    | TypeScript JSX     |        570 |         28 |         31 |        629 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\OverviewTab.tsx                                   | TypeScript JSX     |        110 |          4 |          7 |        121 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\TrialBalanceTab.tsx                               | TypeScript JSX     |        264 |         10 |         33 |        307 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\TrialBalanceUpload.tsx                            | TypeScript JSX     |        281 |         11 |         39 |        331 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\DashboardLayout.tsx                                   | TypeScript JSX     |         24 |          2 |          5 |         31 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\Header.tsx                                            | TypeScript JSX     |         42 |          2 |          6 |         50 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\Sidebar.tsx                                           | TypeScript JSX     |        165 |         15 |         18 |        198 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProcedureGeneration.tsx                           | TypeScript JSX     |        175 |          5 |         16 |        196 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProcedureView.tsx                                 | TypeScript JSX     |        305 |         13 |         35 |        353 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProceduresTab.tsx                                 | TypeScript JSX     |        143 |          1 |         18 |        162 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\ClassificationStep.tsx                      | TypeScript JSX     |        312 |          8 |         29 |        349 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\MaterialityStep.tsx                         | TypeScript JSX     |        147 |          1 |         17 |        165 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\ProcedureQuestionsStep.tsx                  | TypeScript JSX     |        510 |          5 |         40 |        555 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\RecommendationsStep.tsx                     | TypeScript JSX     |        374 |          7 |         27 |        408 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\accordion.tsx                                             | TypeScript JSX     |         49 |          1 |          8 |         58 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\alert-dialog.tsx                                          | TypeScript JSX     |        126 |          0 |         14 |        140 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\alert.tsx                                                 | TypeScript JSX     |         53 |          0 |          7 |         60 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\aspect-ratio.tsx                                          | TypeScript JSX     |          3 |          0 |          3 |          6 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\avatar.tsx                                                | TypeScript JSX     |         43 |          0 |          6 |         49 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\badge.tsx                                                 | TypeScript JSX     |         31 |          1 |          6 |         38 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\breadcrumb.tsx                                            | TypeScript JSX     |        105 |          0 |         11 |        116 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\button.tsx                                                | TypeScript JSX     |         51 |          1 |          6 |         58 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\calendar.tsx                                              | TypeScript JSX     |         60 |          0 |          5 |         65 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\card.tsx                                                  | TypeScript JSX     |         71 |          0 |          9 |         80 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\carousel.tsx                                              | TypeScript JSX     |        231 |          1 |         30 |        262 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\chart.tsx                                                 | TypeScript JSX     |        326 |          3 |         36 |        365 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\checkbox.tsx                                              | TypeScript JSX     |         25 |          1 |          4 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\collapsible.tsx                                           | TypeScript JSX     |          5 |          0 |          5 |         10 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\command.tsx                                               | TypeScript JSX     |        136 |          0 |         18 |        154 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\context-menu.tsx                                          | TypeScript JSX     |        181 |          0 |         18 |        199 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\dialog.tsx                                                | TypeScript JSX     |        108 |          1 |         13 |        122 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\drawer.tsx                                                | TypeScript JSX     |        104 |          0 |         13 |        117 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\dropdown-menu.tsx                                         | TypeScript JSX     |        181 |          0 |         18 |        199 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\enhanced-loader.tsx                                       | TypeScript JSX     |        118 |          0 |          7 |        125 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\form.tsx                                                  | TypeScript JSX     |        152 |          1 |         25 |        178 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\hover-card.tsx                                            | TypeScript JSX     |         22 |          0 |          6 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\input-otp.tsx                                             | TypeScript JSX     |         62 |          0 |          8 |         70 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\input.tsx                                                 | TypeScript JSX     |         19 |          0 |          4 |         23 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\label.tsx                                                 | TypeScript JSX     |         20 |          0 |          5 |         25 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\menubar.tsx                                               | TypeScript JSX     |        216 |          0 |         19 |        235 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\navigation-menu.tsx                                       | TypeScript JSX     |        117 |          0 |         12 |        129 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\pagination.tsx                                            | TypeScript JSX     |        107 |          1 |         11 |        119 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\popover.tsx                                               | TypeScript JSX     |         24 |          0 |          6 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\progress.tsx                                              | TypeScript JSX     |         23 |          1 |          4 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\radio-group.tsx                                           | TypeScript JSX     |         38 |          1 |          5 |         44 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\resizable.tsx                                             | TypeScript JSX     |         38 |          0 |          6 |         44 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\scroll-area.tsx                                           | TypeScript JSX     |         42 |          1 |          5 |         48 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\select.tsx                                                | TypeScript JSX     |        145 |          1 |         14 |        160 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\separator.tsx                                             | TypeScript JSX     |         26 |          0 |          4 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sheet.tsx                                                 | TypeScript JSX     |        116 |          1 |         16 |        133 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sidebar.tsx                                               | TypeScript JSX     |        696 |         13 |         54 |        763 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\skeleton.tsx                                              | TypeScript JSX     |         13 |          0 |          3 |         16 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\slider.tsx                                                | TypeScript JSX     |         23 |          1 |          4 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sonner.tsx                                                | TypeScript JSX     |         25 |          0 |          5 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\switch.tsx                                                | TypeScript JSX     |         24 |          1 |          4 |         29 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\table.tsx                                                 | TypeScript JSX     |        107 |          0 |         11 |        118 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\tabs.tsx                                                  | TypeScript JSX     |         47 |          0 |          7 |         54 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\textarea.tsx                                              | TypeScript JSX     |         20 |          0 |          5 |         25 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toast.tsx                                                 | TypeScript JSX     |        115 |          0 |         13 |        128 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toaster.tsx                                               | TypeScript JSX     |         31 |          1 |          3 |         35 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toggle-group.tsx                                          | TypeScript JSX     |         51 |          0 |          9 |         60 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toggle.tsx                                                | TypeScript JSX     |         38 |          0 |          6 |         44 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\tooltip.tsx                                               | TypeScript JSX     |         22 |          0 |          7 |         29 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\use-toast.ts                                              | TypeScript         |          2 |          0 |          2 |          4 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\contexts\AuthContext.tsx                                                | TypeScript JSX     |        156 |          9 |         28 |        193 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\contexts\DataContext.tsx                                                | TypeScript JSX     |        245 |          2 |         25 |        272 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\use-mobile.tsx                                                    | TypeScript JSX     |         15 |          0 |          5 |         20 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\use-toast.ts                                                      | TypeScript         |        159 |          3 |         31 |        193 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useChecklist.ts                                                   | TypeScript         |         91 |          7 |         12 |        110 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useDocumentRequests.ts                                            | TypeScript         |         78 |          2 |         11 |         91 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useEngagements.ts                                                 | TypeScript         |         82 |          1 |          9 |         92 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useProcedures.ts                                                  | TypeScript         |          0 |         96 |         14 |        110 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useQueryParams.ts                                                 | TypeScript         |         39 |          0 |          7 |         46 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useTrialBalance.ts                                                | TypeScript         |         44 |          1 |         10 |         55 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\index.css                                                               | PostCSS            |         94 |         14 |         34 |        142 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\integrations\supabase\client.ts                                         | TypeScript         |          5 |          3 |          3 |         11 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\integrations\supabase\types.ts                                          | TypeScript         |        198 |          3 |         10 |        211 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\lib\api\global-library.ts                                               | TypeScript         |        121 |          2 |         12 |        135 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\lib\utils.ts                                                            | TypeScript         |          5 |          0 |          2 |          7 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\main.tsx                                                                | TypeScript JSX     |          8 |          0 |          2 |         10 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\Index.tsx                                                         | TypeScript JSX     |         27 |          0 |          6 |         33 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\NotFound.tsx                                                      | TypeScript JSX     |         23 |          0 |          5 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\admin\AdminDashboard.tsx                                          | TypeScript JSX     |        578 |         15 |         46 |        639 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\admin\UserManagement.tsx                                          | TypeScript JSX     |        560 |          9 |         40 |        609 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\LoginPage.tsx                                                | TypeScript JSX     |         92 |          2 |         10 |        104 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\PendingApprovalPage.tsx                                      | TypeScript JSX     |         40 |          1 |          4 |         45 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\SignupPage.tsx                                               | TypeScript JSX     |        246 |          2 |         17 |        265 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\ClientDashboard.tsx                                        | TypeScript JSX     |        249 |         10 |         15 |        274 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\ClientEngagements.tsx                                      | TypeScript JSX     |        152 |          4 |         15 |        171 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\DocumentRequests.tsx                                       | TypeScript JSX     |        276 |          4 |         25 |        305 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\AddClient.tsx                                            | TypeScript JSX     |        245 |          5 |         20 |        270 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\ClientDetail.tsx                                         | TypeScript JSX     |        249 |          7 |         23 |        279 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\ClientManagement.tsx                                     | TypeScript JSX     |        232 |          4 |         16 |        252 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\CreateEngagement.tsx                                     | TypeScript JSX     |        211 |         15 |         25 |        251 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EmployeeDashboard.tsx                                    | TypeScript JSX     |        311 |          7 |         17 |        335 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EngagementDetails.tsx                                    | TypeScript JSX     |        238 |          4 |         25 |        267 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EngagementManagement.tsx                                 | TypeScript JSX     |        239 |          7 |         20 |        266 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\Library.tsx                                              | TypeScript JSX     |        680 |         26 |         30 |        736 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\services\api.ts                                                         | TypeScript         |        237 |         10 |         47 |        294 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\classification-options.js                                        | JavaScript         |         58 |          0 |          2 |         60 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\procedures.js                                                    | JavaScript         |      1,585 |          0 |          1 |      1,586 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\proceduresPrompt.js                                              | JavaScript         |        310 |          0 |         84 |        394 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\proceduresPromptHybrid.js                                        | JavaScript         |        161 |          0 |         42 |        203 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\recommendationsPrompt.js                                         | JavaScript         |         27 |          0 |          1 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\vite-env.d.ts                                                           | TypeScript         |          0 |          1 |          1 |          2 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805094200_6f7fe447-3148-4843-a8e9-c529a1101aae.sql | MS SQL             |         75 |         10 |         13 |         98 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100408_1bb6b92e-52c2-46f7-a46b-cb9b99918ede.sql | MS SQL             |         34 |          1 |          3 |         38 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100537_3b3b2d36-62e9-4fa8-bfdd-675747534781.sql | MS SQL             |          0 |          4 |          1 |          5 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100700_e7ccd1af-3f5a-4c21-bbbe-7f43e5e46a59.sql | MS SQL             |         37 |          4 |          2 |         43 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100951_9e5254de-6477-4eb1-aa18-aae44989e6d0.sql | MS SQL             |         23 |          2 |          1 |         26 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805101143_97bb9924-797e-4322-b985-43b56669cd4b.sql | MS SQL             |         25 |          2 |          1 |         28 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102402_8e040053-4108-4040-8b5a-d3f227808d57.sql | MS SQL             |          2 |          2 |          1 |          5 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102500_1d9ad404-fd7f-4854-839e-ea039d1590d6.sql | MS SQL             |         64 |          3 |          2 |         69 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102528_8890bb1f-7e5a-4238-8b94-55bcd3730434.sql | MS SQL             |         29 |          1 |          0 |         30 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102559_1d69de55-dbce-4645-a44c-a2d2fff7355a.sql | MS SQL             |         11 |          2 |          2 |         15 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102901_4f0cf49c-104c-487b-9300-acf1a31c15f1.sql | MS SQL             |         28 |          2 |          1 |         31 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805161025_09eee76b-9fc9-422d-b1c7-2ede6eb43f0a.sql | MS SQL             |         30 |          2 |          1 |         33 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\tailwind.config.ts                                                          | TypeScript         |        119 |          0 |          2 |        121 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.app.json                                                           | JSON               |         25 |          2 |          4 |         31 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.json                                                               | JSON with Comments |         19 |          0 |          1 |         20 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.node.json                                                          | JSON               |         18 |          2 |          3 |         23 |
+| d:\Axtra Studios\Projects\Audit Portal\audit-portal\vite.config.ts                                                              | TypeScript         |         31 |          2 |          2 |         35 |
+| Total                                                                                                                           |                    |     29,672 |        588 |      1,920 |     32,180 |
++---------------------------------------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+

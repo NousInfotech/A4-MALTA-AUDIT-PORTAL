@@ -21,6 +21,7 @@ import {
   Save,
   X,
   Loader2,
+  Bug,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -39,6 +40,8 @@ interface ProcessingStatus {
   error?: string
 }
 
+const DEFAULT_VISIBLE = 8
+
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
@@ -51,6 +54,36 @@ async function authFetch(url: string, options: RequestInit = {}) {
       ...(options.headers || {}),
     },
   })
+}
+
+// ---- helper: transform procedures -> questions fallback ----
+function proceduresToQuestionsFallback(result: any): any[] {
+  const procArr = result?.procedure?.procedures
+  if (!Array.isArray(procArr) || procArr.length === 0) return []
+
+  // If API returned a top-level narrative, prefer it; else blank
+  const narrative =
+    result?.narrative ||
+    result?.procedure?.narrative || // if you ever add it to the saved doc
+    ""
+
+  // Each ProcedureDetail has { id, title, ... }
+  // We map each to a "question" line so the UI can render them.
+  const qs = procArr.map((p: any, idx: number) => ({
+    id: p.id || `ai_${idx + 1}`,
+    question: p.title || `Procedure ${idx + 1}`,
+    answer: narrative || "",
+    isRequired: false,
+    classification:
+      // best effort: some backends include classification inside tests or title;
+      // if not present, drop into "General"
+      p.classification ||
+      p.area ||
+      "General",
+    procedure: p,
+  }))
+
+  return qs
 }
 
 export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
@@ -66,6 +99,9 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null)
   const [editedText, setEditedText] = useState("")
   const [editedAnswer, setEditedAnswer] = useState("")
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [rawResult, setRawResult] = useState<any>(null)
+  const [showDebug, setShowDebug] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -74,258 +110,27 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     } else {
       generateAIProcedures()
     }
-  }, [mode, stepData.selectedClassifications])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, JSON.stringify(stepData?.selectedClassifications || [])])
 
   const loadManualProcedures = async () => {
     setLoading(true)
     try {
-      // Load static procedures for manual mode
-      const staticProcedures = {
-  "Assets > Current > Cash & Cash Equivalents": [
-    {
-      id: "cash_1",
-      question: "Have bank reconciliations been prepared for all bank accounts as at year-end?",
-      isRequired: true,
-    },
-    {
-      id: "cash_2",
-      question: "Have outstanding items on bank reconciliations been reviewed for validity?",
-      isRequired: true,
-    },
-    {
-      id: "cash_3",
-      question: "Has cash on hand been counted and verified?",
-      isRequired: false,
-    },
-    {
-      id: "cash_4",
-      question: "Have bank confirmations been obtained for all accounts?",
-      isRequired: true,
-    },
-    {
-      id: "cash_5",
-      question: "Have restrictions on cash been properly disclosed?",
-      isRequired: false,
-    },
-  ],
-  "Assets > Current > Trade Receivables": [
-    {
-      id: "receivables_1",
-      question: "Has an aged debtors analysis been prepared and reviewed?",
-      isRequired: true,
-    },
-    {
-      id: "receivables_2",
-      question: "Have doubtful debts been adequately provided for?",
-      isRequired: true,
-    },
-    {
-      id: "receivables_3",
-      question: "Have debtor confirmations been sent and responses reviewed?",
-      isRequired: false,
-    },
-    {
-      id: "receivables_4",
-      question: "Has subsequent cash receipts testing been performed?",
-      isRequired: true,
-    },
-    {
-      id: "receivables_5",
-      question: "Have credit terms and collection procedures been reviewed?",
-      isRequired: false,
-    },
-  ],
-  "Assets > Current > Inventory": [
-    {
-      id: "inventory_1",
-      question: "Has a physical inventory count been performed?",
-      isRequired: true,
-    },
-    {
-      id: "inventory_2",
-      question: "Have inventory valuation methods been reviewed for consistency?",
-      isRequired: true,
-    },
-    {
-      id: "inventory_3",
-      question: "Has obsolete or slow-moving inventory been identified and provided for?",
-      isRequired: true,
-    },
-    {
-      id: "inventory_4",
-      question: "Have cut-off procedures been performed?",
-      isRequired: false,
-    },
-    {
-      id: "inventory_5",
-      question: "Has the lower of cost or net realizable value been applied?",
-      isRequired: true,
-    },
-  ],
-  "Assets > Non-current > Property, Plant & Equipment": [
-    {
-      id: "ppe_1",
-      question: "Has a fixed asset register been maintained and reconciled?",
-      isRequired: true,
-    },
-    {
-      id: "ppe_2",
-      question: "Have depreciation rates and methods been reviewed for reasonableness?",
-      isRequired: true,
-    },
-    {
-      id: "ppe_3",
-      question: "Have additions and disposals been properly authorized and recorded?",
-      isRequired: true,
-    },
-    {
-      id: "ppe_4",
-      question: "Has impairment testing been considered where appropriate?",
-      isRequired: false,
-    },
-    {
-      id: "ppe_5",
-      question: "Have capital vs. revenue expenditures been properly classified?",
-      isRequired: true,
-    },
-  ],
-  "Liabilities > Current > Trade Payables": [
-    {
-      id: "payables_1",
-      question: "Has an aged creditors analysis been prepared and reviewed?",
-      isRequired: true,
-    },
-    {
-      id: "payables_2",
-      question: "Have supplier statements been reconciled?",
-      isRequired: true,
-    },
-    {
-      id: "payables_3",
-      question: "Has search for unrecorded liabilities been performed?",
-      isRequired: true,
-    },
-    {
-      id: "payables_4",
-      question: "Have creditor confirmations been obtained where necessary?",
-      isRequired: false,
-    },
-    {
-      id: "payables_5",
-      question: "Have cut-off procedures been performed for purchases?",
-      isRequired: true,
-    },
-  ],
-  Income: [
-    {
-      id: "revenue_1",
-      question: "Has revenue recognition policy been reviewed for compliance with accounting standards?",
-      isRequired: true,
-    },
-    {
-      id: "revenue_2",
-      question: "Have cut-off procedures been performed for sales?",
-      isRequired: true,
-    },
-    {
-      id: "revenue_3",
-      question: "Has analytical review of revenue been performed?",
-      isRequired: true,
-    },
-    {
-      id: "revenue_4",
-      question: "Have sales returns and allowances been properly recorded?",
-      isRequired: false,
-    },
-    {
-      id: "revenue_5",
-      question: "Has completeness of revenue been tested?",
-      isRequired: true,
-    },
-  ],
-  Expenses: [
-    {
-      id: "expenses_1",
-      question: "Have expense classifications been reviewed for accuracy?",
-      isRequired: true,
-    },
-    {
-      id: "expenses_2",
-      question: "Has analytical review of expenses been performed?",
-      isRequired: true,
-    },
-    {
-      id: "expenses_3",
-      question: "Have accruals and prepayments been properly recorded?",
-      isRequired: true,
-    },
-    {
-      id: "expenses_4",
-      question: "Have related party transactions been identified and disclosed?",
-      isRequired: false,
-    },
-    {
-      id: "expenses_5",
-      question: "Has cut-off testing been performed for expenses?",
-      isRequired: true,
-    },
-  ],
-  Equity: [
-    {
-      id: "equity_1",
-      question: "Have share capital movements been properly authorized and recorded?",
-      isRequired: true,
-    },
-    {
-      id: "equity_2",
-      question: "Has retained earnings been properly calculated and presented?",
-      isRequired: true,
-    },
-    {
-      id: "equity_3",
-      question: "Have dividend payments been properly authorized and recorded?",
-      isRequired: false,
-    },
-    {
-      id: "equity_4",
-      question: "Have reserves been properly classified and disclosed?",
-      isRequired: false,
-    },
-  ],
-  default: [
-    {
-      id: "general_1",
-      question: "Have supporting documents been reviewed and found adequate?",
-      isRequired: true,
-    },
-    {
-      id: "general_2",
-      question: "Has analytical review been performed and variances investigated?",
-      isRequired: true,
-    },
-    {
-      id: "general_3",
-      question: "Have journal entries been reviewed for appropriateness?",
-      isRequired: false,
-    },
-    {
-      id: "general_4",
-      question: "Has management representation been obtained where appropriate?",
-      isRequired: false,
-    },
-  ],
-}
+      const staticProceduresModule = await import("../../../static/procedures")
+      const staticProcedures = staticProceduresModule.default
       const allQuestions: any[] = []
 
       stepData.selectedClassifications.forEach((classification: string) => {
-        const classificationProcedures = staticProcedures.default[classification] || staticProcedures.default.default
-        classificationProcedures.forEach((proc: any) => {
-          allQuestions.push({
-            ...proc,
-            classification,
-            answer: "",
+        const classificationProcedures = staticProcedures[classification] || staticProcedures.default
+        if (classificationProcedures) {
+          classificationProcedures.forEach((proc: any) => {
+            allQuestions.push({
+              ...proc,
+              classification,
+              answer: "",
+            })
           })
-        })
+        }
       })
 
       setQuestions(allQuestions)
@@ -344,8 +149,11 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   const generateAIProcedures = async () => {
     setLoading(true)
     try {
-      // Initialize processing status
-      const initialStatus = stepData.selectedClassifications.map((classification: string) => ({
+      const selected = Array.isArray(stepData?.selectedClassifications)
+        ? stepData.selectedClassifications
+        : []
+
+      const initialStatus = selected.map((classification: string) => ({
         classification,
         status: "queued" as const,
       }))
@@ -355,34 +163,47 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
       if (!base) {
         throw new Error("VITE_APIURL is not set")
       }
+      if (!engagement?._id) {
+        throw new Error("Engagement id is missing")
+      }
 
       const response = await authFetch(`${base}/api/procedures/${engagement._id}/generate`, {
         method: "POST",
         body: JSON.stringify({
           mode,
-          materiality: stepData.materiality,
-          selectedClassifications: stepData.selectedClassifications,
-          validitySelections: stepData.validitySelections,
+          materiality: stepData?.materiality,
+          selectedClassifications: selected,
+          validitySelections: stepData?.validitySelections,
         }),
       })
 
+      const result = await response.json()
+      setRawResult(result)
+
       if (!response.ok) {
-        throw new Error("Failed to generate procedures")
+        throw new Error(result?.message || "Failed to generate procedures")
       }
 
-      const result = await response.json()
-      setQuestions(result.procedure.questions || [])
-      setProcessingStatus(result.processingResults || [])
+      // Prefer the server-provided questions
+      let nextQuestions: any[] = result?.procedure?.questions || []
+
+      // Fallback: build from procedures if questions are empty
+      if ((!nextQuestions || nextQuestions.length === 0) && Array.isArray(result?.procedure?.procedures)) {
+        nextQuestions = proceduresToQuestionsFallback(result)
+      }
+
+      setQuestions(nextQuestions || [])
+      setProcessingStatus(result?.processingResults || [])
 
       toast({
         title: "Procedures Generated",
-        description: `Successfully generated ${result.procedure.questions?.length || 0} procedures.`,
+        description: `Successfully generated ${nextQuestions?.length || 0} items.`,
       })
     } catch (error: any) {
       console.error("Error generating AI procedures:", error)
       toast({
         title: "Generation Failed",
-        description: error.message || "Failed to generate procedures.",
+        description: error?.message || "Failed to generate procedures.",
         variant: "destructive",
       })
     } finally {
@@ -426,14 +247,14 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     setQuestions((prev) => prev.filter((q) => q.id !== questionId))
     toast({
       title: "Question Deleted",
-      description: "The procedure question has been removed.",
+      description: "The procedure item has been removed.",
     })
   }
 
   const handleAddQuestion = (classification: string) => {
     const newQuestion = {
       id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      question: "New custom procedure question",
+      question: "New custom procedure item",
       answer: "",
       isRequired: false,
       classification,
@@ -449,14 +270,13 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   }
 
   const handleProceed = () => {
-    // Validate required questions
     const requiredQuestions = questions.filter((q) => q.isRequired)
     const unansweredRequired = requiredQuestions.filter((q) => !q.answer?.trim())
 
     if (unansweredRequired.length > 0) {
       toast({
         title: "Required Questions Unanswered",
-        description: `Please answer all ${unansweredRequired.length} required questions before proceeding.`,
+        description: `Please answer all ${unansweredRequired.length} required items before proceeding.`,
         variant: "destructive",
       })
       return
@@ -469,9 +289,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     const grouped: { [key: string]: any[] } = {}
     questions.forEach((question) => {
       const classification = question.classification || "General"
-      if (!grouped[classification]) {
-        grouped[classification] = []
-      }
+      if (!grouped[classification]) grouped[classification] = []
       grouped[classification].push(question)
     })
     return grouped
@@ -512,10 +330,11 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   const requiredCount = questions.filter((q) => q.isRequired).length
   const answeredRequired = questions.filter((q) => q.isRequired && q.answer?.trim()).length
 
+  // Loading view (AI/hybrid)
   if (loading && mode !== "manual") {
     return (
       <div className="space-y-6">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="font-heading text-xl text-foreground flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" />
@@ -546,17 +365,24 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                       {formatClassificationForDisplay(status.classification)}
                     </span>
                   </div>
-                  <Badge
-                    variant={
-                      status.status === "completed"
-                        ? "default"
-                        : status.status === "error"
+                  <div className="flex items-center gap-2">
+                    {status.error && (
+                      <Badge variant="destructive" className="max-w-[22rem] truncate">
+                        {status.error}
+                      </Badge>
+                    )}
+                    <Badge
+                      variant={
+                        status.status === "completed"
+                          ? "default"
+                          : status.status === "error"
                           ? "destructive"
                           : "secondary"
-                    }
-                  >
-                    {status.status}
-                  </Badge>
+                      }
+                    >
+                      {status.status}
+                    </Badge>
+                  </div>
                 </div>
               ))}
             </div>
@@ -566,19 +392,37 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     )
   }
 
+  // Empty state if nothing to show
+  const isEmpty = Object.keys(groupedQuestions).length === 0
+
   return (
     <div className="space-y-6">
       {/* Summary Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-heading text-xl text-foreground">
-            {mode === "manual" ? "Manual Procedures" : "AI-Generated Procedures"}
-          </CardTitle>
-          <p className="text-muted-foreground font-body">
-            {mode === "manual"
-              ? "Review and answer the predefined audit procedures for each classification."
-              : "Review the AI-generated procedures and customize them as needed."}
-          </p>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="font-heading text-xl text-foreground">
+              {mode === "manual" ? "Manual Procedures" : "AI-Generated Procedures"}
+            </CardTitle>
+            <p className="text-muted-foreground font-body">
+              {mode === "manual"
+                ? "Review and answer the predefined audit procedures for each classification."
+                : "Review the AI-generated procedures and customize them as needed."}
+            </p>
+          </div>
+
+          {(mode === "ai" || mode === "hybrid") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDebug((v) => !v)}
+              className="flex items-center gap-2"
+              title="Toggle debug view"
+            >
+              <Bug className="h-4 w-4" />
+              Debug
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -587,8 +431,8 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                 <CheckCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground font-body">Total Questions</p>
-                <p className="text-xl font-body-semibold text-foreground">{questions.length}</p>
+                <p className="text-sm text-muted-foreground font-body">Total Items</p>
+                <p className="text-xl font-body-semibold text-foreground">{[questions].length}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -612,128 +456,191 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
               </div>
             </div>
           </div>
+
+          {showDebug && rawResult && (
+            <div className="mt-4">
+              <ScrollArea className="h-64 rounded-md border p-3">
+                <pre className="text-xs whitespace-pre-wrap">
+{JSON.stringify(rawResult, null, 2)}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Empty state */}
+      {isEmpty && (
+        <Card className="border-dashed">
+          <CardContent className="py-10 flex flex-col items-center justify-center gap-4">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              No items to display. This can happen if the AI returned a structure without the
+              <code className="mx-1">procedure.questions</code> array. We’ll now try to build a
+              view from the <code className="mx-1">procedure.procedures</code> fallback (if present)
+              or you can retry generation.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={onBack}>
+                Back to Classifications
+              </Button>
+              <Button onClick={() => generateAIProcedures()}>
+                Retry Generate
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Questions by Classification */}
-      <div className="space-y-6">
-        {Object.entries(groupedQuestions).map(([classification, classificationQuestions]) => (
-          <Card key={classification}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-body-semibold">
-                    {formatClassificationForDisplay(classification)}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground font-body">
-                    {classificationQuestions.length} questions
-                  </span>
-                </div>
-                {(mode === "ai" || mode === "hybrid") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddQuestion(classification)}
-                    className="flex items-center gap-2 bg-transparent"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Question
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="max-h-96">
-                <div className="space-y-4">
-                  {classificationQuestions.map((question, index) => (
-                    <div key={question.id} className="space-y-3 p-4 border rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          <div className="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5">
-                            <span className="text-xs font-body-semibold text-primary">{index + 1}</span>
-                          </div>
-                          <div className="flex-1">
-                            {editingQuestion === question.id ? (
-                              <div className="space-y-3">
-                                <Textarea
-                                  value={editedText}
-                                  onChange={(e) => setEditedText(e.target.value)}
-                                  placeholder="Enter question..."
-                                  className="font-body"
-                                />
-                                <Textarea
-                                  value={editedAnswer}
-                                  onChange={(e) => setEditedAnswer(e.target.value)}
-                                  placeholder="Enter answer..."
-                                  className="font-body"
-                                />
-                                <div className="flex items-center gap-2">
-                                  <Button size="sm" onClick={() => handleQuestionSave(question.id)}>
-                                    <Save className="h-4 w-4 mr-2" />
-                                    Save
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={handleQuestionCancel}>
-                                    <X className="h-4 w-4 mr-2" />
-                                    Cancel
-                                  </Button>
-                                </div>
+      {!isEmpty && (
+        <div className="space-y-6">
+          {Object.entries(groupedQuestions).map(([classification, classificationQuestions]) => {
+            const isExpanded = !!expanded[classification]
+            const visibleQuestions = isExpanded
+              ? classificationQuestions
+              : classificationQuestions.slice(0, DEFAULT_VISIBLE)
+            const hasMore = classificationQuestions.length > DEFAULT_VISIBLE
+
+            return (
+              <Card key={classification} className="overflow-hidden">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="font-body-semibold truncate">
+                        {formatClassificationForDisplay(classification)}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground font-body whitespace-nowrap">
+                        {classificationQuestions.length} items
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {hasMore && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setExpanded((prev) => ({ ...prev, [classification]: !isExpanded }))
+                          }
+                          className="h-8"
+                        >
+                          {isExpanded ? "Show less" : `Show all (${classificationQuestions.length})`}
+                        </Button>
+                      )}
+                      {(mode === "ai" || mode === "hybrid") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddQuestion(classification)}
+                          className="flex items-center gap-2 bg-transparent"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Item
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  <ScrollArea className="h-[28rem] pr-3">
+                    <div className="space-y-4">
+                      {visibleQuestions.map((question, index) => (
+                        <div key={question.id} className="space-y-3 p-4 border rounded-lg">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5">
+                                <span className="text-xs font-body-semibold text-primary">
+                                  {index + 1}
+                                </span>
                               </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <div className="flex items-start gap-2">
-                                  <p className="font-body-semibold text-foreground flex-1">{question.question}</p>
-                                  {question.isRequired && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Required
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Textarea
-                                  value={question.answer || ""}
-                                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                                  placeholder="Enter your answer..."
-                                  className="font-body"
-                                  rows={3}
-                                />
+                              <div className="flex-1 min-w-0">
+                                {editingQuestion === question.id ? (
+                                  <div className="space-y-3">
+                                    <Textarea
+                                      value={editedText}
+                                      onChange={(e) => setEditedText(e.target.value)}
+                                      placeholder="Enter item..."
+                                      className="font-body resize-none break-words"
+                                    />
+                                    <Textarea
+                                      value={editedAnswer}
+                                      onChange={(e) => setEditedAnswer(e.target.value)}
+                                      placeholder="Enter answer / notes..."
+                                      className="font-body resize-none break-words"
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      <Button size="sm" onClick={() => handleQuestionSave(question.id)}>
+                                        <Save className="h-4 w-4 mr-2" />
+                                        Save
+                                      </Button>
+                                      <Button variant="outline" size="sm" onClick={handleQuestionCancel}>
+                                        <X className="h-4 w-4 mr-2" />
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="flex items-start gap-2">
+                                      <p className="font-body-semibold text-foreground flex-1 break-words">
+                                        {question.question}
+                                      </p>
+                                      {question.isRequired && (
+                                        <Badge variant="secondary" className="text-xs shrink-0">
+                                          Required
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <Textarea
+                                      value={question.answer || ""}
+                                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                                      placeholder="Enter your answer..."
+                                      className="font-body resize-none break-words"
+                                      rows={3}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {editingQuestion !== question.id && (mode === "ai" || mode === "hybrid") && (
+                              <div className="flex items-center gap-1 ml-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleQuestionEdit(question.id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleQuestionDelete(question.id)}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             )}
                           </div>
                         </div>
-                        {editingQuestion !== question.id && (mode === "ai" || mode === "hybrid") && (
-                          <div className="flex items-center gap-1 ml-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleQuestionEdit(question.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleQuestionDelete(question.id)}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {requiredCount > answeredRequired && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="font-body">
-            You have {requiredCount - answeredRequired} required questions that need answers before you can proceed.
+            You have {requiredCount - answeredRequired} required items that need answers before you can proceed.
           </AlertDescription>
         </Alert>
       )}

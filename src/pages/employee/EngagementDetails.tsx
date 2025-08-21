@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { useTrialBalance } from "@/hooks/useTrialBalance";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
-import { useProcedures } from "@/hooks/useProcedures";
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -37,7 +36,6 @@ export const EngagementDetails = () => {
     category: "",
     description: "",
   });
-  const [isGeneratingProcedures, setIsGeneratingProcedures] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const {
@@ -46,7 +44,6 @@ export const EngagementDetails = () => {
     getTrialBalance,
   } = useTrialBalance();
   const { requests, createRequest } = useDocumentRequests(id);
-  const { procedures, createProcedure } = useProcedures(id);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,47 +154,6 @@ export const EngagementDetails = () => {
     }
   };
 
-  const handleGenerateProcedures = async () => {
-    setIsGeneratingProcedures(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      const mockTasks = [
-        {
-          description:
-            "Have all balances been reconciled to supporting documentation?",
-          category: documentRequest.category || "General",
-        },
-        {
-          description:
-            "Are there any unusual or significant transactions identified?",
-          category: documentRequest.category || "General",
-        },
-        {
-          description: "Have adequate controls been implemented and tested?",
-          category: documentRequest.category || "General",
-        },
-      ];
-
-      await createProcedure({
-        title: `${documentRequest.category || "General"} Audit Procedures`,
-        tasks: mockTasks,
-      });
-
-      toast({
-        title: "Success",
-        description: "Procedures generated successfully",
-      });
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to generate procedures",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingProcedures(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -264,9 +220,6 @@ export const EngagementDetails = () => {
           <OverviewTab
             engagement={engagement}
             requests={requests}
-            procedures={procedures}
-            handleGenerateProcedures={handleGenerateProcedures}
-            isGeneratingProcedures={isGeneratingProcedures}
           />
         </TabsContent>
 
@@ -274,9 +227,6 @@ export const EngagementDetails = () => {
           <LibraryTab
             engagement={engagement}
             requests={requests}
-            procedures={procedures}
-            handleGenerateProcedures={handleGenerateProcedures}
-            isGeneratingProcedures={isGeneratingProcedures}
           />
         </TabsContent>
 
@@ -303,10 +253,7 @@ export const EngagementDetails = () => {
 
         <TabsContent value="procedures" className="space-y-6">
           <ProceduresTab
-            procedures={procedures}
             engagement={engagement}
-            handleGenerateProcedures={handleGenerateProcedures}
-            isGeneratingProcedures={isGeneratingProcedures}
           />
         </TabsContent>
 

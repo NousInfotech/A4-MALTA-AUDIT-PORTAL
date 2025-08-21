@@ -49,7 +49,6 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
 
   useEffect(() => {
     loadETBData()
-    console.log(engagement+" eng")
   }, [engagement?._id, stepData.materiality])
 
   const loadETBData = async () => {
@@ -68,14 +67,22 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
         setEtbRows(rows)
 
         // Initialize validity selections based on materiality
-        const initialSelections = rows.map((row: any) => ({
-          rowId: row.id || row._id,
-          code: row.code,
-          accountName: row.accountName,
-          finalBalance: row.finalBalance,
-          classification: row.classification,
-          isValid: Math.abs(row.finalBalance) >= (stepData.materiality || 0),
-        }))
+        const initialSelections = rows.map((row: any, idx: number) => {
+  const rowId =
+    row.id ??
+    row._id ??
+    `${row.code ?? "NA"}::${row.accountName ?? "NA"}::${idx}`
+
+  return {
+    rowId,
+    code: row.code,
+    accountName: row.accountName,
+    finalBalance: row.finalBalance,
+    classification: row.classification,
+    isValid: Math.abs(row.finalBalance ?? 0) >= (stepData.materiality || 0),
+  }
+})
+
 
         setValiditySelections(initialSelections)
 
@@ -119,18 +126,21 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
   }
 
   const handleValidityChange = (rowId: string, isValid: boolean) => {
-    setValiditySelections((prev) =>
-      prev.map((selection) => (selection.rowId === rowId ? { ...selection, isValid } : selection)),
+  setValiditySelections((prev) => {
+    const next = prev.map((selection) =>
+      selection.rowId === rowId ? { ...selection, isValid } : selection
     )
 
-    // Update selected classifications
-    const updatedSelections = validitySelections.map((selection) =>
-      selection.rowId === rowId ? { ...selection, isValid } : selection,
-    )
-    const validRows = updatedSelections.filter((s) => s.isValid && s.classification)
-    const uniqueClassifications = [...new Set(validRows.map((r) => getDeepestClassification(r.classification)))]
+    const validRows = next.filter((s) => s.isValid && s.classification)
+    const uniqueClassifications = [
+      ...new Set(validRows.map((r) => getDeepestClassification(r.classification))),
+    ]
+
     setSelectedClassifications(uniqueClassifications)
-  }
+    return next
+  })
+}
+
 
   const handleClassificationToggle = (classification: string) => {
     setSelectedClassifications((prev) =>
@@ -248,7 +258,7 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
               </TableHeader>
               <TableBody>
                 {validitySelections.map((selection) => (
-                  <TableRow key={selection.rowId} className={selection.isValid ? "bg-muted/20" : ""}>
+                  <TableRow key={selection?.rowId} className={selection.isValid ? "bg-muted/20" : ""}>
                     <TableCell>
                       <Checkbox
                         checked={selection.isValid}
