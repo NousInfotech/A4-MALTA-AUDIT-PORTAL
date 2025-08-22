@@ -180,21 +180,19 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagem
         const body = rows.map((q: any, idx: number) => [
           String(idx + 1),
           q.question || "",
-          q.isRequired ? "Yes" : "No",
           q.answer ? String(q.answer) : "",
         ])
 
         autoTable(doc, {
           startY: 26,
-          head: [["#", "Question", "Required", "Answer"]],
+          head: [["#", "Question", "Answer"]],
           body,
           styles: { font: "helvetica", fontSize: 9, cellPadding: 2, valign: "top" },
           headStyles: { fillColor: [240, 240, 240], textColor: 20, halign: "left" },
           columnStyles: {
             0: { cellWidth: 8, halign: "center" },
             1: { cellWidth: pageWidth - 2 * margin - 8 - 20 - 70 }, // auto fit Question
-            2: { cellWidth: 20, halign: "center" },
-            3: { cellWidth: 70 },
+            2: { cellWidth: pageWidth - 2 * margin - 8 - 20 - 70 },
           },
           margin: { left: margin, right: margin },
           didDrawPage: addFooter,
