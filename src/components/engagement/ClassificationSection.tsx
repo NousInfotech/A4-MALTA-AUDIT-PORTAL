@@ -53,6 +53,33 @@ interface ClassificationSectionProps {
   onClose?: () => void;
   onClassificationJump?: (classification: string) => void;
 }
+interface ReferenceRowData {
+  type: "row";
+  reference: { sheetName: string; rowIndex: number; data: any[] };
+  // leadSheetRow optional on server shape; we compute locally anyway
+  leadSheetRow?: any;
+}
+
+interface ReferenceSheetData {
+  type: "sheet";
+  sheet: { sheetName: string; data: any[][] };
+  leadSheetRow?: any;
+}
+
+type ReferenceData = ReferenceRowData | ReferenceSheetData | "";
+
+interface ETBRow {
+  id: string;
+  code: string;
+  accountName: string;
+  currentYear: number;
+  priorYear: number;
+  adjustments: number;
+  finalBalance: number;
+  classification: string;
+  reference?: string;
+  referenceData?: ReferenceData;
+}
 
 interface ETBRow {
   id: string;
@@ -228,6 +255,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
   const [sectionData, setSectionData] = useState<ETBRow[]>([]);
   const [viewSpreadsheetUrl, setViewSpreadsheetUrl] = useState<string>("");
+  // under other useState hooks
+  const [dbBusy, setDbBusy] = useState<null | "save" | "load">(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [workingPapersInitialized, setWorkingPapersInitialized] =
@@ -253,7 +282,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // ⬇️ NEW: View full-sheet dialog state
   const [viewSheetDialog, setViewSheetDialog] = useState(false);
-  const [viewSheetData, setViewSheetData] = useState<ViewSheetData | null>(null);
+  const [viewSheetData, setViewSheetData] = useState<ViewSheetData | null>(
+    null
+  );
   const [viewSheetLoading, setViewSheetLoading] = useState(false);
 
   // 🔖 keep the tab stable across refresh / navigation
@@ -538,38 +569,51 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
     }
   };
-
   // Save Working Paper (DB)
-  const saveWorkingPaperToDB = async () => {
-    try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: sectionData }),
-        }
-      );
-      if (!response.ok) throw new Error("Failed to save Working Paper to DB");
-      toast({ title: "Saved", description: "Working Paper saved to database." });
-    } catch (error: any) {
-      console.error("Save WP to DB error:", error);
-      toast({
-        title: "Save failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
+  // Add optional override param
+const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
+  const onWpTab = activeTab === "working-papers";
+  if (onWpTab) setWpHydrating(true); // or dbBusy('save') if you added it
+  else setLoading(true);
 
-  // Load Working Paper (DB)
-  // ⬅️ returns boolean: true if rows were loaded from DB, false otherwise
+  try {
+    const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
+
+    const response = await authFetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+        classification
+      )}/working-papers/db`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: payload }),
+      }
+    );
+    if (!response.ok) throw new Error("Failed to save Working Paper to DB");
+    toast({ title: "Saved", description: "Working Paper saved to database." });
+  } catch (error: any) {
+    console.error("Save WP to DB error:", error);
+    toast({ title: "Save failed", description: error.message, variant: "destructive" });
+  } finally {
+    if (onWpTab) setWpHydrating(false);
+    else if (mountedRef.current) setLoading(false);
+  }
+};
+
+
+  // Load Working Paper (DB) — returns boolean
   const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+    const onWpTab = activeTab === "working-papers";
+    if (onWpTab) setDbBusy("load");
+    else setLoading(true);
+
     try {
-      setLoading(true);
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(classification)}/working-papers/db`
       );
+
       if (response.ok) {
         const json = await response.json();
         if (!mountedRef.current) return false;
@@ -602,7 +646,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
       return false;
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (onWpTab) setDbBusy(null);
+      else if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -721,51 +766,44 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  const selectRowFromSheets = async () => {
-    if (!selectedRow || !selectedRowForFetch) return;
-    if (activeTab === "working-papers") setWpHydrating(true);
+ const selectRowFromSheets = async () => {
+  if (!selectedRow || !selectedRowForFetch) return;
+  if (activeTab === "working-papers") setWpHydrating(true);
 
-    try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(
-          classification
-        )}/working-papers/select-row`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rowId: selectedRowForFetch.id,
-            selectedRow: selectedRow,
-          }),
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to select row");
-
-      const result = await response.json();
-      if (!mountedRef.current) return;
-      setSectionData(result.rows);
-      setFetchRowsDialog(false);
-      setSelectedRow(null);
-      setSelectedRowForFetch(null);
-
-      toast({ title: "Success", description: "Row selected and data updated" });
-    } catch (error: any) {
-      console.error("Select row error:", error);
-      toast({
-        title: "Select failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      if (mountedRef.current) {
-        setWpHydrating(false);
-        setFetchRowsDialog(false);
+  try {
+    const response = await authFetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+        classification
+      )}/working-papers/select-row`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowId: selectedRowForFetch.id, selectedRow }),
       }
+    );
+
+    if (!response.ok) throw new Error("Failed to select row");
+    const result = await response.json();
+    if (!mountedRef.current) return;
+
+    setSectionData(result.rows);
+    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
+    await loadWorkingPaperFromDB(true);          // optional silent reload
+
+    setFetchRowsDialog(false);
+    setSelectedRow(null);
+    setSelectedRowForFetch(null);
+    toast({ title: "Success", description: "Row selected and data updated" });
+  } catch (error: any) {
+    console.error("Select row error:", error);
+    toast({ title: "Select failed", description: error.message, variant: "destructive" });
+  } finally {
+    if (mountedRef.current) {
+      setWpHydrating(false);
+      setFetchRowsDialog(false);
     }
-  };
+  }
+};
 
   // ⬇️ NEW: Fetch list of worksheet tabs (excluding Sheet1)
   const fetchTabsForRow = async (row: ETBRow) => {
@@ -773,7 +811,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(
           classification
         )}/working-papers/fetch-tabs`,
         { method: "POST" }
@@ -796,56 +836,121 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  // ⬇️ NEW: Select a worksheet to reference the full sheet (server makes it mutually exclusive with row ref)
-  const selectTabForRow = async () => {
-    if (!selectedTab || !selectedRowForFetch) return;
-    if (activeTab === "working-papers") setWpHydrating(true);
-    try {
-      const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-          classification
-        )}/working-papers/select-tab`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rowId: selectedRowForFetch.id, sheetName: selectedTab }),
-        }
-      );
-      if (!response.ok) throw new Error("Failed to select sheet");
-      const result = await response.json();
-      if (!mountedRef.current) return;
-      setSectionData(result.rows);
+ const selectTabForRow = async () => {
+  if (!selectedTab || !selectedRowForFetch) return;
+  if (activeTab === "working-papers") setWpHydrating(true);
+  try {
+    const response = await authFetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+        classification
+      )}/working-papers/select-tab`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowId: selectedRowForFetch.id, sheetName: selectedTab }),
+      }
+    );
+    if (!response.ok) throw new Error("Failed to select sheet");
+    const result = await response.json();
+    if (!mountedRef.current) return;
+
+    // Update UI and save the exact rows you just got back
+    setSectionData(result.rows);
+    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
+    await loadWorkingPaperFromDB(true);          // optional silent reload to hydrate referenceData
+
+    setFetchTabsDialog(false);
+    setSelectedTab(null);
+    setSelectedRowForFetch(null);
+    toast({ title: "Success", description: "Sheet selected. Reference updated." });
+  } catch (error: any) {
+    console.error("Select tab error:", error);
+    toast({ title: "Select failed", description: error.message, variant: "destructive" });
+  } finally {
+    if (mountedRef.current) {
+      setWpHydrating(false);
       setFetchTabsDialog(false);
-      setSelectedTab(null);
-      setSelectedRowForFetch(null);
-      toast({ title: "Success", description: "Sheet selected. Reference updated." });
-    } catch (error: any) {
-      console.error("Select tab error:", error);
+    }
+  }
+};
+
+
+
+
+  const viewSelectedRow = async (row: ETBRow) => {
+    // Prefer DB-hydrated referenceData (no network roundtrip)
+    const refData = row.referenceData;
+
+    // Build the lead-sheet row payload once
+    const leadSheetRow = {
+      code: row.code || "",
+      accountName: row.accountName || "",
+      currentYear: Number(row.currentYear) || 0,
+      priorYear: Number(row.priorYear) || 0,
+      adjustments: Number(row.adjustments) || 0,
+      finalBalance: Number(row.finalBalance) || 0,
+    };
+
+    // 1) If we have a full-sheet reference in DB
+    if (
+      refData &&
+      typeof refData === "object" &&
+      (refData as any).type === "sheet"
+    ) {
+      const payload = refData as ReferenceSheetData;
+      setViewSheetData({
+        type: "sheet",
+        sheet: {
+          sheetName: payload.sheet.sheetName,
+          data: payload.sheet.data || [],
+        },
+        leadSheetRow,
+      });
+      setViewSheetDialog(true);
+      return;
+    }
+
+    // 2) If we have a row reference in DB
+    if (
+      refData &&
+      typeof refData === "object" &&
+      (refData as any).type === "row"
+    ) {
+      const payload = refData as ReferenceRowData;
+      setViewRowData({
+        reference: {
+          sheetName: payload.reference.sheetName,
+          rowIndex: payload.reference.rowIndex,
+          data: payload.reference.data || [],
+        },
+        leadSheetRow,
+      });
+      setViewRowDialog(true);
+      return;
+    }
+
+    // 3) Legacy fallback: no referenceData yet -> use existing endpoints (kept unchanged)
+    if (!row.reference) {
       toast({
-        title: "Select failed",
-        description: error.message,
+        title: "No reference",
+        description: "There is no reference set for this row.",
         variant: "destructive",
       });
-    } finally {
-      if (mountedRef.current) {
-        setWpHydrating(false);
-        setFetchTabsDialog(false);
-      }
+      return;
     }
-  };
 
-  // ✅ KEEP existing row-view flow, and ADD transparent support for sheet-view (no behavior change for rows)
-  const viewSelectedRow = async (row: ETBRow) => {
-    if (!row.reference) return;
-
-    // If the reference is a full-sheet ref like "Sheet:Summary", use the new endpoint,
-    // but DON'T alter the existing row-view behavior otherwise.
-    if (typeof row.reference === "string" && row.reference.startsWith("Sheet:")) {
+    // If the reference is a full-sheet ref like "Sheet:Summary", use the new endpoint
+    if (
+      typeof row.reference === "string" &&
+      row.reference.startsWith("Sheet:")
+    ) {
       if (activeTab === "working-papers") setWpHydrating(true);
       setViewSheetLoading(true);
       try {
         const response = await authFetch(
-          `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          `${import.meta.env.VITE_APIURL}/api/engagements/${
+            engagement._id
+          }/sections/${encodeURIComponent(
             classification
           )}/working-papers/view-reference`,
           {
@@ -857,8 +962,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         if (!response.ok) throw new Error("Failed to view sheet reference");
         const result = await response.json();
         if (!mountedRef.current) return;
-
-        // Expecting: { type: 'sheet', sheet: { sheetName, data }, leadSheetRow: {...} }
         setViewSheetData(result);
         setViewSheetDialog(true);
       } catch (error: any) {
@@ -877,7 +980,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       return;
     }
 
-    // —— original row-view behavior (unchanged) ——
+    // Row-level legacy endpoint
     if (activeTab === "working-papers") setWpHydrating(true);
     setViewRowLoading(true);
     try {
@@ -893,9 +996,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           body: JSON.stringify({ rowId: row.id }),
         }
       );
-
       if (!response.ok) throw new Error("Failed to view selected row");
-
       const result = await response.json();
       if (!mountedRef.current) return;
       setViewRowData(result);
@@ -1024,122 +1125,127 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     </div>
   );
   const workingPapersActions = (
-  <div className="flex items-center gap-2">
-    <TooltipProvider delayDuration={200}>
-      {!workingPapersInitialized ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={initializeWorkingPapers}
-              size="sm"
-              disabled={wpHydrating}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Initialize
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="center">
-            Initialize working papers with lead sheet data
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        <>
+    <div className="flex items-center gap-2">
+      <TooltipProvider delayDuration={200}>
+        {!workingPapersInitialized ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                onClick={pushToWorkingPapers}
-                variant="outline"
+                onClick={initializeWorkingPapers}
                 size="sm"
                 disabled={wpHydrating}
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Push
+                <Plus className="h-4 w-4 mr-2" />
+                Initialize
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" align="center">
-              Push changes to working papers
+              Initialize working papers with lead sheet data
             </TooltipContent>
           </Tooltip>
+        ) : (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={pushToWorkingPapers}
+                  variant="outline"
+                  size="sm"
+                  disabled={wpHydrating}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Push
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                Push changes to working papers
+              </TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => pullFromWorkingPaper(classification, { mode: "wp" })}
-                variant="outline"
-                size="sm"
-                disabled={wpHydrating}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Pull
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" align="center">
-              Pull changes from working papers
-            </TooltipContent>
-          </Tooltip>
-
-          {workingPapersUrl && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   onClick={() =>
-                    window.open(workingPapersUrl, "_blank", "noopener,noreferrer")
+                    pullFromWorkingPaper(classification, { mode: "wp" })
                   }
                   variant="outline"
                   size="sm"
                   disabled={wpHydrating}
                 >
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Open Excel
+                  <Download className="h-4 w-4 mr-2" />
+                  Pull
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" align="center">
-                Open working papers in Excel
+                Pull changes from working papers
               </TooltipContent>
             </Tooltip>
-          )}
 
-          {/* NEW: Save to DB */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={saveWorkingPaperToDB}
-                size="sm"
-                variant="outline"
-                disabled={wpHydrating || sectionData.length === 0}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Save Working Papers
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" align="center">
-              Save current Working Paper rows to the database
-            </TooltipContent>
-          </Tooltip>
+            {workingPapersUrl && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() =>
+                      window.open(
+                        workingPapersUrl,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                    variant="outline"
+                    size="sm"
+                    disabled={wpHydrating}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Open Excel
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center">
+                  Open working papers in Excel
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-          {/* NEW: Load from DB */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => loadWorkingPaperFromDB(false)}
-                size="sm"
-                variant="outline"
-                disabled={wpHydrating}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load from DB
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" align="center">
-              Load saved Working Paper rows from the database
-            </TooltipContent>
-          </Tooltip>
-        </>
-      )}
-    </TooltipProvider>
-  </div>
-);
+            {/* NEW: Save to DB */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={saveWorkingPaperToDB}
+                  size="sm"
+                  variant="outline"
+                  disabled={wpHydrating || sectionData.length === 0}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Working Papers
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                Save current Working Paper rows to the database
+              </TooltipContent>
+            </Tooltip>
 
+            {/* NEW: Load from DB */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => loadWorkingPaperFromDB(false)}
+                  size="sm"
+                  variant="outline"
+                  disabled={wpHydrating}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Load from DB
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                Load saved Working Paper rows from the database
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
+      </TooltipProvider>
+    </div>
+  );
 
   const content = (
     <Card className="flex-1">
@@ -1194,12 +1300,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               </div>
 
               {/* WP-specific loader */}
-              {wpHydrating ? (
+              {wpHydrating || dbBusy ? (
                 <div className="flex items-center justify-center h-64">
                   <EnhancedLoader
-                    variant="glow"
+                    variant={dbBusy ? "pulse" : "glow"}
                     size="lg"
-                    text="Syncing Working Papers..."
+                    text={
+                      dbBusy === "save"
+                        ? "Saving Working Papers to database..."
+                        : dbBusy === "load"
+                        ? "Loading Working Papers from database..."
+                        : "Syncing Working Papers..."
+                    }
                   />
                 </div>
               ) : workingPapersInitialized ? (
@@ -1320,25 +1432,41 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     <SelectTrigger>
                       <SelectValue placeholder="Select a worksheet..." />
                     </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={8} className="z-[300]">
+                    <SelectContent
+                      position="popper"
+                      sideOffset={8}
+                      className="z-[300]"
+                    >
                       {availableTabs.map((name) => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
 
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setFetchTabsDialog(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setFetchTabsDialog(false)}
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={selectTabForRow} disabled={!selectedTab || wpHydrating}>
-                      {wpHydrating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    <Button
+                      onClick={selectTabForRow}
+                      disabled={!selectedTab || wpHydrating}
+                    >
+                      {wpHydrating ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
                       Select Sheet
                     </Button>
                   </div>
                 </>
               ) : (
-                <p className="text-center text-gray-500 py-8">No extra worksheets found</p>
+                <p className="text-center text-gray-500 py-8">
+                  No extra worksheets found
+                </p>
               )}
             </div>
           </DialogContent>
@@ -1432,15 +1560,23 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <DialogHeader>
               <DialogTitle>Reference Preview (Full Sheet)</DialogTitle>
               <DialogDescription>
-                {viewSheetData?.type === "sheet"
-                  ? <>Full sheet: <strong>{viewSheetData.sheet.sheetName}</strong></>
-                  : "—"}
+                {viewSheetData?.type === "sheet" ? (
+                  <>
+                    Full sheet: <strong>{viewSheetData.sheet.sheetName}</strong>
+                  </>
+                ) : (
+                  "—"
+                )}
               </DialogDescription>
             </DialogHeader>
 
             {viewSheetLoading ? (
               <div className="flex items-center justify-center h-48">
-                <EnhancedLoader variant="pulse" size="lg" text="Loading preview..." />
+                <EnhancedLoader
+                  variant="pulse"
+                  size="lg"
+                  text="Loading preview..."
+                />
               </div>
             ) : viewSheetData?.type === "sheet" ? (
               renderSheetTable(viewSheetData.sheet.data)
@@ -1591,12 +1727,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         variant="outline"
                         onClick={() => viewSelectedRow(row)}
                         disabled={
-                          !row.reference || viewRowLoading || wpHydrating
+                          (!row.reference && !row.referenceData) ||
+                          viewRowLoading ||
+                          wpHydrating
                         }
                       >
                         <Eye className="h-3 w-3 mr-1" />
                         View
                       </Button>
+
                       <Button
                         size="sm"
                         variant="outline"
@@ -1660,7 +1799,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // ⬇️ NEW: pretty table renderer for full-sheet preview
   function renderSheetTable(data: any[][]) {
-    if (!data?.length) return <p className="text-center text-muted-foreground py-6">Empty sheet</p>;
+    if (!data?.length)
+      return (
+        <p className="text-center text-muted-foreground py-6">Empty sheet</p>
+      );
     const hdr = data[0] || [];
     const rows = data.slice(1);
     return (
@@ -1670,7 +1812,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <tr>
               {hdr.map((h: any, i: number) => (
                 // <th key={i} className="px-3 py-2 text-left">{String(h ?? "")}</th>
-                <td key={i} className="px-3 py-2">{String(h ?? "")}</td>
+                <td key={i} className="px-3 py-2">
+                  {String(h ?? "")}
+                </td>
               ))}
             </tr>
           </thead>
@@ -1678,7 +1822,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             {rows.map((r: any[], ri: number) => (
               <tr key={ri} className="border-t">
                 {r.map((c: any, ci: number) => (
-                  <td key={ci} className="px-3 py-2">{String(c ?? "")}</td>
+                  <td key={ci} className="px-3 py-2">
+                    {String(c ?? "")}
+                  </td>
                 ))}
               </tr>
             ))}
