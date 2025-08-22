@@ -408,33 +408,20 @@ export const OverviewTab = ({
           <CardTitle className="text-lg truncate">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button
-            className="w-full bg-transparent"
-            variant="outline"
-            onClick={handleGenerateProcedures}
-            disabled={isGeneratingProcedures}
-          >
-            {isGeneratingProcedures ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Bot className="h-4 w-4 mr-2" />
-            )}
-            <span>Generate Procedures</span>
-          </Button>
 
           <Button
             className="w-full bg-transparent"
             variant="outline"
             onClick={handleExportPDF}
             disabled={isExporting || !latest}
-            title={latest ? "Export PDF" : "No procedures to export yet"}
+            title={latest ? "Export Procedures PDF report" : "No procedures to export yet"}
           >
             {isExporting ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Download className="h-4 w-4 mr-2" />
             )}
-            <span>{isExporting ? "Exporting…" : "Export PDF"}</span>
+            <span>{isExporting ? "Exporting…" : "Export Procedures PDF report"}</span>
           </Button>
         </CardContent>
       </Card>
