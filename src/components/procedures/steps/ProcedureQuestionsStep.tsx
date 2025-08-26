@@ -178,8 +178,29 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
         }),
       })
 
+<<<<<<< Updated upstream
       const result = await response.json()
       setRawResult(result)
+=======
+      const result = await response.json();
+setRawResult(result);
+
+const fromAPI = result?.procedure?.questions || [];
+let nextQuestions = fromAPI;
+
+// Fallback: if API didn't send questions, try to derive from 'procedures'
+if (!Array.isArray(nextQuestions) || nextQuestions.length === 0) {
+  const derived = proceduresToQuestionsFallback(result);
+  if (derived.length > 0) nextQuestions = derived;
+}
+
+setQuestions(nextQuestions);
+setRecommendations(result?.procedure?.recommendations || []);
+
+      setRawResult(result);
+
+      clearInterval(progressInterval);
+>>>>>>> Stashed changes
 
       if (!response.ok) {
         throw new Error(result?.message || "Failed to generate procedures")
