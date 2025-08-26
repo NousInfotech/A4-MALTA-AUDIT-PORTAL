@@ -358,3 +358,4 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
     </div>
   )
 }
+

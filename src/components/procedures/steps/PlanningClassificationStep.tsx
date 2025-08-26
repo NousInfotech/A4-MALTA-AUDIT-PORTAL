@@ -12,7 +12,7 @@ import { CheckCircle, ArrowRight, ArrowLeft, DollarSign, Filter, AlertCircle } f
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
-interface ClassificationStepProps {
+interface PlanningClassificationStepProps {
   engagement: any
   mode: string
   stepData: any
@@ -34,7 +34,7 @@ async function authFetch(url: string, options: RequestInit = {}) {
   })
 }
 
-export const ClassificationStep: React.FC<ClassificationStepProps> = ({
+export const PlanningClassificationStep: React.FC<PlanningClassificationStepProps> = ({
   engagement,
   mode,
   stepData,
@@ -45,6 +45,17 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
   const [validitySelections, setValiditySelections] = useState<any[]>([])
   const [selectedClassifications, setSelectedClassifications] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedSections, setSelectedSections] = useState<string[]>(
+    stepData.selectedSections || [
+      "engagement_setup_acceptance_independence",
+      "understanding_entity_environment",
+      "materiality_risk_summary",
+      "risk_response_planning",
+      "fraud_gc_planning",
+      "compliance_laws_regulations",
+    ]
+  )
+
   const { toast } = useToast()
 
   useEffect(() => {
@@ -66,27 +77,24 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
         const rows = etbData.rows || []
         setEtbRows(rows)
 
-        // Initialize validity selections based on materiality
         const initialSelections = rows.map((row: any, idx: number) => {
-  const rowId =
-    row.id ??
-    row._id ??
-    `${row.code ?? "NA"}::${row.accountName ?? "NA"}::${idx}`
+          const rowId =
+            row.id ??
+            row._id ??
+            `${row.code ?? "NA"}::${row.accountName ?? "NA"}::${idx}`
 
-  return {
-    rowId,
-    code: row.code,
-    accountName: row.accountName,
-    finalBalance: row.finalBalance,
-    classification: row.classification,
-    isValid: Math.abs(row.finalBalance ?? 0) >= (stepData.materiality || 0),
-  }
-})
-
+          return {
+            rowId,
+            code: row.code,
+            accountName: row.accountName,
+            finalBalance: row.finalBalance,
+            classification: row.classification,
+            isValid: Math.abs(row.finalBalance ?? 0) >= (stepData.materiality || 0),
+          }
+        })
 
         setValiditySelections(initialSelections)
 
-        // Get unique classifications from selected rows
         const validRows = initialSelections.filter((s) => s.isValid && s.classification)
         const uniqueClassifications = [...new Set(validRows.map((r) => getDeepestClassification(r.classification)))]
         setSelectedClassifications(uniqueClassifications)
@@ -107,14 +115,12 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
     if (!classification) return ""
     const parts = classification.split(" > ")
     const topLevel = parts[0]
-    // For Assets and Liabilities, return the deepest level
     if (topLevel === "Assets" || topLevel === "Liabilities") {
       return classification
     }
-    // For others, return the top level
     return topLevel
   }
-
+  
   const formatClassificationForDisplay = (classification: string) => {
     if (!classification) return "Unclassified"
     const parts = classification.split(" > ")
@@ -126,21 +132,18 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
   }
 
   const handleValidityChange = (rowId: string, isValid: boolean) => {
-  setValiditySelections((prev) => {
-    const next = prev.map((selection) =>
-      selection.rowId === rowId ? { ...selection, isValid } : selection
-    )
-
-    const validRows = next.filter((s) => s.isValid && s.classification)
-    const uniqueClassifications = [
-      ...new Set(validRows.map((r) => getDeepestClassification(r.classification))),
-    ]
-
-    setSelectedClassifications(uniqueClassifications)
-    return next
-  })
-}
-
+    setValiditySelections((prev) => {
+      const next = prev.map((selection) =>
+        selection.rowId === rowId ? { ...selection, isValid } : selection
+      )
+      const validRows = next.filter((s) => s.isValid && s.classification)
+      const uniqueClassifications = [
+        ...new Set(validRows.map((r) => getDeepestClassification(r.classification))),
+      ]
+      setSelectedClassifications(uniqueClassifications)
+      return next
+    })
+  }
 
   const handleClassificationToggle = (classification: string) => {
     setSelectedClassifications((prev) =>
@@ -151,16 +154,15 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
   const handleProceed = () => {
     if (selectedClassifications.length === 0) {
       toast({
-        title: "No Classifications Selected",
-        description: "Please select at least one classification to proceed.",
+        title: "No Sections Selected",
+        description: "Please select at least one planning section to proceed.",
         variant: "destructive",
       })
       return
     }
 
     onComplete({
-      validitySelections,
-      selectedClassifications,
+      selectedSections,
     })
   }
 
@@ -194,12 +196,10 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
         <CardHeader>
           <CardTitle className="font-heading text-xl text-foreground flex items-center gap-2">
             <Filter className="h-5 w-5 text-primary" />
-            Account Selection & Classifications
+            Account Selection
           </CardTitle>
           <p className="text-muted-foreground font-body">
             Review and adjust the accounts selected based on your materiality threshold of{" "}
-            <strong>{formatCurrency(stepData.materiality)}</strong>. Then confirm the classifications for procedure
-            generation.
           </p>
         </CardHeader>
         <CardContent>
@@ -225,10 +225,6 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
             <div className="flex items-center gap-3">
               <div className="p-2 bg-secondary/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-secondary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground font-body">Classifications</p>
-                <p className="text-xl font-body-semibold text-foreground">{selectedClassifications.length}</p>
               </div>
             </div>
           </div>
@@ -267,7 +263,9 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
                     </TableCell>
                     <TableCell className="font-mono text-sm">{selection.code}</TableCell>
                     <TableCell className="font-body">{selection.accountName}</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(selection.finalBalance)}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(selection.finalBalance)}
+                    </TableCell>
                     <TableCell>
                       {selection.classification ? (
                         <Badge variant="outline" className="font-body text-xs">
@@ -284,50 +282,6 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
           </ScrollArea>
         </CardContent>
       </Card>
-
-      {/* Classifications Selection */}
-      {selectedClassifications.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-lg text-foreground">Selected Classifications</CardTitle>
-            <p className="text-sm text-muted-foreground font-body">
-              These classifications will be used for procedure generation. You can deselect any you don't want to
-              include.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {[...new Set(validSelections.map((s) => getDeepestClassification(s.classification)).filter(Boolean))].map(
-                (classification) => (
-                  <div key={classification} className="flex items-center gap-2">
-                    <Checkbox
-                      checked={selectedClassifications.includes(classification)}
-                      onCheckedChange={() => handleClassificationToggle(classification)}
-                    />
-                    <Badge
-                      variant={selectedClassifications.includes(classification) ? "default" : "outline"}
-                      className="font-body cursor-pointer"
-                      onClick={() => handleClassificationToggle(classification)}
-                    >
-                      {formatClassificationForDisplay(classification)}
-                    </Badge>
-                  </div>
-                ),
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {selectedClassifications.length === 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="font-body">
-            No classifications are currently selected. Please select at least one account with a classification to
-            proceed with procedure generation.
-          </AlertDescription>
-        </Alert>
-      )}
 
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
@@ -346,4 +300,3 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
     </div>
   )
 }
-
