@@ -6,16 +6,14 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Sparkles, CheckCircle, AlertCircle, Eye, RefreshCw } from 'lucide-react'
 import { ProcedureTypeSelection } from "./ProcedureTypeSelection"
-import { ProcedureGeneration } from "./ProcedureGeneration"
+import { ProcedureGeneration } from "./ProcedureGeneration" // Fieldwork
 import { PlanningProcedureGeneration } from "./PlanningProcedureGeneration"
-import { ProcedureView } from "./ProcedureView"
+import { ProcedureView } from "./ProcedureView" // Fieldwork view
+import { PlanningProcedureView } from "./PlanningProcedureView" // NEW
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
-interface ProceduresTabProps {
-  engagement: any
-}
-
+// Keep your authFetch helper
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
@@ -30,80 +28,65 @@ async function authFetch(url: string, options: RequestInit = {}) {
   })
 }
 
+interface ProceduresTabProps { engagement: any }
+
 export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const [activeTab, setActiveTab] = useState("generate")
   const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>(null)
-  const [procedure, setProcedure] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
+  const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null)
+  const [planningProcedure, setPlanningProcedure] = useState<any>(null)
   const { toast } = useToast()
 
   useEffect(() => {
-    loadExistingProcedure()
+    if (!engagement?._id) return
+    // Preload both so "View" works immediately after selection
+    loadFieldwork()
+    loadPlanning()
   }, [engagement?._id])
 
-  const loadExistingProcedure = async () => {
-    if (!engagement?._id) return
+  const base = import.meta.env.VITE_APIURL
 
-    setLoading(true)
+  const loadFieldwork = async () => {
     try {
-      const base = import.meta.env.VITE_APIURL
-      if (!base) {
-        console.warn("VITE_APIURL is not set")
-        return
-      }
-
-      const response = await authFetch(`${base}/api/procedures/${engagement._id}`)
-      if (response.ok) {
-        const data = await response.json()
-        setProcedure(data)
-        if (data.status === "completed") {
-          setActiveTab("view")
-          setSelectedProcedureType(data.procedureType || "fieldwork")
-        }
-      } else if (response.status !== 404) {
-        console.warn("Failed to load procedure:", response.status)
-      }
-    } catch (error) {
-      console.error("Error loading procedure:", error)
-    } finally {
-      setLoading(false)
-    }
+      const res = await authFetch(`${base}/api/procedures/${engagement._id}`)
+      if (res.ok) setFieldworkProcedure(await res.json())
+    } catch {}
+  }
+  const loadPlanning = async () => {
+    try {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`)
+      if (res.ok) setPlanningProcedure(await res.json())
+    } catch {}
   }
 
   const handleProcedureComplete = (procedureData: any) => {
-    setProcedure(procedureData)
+    if (procedureData?.procedureType === "planning") {
+      setPlanningProcedure(procedureData)
+    } else {
+      setFieldworkProcedure(procedureData)
+    }
     setActiveTab("view")
-    toast({
-      title: "Procedures Generated",
-      description: "Your audit procedures have been successfully generated.",
-    })
+    toast({ title: "Procedures Generated", description: "Saved successfully." })
   }
 
   const handleRegenerate = () => {
     setSelectedProcedureType(null)
     setActiveTab("generate")
-    toast({
-      title: "Regenerating Procedures",
-      description: "You can now generate new procedures to replace the existing ones.",
-    })
-  }
-
-  const handleBackToTypeSelection = () => {
-    setSelectedProcedureType(null)
   }
 
   const getProcedureStatusBadge = () => {
+    const procedure =
+      selectedProcedureType === "planning" ? planningProcedure :
+      selectedProcedureType === "fieldwork" ? fieldworkProcedure : null
     if (!procedure) return null
 
     const statusConfig = {
-      draft: { variant: "secondary", label: "Draft", icon: FileText },
-      "in-progress": { variant: "default", label: "In Progress", icon: AlertCircle },
-      completed: { variant: "default", label: "Completed", icon: CheckCircle },
+      draft: { variant: "secondary" as const, label: "Draft", icon: FileText },
+      "in-progress": { variant: "default" as const, label: "In Progress", icon: AlertCircle },
+      completed: { variant: "default" as const, label: "Completed", icon: CheckCircle },
     }
-
     const config = statusConfig[procedure.status] || statusConfig.draft
     const Icon = config.icon
-
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
@@ -113,16 +96,13 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   }
 
   const getProcedureTypeBadge = () => {
-    if (!procedure?.procedureType) return null
-
+    if (!selectedProcedureType) return null
     const typeConfig = {
       planning: { label: "Planning", color: "bg-blue-500" },
       fieldwork: { label: "Field Work", color: "bg-green-500" },
       completion: { label: "Completion", color: "bg-purple-500" },
     }
-
-    const config = typeConfig[procedure.procedureType] || typeConfig.fieldwork
-
+    const config = typeConfig[selectedProcedureType]
     return (
       <Badge variant="outline" className="flex items-center gap-1">
         <div className={`h-2 w-2 rounded-full ${config.color}`} />
@@ -141,27 +121,23 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
             {getProcedureTypeBadge()}
           </div>
         </div>
-        {procedure?.status === "completed" && (
-          <Button variant="outline" onClick={handleRegenerate} className="flex items-center gap-2 bg-transparent">
-            <RefreshCw className="h-4 w-4" />
-            Regenerate
+        {
+          (selectedProcedureType)&&(
+            <Button variant="outline" onClick={handleRegenerate} className="flex items-center gap-2 bg-transparent">
+            <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
           </Button>
-        )}
+          )
+        }
+          
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="generate" className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Generate Procedures
+            <Sparkles className="h-4 w-4" /> Generate Procedures
           </TabsTrigger>
-          <TabsTrigger
-            value="view"
-            disabled={!procedure || procedure.status !== "completed"}
-            className="flex items-center gap-2"
-          >
-            <Eye className="h-4 w-4" />
-            View Procedures
+          <TabsTrigger value="view" className="flex items-center gap-2">
+            <Eye className="h-4 w-4" /> View Procedures
           </TabsTrigger>
         </TabsList>
 
@@ -171,14 +147,14 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           ) : selectedProcedureType === "planning" ? (
             <PlanningProcedureGeneration
               engagement={engagement}
-              existingProcedure={procedure}
+              existingProcedure={planningProcedure}
               onComplete={handleProcedureComplete}
-              onBack={handleBackToTypeSelection}
+              onBack={() => setSelectedProcedureType(null)}
             />
           ) : selectedProcedureType === "fieldwork" ? (
             <ProcedureGeneration
               engagement={engagement}
-              existingProcedure={procedure}
+              existingProcedure={fieldworkProcedure}
               onComplete={handleProcedureComplete}
             />
           ) : (
@@ -191,18 +167,23 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
             </div>
           )}
         </TabsContent>
+
         <TabsContent value="view" className="flex-1 mt-6">
-          {procedure && procedure.status === "completed" ? (
-            <ProcedureView procedure={procedure} engagement={engagement} onRegenerate={handleRegenerate} />
-          ) : (
+          {!selectedProcedureType ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-body-semibold text-lg text-foreground mb-2">No Procedures Available</h3>
-                <p className="text-muted-foreground font-body">Generate procedures first to view them here.</p>
+                <h3 className="font-body-semibold text-lg text-foreground mb-2">Select a procedure type</h3>
+                <p className="text-muted-foreground font-body">Choose Planning or Fieldwork to view.</p>
               </div>
             </div>
-          )}
+          ) : selectedProcedureType === "planning" ? (
+            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+          ) : selectedProcedureType === "fieldwork" ? (
+            fieldworkProcedure && fieldworkProcedure.status === "completed"
+              ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+              : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>

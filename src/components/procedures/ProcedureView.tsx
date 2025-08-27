@@ -40,7 +40,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagem
     : "N/A"
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount ?? 0)
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR" }).format(amount ?? 0)
 
   const validCount = procedure?.validitySelections?.filter((v: any) => v.isValid)?.length || 0
 

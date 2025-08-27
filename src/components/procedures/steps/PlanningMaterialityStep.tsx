@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Calculator, DollarSign, TrendingUp, ArrowRight, Info } from 'lucide-react'
+import { Calculator, DollarSign, TrendingUp, ArrowRight, Info, Euro } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 
 interface PlanningMaterialityStepProps {
@@ -52,7 +52,7 @@ export const PlanningMaterialityStep: React.FC<PlanningMaterialityStepProps> = (
     if (isNaN(value)) return ""
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "EUR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
@@ -76,7 +76,7 @@ export const PlanningMaterialityStep: React.FC<PlanningMaterialityStepProps> = (
               Materiality Amount
             </Label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Euro className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 id="materiality"
                 type="number"

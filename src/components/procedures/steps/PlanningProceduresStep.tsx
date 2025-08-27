@@ -1,6 +1,5 @@
 // @ts-nocheck
-import type React from "react"
-import { useState, useEffect, useMemo } from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,34 +12,28 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Checkbox } from "@/components/ui/checkbox"
 
-interface PlanningProceduresStepProps {
-  engagement: any
-  mode: string
-  stepData: any
-  onComplete: (data: any) => void
-  onBack: () => void
-}
-
+/** ---------- auth fetch ---------- **/
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const token = data?.session?.access_token
+
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData
+
   return fetch(url, {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Content-Type": "application/json",
+      // DO NOT set JSON content-type for FormData; browser sets boundary
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     },
   })
 }
 
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n))
-
 /** ---------- visibility helpers ---------- **/
-
 type VisibleIfRule =
-  | { [key: string]: any[] } // simple equality array e.g. { reporting_framework: ["Other"] }
+  | { [key: string]: any[] }
   | { [key: string]: { operator: string; value?: any }[] }
   | { [key: string]: { operator: "any"; value: string[] }[] }
 
@@ -68,39 +61,26 @@ function evaluateCondition(fieldValue: any, cond: { operator?: string; value?: a
     case "<":
       return Number(fieldValue ?? 0) < Number(v)
     case "any":
-      // used for groups/multiselects stored as arrays or objects
-      if (Array.isArray(fieldValue)) {
-        return fieldValue.some((x) => (v as string[]).includes(x))
-      }
-      if (typeof fieldValue === "object" && fieldValue !== null) {
+      if (Array.isArray(fieldValue)) return fieldValue.some((x) => (v as string[]).includes(x))
+      if (typeof fieldValue === "object" && fieldValue !== null)
         return Object.keys(fieldValue).some((k) => fieldValue[k] && (v as string[]).includes(k))
-      }
       return false
     default:
-      // equality fallback
       return Array.isArray(v) ? v.includes(fieldValue) : fieldValue === v
   }
 }
 
 function isFieldVisible(field: any, answersMap: Record<string, any>) {
   if (!field.visibleIf) return true
-
-  // visibleIf can be { key: [values] } OR { key: [{operator, value} ...] } OR the "any" operator style
   const clauses = field.visibleIf as VisibleIfRule
-
   return Object.entries(clauses).every(([depKey, requirement]) => {
     const depVal = answersMap[depKey]
     if (Array.isArray(requirement)) {
-      // simple array => equality-any or list of operator objects
       if (requirement.length > 0 && typeof requirement[0] === "object" && "operator" in requirement[0]) {
-        // operator objects
         return (requirement as any[]).every((cond) => evaluateCondition(depVal, cond))
       }
-      // equality list
       return (requirement as any[]).includes(depVal)
     }
-    // object form should not really occur here (we already handle objects above),
-    // but keep a safe fallback:
     return requirement === depVal
   })
 }
@@ -115,11 +95,11 @@ function TableEditor({
   value: { [key: string]: any }[] | undefined
   onChange: (rows: any[]) => void
 }) {
-  const rows = value ?? []
+  const rows = Array.isArray(value) ? value : []
 
   const addRow = () => {
     const emptyRow: any = {}
-    field.columns.forEach((c: string) => (emptyRow[c] = ""))
+    ;(field.columns || []).forEach((c: string) => (emptyRow[c] = ""))
     onChange([...rows, emptyRow])
   }
 
@@ -139,7 +119,7 @@ function TableEditor({
         <table className="w-full text-sm">
           <thead className="bg-muted/40">
             <tr>
-              {field.columns.map((c: string) => (
+              {(field.columns || []).map((c: string) => (
                 <th key={c} className="text-left px-3 py-2 font-medium">{c}</th>
               ))}
               <th className="w-14"></th>
@@ -148,25 +128,19 @@ function TableEditor({
           <tbody>
             {rows.map((row, rIdx) => (
               <tr key={rIdx} className="border-t">
-                {field.columns.map((c: string) => (
+                {(field.columns || []).map((c: string) => (
                   <td key={c} className="px-3 py-2">
-                    <Input
-                      value={row[c] ?? ""}
-                      onChange={(e) => updateCell(rIdx, c, e.target.value)}
-                      placeholder={c}
-                    />
+                    <Input value={row[c] ?? ""} onChange={(e) => updateCell(rIdx, c, e.target.value)} placeholder={c} />
                   </td>
                 ))}
                 <td className="px-2 py-2">
-                  <Button type="button" variant="ghost" onClick={() => removeRow(rIdx)}>
-                    Remove
-                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => removeRow(rIdx)}>Remove</Button>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="px-3 py-6 text-muted-foreground" colSpan={field.columns.length + 1}>
+                <td className="px-3 py-6 text-muted-foreground" colSpan={(field.columns || []).length + 1}>
                   No rows yet.
                 </td>
               </tr>
@@ -192,12 +166,10 @@ function GroupField({
   onChange: (val: Record<string, boolean>) => void
 }) {
   const groupVal = value ?? {}
-  const toggle = (k: string, checked: boolean) => {
-    onChange({ ...groupVal, [k]: checked })
-  }
+  const toggle = (k: string, checked: boolean) => onChange({ ...groupVal, [k]: checked })
   return (
     <div className="space-y-2">
-      {field.fields?.map((f: any) => (
+      {(field.fields || []).map((f: any) => (
         <div key={f.key} className="flex items-center gap-2">
           <Checkbox
             checked={!!groupVal[f.key]}
@@ -212,6 +184,13 @@ function GroupField({
 }
 
 /** ---------- main component ---------- **/
+interface PlanningProceduresStepProps {
+  engagement: any
+  mode: string
+  stepData: any
+  onComplete: (data: any) => void
+  onBack: () => void
+}
 
 export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
   engagement,
@@ -220,98 +199,108 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
   onComplete,
   onBack,
 }) => {
-  // Always manual generation per requirements
-  const [procedures, setProcedures] = useState<any[]>(stepData.procedures || [])
+  const [procedures, setProcedures] = useState<any[]>(Array.isArray(stepData.procedures) ? stepData.procedures : [])
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
+  // generate manual (but preserve any existing answers by sectionId+field.key)
   useEffect(() => {
-    // manual only
-    generateManualProcedures()
-  }, [stepData.selectedSections])
+    const ids = Array.isArray(stepData.selectedSections) ? stepData.selectedSections : []
+    if (!ids.length) return
 
-  const generateManualProcedures = () => {
-    const manualProcedures = (stepData.selectedSections || []).map((sectionId: string) => {
-      const sectionData = getPredefinedSection(sectionId)
+    const next = ids.map((sectionId: string) => {
+      const base = getPredefinedSection(sectionId)
+      const prevSec = (procedures || []).find((s: any) => s.sectionId === sectionId)
+
+      const fields = (base.fields || []).map((f: any) => {
+        const prev = prevSec?.fields?.find((pf: any) => pf.key === f.key)
+        // default answers by type
+        const defaultAnswer =
+          f.type === "checkbox" ? false :
+          f.type === "multiselect" ? [] :
+          f.type === "table" ? [] :
+          f.type === "group" ? {} : ""
+        return { ...f, answer: prev?.answer ?? defaultAnswer }
+      })
+
       return {
         id: `manual-${sectionId}`,
         sectionId,
-        title: sectionData.title,
-        standards: sectionData.standards,
-        currency: sectionData.currency,
-        fields: sectionData.fields.map((field: any) => ({
-          ...field,
-          answer:
-            field.type === "checkbox"
-              ? false
-              : field.type === "multiselect"
-              ? []
-              : field.type === "table"
-              ? []
-              : field.type === "group"
-              ? {}
-              : "",
-        })),
-        footer: sectionData.footer,
+        title: base.title,
+        standards: base.standards,
+        currency: base.currency,
+        fields,
+        footer: base.footer,
       }
     })
-    setProcedures(manualProcedures)
-  }
+
+    setProcedures(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(stepData.selectedSections)])
 
   const handleSave = async () => {
-    setSaving(true)
-    try {
-      const base = import.meta.env.VITE_APIURL
-      if (!base) throw new Error("VITE_APIURL is not set")
+  setSaving(true)
+  try {
+    const base = import.meta.env.VITE_APIURL
+    if (!base) throw new Error("VITE_APIURL is not set")
 
-      const procedureData = {
-        ...stepData,
-        procedures,
-        status: "in-progress",
-        procedureType: "planning",
-      }
+    const formData = new FormData()
 
-      const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
-        method: "POST",
-        body: JSON.stringify(procedureData),
-      })
-
-      if (!response.ok) throw new Error("Failed to save procedures")
-
-      toast({
-        title: "Procedures Saved",
-        description: "Your planning procedures have been saved successfully.",
-      })
-    } catch (error: any) {
-      console.error("Error saving procedures:", error)
-      toast({
-        title: "Save Failed",
-        description: error.message || "Failed to save procedures.",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
+    // Main JSON payload
+    const payload = {
+      ...stepData,
+      procedures,
+      status: "in-progress",
+      procedureType: "planning",
+      mode: "manual",
     }
-  }
+    formData.append("data", JSON.stringify(payload))
 
-  const handleProceed = () => {
-    onComplete({ procedures })
+    // Collect file fields from procedures
+    procedures.forEach((proc) => {
+      proc.fields.forEach((field) => {
+        if (field.type === "file" && field.answer instanceof File) {
+          formData.append("files", field.answer, field.answer.name)
+          // map so backend knows which field this belongs to
+          formData.append(
+            "fileMap",
+            JSON.stringify([{ sectionId: proc.sectionId, fieldKey: field.key, originalName: field.answer.name }])
+          )
+        }
+      })
+    })
+
+    const response = await authFetch(
+      `${base}/api/planning-procedures/${engagement._id}/save`,
+      {
+        method: "POST",
+        body: formData,
+        // ⚠️ remove Content-Type, browser sets it correctly with multipart boundary
+        headers: {},
+      }
+    )
+
+    if (!response.ok) throw new Error("Failed to save procedures")
+
+    toast({ title: "Saved", description: "Your planning procedures have been saved." })
+  } catch (e: any) {
+    toast({ title: "Save failed", description: e.message || "Failed to save.", variant: "destructive" })
+  } finally {
+    setSaving(false)
   }
+}
+
+
+  const handleProceed = () => onComplete({ procedures })
 
   const getAnswersMap = (proc: any) =>
-    proc.fields?.reduce((acc: any, f: any) => {
-      acc[f.key] = f.answer
-      return acc
-    }, {}) ?? {}
+    (proc.fields || []).reduce((acc: any, f: any) => ((acc[f.key] = f.answer), acc), {})
 
   const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
     setProcedures((prev) =>
-      prev.map((proc) =>
+      (prev || []).map((proc) =>
         proc.id === procedureId
-          ? {
-              ...proc,
-              fields: proc.fields.map((field: any) => (field.key === fieldKey ? { ...field, answer: value } : field)),
-            }
+          ? { ...proc, fields: (proc.fields || []).map((f: any) => (f.key === fieldKey ? { ...f, answer: value } : f)) }
           : proc,
       ),
     )
@@ -326,13 +315,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
               Planning Procedures (Manual)
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2"
-              >
+              <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className="flex items-center gap-2">
                 <Save className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Progress"}
               </Button>
@@ -342,7 +325,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
         <CardContent>
           <div className="space-y-6">
-            {procedures.map((procedure) => {
+            {(Array.isArray(procedures) ? procedures : []).map((procedure) => {
               const answersMap = getAnswersMap(procedure)
               return (
                 <Card key={procedure.id} className="border-l-4 border-l-primary">
@@ -357,11 +340,10 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {procedure.fields?.map((field: any) => {
+                      {(procedure.fields || []).map((field: any) => {
                         if (!isFieldVisible(field, answersMap)) return null
                         const help = field.help
                         const required = !!field.required
-
                         return (
                           <div key={field.key} className="space-y-2">
                             <div className="flex items-start gap-2">
@@ -373,19 +355,14 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
                                   <div className="absolute right-0 top-6 w-96 p-3 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                                    <p className="text-xs text-popover-foreground leading-relaxed whitespace-pre-line">
-                                      {help}
-                                    </p>
+                                    <p className="text-xs text-popover-foreground leading-relaxed whitespace-pre-line">{help}</p>
                                   </div>
                                 </div>
                               )}
                             </div>
 
-                            {/* RENDERERS */}
                             {field.type === "markdown" && (
-                              <Alert className="prose prose-sm max-w-none whitespace-pre-wrap">
-                                {field.content}
-                              </Alert>
+                              <Alert className="prose prose-sm max-w-none whitespace-pre-wrap">{field.content}</Alert>
                             )}
 
                             {field.type === "textarea" && (
@@ -429,13 +406,9 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                 value={field.answer ?? ""}
                                 onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
                               >
-                                <option value="" disabled>
-                                  Select…
-                                </option>
-                                {field.options?.map((opt: string) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
+                                <option value="" disabled>Select…</option>
+                                {(field.options || []).map((opt: string) => (
+                                  <option key={opt} value={opt}>{opt}</option>
                                 ))}
                               </select>
                             )}
@@ -450,10 +423,8 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                   updateProcedureField(procedure.id, field.key, selected)
                                 }}
                               >
-                                {field.options?.map((opt: string) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
+                                {(field.options || []).map((opt: string) => (
+                                  <option key={opt} value={opt}>{opt}</option>
                                 ))}
                               </select>
                             )}
@@ -461,20 +432,20 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                             {field.type === "table" && (
                               <TableEditor
                                 field={field}
-                                value={field.answer}
+                                value={Array.isArray(field.answer) ? field.answer : []}
                                 onChange={(rows) => updateProcedureField(procedure.id, field.key, rows)}
                               />
                             )}
 
                             {field.type === "file" && (
                               <Input
-                                type="file"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0]
-                                  // store filename only (no upload in this manual-only context)
-                                  updateProcedureField(procedure.id, field.key, f ? f.name : "")
-                                }}
-                              />
+  type="file"
+  onChange={(e) => {
+    const f = e.target.files?.[0]
+    updateProcedureField(procedure.id, field.key, f || "")
+  }}
+/>
+
                             )}
 
                             {field.type === "user" && (
