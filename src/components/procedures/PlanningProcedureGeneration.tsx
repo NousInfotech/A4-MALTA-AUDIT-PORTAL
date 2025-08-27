@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FileText, ArrowRight, User, Bot, Users } from 'lucide-react'
@@ -7,7 +7,8 @@ import { PlanningMaterialityStep } from "./steps/PlanningMaterialityStep"
 import { PlanningProceduresStep } from "./steps/PlanningProceduresStep"
 import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
-
+import { AIPlanningQuestionsStep } from "./steps/AIPlanningQuestionsStep"
+import { AIPlanningAnswersStep } from "./steps/AIPlanningAnswersStep"
 interface PlanningProcedureGenerationProps {
   engagement: any
   existingProcedure?: any
@@ -33,6 +34,7 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
   const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [stepData, setStepData] = useState<StepData>({})
+  const [steps, setSteps] = useState<String>([])
 
   const modes = [
     {
@@ -76,15 +78,27 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     },
   ]
 
-  const steps = [
-    { title: "Set Materiality", component: PlanningMaterialityStep },
-    { title: "Select Classifications", component: PlanningClassificationStep },
-    { title: "Planning Procedures", component: PlanningProceduresStep },
-    { title: "Recommendations", component: RecommendationsStep },
-  ]
-
   const handleModeSelect = (mode: GenerationMode) => {
     setSelectedMode(mode)
+    if (mode ==="ai" || mode ==="hybrid") {
+
+      console.log(mode, "------------")
+      setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
+        { title: "Select Classifications", component: PlanningClassificationStep },
+        { title: "Planning Procedures", component: AIPlanningQuestionsStep },
+        { title: "Planning Procedures", component: AIPlanningAnswersStep },
+        { title: "Recommendations", component: RecommendationsStep },
+      ])
+    }
+    else {
+      setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
+        { title: "Select Classifications", component: PlanningClassificationStep },
+        { title: "Planning Procedures", component: PlanningProceduresStep },
+        { title: "Recommendations", component: RecommendationsStep },
+      ])
+    }
     setCurrentStep(0)
     setStepData({})
   }
