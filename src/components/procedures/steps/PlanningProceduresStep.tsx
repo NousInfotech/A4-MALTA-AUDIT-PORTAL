@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Save, HelpCircle } from "lucide-react"
+import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Checkbox } from "@/components/ui/checkbox"
+import clsx from "clsx"
 
 /** ---------- auth fetch ---------- **/
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -24,7 +25,6 @@ async function authFetch(url: string, options: RequestInit = {}) {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      // DO NOT set JSON content-type for FormData; browser sets boundary
       ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     },
@@ -90,10 +90,12 @@ function TableEditor({
   field,
   value,
   onChange,
+  invalid,
 }: {
   field: any
   value: { [key: string]: any }[] | undefined
   onChange: (rows: any[]) => void
+  invalid?: boolean
 }) {
   const rows = Array.isArray(value) ? value : []
 
@@ -114,7 +116,7 @@ function TableEditor({
   }
 
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className={clsx("border rounded-md overflow-hidden", invalid && "border-destructive/60 ring-1 ring-destructive/40")}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/40">
@@ -201,12 +203,21 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 }) => {
   const [procedures, setProcedures] = useState<any[]>(Array.isArray(stepData.procedures) ? stepData.procedures : [])
   const [saving, setSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
 
-  // generate manual (but preserve any existing answers by sectionId+field.key)
+  // for smooth scroll to first invalid field
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  // generate manual (preserve answers by sectionId+field.key)
   useEffect(() => {
     const ids = Array.isArray(stepData.selectedSections) ? stepData.selectedSections : []
-    if (!ids.length) return
+    if (!ids.length) {
+      setProcedures([])
+      setIsLoading(false)
+      return
+    }
 
     const next = ids.map((sectionId: string) => {
       const base = getPredefinedSection(sectionId)
@@ -214,7 +225,6 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
       const fields = (base.fields || []).map((f: any) => {
         const prev = prevSec?.fields?.find((pf: any) => pf.key === f.key)
-        // default answers by type
         const defaultAnswer =
           f.type === "checkbox" ? false :
           f.type === "multiselect" ? [] :
@@ -235,66 +245,146 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
     })
 
     setProcedures(next)
+    setIsLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(stepData.selectedSections)])
 
-  const handleSave = async () => {
-  setSaving(true)
-  try {
-    const base = import.meta.env.VITE_APIURL
-    if (!base) throw new Error("VITE_APIURL is not set")
+  const getAnswersMap = (proc: any) =>
+    (proc.fields || []).reduce((acc: any, f: any) => ((acc[f.key] = f.answer), acc), {})
 
-    const formData = new FormData()
+  /** ---------- validation ---------- **/
+  function validateAll(currentProcedures: any[]) {
+    const nextErrors: Record<string, string> = {}
 
-    // Main JSON payload
-    const payload = {
-      ...stepData,
-      procedures,
-      status: "in-progress",
-      procedureType: "planning",
-      mode: "manual",
-    }
-    formData.append("data", JSON.stringify(payload))
+    currentProcedures.forEach((proc) => {
+      const answersMap = getAnswersMap(proc)
+      ;(proc.fields || []).forEach((field: any) => {
+        const visible = isFieldVisible(field, answersMap)
+        if (!visible) return
+        if (!field.required) return
 
-    // Collect file fields from procedures
-    procedures.forEach((proc) => {
-      proc.fields.forEach((field) => {
-        if (field.type === "file" && field.answer instanceof File) {
-          formData.append("files", field.answer, field.answer.name)
-          // map so backend knows which field this belongs to
-          formData.append(
-            "fileMap",
-            JSON.stringify([{ sectionId: proc.sectionId, fieldKey: field.key, originalName: field.answer.name }])
-          )
+        const key = `${proc.id}.${field.key}`
+        const val = field.answer
+
+        switch (field.type) {
+          case "text":
+          case "textarea":
+          case "user":
+            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
+            break
+          case "number":
+            if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
+              nextErrors[key] = "Please enter a valid number."
+            break
+          case "checkbox":
+            if (!val) nextErrors[key] = "Please confirm this item."
+            break
+          case "select":
+            if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
+            break
+          case "multiselect":
+            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Select at least one option."
+            break
+          case "table":
+            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Add at least one row."
+            break
+          case "group":
+            if (!val || typeof val !== "object" || Object.values(val).every((v) => !v))
+              nextErrors[key] = "Select at least one option."
+            break
+          case "file":
+            // Accept either a File (new upload) or a non-empty string (pre-saved reference)
+            if (!(val instanceof File) && !isNotEmpty(val)) nextErrors[key] = "Please upload a file."
+            break
+          case "markdown":
+            // no validation
+            break
+          default:
+            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
         }
       })
     })
 
-    const response = await authFetch(
-      `${base}/api/planning-procedures/${engagement._id}/save`,
-      {
+    setErrors(nextErrors)
+    return nextErrors
+  }
+
+  function scrollToFirstError(errs: Record<string, string>) {
+    const firstKey = Object.keys(errs)[0]
+    if (!firstKey) return
+    const el = fieldRefs.current[firstKey]
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      // subtle focus if there's an input
+      const input = el.querySelector("input, textarea, select") as HTMLElement | null
+      if (input) setTimeout(() => input.focus(), 250)
+    }
+  }
+
+  /** ---------- save (partial allowed) ---------- **/
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      if (!base) throw new Error("VITE_APIURL is not set")
+
+      const formData = new FormData()
+
+      const payload = {
+        ...stepData,
+        procedures,
+        status: "in-progress",
+        procedureType: "planning",
+        mode: "manual",
+      }
+      formData.append("data", JSON.stringify(payload))
+
+      // Collect all files & a single fileMap array
+      const fileMap: Array<{ sectionId: string; fieldKey: string; originalName: string }> = []
+      procedures.forEach((proc) => {
+        proc.fields.forEach((field) => {
+          if (field.type === "file" && field.answer instanceof File) {
+            formData.append("files", field.answer, field.answer.name)
+            fileMap.push({ sectionId: proc.sectionId, fieldKey: field.key, originalName: field.answer.name })
+          }
+        })
+      })
+      if (fileMap.length) formData.append("fileMap", JSON.stringify(fileMap))
+
+      const response = await authFetch(`${base}/api/planning-procedures/${engagement._id}/save`, {
         method: "POST",
         body: formData,
-        // ⚠️ remove Content-Type, browser sets it correctly with multipart boundary
-        headers: {},
+        headers: {}, // let browser set multipart boundary
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        throw new Error(text || "Failed to save procedures")
       }
-    )
 
-    if (!response.ok) throw new Error("Failed to save procedures")
-
-    toast({ title: "Saved", description: "Your planning procedures have been saved." })
-  } catch (e: any) {
-    toast({ title: "Save failed", description: e.message || "Failed to save.", variant: "destructive" })
-  } finally {
-    setSaving(false)
+      toast({ title: "Saved", description: "Your planning procedures have been saved." })
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message || "Failed to save.", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
-}
 
-
-  const handleProceed = () => onComplete({ procedures })
-
-  const getAnswersMap = (proc: any) =>
-    (proc.fields || []).reduce((acc: any, f: any) => ((acc[f.key] = f.answer), acc), {})
+  /** ---------- proceed (strict) ---------- **/
+  const handleProceed = () => {
+    const errs = validateAll(procedures)
+    if (Object.keys(errs).length > 0) {
+      const count = Object.keys(errs).length
+      toast({
+        title: "Missing required answers",
+        description: `Please complete ${count} required ${count === 1 ? "field" : "fields"} before proceeding.`,
+        variant: "destructive",
+      })
+      scrollToFirstError(errs)
+      return
+    }
+    onComplete({ procedures })
+  }
 
   const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
     setProcedures((prev) =>
@@ -304,7 +394,15 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
           : proc,
       ),
     )
+    // clear error for this field if now valid
+    setErrors((prev) => {
+      const next = { ...prev }
+      delete next[`${procedureId}.${fieldKey}`]
+      return next
+    })
   }
+
+  const totalMissing = useMemo(() => Object.keys(errors).length, [errors])
 
   return (
     <div className="space-y-6">
@@ -321,6 +419,18 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
               </Button>
             </div>
           </div>
+
+          {totalMissing > 0 && (
+            <Alert className="mt-3 flex items-start gap-3 border-destructive/30">
+              <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
+              <div>
+                <div className="font-medium">Incomplete required fields</div>
+                <div className="text-sm text-muted-foreground">
+                  Please complete {totalMissing} required {totalMissing === 1 ? "field" : "fields"} highlighted below.
+                </div>
+              </div>
+            </Alert>
+          )}
         </CardHeader>
 
         <CardContent>
@@ -342,20 +452,26 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                     <div className="space-y-4">
                       {(procedure.fields || []).map((field: any) => {
                         if (!isFieldVisible(field, answersMap)) return null
-                        const help = field.help
                         const required = !!field.required
+                        const fieldKey = `${procedure.id}.${field.key}`
+                        const invalid = !!errors[fieldKey]
+
                         return (
-                          <div key={field.key} className="space-y-2">
+                          <div
+                            key={field.key}
+                            className={clsx("space-y-2 p-2 rounded-md", invalid && "bg-destructive/5")}
+                            ref={(el) => (fieldRefs.current[fieldKey] = el)}
+                          >
                             <div className="flex items-start gap-2">
-                              <Label className="font-body-semibold text-foreground flex-1">
+                              <Label className={clsx("font-body-semibold text-foreground flex-1", invalid && "text-destructive")}>
                                 {field.label ?? field.key}
                                 {required && <span className="text-destructive ml-1">*</span>}
                               </Label>
-                              {help && (
+                              {field.help && (
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
                                   <div className="absolute right-0 top-6 w-96 p-3 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                                    <p className="text-xs text-popover-foreground leading-relaxed whitespace-pre-line">{help}</p>
+                                    <p className="text-xs text-popover-foreground leading-relaxed whitespace-pre-line">{field.help}</p>
                                   </div>
                                 </div>
                               )}
@@ -366,104 +482,159 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                             )}
 
                             {field.type === "textarea" && (
-                              <Textarea
-                                value={field.answer || ""}
-                                onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
-                                placeholder={`Enter ${field.label?.toLowerCase() || field.key}...`}
-                                className="min-h-24"
-                              />
+                              <>
+                                <Textarea
+                                  value={field.answer || ""}
+                                  onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
+                                  placeholder={`Enter ${field.label?.toLowerCase() || field.key}...`}
+                                  className={clsx("min-h-24", invalid && "border-destructive focus-visible:ring-destructive")}
+                                  aria-invalid={invalid || undefined}
+                                />
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {(field.type === "text" || field.type === "number") && (
-                              <Input
-                                type={field.type}
-                                value={field.answer ?? ""}
-                                onChange={(e) =>
-                                  updateProcedureField(
-                                    procedure.id,
-                                    field.key,
-                                    field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value,
-                                  )
-                                }
-                                placeholder={`Enter ${field.label?.toLowerCase() || field.key}...`}
-                              />
+                              <>
+                                <Input
+                                  type={field.type}
+                                  value={field.answer ?? ""}
+                                  onChange={(e) =>
+                                    updateProcedureField(
+                                      procedure.id,
+                                      field.key,
+                                      field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value,
+                                    )
+                                  }
+                                  placeholder={`Enter ${field.label?.toLowerCase() || field.key}...`}
+                                  className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
+                                  aria-invalid={invalid || undefined}
+                                />
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "checkbox" && (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={!!field.answer}
-                                  onCheckedChange={(ck) => updateProcedureField(procedure.id, field.key, !!ck)}
-                                  id={`${procedure.id}_${field.key}`}
-                                />
-                                <Label htmlFor={`${procedure.id}_${field.key}`}>Mark as true</Label>
-                              </div>
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={!!field.answer}
+                                    onCheckedChange={(ck) => updateProcedureField(procedure.id, field.key, !!ck)}
+                                    id={`${procedure.id}_${field.key}`}
+                                  />
+                                  <Label
+                                    htmlFor={`${procedure.id}_${field.key}`}
+                                    className={clsx(invalid && "text-destructive")}
+                                  >
+                                    Mark as true
+                                  </Label>
+                                </div>
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "select" && (
-                              <select
-                                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                                value={field.answer ?? ""}
-                                onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
-                              >
-                                <option value="" disabled>Select…</option>
-                                {(field.options || []).map((opt: string) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
+                              <>
+                                <select
+                                  className={clsx(
+                                    "w-full border rounded-md px-3 py-2 text-sm bg-background",
+                                    invalid && "border-destructive focus-visible:ring-destructive"
+                                  )}
+                                  value={field.answer ?? ""}
+                                  onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
+                                  aria-invalid={invalid || undefined}
+                                >
+                                  <option value="" disabled>Select…</option>
+                                  {(field.options || []).map((opt: string) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "multiselect" && (
-                              <select
-                                multiple
-                                className="w-full border rounded-md px-3 py-2 text-sm bg-background min-h-28"
-                                value={Array.isArray(field.answer) ? field.answer : []}
-                                onChange={(e) => {
-                                  const selected = Array.from(e.target.selectedOptions).map((o) => o.value)
-                                  updateProcedureField(procedure.id, field.key, selected)
-                                }}
-                              >
-                                {(field.options || []).map((opt: string) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
+                              <>
+                                <select
+                                  multiple
+                                  className={clsx(
+                                    "w-full border rounded-md px-3 py-2 text-sm bg-background min-h-28",
+                                    invalid && "border-destructive focus-visible:ring-destructive"
+                                  )}
+                                  value={Array.isArray(field.answer) ? field.answer : []}
+                                  onChange={(e) => {
+                                    const selected = Array.from(e.target.selectedOptions).map((o) => o.value)
+                                    updateProcedureField(procedure.id, field.key, selected)
+                                  }}
+                                  aria-invalid={invalid || undefined}
+                                >
+                                  {(field.options || []).map((opt: string) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "table" && (
-                              <TableEditor
-                                field={field}
-                                value={Array.isArray(field.answer) ? field.answer : []}
-                                onChange={(rows) => updateProcedureField(procedure.id, field.key, rows)}
-                              />
+                              <>
+                                <TableEditor
+                                  field={field}
+                                  value={Array.isArray(field.answer) ? field.answer : []}
+                                  onChange={(rows) => updateProcedureField(procedure.id, field.key, rows)}
+                                  invalid={invalid}
+                                />
+                                {invalid && <p className="text-xs text-destructive mt-1">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "file" && (
-                              <Input
-  type="file"
-  onChange={(e) => {
-    const f = e.target.files?.[0]
-    updateProcedureField(procedure.id, field.key, f || "")
-  }}
-/>
-
+                              <>
+                                <Input
+                                  type="file"
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0]
+                                    updateProcedureField(procedure.id, field.key, f || "")
+                                  }}
+                                  className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
+                                  aria-invalid={invalid || undefined}
+                                />
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "user" && (
-                              <Input
-                                type="text"
-                                value={field.answer ?? ""}
-                                onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
-                                placeholder="Type or select user (manual entry)"
-                              />
+                              <>
+                                <Input
+                                  type="text"
+                                  value={field.answer ?? ""}
+                                  onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
+                                  placeholder="Type or select user (manual entry)"
+                                  className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
+                                  aria-invalid={invalid || undefined}
+                                />
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
 
                             {field.type === "group" && (
-                              <GroupField
-                                field={field}
-                                value={field.answer}
-                                onChange={(val) => updateProcedureField(procedure.id, field.key, val)}
-                              />
+                              <>
+                                <GroupField
+                                  field={field}
+                                  value={field.answer}
+                                  onChange={(val) => updateProcedureField(procedure.id, field.key, val)}
+                                />
+                                {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
+                              </>
                             )}
+
+                            {field.type === "markdown_footer" && (
+                              <Alert className="mt-4 prose prose-sm max-w-none whitespace-pre-wrap">
+                                {field.content}
+                              </Alert>
+                            )}
+
+                            {field.type === "markdown" && field.content && null /* already rendered above */}
                           </div>
                         )
                       })}
@@ -487,7 +658,11 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
           <ArrowLeft className="h-4 w-4" />
           Back to Sections
         </Button>
-        <Button onClick={handleProceed} className="flex items-center gap-2">
+        <Button
+          onClick={handleProceed}
+          disabled={isLoading}
+          className="flex items-center gap-2"
+        >
           Proceed to Recommendations
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -498,7 +673,8 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
 /** ---------- Predefined Sections (manual mode, full spec) ---------- **/
 function getPredefinedSection(sectionId: string) {
-  const sections: Record<string, any> = {
+  const sections: Record<string, any> = 
+  {
     "engagement_setup_acceptance_independence": {
       title: "Section 1: Engagement Setup, Acceptance & Independence",
       standards: ["ISA 200", "ISA 210", "ISA 220 (Revised)", "ISQM 1", "IESBA Code"],
