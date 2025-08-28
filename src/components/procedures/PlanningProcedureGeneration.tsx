@@ -9,6 +9,7 @@ import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
 import { AIPlanningQuestionsStep } from "./steps/AIPlanningQuestionsStep"
 import { AIPlanningAnswersStep } from "./steps/AIPlanningAnswersStep"
+import { PlanningRecommendationsStep } from "./steps/PlanningRecommendationsStep"
 interface PlanningProcedureGenerationProps {
   engagement: any
   existingProcedure?: any
@@ -86,9 +87,9 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
       setSteps([
         { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
-        { title: "Planning Procedures", component: AIPlanningQuestionsStep },
-        { title: "Planning Procedures", component: AIPlanningAnswersStep },
-        { title: "Recommendations", component: RecommendationsStep },
+        { title: "Generate Procedures", component: AIPlanningQuestionsStep },
+        { title: "Generate Answers", component: AIPlanningAnswersStep },
+        { title: "Recommendations", component: PlanningRecommendationsStep },
       ])
     }
     else {
@@ -96,7 +97,7 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
         { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Planning Procedures", component: PlanningProceduresStep },
-        { title: "Recommendations", component: RecommendationsStep },
+        { title: "Recommendations", component: PlanningRecommendationsStep },
       ])
     }
     setCurrentStep(0)

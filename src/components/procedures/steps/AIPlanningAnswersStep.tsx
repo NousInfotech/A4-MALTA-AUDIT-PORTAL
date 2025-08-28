@@ -186,6 +186,8 @@ export const AIPlanningAnswersStep: React.FC<{
   const [procedures, setProcedures] = useState<any[]>(stepData.procedures || [])
   const [loading, setLoading] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+    const [recommendations, setRecommendations] = useState([]);
+
   const { toast } = useToast()
 
   const fillAnswers = async () => {
@@ -195,11 +197,12 @@ export const AIPlanningAnswersStep: React.FC<{
       const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/answers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ procedures }),
+        body: JSON.stringify({ procedures,recommendations }),
       })
       if (!res.ok) throw new Error("Failed to generate answers")
       const data = await res.json()
       setProcedures(data.procedures || [])
+      setRecommendations(data.recommendations || [])
       toast({ title: "Answers Generated", description: "Review & edit before saving." })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
@@ -319,7 +322,7 @@ export const AIPlanningAnswersStep: React.FC<{
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => handleSave(false)}>Save Draft</Button>
-        <Button onClick={() => handleSave(true)}>Save & Finish</Button>
+        <Button onClick={() => onComplete({ recommendations:recommendations, procedures:procedures })}>Save & Finish</Button>
       </div>
     </div>
   )

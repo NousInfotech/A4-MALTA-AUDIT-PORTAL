@@ -620,6 +620,8 @@ export const PlanningProcedureView: React.FC<{
                                     )
                                   })}
                                 </div>
+                              ): t==="file"?(
+                                <Input value={"scajsnasj"} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
                               ) : (
                                 <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
                               )}
