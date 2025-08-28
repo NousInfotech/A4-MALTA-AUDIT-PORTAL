@@ -143,7 +143,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
 
         <TabsContent value="generate" className="flex-1 mt-6">
           {!selectedProcedureType ? (
-            <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} />
+            <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to generate"} />
           ) : selectedProcedureType === "planning" ? (
             <PlanningProcedureGeneration
               engagement={engagement}
@@ -170,13 +170,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
 
         <TabsContent value="view" className="flex-1 mt-6">
           {!selectedProcedureType ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-body-semibold text-lg text-foreground mb-2">Select a procedure type</h3>
-                <p className="text-muted-foreground font-body">Choose Planning or Fieldwork to view.</p>
-              </div>
-            </div>
+              <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
             planningProcedure ? <PlanningProcedureView procedure={planningProcedure} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (

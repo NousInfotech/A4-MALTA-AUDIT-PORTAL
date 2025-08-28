@@ -5,9 +5,10 @@ import { FileText, Search, CheckCircle, ArrowRight } from 'lucide-react'
 
 interface ProcedureTypeSelectionProps {
   onTypeSelect: (type: "planning" | "fieldwork" | "completion") => void
+  title:String
 }
 
-export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ onTypeSelect }) => {
+export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ onTypeSelect,title }) => {
   const procedureTypes = [
     {
       id: "planning" as const,
@@ -55,7 +56,7 @@ export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ 
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h3 className="font-heading text-2xl text-foreground mb-2">Select Procedure Type</h3>
-        <p className="text-muted-foreground font-body">Choose the type of audit procedures you want to generate</p>
+        <p className="text-muted-foreground font-body">{title}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
