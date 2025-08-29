@@ -360,7 +360,7 @@ export const PlanningProcedureView: React.FC<{
         Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
       }
       const engagementId = proc.engagement || engagement?._id
-      const res = await authFetch(`${base}/api/planning-procedures/${engagementId}/save`, {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
         method: "POST",
         body: form,
       })

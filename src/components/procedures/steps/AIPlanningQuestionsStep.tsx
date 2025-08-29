@@ -113,7 +113,7 @@ export const AIPlanningQuestionsStep: React.FC<{
       if (!res.ok) throw new Error("Failed to generate planning questions")
       const data = await res.json()
       setProcedures(withUids(data.procedures || []))
-      toast({ title: "Questions Generated", description: "Review/edit, then continue to Step-2." })
+      toast({ title: "Questions Generated", description: "Review/edit, then continue to Step-4." })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
@@ -244,10 +244,20 @@ export const AIPlanningQuestionsStep: React.FC<{
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
         Step-1: Generate <b>only</b> questions & help for selected planning sections.
-        You can freely <b>edit / add / remove</b> questions here before moving to Step-2.
+        You can freely <b>edit / add / remove</b> questions here before moving to Step-4.
       </div>
       <div className="flex gap-2">
         <Button disabled={loading} onClick={handleGenerate}>Generate Questions</Button>
+        <Button
+          disabled={!procedures?.length}
+          onClick={() => {
+            // strip __uid before passing to next step
+            const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields||[]).map(({__uid, ...rest}) => rest) }))
+            onComplete({ procedures: clean })
+          }}
+        >
+          Continue to Step-4 (Answers)
+        </Button>
         <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
         <Button variant="ghost" onClick={onBack}>Back</Button>
       </div>
@@ -296,7 +306,7 @@ export const AIPlanningQuestionsStep: React.FC<{
             onComplete({ procedures: clean })
           }}
         >
-          Continue to Step-2 (Answers)
+          Continue to Step-4 (Answers)
         </Button>
       </div>
     </div>

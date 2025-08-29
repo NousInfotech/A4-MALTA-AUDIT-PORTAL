@@ -172,7 +172,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           {!selectedProcedureType ? (
               <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
-            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (
             fieldworkProcedure && fieldworkProcedure.status === "completed"
               ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />

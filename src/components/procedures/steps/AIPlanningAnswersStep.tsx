@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -211,34 +212,49 @@ export const AIPlanningAnswersStep: React.FC<{
     }
   }
 
-  const handleSave = async (asCompleted = true) => {
-    try {
-      const base = import.meta.env.VITE_APIURL
-      const form = new FormData()
-      form.append("data", JSON.stringify({
-        ...stepData,
-        procedures,
-        status: asCompleted ? "completed" : "in-progress",
-        procedureType: "planning",
-        mode,
-      }))
 
-      if (fileInput.current?.files?.length) {
-        Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
-      }
+const handleSave = async () => {
+  try {
+    setLoading(true)
+    const form = new FormData();
 
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/save`, {
-        method: "POST",
-        body: form,
-      })
-      if (!res.ok) throw new Error("Save failed")
-      const saved = await res.json()
-      toast({ title: "Saved", description: asCompleted ? "Planning procedures completed." : "Draft saved." })
-      onComplete(saved)
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e.message, variant: "destructive" })
+    // Prepare the data payload
+    const payload = {
+      ...stepData,
+      procedures: procedures,
+      status: "in-progress",
+      procedureType: "planning",
+      mode: mode,
+    };
+
+    form.append("data", JSON.stringify(payload));
+
+    // Add files from the file input (ensure files are properly attached)
+    if (fileInput.current?.files?.length) {
+      Array.from(fileInput.current.files).forEach((f) => {
+        const sanitizedFileName = f.name.replace(/\s+/g, "_"); // Sanitize the file name
+        form.append("files", f, sanitizedFileName);
+      });
     }
+
+    const engagementId = engagement._id;
+    const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/planning-procedures/${engagementId}/save`, {
+      method: "POST",
+      body: form,
+    });
+
+    if (!res.ok) throw new Error("Save failed");
+
+    const saved = await res.json();
+      onComplete({saved,recommendations:recommendations, procedures:procedures, engagement:engagement})
+  } catch (e: any) {
+    toast({ title: "Failed to Proceed", description: e.message, variant: "destructive" });
   }
+  finally{
+    setLoading(false)
+  }
+};
+
 
   // basic editors
   const setFieldAnswer = (secIdx: number, key: string, value: any) => {
@@ -250,7 +266,13 @@ export const AIPlanningAnswersStep: React.FC<{
       return next
     })
   }
-
+if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        </div>
+      )
+    }
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
@@ -258,7 +280,7 @@ export const AIPlanningAnswersStep: React.FC<{
       </div>
       <div className="flex gap-2">
         <Button disabled={loading} onClick={fillAnswers}>AI: Generate Answers</Button>
-        <Button variant="outline" onClick={() => handleSave(false)}>Save Draft</Button>
+        <Button variant="outline" onClick={() => handleSave()}>Save Draft</Button>
         <Button variant="ghost" onClick={onBack}>Back</Button>
       </div>
 
@@ -321,8 +343,8 @@ export const AIPlanningAnswersStep: React.FC<{
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => handleSave(false)}>Save Draft</Button>
-        <Button onClick={() => onComplete({ recommendations:recommendations, procedures:procedures })}>Save & Finish</Button>
+        <Button variant="outline" onClick={() => handleSave()}>Save Draft</Button>
+        <Button onClick={() => handleSave()}>Save & Finish</Button>
       </div>
     </div>
   )

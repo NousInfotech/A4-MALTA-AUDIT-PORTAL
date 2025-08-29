@@ -37,6 +37,7 @@ async function authFetch(url: string, options: RequestInit = {}) {
 export const PlanningClassificationStep: React.FC<PlanningClassificationStepProps> = ({
   engagement,
   mode,
+  setActiveTab,
   stepData,
   onComplete,
   onBack,

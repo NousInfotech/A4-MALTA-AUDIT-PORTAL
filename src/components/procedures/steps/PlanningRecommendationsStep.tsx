@@ -239,80 +239,79 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
     }
   }
 
-  const handleSaveProcedures = async () => {
-  setSaving(true)
+const handleSaveProcedures = async () => {
+  setSaving(true);
   try {
-    const base = import.meta.env.VITE_APIURL
-    if (!base) throw new Error("VITE_APIURL is not set")
+    const base = import.meta.env.VITE_APIURL;
+    if (!base) throw new Error("VITE_APIURL is not set");
 
-    // Build the JSON payload that backend expects inside "data"
+    // Build the JSON payload with procedure data and recommendations
     const payload = {
       ...stepData,
       recommendations,
       status: "completed",
       mode,
-      // keep whatever procedures you already have on stepData
-      // (including any file answers that may be File objects)
       procedures: stepData.procedures || [],
-    }
+    };
 
-    // Prepare a single FormData with data + files + fileMap
-    const formData = new FormData()
-    formData.append("data", JSON.stringify(payload))
+    // Prepare FormData with data + files + fileMap
+    const formData = new FormData();
+    formData.append("data", JSON.stringify(payload));
 
-    // Collect files from any file-type fields in procedures
-    const fileMap: Array<{ sectionId: string; fieldKey: string; originalName: string }> = []
+    const fileMap: Array<{ sectionId: string; fieldKey: string; originalName: string }> = [];
 
-    ;(payload.procedures || []).forEach((proc: any) => {
-      const sectionId = proc.sectionId || proc.id
-      ;(proc.fields || []).forEach((f: any) => {
+    // Add files to FormData from procedures
+    (payload.procedures || []).forEach((proc: any) => {
+      const sectionId = proc.sectionId || proc.id;
+      (proc.fields || []).forEach((f: any) => {
         if (f?.type === "file" && f?.answer instanceof File) {
-          const file: File = f.answer
-          formData.append("files", file, file.name)
+          const file: File = f.answer;
+          formData.append("files", file, file.name);
           fileMap.push({
             sectionId,
             fieldKey: f.key,
             originalName: file.name,
-          })
+          });
         }
-      })
-    })
+      });
+    });
 
     if (fileMap.length) {
-      formData.append("fileMap", JSON.stringify(fileMap))
+      formData.append("fileMap", JSON.stringify(fileMap)); // Attach file map to FormData
     }
 
-    // POST multipart/form-data (do NOT set Content-Type header)
+    // POST the data to the backend
     const response = await authFetch(
       `${base}/api/planning-procedures/${engagement._id}/save`,
       {
         method: "POST",
         body: formData,
       }
-    )
+    );
 
-    if (!response.ok) throw new Error("Failed to save procedures")
+    if (!response.ok) throw new Error("Failed to save procedures");
 
-    const savedProcedure = await response.json()
+    const savedProcedure = await response.json();
 
     toast({
       title: "Procedures Saved",
       description: "Your audit procedures and recommendations have been saved successfully.",
-    })
+    });
 
-    onComplete({ ...payload, _id: savedProcedure._id })
+    onComplete({ ...payload, _id: savedProcedure._id });
+    
+
   } catch (error: any) {
-    console.error("Error saving procedures:", error)
+    console.error("Error saving procedures:", error);
     toast({
       title: "Save Failed",
       description: error.message || "Failed to save procedures.",
       variant: "destructive",
-    })
+    });
   } finally {
-    setSaving(false)
+    setSaving(false);
   }
-}
-
+};
 
   // keep your legacy fallback spinner (very rare)
   if (loading) {
