@@ -10,6 +10,7 @@ import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
 import { AIPlanningQuestionsStep } from "./steps/AIPlanningQuestionsStep"
 import { AIPlanningAnswersStep } from "./steps/AIPlanningAnswersStep"
 import { PlanningRecommendationsStep } from "./steps/PlanningRecommendationsStep"
+import { HybridPlanningProceduresStep } from "./steps/HybridPlanningProceduresStep"
 interface PlanningProcedureGenerationProps {
   engagement: any
   existingProcedure?: any
@@ -81,14 +82,21 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
 
   const handleModeSelect = (mode: GenerationMode) => {
     setSelectedMode(mode)
-    if (mode ==="ai" || mode ==="hybrid") {
-
-      console.log(mode, "------------")
+    if (mode ==="ai") {
       setSteps([
         { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: AIPlanningQuestionsStep },
         { title: "Generate Answers", component: AIPlanningAnswersStep },
+        { title: "Recommendations", component: PlanningRecommendationsStep },
+      ])
+    }
+    else if(mode==="hybrid")
+    {
+       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
+        { title: "Select Classifications", component: PlanningClassificationStep },
+        { title: "Generate Procedures", component: HybridPlanningProceduresStep },
         { title: "Recommendations", component: PlanningRecommendationsStep },
       ])
     }
