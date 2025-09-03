@@ -79,8 +79,8 @@ function normalizeQuestions(items: any[] | undefined | null): any[] {
   if (!Array.isArray(items)) return [];
   return items.map((q, i) => {
     const base = q || {};
-    const stable = base.__uid || base.id || base._id;
-    const __uid = stable ? String(stable) : `q_${uid()}_${i}`;
+    // Always generate a new unique __uid for each question to avoid duplicates
+    const __uid = `q_${uid()}_${i}`;
     return { ...base, __uid, id: base.id ?? __uid };
   });
 }

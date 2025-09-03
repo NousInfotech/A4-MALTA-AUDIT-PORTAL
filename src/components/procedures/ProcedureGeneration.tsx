@@ -7,8 +7,8 @@ import { MaterialityStep } from "./steps/MaterialityStep"         // unchanged (
 import { ClassificationStep } from "./steps/ClassificationStep"   // unchanged (keep as-is)
 import { ProcedureQuestionsStep } from "./steps/ProcedureQuestionsStep" // now MANUAL-only
 
-import { AIProcedureQuestionsStep } from "./steps/AIProcedureQuestionsStep"
-import { AIProcedureAnswersStep } from "./steps/AIProcedureAnswersStep"
+import AIProcedureQuestionsStep from "./steps/AIProcedureQuestionsStep"
+import AIProcedureAnswersStep  from "./steps/AIProcedureAnswersStep"
 import { HybridProceduresStep } from "./steps/HybridProceduresStep"
 
 import { RecommendationsStep } from "./steps/RecommendationsStep" // unchanged
@@ -243,6 +243,18 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
           />
         ),
       },
+      {
+          title: "AI — Generate Answers",
+          render: ({ stepData, setStepData, onStepDone, onBack }) => (
+            <AIProcedureAnswersStep
+              engagement={engagement}
+              mode="ai"
+              stepData={stepData}
+              onBack={onBack}
+              onComplete={onStepDone}
+            />
+          ),
+        },
       {
         title: "Recommendations",
         render: ({ stepData, setStepData, onStepDone, onBack }) => (

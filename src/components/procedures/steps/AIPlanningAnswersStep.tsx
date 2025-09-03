@@ -177,7 +177,7 @@ function TableEditor({
   )
 }
 
-export const AIPlanningAnswersStep: React.FC<{
+const AIPlanningAnswersStep: React.FC<{
   engagement: any
   mode: "ai" | "hybrid"
   stepData: any
@@ -349,3 +349,4 @@ if (loading) {
     </div>
   )
 }
+export default AIPlanningAnswersStep

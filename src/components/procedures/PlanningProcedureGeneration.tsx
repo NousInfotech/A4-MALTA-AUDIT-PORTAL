@@ -8,7 +8,7 @@ import { PlanningProceduresStep } from "./steps/PlanningProceduresStep"
 import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
 import { AIPlanningQuestionsStep } from "./steps/AIPlanningQuestionsStep"
-import { AIPlanningAnswersStep } from "./steps/AIPlanningAnswersStep"
+import AIPlanningAnswersStep from "./steps/AIPlanningAnswersStep"
 import { PlanningRecommendationsStep } from "./steps/PlanningRecommendationsStep"
 import { HybridPlanningProceduresStep } from "./steps/HybridPlanningProceduresStep"
 interface PlanningProcedureGenerationProps {

@@ -50,7 +50,7 @@ function groupKeyFor(q: any): string {
   )
 }
 
-export const AIProcedureQuestionsStep: React.FC<{
+const AIProcedureQuestionsStep: React.FC<{
   engagement: any
   mode: "ai"
   stepData: any
@@ -68,6 +68,15 @@ export const AIProcedureQuestionsStep: React.FC<{
     Array.isArray(stepData.recommendations) ? stepData.recommendations : []
   )
 
+function formatClassificationForDisplay(classification?: string) {
+  if (!classification) return "General"
+  const parts = classification.split(" > ")
+  const top = parts[0]
+  // Always show deepest for Assets/Liabilities
+  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
+  // Otherwise top-level
+  return top
+}
   /** ---------- API: generate questions ---------- */
   const generateQuestions = async () => {
     setLoading(true)
@@ -79,7 +88,7 @@ export const AIProcedureQuestionsStep: React.FC<{
         body: JSON.stringify({
           engagementId: engagement?._id,
           materiality: stepData.materiality,
-          selectedClassifications: stepData.selectedClassifications || [],
+          classifications: stepData.selectedClassifications || [],
           validitySelections: stepData.validitySelections || [],
         }),
       })
@@ -195,7 +204,7 @@ export const AIProcedureQuestionsStep: React.FC<{
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{bucket}</Badge>
+                          <Badge variant="outline">{formatClassificationForDisplay(bucket)}</Badge>
                           <Badge variant="secondary">{items.length} item{items.length > 1 ? "s" : ""}</Badge>
                         </div>
                         {recTextFor(bucket) ? (
@@ -211,7 +220,7 @@ export const AIProcedureQuestionsStep: React.FC<{
                       <div key={q.__uid} className="rounded border p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary">{q.classificationTag || "General"}</Badge>
+                            <Badge variant="secondary">{formatClassificationForDisplay(q.classificationTag) || "General"}</Badge>
                             {q.isRequired ? (
                               <Badge variant="default">Required</Badge>
                             ) : (
@@ -266,3 +275,4 @@ export const AIProcedureQuestionsStep: React.FC<{
     </div>
   )
 }
+export default AIProcedureQuestionsStep

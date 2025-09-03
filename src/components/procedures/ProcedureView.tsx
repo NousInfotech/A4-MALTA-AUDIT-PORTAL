@@ -27,6 +27,7 @@ interface ProcedureViewProps {
   onRegenerate: () => void
 }
 
+
 export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagement, onRegenerate }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editedRecommendations, setEditedRecommendations] = useState(procedure?.recommendations || "")
@@ -53,7 +54,15 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagem
     })
     return g
   }, [procedure?.questions])
-
+function formatClassificationForDisplay(classification?: string) {
+  if (!classification) return "General"
+  const parts = classification.split(" > ")
+  const top = parts[0]
+  // Always show deepest for Assets/Liabilities
+  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
+  // Otherwise top-level
+  return top
+}
   const handleSaveRecommendations = () => {
     // Persist if you want (API call)
     setIsEditing(false)
@@ -352,7 +361,7 @@ addFooter()
               {Object.entries(grouped).map(([classification, questions]) => (
                 <div key={classification} className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="font-body-semibold">{classification}</Badge>
+                    <Badge variant="outline" className="font-body-semibold">{formatClassificationForDisplay(classification)}</Badge>
                     <div className="h-px bg-border flex-1" />
                   </div>
                   <div className="space-y-3">
