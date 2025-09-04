@@ -37,21 +37,33 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const [planningProcedure, setPlanningProcedure] = useState<any>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    if (!engagement?._id) return
-    // Preload both so "View" works immediately after selection
-    loadFieldwork()
-    loadPlanning()
-  }, [engagement?._id])
+ useEffect(() => {
+  if (!engagement?._id) return;
+  loadFieldwork();
+  loadPlanning();
+}, [engagement?._id]);
+
 
   const base = import.meta.env.VITE_APIURL
-
   const loadFieldwork = async () => {
-    try {
-      const res = await authFetch(`${base}/api/procedures/${engagement._id}`)
-      if (res.ok) setFieldworkProcedure(await res.json())
-    } catch {}
+  try {
+    const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+    const data = await res.json();
+    console.log('API Response:', data); // Debugging response
+    
+    // Check if the procedure exists in the response
+    if (res.ok && data?.procedure) {
+      console.log('Setting fieldwork procedure:', data.procedure); // Debugging
+      setFieldworkProcedure(data.procedure); // Set the procedure directly into the state
+    } else {
+      console.error("Fieldwork procedure not found");
+    }
+  } catch (error) {
+    console.error("Error fetching fieldwork procedure:", error);
   }
+}
+
+
   const loadPlanning = async () => {
     try {
       const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`)

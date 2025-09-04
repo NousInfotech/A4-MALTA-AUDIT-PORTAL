@@ -246,7 +246,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
         status: "completed",
         mode,
       }
-
+      console.log("proc data ",procedureData)
       const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
         method: "POST",
         body: JSON.stringify(procedureData),

@@ -202,7 +202,7 @@ const AIProcedureAnswersStep: React.FC<{
   const saveDraft = async () => {
     try {
       const base = import.meta.env.VITE_APIURL;
-      await authFetch(`${base}/api/procedures/${engagement?._id}/save`, {
+      await authFetch(`${base}/api/procedures/${engagement?._id}`, {
         method: "POST",
         body: JSON.stringify({
           ...stepData,
@@ -403,13 +403,15 @@ const AIProcedureAnswersStep: React.FC<{
                                 onChange={(e) => setEditedA(e.target.value)}
                                 placeholder="Refine the drafted answer"
                               />
-                            ) : (
+                            ) :(
+
                               <Textarea
                                 value={String(q.answer ?? "")}
                                 onChange={(e) => setAnswer(q.__uid, e.target.value)}
                                 placeholder="Refine the drafted answer"
-                              />
-                            )}
+                                />
+                            ) }
+                            
                           </div>
                         </div>
                       );
@@ -431,4 +433,4 @@ const AIProcedureAnswersStep: React.FC<{
     </div>
   );
 };
-export default AIProcedureAnswersStep
+export default AIProcedureAnswersStep;

@@ -1,13 +1,12 @@
 // @ts-nocheck
 
-  import ReactMarkdown from "react-markdown"
+import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type React from "react"
 import { useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   FileText,
@@ -20,6 +19,8 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import FloatingNotesButton  from "./FloatingNotesButton"
+import NotebookInterface from "./NotebookInterface"
 
 interface ProcedureViewProps {
   procedure: any
@@ -27,10 +28,9 @@ interface ProcedureViewProps {
   onRegenerate: () => void
 }
 
-
 export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagement, onRegenerate }) => {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedRecommendations, setEditedRecommendations] = useState(procedure?.recommendations || "")
+  const [isNotesOpen, setIsNotesOpen] = useState(false)
+  const [recommendations, setRecommendations] = useState(procedure?.recommendations || "")
   const printRef = useRef<HTMLDivElement | null>(null)
   const { toast } = useToast()
 
@@ -54,24 +54,20 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({ procedure, engagem
     })
     return g
   }, [procedure?.questions])
-function formatClassificationForDisplay(classification?: string) {
-  if (!classification) return "General"
-  const parts = classification.split(" > ")
-  const top = parts[0]
-  // Always show deepest for Assets/Liabilities
-  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
-  // Otherwise top-level
-  return top
-}
-  const handleSaveRecommendations = () => {
-    // Persist if you want (API call)
-    setIsEditing(false)
-    toast({ title: "Recommendations Updated", description: "Your audit recommendations have been saved." })
+
+  function formatClassificationForDisplay(classification?: string) {
+    if (!classification) return "General"
+    const parts = classification.split(" > ")
+    const top = parts[0]
+    // Always show deepest for Assets/Liabilities
+    if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
+    // Otherwise top-level
+    return top
   }
 
-  const handlePrint = () => {
-    // Render the print layout only, with A4 sizing & fixed header/footer
-    setTimeout(() => window.print(), 20)
+  const handleSaveRecommendations = (content: string) => {
+    setRecommendations(content)
+    // You can add API call here to persist the recommendations
   }
 
   const handleExportPDF = async () => {
@@ -200,7 +196,7 @@ function formatClassificationForDisplay(classification?: string) {
           headStyles: { fillColor: [240, 240, 240], textColor: 20, halign: "left" },
           columnStyles: {
             0: { cellWidth: 8, halign: "center" },
-            1: { cellWidth: pageWidth - 2 * margin - 8 - 20 - 70 }, // auto fit Question
+            1: { cellWidth: pageWidth - 2 * margin - 8 - 20 - 70 },
             2: { cellWidth: pageWidth - 2 * margin - 8 - 20 - 70 },
           },
           margin: { left: margin, right: margin },
@@ -209,106 +205,90 @@ function formatClassificationForDisplay(classification?: string) {
       }
 
       // ---------- Recommendations ----------
-    // ---------- Helper: strip inline markdown emphasis ----------
-function stripInlineMd(s: string) {
-  // remove bold/italic markers but keep the text
-  return s
-    .replace(/\*\*(.*?)\*\*/g, "$1") // **bold**
-    .replace(/\*(.*?)\*/g, "$1")     // *italic*
-    .replace(/__(.*?)__/g, "$1")     // __bold__
-    .replace(/_(.*?)_/g, "$1")       // _italic_
-    .replace(/`(.*?)`/g, "$1")       // `inline code` -> plain
-    .replace(/\s+/g, " ")            // collapse spaces
-    .trim()
-}
+      function stripInlineMd(s: string) {
+        return s
+          .replace(/\*\*(.*?)\*\*/g, "$1")
+          .replace(/\*(.*?)\*/g, "$1")
+          .replace(/__(.*?)__/g, "$1")
+          .replace(/_(.*?)_/g, "$1")
+          .replace(/`(.*?)`/g, "$1")
+          .replace(/\s+/g, " ")
+          .trim()
+      }
 
-// ---------- Recommendations ----------
-doc.addPage()
-doc.setFont("helvetica", "bold")
-doc.setFontSize(14)
-doc.text("Audit Recommendations", margin, 20)
-
-const recMarkdown =
-  (isEditing ? editedRecommendations : procedure?.recommendations) ||
-  "No recommendations provided."
-
-const lines = recMarkdown.split(/\r?\n/)
-let cursorY = 30
-
-const writeWrapped = (text: string, font: "normal" | "bold", size = 11) => {
-  doc.setFont("helvetica", font)
-  doc.setFontSize(size)
-  const wrapped = doc.splitTextToSize(text, pageWidth - 2 * margin)
-
-  // page break if needed
-  if (cursorY + wrapped.length * 6 > pageHeight - margin) {
-    addFooter()
-    doc.addPage()
-    cursorY = 20
-  }
-  doc.text(wrapped, margin, cursorY)
-  cursorY += wrapped.length * 6
-}
-
-lines.forEach((raw) => {
-  const line = raw.trim()
-
-  // blank line spacing
-  if (!line) {
-    cursorY += 6
-    return
-  }
-
-  // Headings
-  if (line.startsWith("### ")) {
-    writeWrapped(stripInlineMd(line.replace(/^###\s*/, "")), "bold", 13)
-    cursorY += 2
-    return
-  }
-  if (line.startsWith("#### ")) {
-    writeWrapped(stripInlineMd(line.replace(/^####\s*/, "")), "bold", 12)
-    cursorY += 2
-    return
-  }
-
-  // Bullet items: keep a proper bullet without markdown asterisks
-  if (line.startsWith("- ")) {
-    const text = stripInlineMd(line.slice(2))
-    // render a bullet, then the text with a small indent
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(11)
-
-    // compute available width after bullet indent
-    const indentX = margin + 6
-    const avail = pageWidth - indentX - margin
-    const wrapped = doc.splitTextToSize(text, avail)
-
-    // page break if needed
-    if (cursorY + wrapped.length * 6 > pageHeight - margin) {
-      addFooter()
       doc.addPage()
-      cursorY = 20
-    }
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(14)
+      doc.text("Audit Recommendations", margin, 20)
 
-    // draw bullet
-    doc.text("•", margin, cursorY)
-    // draw wrapped lines aligned to indent
-    wrapped.forEach((w, i) => {
-      doc.text(w, indentX, cursorY + i * 6)
-    })
-    cursorY += wrapped.length * 6
-    return
-  }
+      const recMarkdown = recommendations || "No recommendations provided."
+      const lines = recMarkdown.split(/\r?\n/)
+      let cursorY = 30
 
-  // Normal paragraph (with emphasis markers removed)
-  writeWrapped(stripInlineMd(line), "normal", 11)
-})
+      const writeWrapped = (text: string, font: "normal" | "bold", size = 11) => {
+        doc.setFont("helvetica", font)
+        doc.setFontSize(size)
+        const wrapped = doc.splitTextToSize(text, pageWidth - 2 * margin)
 
-addFooter()
+        if (cursorY + wrapped.length * 6 > pageHeight - margin) {
+          addFooter()
+          doc.addPage()
+          cursorY = 20
+        }
+        doc.text(wrapped, margin, cursorY)
+        cursorY += wrapped.length * 6
+      }
+
+      lines.forEach((raw) => {
+        const line = raw.trim()
+
+        if (!line) {
+          cursorY += 6
+          return
+        }
+
+        if (line.startsWith("### ")) {
+          writeWrapped(stripInlineMd(line.replace(/^###\s*/, "")), "bold", 13)
+          cursorY += 2
+          return
+        }
+        if (line.startsWith("#### ")) {
+          writeWrapped(stripInlineMd(line.replace(/^####\s*/, "")), "bold", 12)
+          cursorY += 2
+          return
+        }
+
+        if (line.startsWith("- ")) {
+          const text = stripInlineMd(line.slice(2))
+          doc.setFont("helvetica", "normal")
+          doc.setFontSize(11)
+
+          const indentX = margin + 6
+          const avail = pageWidth - indentX - margin
+          const wrapped = doc.splitTextToSize(text, avail)
+
+          if (cursorY + wrapped.length * 6 > pageHeight - margin) {
+            addFooter()
+            doc.addPage()
+            cursorY = 20
+          }
+
+          doc.text("•", margin, cursorY)
+          wrapped.forEach((w, i) => {
+            doc.text(w, indentX, cursorY + i * 6)
+          })
+          cursorY += wrapped.length * 6
+          return
+        }
+
+        writeWrapped(stripInlineMd(line), "normal", 11)
+      })
+
+      addFooter()
 
       // ---------- Save ----------
       const date = new Date()
-      const fname = `Audit_Procedures_${safeTitle.replace(/[^\w\s-]/g, "").replace(/\s+/g, "_").slice(0, 60)}_${date
+      const fname = `Audit_Procedures_${safeTitle.replace(/[^\\w\\s-]/g, "").replace(/\\s+/g, "_").slice(0, 60)}_${date
         .toISOString()
         .slice(0, 10)}.pdf`
       doc.save(fname)
@@ -332,14 +312,13 @@ addFooter()
     }
   }
 
-  // ---------- Print Layout (official look) ----------
   return (
     <>
       {/* On-screen actions */}
       <div className="flex items-center justify-between mb-4 no-print">
         <div>
-          <h3 className="font-heading text-2xl text-foreground">Audit Procedures Report</h3>
-          <div className="text-sm text-muted-foreground font-body">
+          <h3 className="text-2xl font-bold text-foreground">Audit Procedures Report</h3>
+          <div className="text-sm text-muted-foreground">
             {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
             {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
           </div>
@@ -352,16 +331,18 @@ addFooter()
         </div>
       </div>
 
-      {/* App view: procedures & recommendations (unchanged) */}
+      {/* Procedures Card */}
       <Card className="no-print mt-6">
-        <CardHeader><CardTitle className="font-heading text-xl text-foreground">Audit Procedures</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-xl text-foreground">Audit Procedures</CardTitle>
+        </CardHeader>
         <CardContent>
           <ScrollArea className="h-96">
             <div className="space-y-6">
               {Object.entries(grouped).map(([classification, questions]) => (
                 <div key={classification} className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="font-body-semibold">{formatClassificationForDisplay(classification)}</Badge>
+                    <Badge variant="outline" className="font-semibold">{formatClassificationForDisplay(classification)}</Badge>
                     <div className="h-px bg-border flex-1" />
                   </div>
                   <div className="space-y-3">
@@ -369,13 +350,13 @@ addFooter()
                       <div key={q.id || i} className="space-y-2">
                         <div className="flex items-start gap-3">
                           <div className="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5">
-                            <span className="text-xs font-body-semibold text-primary">{i + 1}</span>
+                            <span className="text-xs font-semibold text-primary">{i + 1}</span>
                           </div>
                           <div className="flex-1">
-                            <p className="font-body-semibold text-foreground mb-1">{q.question}</p>
+                            <p className="font-semibold text-foreground mb-1">{q.question}</p>
                             {q.answer && (
                               <div className="bg-muted/50 rounded-lg p-3">
-                                <p className="text-sm font-body text-muted-foreground whitespace-pre-wrap">{q.answer}</p>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{q.answer}</p>
                               </div>
                             )}
                             {q.isRequired && <Badge variant="secondary" className="mt-2 text-xs">Required</Badge>}
@@ -391,106 +372,19 @@ addFooter()
         </CardContent>
       </Card>
 
-<Card className="no-print mt-6">
-  <CardHeader>
-    <div className="flex items-center justify-between">
-      <CardTitle className="font-heading text-xl text-foreground">
-        Audit Recommendations
-      </CardTitle>
-      {!isEditing ? (
-        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-          <Edit3 className="h-4 w-4 mr-2" />
-          Edit
-        </Button>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setIsEditing(false)
-              setEditedRecommendations(procedure?.recommendations || "")
-            }}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSaveRecommendations}>
-            <Save className="h-4 w-4 mr-2" />
-            Save
-          </Button>
-        </div>
-      )}
-    </div>
-  </CardHeader>
-
-  <CardContent>
-    {isEditing ? (
-      <Textarea
-        value={editedRecommendations}
-        onChange={(e) => setEditedRecommendations(e.target.value)}
-        placeholder="Enter audit recommendations..."
-        className="min-h-40 font-body"
+      {/* Floating Notes Button */}
+      <FloatingNotesButton 
+        onClick={() => setIsNotesOpen(true)}
+        isOpen={isNotesOpen}
       />
-    ) : (
-      <div
-        className={[
-          // Typography (Tailwind Typography plugin friendly)
-          "prose prose-sm max-w-none",
-          // Better spacing & rhythm
-          "prose-p:my-2 prose-li:my-1 prose-ul:my-2",
-          "prose-h3:mt-6 prose-h3:mb-2 prose-h4:mt-4 prose-h4:mb-2",
-          // Colors and lists
-          "prose-headings:text-foreground prose-p:text-muted-foreground",
-          "prose-ul:list-disc prose-ul:pl-6",
-          // Dark mode support if you have it
-          "dark:prose-invert",
-        ].join(" ")}
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          // Components let us control spacing exactly
-          components={{
-            h3: ({ node, ...props }) => (
-              <h3 className="text-base font-semibold leading-6" {...props} />
-            ),
-            h4: ({ node, ...props }) => (
-              <h4 className="text-sm font-semibold leading-6" {...props} />
-            ),
-            p: ({ node, ...props }) => (
-              <p className="leading-6 whitespace-pre-wrap" {...props} />
-            ),
-            ul: ({ node, ordered, ...props }) => (
-              <ul className="list-disc pl-6 my-2" {...props} />
-            ),
-            li: ({ node, ...props }) => (
-              <li className="my-1 leading-6" {...props} />
-            ),
-            // Keep strong/em readable but not shouty
-            strong: ({ node, ...props }) => (
-              <span className="font-semibold" {...props} />
-            ),
-            em: ({ node, ...props }) => (
-              <span className="italic" {...props} />
-            ),
-            // Prevent inline code from shrinking the line-height
-            code: ({ node, inline, ...props }) =>
-              inline ? (
-                <code className="px-1 py-0.5 rounded bg-muted text-foreground" {...props} />
-              ) : (
-                <code className="block p-3 rounded bg-muted text-foreground" {...props} />
-              ),
-          }}
-        >
-          {procedure?.recommendations || "No recommendations provided."}
-        </ReactMarkdown>
-      </div>
-    )}
-  </CardContent>
-</Card>
 
-
+      {/* Notebook Interface */}
+      <NotebookInterface
+        isOpen={isNotesOpen}
+        onClose={() => setIsNotesOpen(false)}
+        recommendations={recommendations}
+        onSave={handleSaveRecommendations}
+      />
     </>
   )
 }
-

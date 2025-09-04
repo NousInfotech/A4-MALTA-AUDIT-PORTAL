@@ -60,7 +60,7 @@ const AIProcedureQuestionsStep: React.FC<{
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
 
-  // Normalize the incoming draft (prevents “toggle all” on first render)
+  // Normalize the incoming draft (prevents "toggle all" on first render)
   const [questions, setQuestions] = useState<any[]>(
     normalizeQuestions(stepData.questions)
   )
@@ -93,7 +93,7 @@ function formatClassificationForDisplay(classification?: string) {
         }),
       })
 
-      // don’t try to parse JSON if server returned HTML error page
+      // don't try to parse JSON if server returned HTML error page
       const ct = res.headers.get("content-type") || ""
       if (!res.ok) {
         const text = await res.text().catch(() => "")
@@ -194,7 +194,7 @@ function formatClassificationForDisplay(classification?: string) {
 
         <CardContent className="space-y-6">
           {questions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No questions yet. Click “Generate Questions”.</p>
+            <p className="text-sm text-muted-foreground">No questions yet. Click "Generate Questions".</p>
           ) : (
             <>
               {/* Grouped, beautiful cards by bucket/classification */}
