@@ -21,6 +21,7 @@ function normalizeKey(s: string) {
     .trim()
 }
 
+// Update the splitRecommendationsByClassification function
 function splitRecommendationsByClassification(markdown?: string) {
   const map: Record<string, string> = {}
   if (!markdown) return map
@@ -30,30 +31,40 @@ function splitRecommendationsByClassification(markdown?: string) {
   let bucket: string[] = []
 
   const flush = () => {
-    if (currentKey) {
+    if (currentKey && bucket.length > 0) {
       map[currentKey] = bucket.join("\n").trim()
     }
     bucket = []
   }
 
   for (const raw of lines) {
-    const m = raw.match(/^\s*\*([^*]+)\*\s*$/) // Match *classification path*
-    if (m) {
+    // Match both formats: *classification* and plain classification headers
+    const asteriskMatch = raw.match(/^\s*\*([^*]+)\*\s*$/)
+    const plainHeaderMatch = raw.match(/^([A-Za-z][^•\-].*[^:\-])\s*$/) // Match lines that look like headers
+    
+    if (asteriskMatch || plainHeaderMatch) {
       // New classification section starts
       flush()
-      currentKey = m[1].trim()
+      currentKey = asteriskMatch ? asteriskMatch[1].trim() : plainHeaderMatch[1].trim()
       continue
     }
+    
+    // Skip bullet points that might be mistaken as headers
+    const isBulletPoint = /^\s*[-•*]\s+/.test(raw)
+    
     if (!currentKey) {
       // Ignore prelude text or attach it to a special key if needed
       continue
     }
-    bucket.push(raw)
+    
+    // Add content lines (including bullet points) to the current bucket
+    if (raw.trim().length > 0) {
+      bucket.push(raw)
+    }
   }
   flush()
   return map
 }
-
 
 
 interface ProcedureViewProps {
