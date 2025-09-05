@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -10,51 +10,113 @@ import { useToast } from '@/hooks/use-toast'
 
 interface NotebookInterfaceProps {
   isOpen: boolean
+  isEditable:boolean
   onClose: () => void
   recommendations: string
   onSave?: (content: string) => void
 }
+// Replace the formatClassificationForDisplay function in NotebookInterface.tsx
+function formatClassificationForDisplay(classification?: string) {
+  if (!classification) return 'General'
+  
+  // Split by " > " and get the last part (deepest level)
+  const parts = classification.split(' > ')
+  return parts[parts.length - 1] || classification
+}
+
+/** Normalize and promote classification lines to headings (###) */
+function transformRecommendationsForDisplay(input?: string) {
+  if (!input) return ""
+
+  return input
+    .split("\n")
+    .map((line) => {
+      const raw = line
+
+      // Only strip a REAL list bullet at the very start: "- ", "+ ", "* ", or "1. "
+      // (won't touch italics like "*Text*:")
+      let body = raw.replace(/^\s*(?:[-+*]\s+|\d+\.\s+)/, "").trim()
+      if (!body) return raw
+
+      // 1) Remove inline emphasis pairs anywhere in the line:
+      //    "*Title*:" => "Title:"
+      //    "_Note_."  => "Note."
+      body = body
+        .replace(/\*([^*]+)\*/g, "$1")      // italics/bold with asterisks
+        .replace(/_([^_]+)_/g, "$1")        // italics with underscores
+        .trim()
+
+      // 2) If any lone trailing asterisks survived, clean them (e.g., "Equipment*:" or "Equipment*")
+      body = body.replace(/\*+(?=[^\w]|$)/g, "")
+
+      const looksHierarchical = body.includes(" > ")
+      const knownTopLevels = new Set(["Assets", "Liabilities", "Equity", "Income", "Expenses"])
+      if (looksHierarchical || knownTopLevels.has(body)) {
+        const display = formatClassificationForDisplay(body)
+        return `### ${display}` // promote classification line to a markdown heading
+      }
+
+      // Not a classification line: render as-is (but with the cleaned-up body)
+      // Preserve the original leading whitespace indent for nicer list rendering
+      const leadingWS = raw.match(/^\s*/)?.[0] ?? ""
+      return leadingWS + body
+    })
+    // collapse trips of empty lines down to one
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+}
+
+
 const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   isOpen,
+  isEditable,
   onClose,
   recommendations,
-  onSave
+  onSave,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
-  const [editedContent, setEditedContent] = useState(recommendations || "")
+  const [editedContent, setEditedContent] = useState(recommendations || '')
   const { toast } = useToast()
 
   const handleSave = () => {
     onSave?.(editedContent)
     setIsEditing(false)
-    toast({ 
-      title: "Notes Saved", 
-      description: "Your audit recommendations have been updated." 
+    toast({
+      title: 'Notes Saved',
+      description: 'Your audit recommendations have been updated.',
     })
   }
 
   const handleCancel = () => {
-    setEditedContent(recommendations || "")
+    setEditedContent(recommendations || '')
     setIsEditing(false)
   }
+
+  // Only transform for display (read mode). We keep raw text in edit mode & storage.
+  const displayRecommendations = useMemo(
+    () => transformRecommendationsForDisplay(recommendations),
+    [recommendations]
+  )
 
   if (!isOpen) return null
 
   return (
     <>
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
         onClick={onClose}
       />
-      
+
       {/* Notebook */}
-      <div className={cn(
-        "fixed inset-4 z-50 max-w-4xl mx-auto",
-        "bg-amber-50 border border-amber-200 rounded-2xl shadow-2xl",
-        "transform transition-all duration-500 ease-out",
-        isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
-      )}>
+      <div
+        className={cn(
+          'fixed inset-4 z-50 max-w-4xl mx-auto',
+          'bg-amber-50 border border-amber-200 rounded-2xl shadow-2xl',
+          'transform transition-all duration-500 ease-out',
+          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+        )}
+      >
         {/* Notebook Binding */}
         <div className="absolute left-0 top-0 bottom-0 w-12 bg-red-800 rounded-l-2xl">
           <div className="flex flex-col items-center justify-center h-full space-y-8">
@@ -66,10 +128,13 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
 
         {/* Paper Lines Background */}
         <div className="absolute inset-0 ml-12 opacity-30 pointer-events-none">
-          <div className="h-full bg-repeat-y bg-[length:100%_24px]" 
-               style={{ 
-                 backgroundImage: `linear-gradient(transparent 23px, #d1d5db 23px, #d1d5db 24px, transparent 24px)`
-               }} />
+          <div
+            className="h-full bg-repeat-y bg-[length:100%_24px]"
+            style={{
+              backgroundImage:
+                'linear-gradient(transparent 23px, #d1d5db 23px, #d1d5db 24px, transparent 24px)',
+            }}
+          />
         </div>
 
         {/* Content */}
@@ -82,11 +147,11 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                 Audit Recommendations
               </h2>
             </div>
-            
             <div className="flex items-center space-x-2">
-              {!isEditing ? (
+            {isEditable&&(
+              <>
+               {!isEditing ? (
                 <Button
-                   
                   size="sm"
                   onClick={() => setIsEditing(true)}
                   className="bg-inherit text-amber-700 hover:bg-gray-100"
@@ -113,8 +178,9 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                   </Button>
                 </>
               )}
-              
-              <Button
+              </>
+            )}
+             <Button
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
@@ -122,17 +188,20 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
               >
                 <X className="h-4 w-4" />
               </Button>
-            </div>
+</div>
+             
+
+             
           </div>
 
           {/* Date */}
           <div className="mb-4 pb-2 border-b border-gray-300">
             <p className="text-sm text-muted-foreground font-serif italic">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
               })}
             </p>
           </div>
@@ -145,32 +214,40 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                 onChange={(e) => setEditedContent(e.target.value)}
                 placeholder="Enter your audit recommendations here..."
                 className={cn(
-                  "min-h-96 bg-transparent border-none resize-none",
-                  "text-amber-800 placeholder:text-amber-500",
-                  "font-serif leading-relaxed text-base",
-                  "focus:ring-0 focus:outline-none"
+                  'min-h-96 bg-transparent border-none resize-none',
+                  'text-amber-800 placeholder:text-amber-500',
+                  'font-serif leading-relaxed text-base',
+                  'focus:ring-0 focus:outline-none'
                 )}
               />
             ) : (
-              <div className={cn(
-                "prose prose-lg max-w-none font-serif",
-                "prose-headings:text-amber-900 prose-headings:font-serif",
-                "prose-p:text-amber-800 prose-p:leading-relaxed prose-p:my-3",
-                "prose-li:text-amber-800 prose-li:my-1",
-                "prose-ul:my-3 prose-ul:space-y-1",
-                "prose-strong:text-amber-900 prose-em:italic",
-                "prose-code:bg-gray-200 prose-code:px-2 prose-code:py-1 prose-code:rounded",
-                "prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6",
-                "prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4"
-              )}>
+              <div
+                className={cn(
+                  'prose prose-lg max-w-none font-serif',
+                  'prose-headings:text-amber-900 prose-headings:font-serif',
+                  'prose-p:text-amber-800 prose-p:leading-relaxed prose-p:my-3',
+                  'prose-li:text-amber-800 prose-li:my-1',
+                  'prose-ul:my-3 prose-ul:space-y-1',
+                  'prose-strong:text-amber-900 prose-em:italic',
+                  'prose-code:bg-gray-2 00 prose-code:px-2 prose-code:py-1 prose-code:rounded',
+                  'prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6',
+                  'prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4'
+                )}
+              >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
                     h3: ({ node, ...props }) => (
-                      <h3 className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif" {...props} />
+                      <h3
+                        className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif"
+                        {...props}
+                      />
                     ),
                     h4: ({ node, ...props }) => (
-                      <h4 className="text-lg font-semibold text-amber-900 mb-2 mt-4 font-serif" {...props} />
+                      <h4
+                        className="text-lg font-semibold text-amber-900 mb-2 mt-4 font-serif"
+                        {...props}
+                      />
                     ),
                     p: ({ node, ...props }) => (
                       <p className="leading-relaxed my-3 text-amber-800" {...props} />
@@ -184,16 +261,22 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                     strong: ({ node, ...props }) => (
                       <strong className="font-semibold text-amber-900" {...props} />
                     ),
-                    code: ({ node, inline, ...props }: any) => (
+                    code: ({ node, inline, ...props }: any) =>
                       inline ? (
-                        <code className="bg-gray-200 px-2 py-1 rounded text-amber-800" {...props} />
+                        <code
+                          className="bg-gray-200 px-2 py-1 rounded text-amber-800"
+                          {...props}
+                        />
                       ) : (
-                        <code className="block bg-gray-200 p-3 rounded text-amber-800" {...props} />
-                      )
-                    ),
+                        <code
+                          className="block bg-gray-200 p-3 rounded text-amber-800"
+                          {...props}
+                        />
+                      ),
                   }}
                 >
-                  {recommendations || "No recommendations have been added yet. Click 'Edit Notes' to get started."}
+                  {displayRecommendations ||
+                    "No recommendations have been added yet. Click 'Edit Notes' to get started."}
                 </ReactMarkdown>
               </div>
             )}
@@ -203,4 +286,5 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
     </>
   )
 }
+
 export default NotebookInterface

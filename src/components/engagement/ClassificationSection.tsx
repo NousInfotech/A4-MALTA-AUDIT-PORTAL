@@ -1,6 +1,4 @@
 // @ts-nocheck
-// @ts-nocheck
-
 import type React from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -20,7 +18,7 @@ import {
   Search,
   Eye,
   Save,
-  TableOfContents, // ⬅️ NEW: icon for Fetch Tabs
+  TableOfContents,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +45,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 
+// ✅ NEW: import the single-classification Procedures view
+import { ProcedureView } from "@/components/procedures/ProcedureView"; // adjust the path if needed
+
 interface ClassificationSectionProps {
   engagement: any;
   classification: string;
@@ -56,18 +57,14 @@ interface ClassificationSectionProps {
 interface ReferenceRowData {
   type: "row";
   reference: { sheetName: string; rowIndex: number; data: any[] };
-  // leadSheetRow optional on server shape; we compute locally anyway
   leadSheetRow?: any;
 }
-
 interface ReferenceSheetData {
   type: "sheet";
   sheet: { sheetName: string; data: any[][] };
   leadSheetRow?: any;
 }
-
 type ReferenceData = ReferenceRowData | ReferenceSheetData | "";
-
 interface ETBRow {
   id: string;
   code: string;
@@ -80,25 +77,11 @@ interface ETBRow {
   reference?: string;
   referenceData?: ReferenceData;
 }
-
-interface ETBRow {
-  id: string;
-  code: string;
-  accountName: string;
-  currentYear: number;
-  priorYear: number;
-  adjustments: number;
-  finalBalance: number;
-  classification: string;
-  reference?: string;
-}
-
 interface WorksheetRow {
   sheetName: string;
   rowIndex: number;
   data: any[];
 }
-
 interface ViewRowData {
   reference: {
     sheetName: string;
@@ -114,8 +97,6 @@ interface ViewRowData {
     finalBalance: number;
   };
 }
-
-// ⬇️ NEW: for viewing full-sheet references
 interface ViewSheetData {
   type: "sheet";
   sheet: { sheetName: string; data: any[][] };
@@ -129,7 +110,7 @@ interface ViewSheetData {
   };
 }
 
-// 🔹 Auth fetch helper: attaches Supabase Bearer token
+// 🔒 Supabase auth header
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -144,12 +125,9 @@ const isTopCategory = (c: string) =>
   ["Equity", "Income", "Expenses"].includes(c);
 const isAdjustments = (c: string) => c === "Adjustments";
 const isETB = (c: string) => c === "ETB";
-
 const TOP_CATEGORIES = ["Equity", "Income", "Expenses"];
-
-const shouldHaveWorkingPapers = (classification: string) => {
-  return !isETB(classification) && !isAdjustments(classification);
-};
+const shouldHaveWorkingPapers = (classification: string) =>
+  !isETB(classification) && !isAdjustments(classification);
 
 const groupByClassification = (
   rows: ETBRow[],
@@ -168,7 +146,6 @@ const groupByClassification = (
   return grouped;
 };
 
-// ✅ Unified display rule
 const formatClassificationForDisplay = (c: string) => {
   if (!c) return "—";
   if (isAdjustments(c)) return "Adjustments";
@@ -179,9 +156,6 @@ const formatClassificationForDisplay = (c: string) => {
   return top;
 };
 
-/* -----------------------------
-   Fullscreen wrapper (Portal)
-------------------------------*/
 function FullscreenOverlay({
   children,
   onExit,
@@ -189,7 +163,6 @@ function FullscreenOverlay({
   children: React.ReactNode;
   onExit: () => void;
 }) {
-  // Close on ESC
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onExit();
@@ -198,25 +171,14 @@ function FullscreenOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [onExit]);
 
-  // Render to body
   return createPortal(
     <div className="fixed inset-0 z-[40]">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 opacity-100 transition-opacity duration-200"
         onClick={onExit}
       />
-      {/* Content container */}
       <div className="absolute inset-0 flex p-4 sm:p-6">
-        <div
-          className="
-            relative w-full h-full
-            bg-background rounded-xl shadow-xl
-            transition-all duration-200
-            opacity-100 scale-[1.00]
-            border
-          "
-        >
+        <div className="relative w-full h-full bg-background rounded-xl shadow-xl transition-all duration-200 opacity-100 scale-[1.00] border">
           {children}
         </div>
       </div>
@@ -225,23 +187,26 @@ function FullscreenOverlay({
   );
 }
 
-// 🧭 small helpers for tab persistence via ?tab=
-function getTabFromSearch(): "lead-sheet" | "working-papers" {
+function getTabFromSearch(): "lead-sheet" | "working-papers" | "procedures" {
   try {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    return t === "working-papers" ? "working-papers" : "lead-sheet";
+    return t === "working-papers"
+      ? "working-papers"
+      : t === "procedures"
+      ? "procedures"
+      : "lead-sheet";
   } catch {
     return "lead-sheet";
   }
 }
-function setTabInSearch(tab: "lead-sheet" | "working-papers") {
+function setTabInSearch(tab: "lead-sheet" | "working-papers" | "procedures") {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
     window.history.replaceState({}, "", url.toString());
   } catch {
-    // ignore
+    /* no-op */
   }
 }
 
@@ -251,11 +216,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   onClose,
   onClassificationJump,
 }) => {
-  const [loading, setLoading] = useState(true); // global loader (ETB / lead-sheet)
-  const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
+  const [loading, setLoading] = useState(true);
+  const [wpHydrating, setWpHydrating] = useState(false);
   const [sectionData, setSectionData] = useState<ETBRow[]>([]);
   const [viewSpreadsheetUrl, setViewSpreadsheetUrl] = useState<string>("");
-  // under other useState hooks
   const [dbBusy, setDbBusy] = useState<null | "save" | "load">(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -275,27 +239,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewRowData, setViewRowData] = useState<ViewRowData | null>(null);
   const [viewRowLoading, setViewRowLoading] = useState(false);
 
-  // ⬇️ NEW: Fetch Tabs state
   const [fetchTabsDialog, setFetchTabsDialog] = useState(false);
   const [availableTabs, setAvailableTabs] = useState<string[]>([]);
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
 
-  // ⬇️ NEW: View full-sheet dialog state
   const [viewSheetDialog, setViewSheetDialog] = useState(false);
   const [viewSheetData, setViewSheetData] = useState<ViewSheetData | null>(
     null
   );
   const [viewSheetLoading, setViewSheetLoading] = useState(false);
 
-  // 🔖 keep the tab stable across refresh / navigation
-  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers">(
-    () => getTabFromSearch()
-  );
+  // ✅ NEW: Procedures state (fetched once per engagement)
+  const [procedure, setProcedure] = useState<any | null>(null);
+  const [procedureLoading, setProcedureLoading] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<
+    "lead-sheet" | "working-papers" | "procedures"
+  >(() => getTabFromSearch());
   useEffect(() => setTabInSearch(activeTab), [activeTab]);
 
   const { toast } = useToast();
-
-  // 🔒 mounted ref to prevent setting state after unmount
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -304,13 +267,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     };
   }, []);
 
-  // 🔁 AUTO-PULL guard: avoid duplicate pulls for the same classification
   const lastPulledRef = useRef<string | null>(null);
-
-  // NEW: track whether we've already auto-loaded from DB for a given classification
   const wpFirstLoadedRef = useRef<Set<string>>(new Set());
 
-  // 1) On classification change: clear UI immediately, then load fresh data and WP status
+  // 🔁 reset & (re)load on classification change
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -322,7 +282,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setAvailableSheets([]);
         setViewRowDialog(false);
         setViewRowData(null);
-        // clear new dialogs as well
         setFetchTabsDialog(false);
         setAvailableTabs([]);
         setSelectedTab(null);
@@ -350,7 +309,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           }
         }
       } catch (e) {
-        // errors already toasted in helpers
+        /* errors toasted in helpers */
       } finally {
         if (!cancelled && mountedRef.current) {
           setLoading(false);
@@ -366,6 +325,37 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classification]);
 
+  // ✅ NEW: lazy fetch the engagement procedure when user opens the Procedures tab
+  useEffect(() => {
+    const fetchProcedureIfNeeded = async () => {
+      if (activeTab !== "procedures") return;
+      if (procedure || !engagement?._id) return;
+
+      setProcedureLoading(true);
+      try {
+        const res = await authFetch(
+          `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}`
+        );
+        const json = await res.json();
+        setProcedure(json?.procedure ?? json ?? null);
+      } catch (err: any) {
+        console.error(err);
+        setProcedure(null);
+        // Gentle toast; it's okay to open the tab even if there's no data yet
+        toast({
+          title: "Could not load procedures",
+          description: err?.message || "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setProcedureLoading(false);
+      }
+    };
+    fetchProcedureIfNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, engagement?._id]);
+
+  // --- existing helpers below (unchanged except where noted) ---
   const loadSectionData = async () => {
     try {
       if (isAdjustments(classification) || isETB(classification)) {
@@ -385,12 +375,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
 
       const endpoint = isTopCategory(classification)
-        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/category/${encodeURIComponent(classification)}`
-        : `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/classification/${encodeURIComponent(classification)}`;
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/category/${encodeURIComponent(
+            classification
+          )}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
+            classification
+          )}`;
 
       const response = await authFetch(endpoint);
       if (!response.ok) throw new Error("Failed to load section data");
@@ -420,12 +410,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
 
       const endpoint = isTopCategory(classification)
-        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/category/${encodeURIComponent(classification)}`
-        : `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/classification/${encodeURIComponent(classification)}/reload`;
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/category/${encodeURIComponent(
+            classification
+          )}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/classification/${encodeURIComponent(
+            classification
+          )}/reload`;
 
       const response = await authFetch(endpoint, {
         method: isTopCategory(classification) ? "GET" : "POST",
@@ -451,7 +441,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  // one helper to cache-bust a url
   function withVersion(rawUrl: string) {
     if (!rawUrl) return rawUrl;
     try {
@@ -468,9 +457,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/view-spreadsheet`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/view-spreadsheet`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -496,13 +485,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  // ⬇️ RETURN status so the caller can decide to auto-pull
   const checkWorkingPapersStatus = async () => {
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/working-papers/status`
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/status`
       );
       if (response.ok) {
         const data = await response.json();
@@ -511,12 +499,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setWorkingPapersUrl(data.url || "");
         setWorkingPapersId(data.spreadsheetId || "");
         setAvailableSheets(data.sheets || []);
-        return data as {
-          initialized: boolean;
-          url?: string;
-          spreadsheetId?: string;
-          sheets?: string[];
-        };
+        return data;
       }
     } catch (error) {
       console.error("Error checking working papers status:", error);
@@ -528,9 +511,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/working-papers/init`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/init`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -569,39 +552,40 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
     }
   };
-  // Save Working Paper (DB)
-  // Add optional override param
-const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
-  const onWpTab = activeTab === "working-papers";
-  if (onWpTab) setWpHydrating(true); // or dbBusy('save') if you added it
-  else setLoading(true);
 
-  try {
-    const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
+  const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
+    const onWpTab = activeTab === "working-papers";
+    if (onWpTab) setWpHydrating(true);
+    else setLoading(true);
 
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/db`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: payload }),
-      }
-    );
-    if (!response.ok) throw new Error("Failed to save Working Paper to DB");
-    toast({ title: "Saved", description: "Working Paper saved to database." });
-  } catch (error: any) {
-    console.error("Save WP to DB error:", error);
-    toast({ title: "Save failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (onWpTab) setWpHydrating(false);
-    else if (mountedRef.current) setLoading(false);
-  }
-};
+    try {
+      const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
 
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/db`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: payload }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to save Working Paper to DB");
+      toast({ title: "Saved", description: "Working Paper saved to database." });
+    } catch (error: any) {
+      console.error("Save WP to DB error:", error);
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (onWpTab) setWpHydrating(false);
+      else if (mountedRef.current) setLoading(false);
+    }
+  };
 
-  // Load Working Paper (DB) — returns boolean
   const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
     const onWpTab = activeTab === "working-papers";
     if (onWpTab) setDbBusy("load");
@@ -609,9 +593,9 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
 
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/working-papers/db`
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/db`
       );
 
       if (response.ok) {
@@ -656,9 +640,9 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     else setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(classification)}/working-papers/push`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/push`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -687,7 +671,6 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     }
   };
 
-  // 🔧 pull now supports an explicit loader mode so WP tab can show its own loader
   const pullFromWorkingPaper = async (
     clas: string,
     opts?: { mode?: "global" | "wp" }
@@ -699,9 +682,9 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
 
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(clas)}/working-papers/pull`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          clas
+        )}/working-papers/pull`,
         { method: "POST" }
       );
 
@@ -736,9 +719,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
           classification
         )}/working-papers/fetch-rows`,
         {
@@ -766,54 +747,55 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     }
   };
 
- const selectRowFromSheets = async () => {
-  if (!selectedRow || !selectedRowForFetch) return;
-  if (activeTab === "working-papers") setWpHydrating(true);
+  const selectRowFromSheets = async () => {
+    if (!selectedRow || !selectedRowForFetch) return;
+    if (activeTab === "working-papers") setWpHydrating(true);
 
-  try {
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/select-row`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowId: selectedRowForFetch.id, selectedRow }),
-      }
-    );
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/select-row`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rowId: selectedRowForFetch.id, selectedRow }),
+        }
+      );
 
-    if (!response.ok) throw new Error("Failed to select row");
-    const result = await response.json();
-    if (!mountedRef.current) return;
+      if (!response.ok) throw new Error("Failed to select row");
+      const result = await response.json();
+      if (!mountedRef.current) return;
 
-    setSectionData(result.rows);
-    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
-    await loadWorkingPaperFromDB(true);          // optional silent reload
+      setSectionData(result.rows);
+      await saveWorkingPaperToDB(result.rows);
+      await loadWorkingPaperFromDB(true);
 
-    setFetchRowsDialog(false);
-    setSelectedRow(null);
-    setSelectedRowForFetch(null);
-    toast({ title: "Success", description: "Row selected and data updated" });
-  } catch (error: any) {
-    console.error("Select row error:", error);
-    toast({ title: "Select failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (mountedRef.current) {
-      setWpHydrating(false);
       setFetchRowsDialog(false);
+      setSelectedRow(null);
+      setSelectedRowForFetch(null);
+      toast({ title: "Success", description: "Row selected and data updated" });
+    } catch (error: any) {
+      console.error("Select row error:", error);
+      toast({
+        title: "Select failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) {
+        setWpHydrating(false);
+        setFetchRowsDialog(false);
+      }
     }
-  }
-};
+  };
 
-  // ⬇️ NEW: Fetch list of worksheet tabs (excluding Sheet1)
   const fetchTabsForRow = async (row: ETBRow) => {
     setSelectedRowForFetch(row);
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
           classification
         )}/working-papers/fetch-tabs`,
         { method: "POST" }
@@ -836,182 +818,49 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     }
   };
 
- const selectTabForRow = async () => {
-  if (!selectedTab || !selectedRowForFetch) return;
-  if (activeTab === "working-papers") setWpHydrating(true);
-  try {
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/select-tab`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowId: selectedRowForFetch.id, sheetName: selectedTab }),
-      }
-    );
-    if (!response.ok) throw new Error("Failed to select sheet");
-    const result = await response.json();
-    if (!mountedRef.current) return;
-
-    // Update UI and save the exact rows you just got back
-    setSectionData(result.rows);
-    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
-    await loadWorkingPaperFromDB(true);          // optional silent reload to hydrate referenceData
-
-    setFetchTabsDialog(false);
-    setSelectedTab(null);
-    setSelectedRowForFetch(null);
-    toast({ title: "Success", description: "Sheet selected. Reference updated." });
-  } catch (error: any) {
-    console.error("Select tab error:", error);
-    toast({ title: "Select failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (mountedRef.current) {
-      setWpHydrating(false);
-      setFetchTabsDialog(false);
-    }
-  }
-};
-
-
-
-
-  const viewSelectedRow = async (row: ETBRow) => {
-    // Prefer DB-hydrated referenceData (no network roundtrip)
-    const refData = row.referenceData;
-
-    // Build the lead-sheet row payload once
-    const leadSheetRow = {
-      code: row.code || "",
-      accountName: row.accountName || "",
-      currentYear: Number(row.currentYear) || 0,
-      priorYear: Number(row.priorYear) || 0,
-      adjustments: Number(row.adjustments) || 0,
-      finalBalance: Number(row.finalBalance) || 0,
-    };
-
-    // 1) If we have a full-sheet reference in DB
-    if (
-      refData &&
-      typeof refData === "object" &&
-      (refData as any).type === "sheet"
-    ) {
-      const payload = refData as ReferenceSheetData;
-      setViewSheetData({
-        type: "sheet",
-        sheet: {
-          sheetName: payload.sheet.sheetName,
-          data: payload.sheet.data || [],
-        },
-        leadSheetRow,
-      });
-      setViewSheetDialog(true);
-      return;
-    }
-
-    // 2) If we have a row reference in DB
-    if (
-      refData &&
-      typeof refData === "object" &&
-      (refData as any).type === "row"
-    ) {
-      const payload = refData as ReferenceRowData;
-      setViewRowData({
-        reference: {
-          sheetName: payload.reference.sheetName,
-          rowIndex: payload.reference.rowIndex,
-          data: payload.reference.data || [],
-        },
-        leadSheetRow,
-      });
-      setViewRowDialog(true);
-      return;
-    }
-
-    // 3) Legacy fallback: no referenceData yet -> use existing endpoints (kept unchanged)
-    if (!row.reference) {
-      toast({
-        title: "No reference",
-        description: "There is no reference set for this row.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // If the reference is a full-sheet ref like "Sheet:Summary", use the new endpoint
-    if (
-      typeof row.reference === "string" &&
-      row.reference.startsWith("Sheet:")
-    ) {
-      if (activeTab === "working-papers") setWpHydrating(true);
-      setViewSheetLoading(true);
-      try {
-        const response = await authFetch(
-          `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/sections/${encodeURIComponent(
-            classification
-          )}/working-papers/view-reference`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rowId: row.id }),
-          }
-        );
-        if (!response.ok) throw new Error("Failed to view sheet reference");
-        const result = await response.json();
-        if (!mountedRef.current) return;
-        setViewSheetData(result);
-        setViewSheetDialog(true);
-      } catch (error: any) {
-        console.error("View sheet error:", error);
-        toast({
-          title: "View failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } finally {
-        if (mountedRef.current) {
-          setViewSheetLoading(false);
-          setWpHydrating(false);
-        }
-      }
-      return;
-    }
-
-    // Row-level legacy endpoint
+  const selectTabForRow = async () => {
+    if (!selectedTab || !selectedRowForFetch) return;
     if (activeTab === "working-papers") setWpHydrating(true);
-    setViewRowLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
-        }/sections/${encodeURIComponent(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
           classification
-        )}/working-papers/view-row`,
+        )}/working-papers/select-tab`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rowId: row.id }),
+          body: JSON.stringify({
+            rowId: selectedRowForFetch.id,
+            sheetName: selectedTab,
+          }),
         }
       );
-      if (!response.ok) throw new Error("Failed to view selected row");
+      if (!response.ok) throw new Error("Failed to select sheet");
       const result = await response.json();
       if (!mountedRef.current) return;
-      setViewRowData(result);
-      setViewRowDialog(true);
-    } catch (error: any) {
-      console.error("View row error:", error);
+
+      setSectionData(result.rows);
+      await saveWorkingPaperToDB(result.rows);
+      await loadWorkingPaperFromDB(true);
+
+      setFetchTabsDialog(false);
+      setSelectedTab(null);
+      setSelectedRowForFetch(null);
       toast({
-        title: "View failed, Does the Row Exist?",
+        title: "Success",
+        description: "Sheet selected. Reference updated.",
+      });
+    } catch (error: any) {
+      console.error("Select tab error:", error);
+      toast({
+        title: "Select failed",
         description: error.message,
         variant: "destructive",
       });
     } finally {
       if (mountedRef.current) {
-        setViewRowLoading(false);
         setWpHydrating(false);
+        setFetchTabsDialog(false);
       }
     }
   };
@@ -1030,7 +879,6 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     [sectionData]
   );
 
-  // Grouping for Adjustments view
   const groupedForAdjustments = useMemo(
     () =>
       isAdjustments(classification)
@@ -1039,8 +887,6 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     [classification, sectionData]
   );
 
-  // NEW: when switching to the Working Papers tab for the FIRST time on a classification,
-  // load rows from DB and show them.
   useEffect(() => {
     const doFirstLoad = async () => {
       if (
@@ -1057,15 +903,10 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, classification]);
 
-  // Global loader (covers Lead Sheet / ETB loads and first mount)
   if (loading && activeTab !== "working-papers") {
     return (
       <div className="flex items-center justify-center h-64">
-        <EnhancedLoader
-          variant="pulse"
-          size="lg"
-          text="Loading Classifications..."
-        />
+        <EnhancedLoader variant="pulse" size="lg" text="Loading Classifications..." />
       </div>
     );
   }
@@ -1124,17 +965,14 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
       </TooltipProvider>
     </div>
   );
+
   const workingPapersActions = (
     <div className="flex items-center gap-2">
       <TooltipProvider delayDuration={200}>
         {!workingPapersInitialized ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                onClick={initializeWorkingPapers}
-                size="sm"
-                disabled={wpHydrating}
-              >
+              <Button onClick={initializeWorkingPapers} size="sm" disabled={wpHydrating}>
                 <Plus className="h-4 w-4 mr-2" />
                 Initialize
               </Button>
@@ -1165,9 +1003,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={() =>
-                    pullFromWorkingPaper(classification, { mode: "wp" })
-                  }
+                  onClick={() => pullFromWorkingPaper(classification, { mode: "wp" })}
                   variant="outline"
                   size="sm"
                   disabled={wpHydrating}
@@ -1186,11 +1022,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
                 <TooltipTrigger asChild>
                   <Button
                     onClick={() =>
-                      window.open(
-                        workingPapersUrl,
-                        "_blank",
-                        "noopener,noreferrer"
-                      )
+                      window.open(workingPapersUrl, "_blank", "noopener,noreferrer")
                     }
                     variant="outline"
                     size="sm"
@@ -1206,7 +1038,6 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
               </Tooltip>
             )}
 
-            {/* NEW: Save to DB */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1224,7 +1055,6 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
               </TooltipContent>
             </Tooltip>
 
-            {/* NEW: Load from DB */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1256,8 +1086,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
               {formatClassificationForDisplay(classification)}
             </CardTitle>
             <Badge variant="outline" className="mt-1">
-              {sectionData.length}{" "}
-              {sectionData.length === 1 ? "account" : "accounts"}
+              {sectionData.length} {sectionData.length === 1 ? "account" : "accounts"}
             </Badge>
           </div>
           {headerActions}
@@ -1271,35 +1100,28 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
             onValueChange={(v) => setActiveTab(v as any)}
             className="flex-1 flex flex-col"
           >
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
               <TabsTrigger value="working-papers">Working Papers</TabsTrigger>
+              <TabsTrigger value="procedures">Procedures</TabsTrigger>
             </TabsList>
 
             <TabsContent value="lead-sheet" className="flex-1 flex flex-col">
               {loading ? (
                 <div className="flex items-center justify-center h-64">
-                  <EnhancedLoader
-                    variant="pulse"
-                    size="lg"
-                    text="Loading Lead Sheet..."
-                  />
+                  <EnhancedLoader variant="pulse" size="lg" text="Loading Lead Sheet..." />
                 </div>
               ) : (
                 renderLeadSheetContent()
               )}
             </TabsContent>
 
-            <TabsContent
-              value="working-papers"
-              className="flex-1 flex flex-col"
-            >
+            <TabsContent value="working-papers" className="flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium">Working Papers</h3>
                 {workingPapersActions}
               </div>
 
-              {/* WP-specific loader */}
               {wpHydrating || dbBusy ? (
                 <div className="flex items-center justify-center h-64">
                   <EnhancedLoader
@@ -1320,9 +1142,23 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
                 renderWorkingPapersEmpty()
               )}
             </TabsContent>
+
+            {/* ✅ NEW: Procedures Tab renders only THIS classification */}
+            <TabsContent value="procedures" className="flex-1 flex flex-col">
+              {procedureLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <EnhancedLoader variant="pulse" size="lg" text="Loading Procedures..." />
+                </div>
+              ) : (
+                <ProcedureView
+                  procedure={procedure}
+                  engagement={engagement}
+                  currentClassification={classification}
+                />
+              )}
+            </TabsContent>
           </Tabs>
-        ) : // ETB / Adjustments live outside WP
-        loading ? (
+        ) : loading ? (
           <div className="flex items-center justify-center h-64">
             <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
           </div>
@@ -1330,6 +1166,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
           renderLeadSheetContent()
         )}
 
+        
         {/* Fetch Rows Dialog (existing) */}
         <Dialog open={fetchRowsDialog} onOpenChange={setFetchRowsDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[200]">
@@ -1588,6 +1425,7 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
       </CardContent>
     </Card>
   );
+
 
   function renderLeadSheetContent() {
     return (
