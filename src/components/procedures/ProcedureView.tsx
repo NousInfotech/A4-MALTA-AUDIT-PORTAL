@@ -404,6 +404,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       <NotebookInterface
         isOpen={isNotesOpen}
         isEditable={currentClassification?false:true}
+        isPlanning={false}
         onClose={() => setIsNotesOpen(false)
         }
         recommendations={

@@ -10,6 +10,8 @@ import { Lightbulb, Save, Loader2, Sparkles, FileText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import ReactMarkdown from "react-markdown"
+import FloatingNotesButton from "../FloatingNotesButton"
+import NotebookInterface from "../NotebookInterface"
 
 /**
  * SAME CIRCULAR ENTRY ANIMATION AS PROCEDURE GENERATION
@@ -138,7 +140,7 @@ const CircularEntryOverlay: React.FC<{ progress: number }> = ({ progress }) => {
     >
       <div className="flex items-center gap-3 mb-4">
         <div className="relative">
-          {/* subtle pulsing halo behind the circle to match “alive” feel */}
+          {/* subtle pulsing halo behind the circle to match "alive" feel */}
           <div className="size-6 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 opacity-70 blur-[1px]" />
           <div className="absolute inset-0 m-auto size-6 rounded-full bg-white/50 mix-blend-overlay animate-ping" />
         </div>
@@ -166,6 +168,7 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
   const [loading, setLoading] = useState(false) // legacy compatibility
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [isNotesOpen, setIsNotesOpen] = useState(false)
   const { toast } = useToast()
 
   /** Entry animation control */
@@ -187,7 +190,7 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
   const startedRef = useRef(false)
 
   useEffect(() => {
-    // only “generate” (assign prefetched) if nothing existed
+    // only "generate" (assign prefetched) if nothing existed
     if ((mode === "ai" || mode === "hybrid") && !stepData.recommendations) {
       generateAIRecommendations()
     }
@@ -342,22 +345,27 @@ const handleSaveProcedures = async () => {
 
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Audit Recommendations</CardTitle>
-          <Dialog open={showPreview} onOpenChange={setShowPreview}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={entryAnimating}>
-                <FileText className="h-4 w-4 mr-2" />
+          <div className="flex gap-2">
+            <Dialog open={showPreview} onOpenChange={setShowPreview}>
+             
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Audit Recommendations Preview</DialogTitle>
+                </DialogHeader>
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown>{recommendations || "No recommendations provided."}</ReactMarkdown>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsNotesOpen(true)} 
+              disabled={entryAnimating}
+            >
                 Preview Report
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Audit Recommendations Preview</DialogTitle>
-              </DialogHeader>
-              <div className="prose prose-sm max-w-none">
-                <ReactMarkdown>{recommendations || "No recommendations provided."}</ReactMarkdown>
-              </div>
-            </DialogContent>
-          </Dialog>
+            </Button>
+          </div>
         </CardHeader>
 
         {/* Fade in once the animation completes */}
@@ -394,7 +402,15 @@ const handleSaveProcedures = async () => {
           )}
         </Button>
       </div>
+      {/* Notebook Interface */}
+      <NotebookInterface
+        isOpen={isNotesOpen}
+        isEditable={true}
+        onClose={() => setIsNotesOpen(false)}
+        recommendations={recommendations}
+        onSave={(content) => setRecommendations(content)}
+        isPlanning={true}
+      />
     </div>
   )
 }
-

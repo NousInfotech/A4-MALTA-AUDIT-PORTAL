@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -10,62 +10,101 @@ import { useToast } from '@/hooks/use-toast'
 
 interface NotebookInterfaceProps {
   isOpen: boolean
-  isEditable:boolean
+  isEditable: boolean
   onClose: () => void
   recommendations: string
+  isPlanning: boolean
   onSave?: (content: string) => void
 }
-// Replace the formatClassificationForDisplay function in NotebookInterface.tsx
-function formatClassificationForDisplay(classification?: string) {
+
+function formatClassificationForDisplay(classification?: string): string {
   if (!classification) return 'General'
-  
-  // Split by " > " and get the last part (deepest level)
   const parts = classification.split(' > ')
   return parts[parts.length - 1] || classification
 }
 
-/** Normalize and promote classification lines to headings (###) */
-function transformRecommendationsForDisplay(input?: string) {
-  if (!input) return ""
+function transformRecommendationsForDisplay(input?: string): string {
+  if (!input || typeof input !== 'string') return ''
 
   return input
-    .split("\n")
+    .split('\n')
     .map((line) => {
       const raw = line
-
-      // Only strip a REAL list bullet at the very start: "- ", "+ ", "* ", or "1. "
-      // (won't touch italics like "*Text*:")
-      let body = raw.replace(/^\s*(?:[-+*]\s+|\d+\.\s+)/, "").trim()
+      let body = raw.replace(/^\s*(?:[-+*]\s+|\d+\.\s+)/, '').trim()
       if (!body) return raw
 
-      // 1) Remove inline emphasis pairs anywhere in the line:
-      //    "*Title*:" => "Title:"
-      //    "_Note_."  => "Note."
       body = body
-        .replace(/\*([^*]+)\*/g, "$1")      // italics/bold with asterisks
-        .replace(/_([^_]+)_/g, "$1")        // italics with underscores
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/_([^_]+)_/g, '$1')
         .trim()
 
-      // 2) If any lone trailing asterisks survived, clean them (e.g., "Equipment*:" or "Equipment*")
-      body = body.replace(/\*+(?=[^\w]|$)/g, "")
+      body = body.replace(/\*+(?=[^\w]|$)/g, '')
 
-      const looksHierarchical = body.includes(" > ")
-      const knownTopLevels = new Set(["Assets", "Liabilities", "Equity", "Income", "Expenses"])
+      const looksHierarchical = body.includes(' > ')
+      const knownTopLevels = new Set(['Assets', 'Liabilities', 'Equity', 'Income', 'Expenses'])
+      
       if (looksHierarchical || knownTopLevels.has(body)) {
         const display = formatClassificationForDisplay(body)
-        return `### ${display}` // promote classification line to a markdown heading
+        return `### ${display}`
       }
 
-      // Not a classification line: render as-is (but with the cleaned-up body)
-      // Preserve the original leading whitespace indent for nicer list rendering
-      const leadingWS = raw.match(/^\s*/)?.[0] ?? ""
+      const leadingWS = raw.match(/^\s*/)?.[0] ?? ''
       return leadingWS + body
     })
-    // collapse trips of empty lines down to one
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
+function transformPlanningRecommendationsForDisplay(input?: string): string {
+  if (!input || typeof input !== 'string') return ''
+
+  const lines = input.split('\n')
+  let output = ''
+  let currentSection = ''
+  let inBulletList = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    if (i === 0 && line.includes('Audit Planning Recommendations')) {
+      output += `## ${line}\n\n`
+      continue
+    }
+
+    const sectionMatch = line.match(/^Section\s+\d+:\s*(.+)/i)
+    if (sectionMatch) {
+      if (currentSection) output += '\n'
+      currentSection = sectionMatch[1].trim()
+      output += `### ${currentSection}\n\n`
+      inBulletList = false
+      continue
+    }
+
+    const looksLikeBullet = /^[A-Z][^.!?]*[.!?]$/.test(line) && 
+                           line.length > 20 && 
+                           !line.includes('Section') &&
+                           currentSection
+
+    if (looksLikeBullet) {
+      if (!inBulletList) {
+        output += '\n'
+        inBulletList = true
+      }
+      output += `- ${line}\n`
+    } else if (currentSection) {
+      if (inBulletList) {
+        output += '\n'
+        inBulletList = false
+      }
+      output += `${line}\n\n`
+    } else {
+      output += `${line}\n\n`
+    }
+  }
+
+  return output
+}
 
 const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   isOpen,
@@ -73,10 +112,27 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   onClose,
   recommendations,
   onSave,
+  isPlanning,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editedContent, setEditedContent] = useState(recommendations || '')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { toast } = useToast()
+
+  // Sync editedContent with recommendations when they change
+  useEffect(() => {
+    setEditedContent(recommendations || '')
+  }, [recommendations])
+
+  // Focus textarea when entering edit mode
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus()
+      // Move cursor to end of text
+      textareaRef.current.selectionStart = textareaRef.current.value.length
+      textareaRef.current.selectionEnd = textareaRef.current.value.length
+    }
+  }, [isEditing])
 
   const handleSave = () => {
     onSave?.(editedContent)
@@ -92,23 +148,44 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
     setIsEditing(false)
   }
 
-  // Only transform for display (read mode). We keep raw text in edit mode & storage.
-  const displayRecommendations = useMemo(
-    () => transformRecommendationsForDisplay(recommendations),
-    [recommendations]
-  )
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Allow default Enter key behavior (new line)
+    if (e.key === 'Enter') {
+      // Let the browser handle the Enter key normally
+      return
+    }
+    
+    // Save with Ctrl+Enter or Cmd+Enter
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSave()
+    }
+    
+    // Cancel with Escape
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      handleCancel()
+    }
+  }
+
+  const displayRecommendations = useMemo(() => {
+    const content = recommendations || ''
+    return isPlanning 
+      ? transformPlanningRecommendationsForDisplay(content)
+      : transformRecommendationsForDisplay(content)
+  }, [recommendations, isPlanning])
+
+  const hasContent = displayRecommendations.trim().length > 0
 
   if (!isOpen) return null
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
         onClick={onClose}
       />
 
-      {/* Notebook */}
       <div
         className={cn(
           'fixed inset-4 z-50 max-w-4xl mx-auto',
@@ -117,7 +194,6 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
           isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
         )}
       >
-        {/* Notebook Binding */}
         <div className="absolute left-0 top-0 bottom-0 w-12 bg-red-800 rounded-l-2xl">
           <div className="flex flex-col items-center justify-center h-full space-y-8">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -126,7 +202,6 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
           </div>
         </div>
 
-        {/* Paper Lines Background */}
         <div className="absolute inset-0 ml-12 opacity-30 pointer-events-none">
           <div
             className="h-full bg-repeat-y bg-[length:100%_24px]"
@@ -137,9 +212,7 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
           />
         </div>
 
-        {/* Content */}
         <div className="relative ml-12 p-8 h-full flex flex-col">
-          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <BookOpenCheck className="h-6 w-6 text-amber-800" />
@@ -148,39 +221,39 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
               </h2>
             </div>
             <div className="flex items-center space-x-2">
-            {isEditable&&(
-              <>
-               {!isEditing ? (
-                <Button
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                  className="bg-inherit text-amber-700 hover:bg-gray-100"
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Edit Notes
-                </Button>
-              ) : (
+              {isEditable && (
                 <>
-                  <Button
-                    size="sm"
-                    onClick={handleCancel}
-                    className="bg-inherit text-amber-700 hover:bg-gray-100"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSave}
-                    className="bg-amber-600 hover:bg-amber-700 text-white"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </Button>
+                  {!isEditing ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                      className="bg-inherit text-amber-700 hover:bg-gray-100"
+                    >
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Edit Notes
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={handleCancel}
+                        className="bg-inherit text-amber-700 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSave}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
-              </>
-            )}
-             <Button
+              <Button
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
@@ -188,13 +261,9 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
               >
                 <X className="h-4 w-4" />
               </Button>
-</div>
-             
-
-             
+            </div>
           </div>
 
-          {/* Date */}
           <div className="mb-4 pb-2 border-b border-gray-300">
             <p className="text-sm text-muted-foreground font-serif italic">
               {new Date().toLocaleDateString('en-US', {
@@ -206,81 +275,77 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
             </p>
           </div>
 
-          {/* Content Area */}
-          <ScrollArea className="flex-1">
-            {isEditing ? (
-              <Textarea
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                placeholder="Enter your audit recommendations here..."
-                className={cn(
-                  'min-h-96 bg-transparent border-none resize-none',
-                  'text-amber-800 placeholder:text-amber-500',
-                  'font-serif leading-relaxed text-base',
-                  'focus:ring-0 focus:outline-none'
-                )}
-              />
-            ) : (
-              <div
-                className={cn(
-                  'prose prose-lg max-w-none font-serif',
-                  'prose-headings:text-amber-900 prose-headings:font-serif',
-                  'prose-p:text-amber-800 prose-p:leading-relaxed prose-p:my-3',
-                  'prose-li:text-amber-800 prose-li:my-1',
-                  'prose-ul:my-3 prose-ul:space-y-1',
-                  'prose-strong:text-amber-900 prose-em:italic',
-                  'prose-code:bg-gray-2 00 prose-code:px-2 prose-code:py-1 prose-code:rounded',
-                  'prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6',
-                  'prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4'
-                )}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h3: ({ node, ...props }) => (
-                      <h3
-                        className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif"
-                        {...props}
-                      />
-                    ),
-                    h4: ({ node, ...props }) => (
-                      <h4
-                        className="text-lg font-semibold text-amber-900 mb-2 mt-4 font-serif"
-                        {...props}
-                      />
-                    ),
-                    p: ({ node, ...props }) => (
-                      <p className="leading-relaxed my-3 text-amber-800" {...props} />
-                    ),
-                    ul: ({ node, ...props }) => (
-                      <ul className="my-3 space-y-1" {...props} />
-                    ),
-                    li: ({ node, ...props }) => (
-                      <li className="text-amber-800" {...props} />
-                    ),
-                    strong: ({ node, ...props }) => (
-                      <strong className="font-semibold text-amber-900" {...props} />
-                    ),
-                    code: ({ node, inline, ...props }: any) =>
-                      inline ? (
-                        <code
-                          className="bg-gray-200 px-2 py-1 rounded text-amber-800"
-                          {...props}
-                        />
-                      ) : (
-                        <code
-                          className="block bg-gray-200 p-3 rounded text-amber-800"
-                          {...props}
-                        />
-                      ),
-                  }}
-                >
-                  {displayRecommendations ||
-                    "No recommendations have been added yet. Click 'Edit Notes' to get started."}
-                </ReactMarkdown>
-              </div>
-            )}
-          </ScrollArea>
+         <ScrollArea className="flex-1">
+  {isEditing ? (
+    <Textarea
+      ref={textareaRef}
+      value={editedContent}
+      onChange={(e) => setEditedContent(e.target.value)}
+      onKeyDown={handleKeyDown}
+      placeholder="Enter your audit recommendations here..."
+      className={cn(
+        'min-h-96 bg-transparent border-none resize-none',
+        'text-amber-800 placeholder:text-amber-500',
+        'font-serif leading-relaxed text-base',
+        'focus:ring-0 focus:outline-none'
+      )}
+      style={{ whiteSpace: 'pre-wrap' }}
+    />
+  ) : (
+    <div className="space-y-3">
+      {hasContent ? (
+        // Custom rendering that preserves both markdown and newlines
+        <div className={cn(
+          'prose prose-lg max-w-none font-serif',
+          'prose-headings:text-amber-900 prose-headings:font-serif',
+          'prose-p:text-amber-800 prose-p:leading-relaxed',
+          'prose-li:text-amber-800 prose-li:my-1',
+          'prose-ul:my-3 prose-ul:space-y-1',
+          'prose-strong:text-amber-900 prose-em:italic',
+          'prose-code:bg-gray-200 prose-code:px-2 prose-code:py-1 prose-code:rounded',
+          'prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6',
+          'prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4'
+        )}>
+          {displayRecommendations.split('\n').map((line, index) => {
+            // Check if this line is a markdown heading
+            if (line.startsWith('### ')) {
+              return (
+                <h3 key={index} className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif">
+                  {line.replace('### ', '')}
+                </h3>
+              )
+            }
+            
+            // Check if this line is a bullet point
+            if (line.trim().startsWith('- ')) {
+              return (
+                <ul key={index} className="my-3 space-y-1">
+                  <li className="text-amber-800">{line.replace('- ', '')}</li>
+                </ul>
+              )
+            }
+            
+            // Check if line is empty
+            if (line.trim() === '') {
+              return <br key={index} />
+            }
+            
+            // Regular paragraph - preserve newlines within the paragraph
+            return (
+              <p key={index} className="leading-relaxed my-3 text-amber-800 whitespace-pre-wrap">
+                {line}
+              </p>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-amber-600 italic font-serif">
+          No recommendations have been added yet.
+        </p>
+      )}
+    </div>
+  )}
+</ScrollArea>
         </div>
       </div>
     </>

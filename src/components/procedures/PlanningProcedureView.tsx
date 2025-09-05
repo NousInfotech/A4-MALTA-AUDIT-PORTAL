@@ -437,10 +437,7 @@ export const PlanningProcedureView: React.FC<{
                 </Button>
               </>
             )}
-            {/* Quick access to notes as well */}
-            <Button variant="outline" onClick={() => setIsNotesOpen(true)}>
-              Open Notes
-            </Button>
+       
           </div>
 
           <div className="space-y-2">
@@ -671,20 +668,6 @@ export const PlanningProcedureView: React.FC<{
             <div className="text-muted-foreground">No sections.</div>
           )}
 
-          {/* Keep Recommendations box for quick inline view/edit (still synced with Notebook) */}
-          <div className="rounded-lg border p-4 space-y-2">
-            <div className="font-heading text-lg">Recommendations</div>
-            {!editMode ? (
-              <pre className="whitespace-pre-wrap text-sm">{recommendations || "—"}</pre>
-            ) : (
-              <Textarea
-                value={recommendations}
-                onChange={(e) => setRecommendations(e.target.value)}
-                placeholder="Bullet points are encouraged…"
-              />
-            )}
-          </div>
-
           {Array.isArray(proc.files) && proc.files.length > 0 && (
             <div className="rounded-lg border p-4">
               <div className="font-heading text-lg mb-2">Files</div>
@@ -708,9 +691,11 @@ export const PlanningProcedureView: React.FC<{
       {/* Notebook Interface (re-usable component) */}
       <NotebookInterface
         isOpen={isNotesOpen}
+        isEditable={true}
         onClose={() => setIsNotesOpen(false)}
         recommendations={recommendations}
         onSave={handleSaveRecommendations}
+        isPlanning={true}
       />
     </div>
   )
