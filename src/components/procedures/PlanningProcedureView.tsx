@@ -351,51 +351,105 @@ export const PlanningProcedureView: React.FC<{
   }
 
   // NEW: handle save of notebook notes
-  const handleSaveRecommendations = (content: string) => {
+  // NEW: handle save of notebook notes
+const handleSaveRecommendations = async (content: string) => {
+  try {
+    // Update local state first
     setRecommendations(content)
     setProc((p: any) => ({ ...p, recommendations: content }))
-    toast({ title: "Notes Saved", description: "Your audit recommendations have been updated." })
-  }
-
-  const save = async (asCompleted = false) => {
-    try {
-      const form = new FormData()
-      // robust normalize before mapping
-      const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
-        ...sec,
-        fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
-      }))
-      const payload = {
-        ...proc,
-        procedures: cleanedProcedures,
-        // ensure recommendations are in sync
-        recommendations,
-        status: asCompleted ? "completed" : proc.status || "in-progress",
-        procedureType: "planning",
-      }
-      form.append("data", JSON.stringify(payload))
-      if (fileInput.current?.files?.length) {
-        Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
-      }
-      const engagementId = proc.engagement || engagement?._id
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
-        method: "POST",
-        body: form,
-      })
-      if (!res.ok) throw new Error("Save failed")
-      const saved = await res.json()
-      setProc({
-        ...saved,
-        procedures: withUids(saved?.procedures || []),
-      })
-      // keep local recs aligned with server
-      setRecommendations(saved?.recommendations || "")
-      toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
-      setEditMode(false)
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e.message, variant: "destructive" })
+    
+    // Save to database
+    const form = new FormData()
+    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+    }))
+    
+    const payload = {
+      ...proc,
+      procedures: cleanedProcedures,
+      recommendations: content, // Use the new content
+      status: proc.status || "in-progress",
+      procedureType: "planning",
     }
+    
+    form.append("data", JSON.stringify(payload))
+    
+    const engagementId = proc.engagement || engagement?._id
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+      method: "POST",
+      body: form,
+    })
+    
+    if (!res.ok) throw new Error("Save failed")
+    const saved = await res.json()
+    
+    // Update state with server response
+    setProc({
+      ...saved,
+      procedures: withUids(saved?.procedures || []),
+    })
+    setRecommendations(saved?.recommendations || "")
+    
+    toast({ 
+      title: "Notes Saved", 
+      description: "Your audit recommendations have been updated and saved to the database." 
+    })
+  } catch (e: any) {
+    toast({ 
+      title: "Save failed", 
+      description: e.message, 
+      variant: "destructive" 
+    })
+    // Revert local state if save fails
+    setRecommendations(proc?.recommendations || "")
   }
+}
+  const save = async (asCompleted = false) => {
+  try {
+    const form = new FormData()
+    // robust normalize before mapping
+    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+    }))
+    
+    // Create the payload with updated recommendations
+    const payload = {
+      ...proc,
+      procedures: cleanedProcedures,
+      // Ensure recommendations are included in the payload
+      recommendations: recommendations, // This line is crucial
+      status: asCompleted ? "completed" : proc.status || "in-progress",
+      procedureType: "planning",
+    }
+    
+    form.append("data", JSON.stringify(payload))
+    if (fileInput.current?.files?.length) {
+      Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
+    }
+    
+    const engagementId = proc.engagement || engagement?._id
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+      method: "POST",
+      body: form,
+    })
+    
+    if (!res.ok) throw new Error("Save failed")
+    const saved = await res.json()
+    
+    setProc({
+      ...saved,
+      procedures: withUids(saved?.procedures || []),
+    })
+    // keep local recs aligned with server
+    setRecommendations(saved?.recommendations || "")
+    toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
+    setEditMode(false)
+  } catch (e: any) {
+    toast({ title: "Save failed", description: e.message, variant: "destructive" })
+  }
+}
 
   // answers map for visibleIf
   const makeAnswers = (sec: any) =>
