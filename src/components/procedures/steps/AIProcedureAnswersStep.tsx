@@ -1,3 +1,4 @@
+// Replace the entire file with this updated version
 // @ts-nocheck
 import type React from "react";
 import { useMemo, useState } from "react";
@@ -20,7 +21,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-/** auth fetch */
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -38,18 +38,16 @@ async function authFetch(url: string, options: RequestInit = {}) {
 const mkUid = () =>
   Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
 
-/** Ensure every question has stable ids AND a key q1..qN (for aiAnswers mapping) */
 function normalize(items?: any[]) {
   if (!Array.isArray(items)) return [];
   return items.map((q, i) => {
     const __uid = q.__uid || q.id || q._id || `q_${mkUid()}_${i}`;
     const id = q.id ?? __uid;
-    const key = q.key || q.aiKey || `q${i + 1}`; // <— critical
+    const key = q.key || q.aiKey || `q${i + 1}`;
     return { ...q, __uid, id, key };
   });
 }
 
-/** Classify missing items using selectedClassifications from previous step */
 function ensureClassifications(questions: any[], selected: string[]) {
   if (!selected?.length) return questions;
   let i = 0;
@@ -59,7 +57,6 @@ function ensureClassifications(questions: any[], selected: string[]) {
   });
 }
 
-/** Show deepest node for Assets/Liabilities; top-level otherwise */
 function formatClassificationForDisplay(classification?: string) {
   if (!classification) return "General";
   const parts = classification.split(" > ");
@@ -68,7 +65,6 @@ function formatClassificationForDisplay(classification?: string) {
   return top;
 }
 
-/** Array → single markdown string with ## and *** as requested */
 function formatRecommendationsMarkdown(recs: any[]): string {
   if (!Array.isArray(recs) || !recs.length) return "";
   const out: string[] = ["## Recommendations", ""];
@@ -82,7 +78,6 @@ function formatRecommendationsMarkdown(recs: any[]): string {
   return out.join("\n");
 }
 
-/** Merge AI answers [{key, answer}] onto current questions */
 function mergeAiAnswers(questions: any[], aiAnswers: any[]) {
   const map = new Map<string, string>();
   (aiAnswers || []).forEach((a) => {
@@ -90,12 +85,48 @@ function mergeAiAnswers(questions: any[], aiAnswers: any[]) {
     if (k) map.set(k, a?.answer || "");
   });
 
-  // Prefer key mapping; fall back to index if keys missing
   return questions.map((q, i) => {
     const k = String(q.key || `q${i + 1}`).trim().toLowerCase();
     const answer = map.has(k) ? map.get(k) || "" : q.answer || "";
     return { ...q, answer };
   });
+}
+
+/** Merge a list of incoming questions into an existing classification set, preserving __uid when keys match */
+function mergeByKeyPreserveUids(existing: any[], incoming: any[], classification: string) {
+  const existingByKey = new Map(
+    existing.map((q) => [String(q.key || "").toLowerCase(), q])
+  );
+
+  const merged: any[] = [];
+  for (const raw of normalize(incoming)) {
+    const k = String(raw.key || "").toLowerCase();
+    const prev = existingByKey.get(k);
+    if (prev) {
+      // Preserve __uid, merge fields, and enforce classification
+      merged.push({
+        ...prev,
+        ...raw,
+        __uid: prev.__uid,
+        id: prev.id,
+        classification: classification || prev.classification,
+      });
+      existingByKey.delete(k);
+    } else {
+      // New item for this classification
+      merged.push({
+        ...raw,
+        classification,
+      });
+    }
+  }
+  return merged;
+}
+
+/** Replace only the chosen classification's questions in the global list */
+function replaceClassificationQuestions(all: any[], classification: string, updated: any[]) {
+  const others = all.filter((q) => q.classification !== classification);
+  return [...others, ...normalize(updated)];
 }
 
 const AIProcedureAnswersStep: React.FC<{
@@ -106,8 +137,8 @@ const AIProcedureAnswersStep: React.FC<{
   onBack: () => void;
 }> = ({ engagement, mode, stepData, onComplete, onBack }) => {
   const { toast } = useToast();
+  const [generatingClassifications, setGeneratingClassifications] = useState<Set<string>>(new Set());
 
-  // ✅ receive questions + selectedClassifications from previous step
   const [questions, setQuestions] = useState<any[]>(
     normalize(
       ensureClassifications(
@@ -136,17 +167,23 @@ const AIProcedureAnswersStep: React.FC<{
     return by;
   }, [questions]);
 
-  /** Call backend and MERGE aiAnswers onto existing questions by key */
-  const fillAnswers = async () => {
+  const fillAnswersForClassification = async (classification: string) => {
     setLoading(true);
+    setGeneratingClassifications(prev => {
+      const newSet = new Set(prev);
+      newSet.add(classification);
+      return newSet;
+    });
+
     try {
+      const classificationQuestions = questions.filter(q => q.classification === classification);
       const base = import.meta.env.VITE_APIURL;
-      const res = await authFetch(`${base}/api/procedures/ai/answers`, {
+      const res = await authFetch(`${base}/api/procedures/ai/classification-answers`, {
         method: "POST",
         body: JSON.stringify({
           engagementId: engagement?._id,
-          questions: questions.map(({ __uid, ...rest }) => rest),
-          classifications: stepData.selectedClassifications,
+          questions: classificationQuestions.map(({ __uid, ...rest }) => rest),
+          classification: classification,
         }),
       });
 
@@ -161,20 +198,24 @@ const AIProcedureAnswersStep: React.FC<{
 
       const data = ct.includes("application/json") ? JSON.parse(raw) : {};
 
-      // Your AI returns { aiAnswers: [{key, answer}], recommendations: string }
       let nextQs = questions;
+
       if (Array.isArray(data?.aiAnswers)) {
-        nextQs = mergeAiAnswers(questions, data.aiAnswers);
+        // Merge just the answers for this classification
+        const updatedClassificationQs = mergeAiAnswers(classificationQuestions, data.aiAnswers);
+        nextQs = replaceClassificationQuestions(questions, classification, updatedClassificationQs);
       } else if (Array.isArray(data?.questions)) {
-        // also support alternative payloads
-        nextQs = normalize(data.questions);
+        // Some backends return full question payloads — merge them into this classification ONLY
+        const mergedForClass = mergeByKeyPreserveUids(classificationQuestions, data.questions, classification);
+        nextQs = replaceClassificationQuestions(questions, classification, mergedForClass);
       }
 
-      // keep/repair classification after merge
+      // Re-normalize & ensure classifications stay attached
       nextQs = normalize(
         ensureClassifications(nextQs, stepData.selectedClassifications || [])
       );
 
+      // Recommendations (keep existing if none returned)
       const recStr =
         typeof data?.recommendations === "string"
           ? data.recommendations
@@ -186,7 +227,7 @@ const AIProcedureAnswersStep: React.FC<{
       setRecommendationsStr(recStr);
       toast({
         title: "Answers Generated",
-        description: "Draft answers & recommendations updated.",
+        description: `Draft answers for ${formatClassificationForDisplay(classification)} updated.`,
       });
     } catch (e: any) {
       toast({
@@ -196,6 +237,11 @@ const AIProcedureAnswersStep: React.FC<{
       });
     } finally {
       setLoading(false);
+      setGeneratingClassifications(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(classification);
+        return newSet;
+      });
     }
   };
 
@@ -206,10 +252,9 @@ const AIProcedureAnswersStep: React.FC<{
         method: "POST",
         body: JSON.stringify({
           ...stepData,
-          // keep forwarding the classifications buffer
           selectedClassifications: stepData.selectedClassifications || [],
           questions: questions.map(({ __uid, ...rest }) => rest),
-          recommendations: recommendationsStr, // single markdown string
+          recommendations: recommendationsStr,
           procedureType: "procedures",
           status: "in-progress",
           mode: "ai",
@@ -271,7 +316,7 @@ const AIProcedureAnswersStep: React.FC<{
   const handleProceed = () => {
     onComplete({
       questions: questions.map(({ __uid, ...rest }) => rest),
-      recommendations: recommendationsStr, // single formatted string for next step
+      recommendations: recommendationsStr,
       selectedClassifications: stepData.selectedClassifications || [],
       validitySelections: stepData.validitySelections || [],
     });
@@ -288,10 +333,6 @@ const AIProcedureAnswersStep: React.FC<{
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex gap-3">
-            <Button onClick={fillAnswers} disabled={loading || questions.length === 0}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Generate Answers
-            </Button>
             <Button variant="secondary" onClick={saveDraft} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
               Save Draft
@@ -324,9 +365,23 @@ const AIProcedureAnswersStep: React.FC<{
                         refine the drafted answers.
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => addItem(bucket)}>
-                      <Plus className="h-4 w-4 mr-1" /> Add
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => fillAnswersForClassification(bucket)}
+                        disabled={loading || generatingClassifications.has(bucket)}
+                      >
+                        {generatingClassifications.has(bucket) ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-1" />
+                        )}
+                        Generate Answers
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => addItem(bucket)}>
+                        <Plus className="h-4 w-4 mr-1" /> Add
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {items.map((q) => {
@@ -403,15 +458,13 @@ const AIProcedureAnswersStep: React.FC<{
                                 onChange={(e) => setEditedA(e.target.value)}
                                 placeholder="Refine the drafted answer"
                               />
-                            ) :(
-
+                            ) : (
                               <Textarea
                                 value={String(q.answer ?? "")}
                                 onChange={(e) => setAnswer(q.__uid, e.target.value)}
                                 placeholder="Refine the drafted answer"
-                                />
-                            ) }
-                            
+                              />
+                            )}
                           </div>
                         </div>
                       );
@@ -433,4 +486,5 @@ const AIProcedureAnswersStep: React.FC<{
     </div>
   );
 };
+
 export default AIProcedureAnswersStep;

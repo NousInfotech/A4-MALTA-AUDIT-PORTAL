@@ -1,3 +1,4 @@
+// Replace the entire file with this updated version
 // @ts-nocheck
 import React, { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,6 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Loader2, Sparkles, Edit3, Save, Trash2, CheckCircle } from "lucide-react"
 
-/** ---------- auth fetch helper ---------- */
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
@@ -23,23 +23,18 @@ async function authFetch(url: string, options: RequestInit = {}) {
   })
 }
 
-/** ---------- tiny uid helper (no external deps) ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
-/** Ensure every question has a stable unique key */
 function normalizeQuestions(items: any[] | undefined | null): any[] {
   if (!Array.isArray(items)) return []
   return items.map((q, i) => {
     const base = q || {}
-    // prefer existing stable keys if present
     const stable = base.__uid || base.id || base._id
     const __uid = stable ? String(stable) : `q_${uid()}_${i}`
-    // do not mutate input
     return { ...base, __uid, id: base.id ?? __uid }
   })
 }
 
-/** Grouping key preference: recommendation bucket → classificationTag → General */
 function groupKeyFor(q: any): string {
   return (
     q.recommendationBucket ||
@@ -59,8 +54,8 @@ const AIProcedureQuestionsStep: React.FC<{
 }> = ({ engagement, stepData, onComplete, onBack }) => {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [generatingClassifications, setGeneratingClassifications] = useState<Set<string>>(new Set())
 
-  // Normalize the incoming draft (prevents "toggle all" on first render)
   const [questions, setQuestions] = useState<any[]>(
     normalizeQuestions(stepData.questions)
   )
@@ -68,32 +63,35 @@ const AIProcedureQuestionsStep: React.FC<{
     Array.isArray(stepData.recommendations) ? stepData.recommendations : []
   )
 
-function formatClassificationForDisplay(classification?: string) {
-  if (!classification) return "General"
-  const parts = classification.split(" > ")
-  const top = parts[0]
-  // Always show deepest for Assets/Liabilities
-  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
-  // Otherwise top-level
-  return top
-}
-  /** ---------- API: generate questions ---------- */
-  const generateQuestions = async () => {
+  function formatClassificationForDisplay(classification?: string) {
+    if (!classification) return "General"
+    const parts = classification.split(" > ")
+    const top = parts[0]
+    if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
+    return top
+  }
+
+  const generateQuestionsForClassification = async (classification: string) => {
     setLoading(true)
+    setGeneratingClassifications(prev => {
+      const newSet = new Set(prev)
+      newSet.add(classification)
+      return newSet
+    })
+    
     try {
       const base = import.meta.env.VITE_APIURL
       if (!base) throw new Error("VITE_APIURL is not set")
-      const res = await authFetch(`${base}/api/procedures/ai/questions`, {
+      const res = await authFetch(`${base}/api/procedures/ai/classification-questions`, {
         method: "POST",
         body: JSON.stringify({
           engagementId: engagement?._id,
           materiality: stepData.materiality,
-          classifications: stepData.selectedClassifications || [],
+          classification: classification,
           validitySelections: stepData.validitySelections || [],
         }),
       })
 
-      // don't try to parse JSON if server returned HTML error page
       const ct = res.headers.get("content-type") || ""
       if (!res.ok) {
         const text = await res.text().catch(() => "")
@@ -104,18 +102,30 @@ function formatClassificationForDisplay(classification?: string) {
       }
 
       const data = await res.json()
-      const qs = normalizeQuestions(Array.isArray(data?.aiQuestions) ? data.aiQuestions : [])
-      setQuestions(qs)
-      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : [])
-      toast({ title: "AI Questions Ready", description: `Generated ${qs.length} questions.` })
+      const newQuestions = normalizeQuestions(Array.isArray(data?.aiQuestions) ? data.aiQuestions : [])
+      
+      // Remove existing questions for this classification and add new ones
+      setQuestions(prev => {
+        const filtered = prev.filter(q => q.classification !== classification)
+        return [...filtered, ...newQuestions.map(q => ({ ...q, classification }))]
+      })
+      
+      toast({ 
+        title: "AI Questions Ready", 
+        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}.` 
+      })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
       setLoading(false)
+      setGeneratingClassifications(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(classification)
+        return newSet
+      })
     }
   }
 
-  /** ---------- state helpers (by __uid — never by id) ---------- */
   const updateQuestion = (uidKey: string, patch: Partial<any>) => {
     setQuestions(prev => prev.map(q => (q.__uid === uidKey ? { ...q, ...patch } : q)))
   }
@@ -124,7 +134,6 @@ function formatClassificationForDisplay(classification?: string) {
     setQuestions(prev => prev.filter(q => q.__uid !== uidKey))
   }
 
-  /** ---------- save draft ---------- */
   const saveDraft = async () => {
     try {
       const base = import.meta.env.VITE_APIURL
@@ -133,7 +142,6 @@ function formatClassificationForDisplay(classification?: string) {
         method: "POST",
         body: JSON.stringify({
           ...stepData,
-          // strip internal key on save
           questions: questions.map(({ __uid, ...rest }) => rest),
           recommendations,
           procedureType: "procedures",
@@ -147,7 +155,6 @@ function formatClassificationForDisplay(classification?: string) {
     }
   }
 
-  /** ---------- grouping (beautiful cards by recommendation bucket) ---------- */
   const groups = useMemo(() => {
     const by: Record<string, any[]> = {}
     for (const q of questions) {
@@ -158,9 +165,7 @@ function formatClassificationForDisplay(classification?: string) {
     return by
   }, [questions])
 
-  // try to show a short blurb from recommendations for each bucket
   const recTextFor = (bucket: string) => {
-    // look for a recommendation object that matches the bucket/classification
     const hit =
       (recommendations || []).find((r: any) =>
         [r.bucket, r.category, r.classificationTag, r.classification]
@@ -181,10 +186,6 @@ function formatClassificationForDisplay(classification?: string) {
             AI — Generate Questions
           </CardTitle>
           <div className="flex gap-3">
-            <Button onClick={generateQuestions} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Generate Questions
-            </Button>
             <Button variant="secondary" onClick={saveDraft} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
               Save Draft
@@ -193,11 +194,29 @@ function formatClassificationForDisplay(classification?: string) {
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Classification buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            {stepData.selectedClassifications?.map((classification: string) => (
+              <Button
+                key={classification}
+                onClick={() => generateQuestionsForClassification(classification)}
+                disabled={loading || generatingClassifications.has(classification)}
+                className="flex items-center justify-center"
+              >
+                {generatingClassifications.has(classification) ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                Generate for {formatClassificationForDisplay(classification)}
+              </Button>
+            ))}
+          </div>
+
           {questions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No questions yet. Click "Generate Questions".</p>
+            <p className="text-sm text-muted-foreground">No questions yet. Select a classification to generate questions.</p>
           ) : (
             <>
-              {/* Grouped, beautiful cards by bucket/classification */}
               {Object.entries(groups).map(([bucket, items]) => (
                 <Card key={bucket} className="border-2 border-primary/10 shadow-sm">
                   <CardHeader>
