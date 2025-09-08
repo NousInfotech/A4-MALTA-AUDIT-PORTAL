@@ -7,10 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Download } from "lucide-react"
+import { Download, Edit, Save, X, Trash2, Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
+import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { supabase } from "@/integrations/supabase/client"
+
 // Add these helpers near the top of ProcedureView.tsx (outside the component)
 function normalizeKey(s: string) {
   return (s || "")
@@ -66,6 +70,19 @@ function splitRecommendationsByClassification(markdown?: string) {
   return map
 }
 
+async function authFetch(url: string, options: RequestInit = {}) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  const token = data?.session?.access_token
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  })
+}
 
 interface ProcedureViewProps {
   procedure: any
@@ -83,6 +100,18 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 }) => {
   const [isNotesOpen, setIsNotesOpen] = useState(false)
   const { toast } = useToast()
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null)
+  const [editQuestionText, setEditQuestionText] = useState("")
+  const [editAnswerText, setEditAnswerText] = useState("")
+  const [localQuestions, setLocalQuestions] = useState<any[]>([])
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Initialize local questions when procedure changes
+  React.useEffect(() => {
+    if (procedure?.questions) {
+      setLocalQuestions([...procedure.questions])
+    }
+  }, [procedure?.questions])
 
   const safeTitle = (engagement?.title || "Engagement")
   const yEnd = engagement?.yearEndDate ? new Date(engagement.yearEndDate) : null
@@ -105,10 +134,10 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
   // ✅ filter questions to this classification
   const filteredQuestions = useMemo(() => {
-    const all = Array.isArray(procedure?.questions) ? procedure.questions : []
+    const all = Array.isArray(localQuestions) ? localQuestions : []
     if (!currentClassification) return all
     return all.filter((q: any) => q.classification === currentClassification)
-  }, [procedure?.questions, currentClassification])
+  }, [localQuestions, currentClassification])
 
   // group (even though single classification, keeps UI consistent)
   const grouped = useMemo(() => {
@@ -167,6 +196,105 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   React.useEffect(() => {
     setRecommendations(recommendationsForClass)
   }, [recommendationsForClass])
+
+  const handleEditQuestion = (question: any) => {
+    setEditingQuestionId(question.id)
+    setEditQuestionText(question.question || "")
+    setEditAnswerText(question.answer || "")
+  }
+
+  const handleSaveQuestion = () => {
+    if (!editingQuestionId) return
+    
+    setLocalQuestions(prev => 
+      prev.map(q => 
+        q.id === editingQuestionId 
+          ? { ...q, question: editQuestionText, answer: editAnswerText }
+          : q
+      )
+    )
+    
+    setEditingQuestionId(null)
+    setEditQuestionText("")
+    setEditAnswerText("")
+  }
+
+  const handleCancelEdit = () => {
+    setEditingQuestionId(null)
+    setEditQuestionText("")
+    setEditAnswerText("")
+  }
+
+  const handleDeleteQuestion = (questionId: string) => {
+    setLocalQuestions(prev => prev.filter(q => q.id !== questionId))
+  }
+
+  const handleAddQuestion = () => {
+    const newQuestion = {
+      id: `new-${Date.now()}`,
+      question: "New question",
+      answer: "",
+      classification: currentClassification || "General",
+      isValid: false
+    }
+    
+    setLocalQuestions(prev => [...prev, newQuestion])
+    setEditingQuestionId(newQuestion.id)
+    setEditQuestionText(newQuestion.question)
+    setEditAnswerText(newQuestion.answer)
+  }
+
+  const handleSaveAllChanges = async () => {
+    setIsSaving(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      if(currentClassification)
+      {
+        const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...procedure,
+          questions: localQuestions,
+        }),
+      })
+      if (response.ok) {
+        toast({
+          title: "Changes Saved",
+          description: "All changes have been saved successfully.",
+        })
+      } else {
+        throw new Error("Failed to save changes")
+      }
+      }
+      else{
+              const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...procedure,
+          questions: localQuestions,
+          recommendations: recommendations
+        }),
+      })
+      if (response.ok) {
+        toast({
+          title: "Changes Saved",
+          description: "All changes have been saved successfully.",
+        })
+      } else {
+        throw new Error("Failed to save changes")
+      }
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Could not save changes.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   // PDF export (still includes just this classification)
   const handleExportPDF = async () => {
@@ -361,51 +489,124 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
             <Download className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
+          <Button 
+            variant="default" 
+            size="sm" 
+            onClick={handleSaveAllChanges}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
       {/* Body */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">
-            {currentClassification
-              ? formatClassificationForDisplay(currentClassification)
-              : "Procedures"}
-          </CardTitle>
-          <div className="text-sm text-muted-foreground">
-            <Badge variant="outline">{filteredQuestions.length} procedures</Badge>{" "}
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-xl">
+              {currentClassification
+                ? formatClassificationForDisplay(currentClassification)
+                : "Procedures"}
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">
+              <Badge variant="outline">{filteredQuestions.length} procedures</Badge>{" "}
+            </div>
           </div>
+          {currentClassification && (
+            <Button variant="outline" size="sm" onClick={handleAddQuestion}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Question
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-96">
-<div className="space-y-6">
-  {Object.entries(grouped).map(([klass, list]) => (
-    <div key={klass} className="border rounded-lg p-4">
-      <div className="font-semibold mb-3">
-        {formatClassificationForDisplay(klass)}
-      </div>
-      <div className="space-y-3">
-        {list.map((q: any, idx: number) => (
-          <div key={q.id || idx} className="p-3 rounded-md border">
-            <div className="font-medium mb-1">
-              {idx + 1}. {q.question || "—"}
+            <div className="space-y-6">
+              {Object.entries(grouped).map(([klass, list]) => (
+                <div key={klass} className="border rounded-lg p-4">
+                  <div className="font-semibold mb-3">
+                    {formatClassificationForDisplay(klass)}
+                  </div>
+                  <div className="space-y-3">
+                    {list.map((q: any, idx: number) => (
+                      <div key={q.id || idx} className="p-3 rounded-md border">
+                        {editingQuestionId === q.id ? (
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium">{idx + 1}.</div>
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={handleSaveQuestion}>
+                                  <Save className="h-4 w-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                  <X className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                            <Input
+                              value={editQuestionText}
+                              onChange={(e) => setEditQuestionText(e.target.value)}
+                              placeholder="Question"
+                            />
+                            <Textarea
+                              value={editAnswerText}
+                              onChange={(e) => setEditAnswerText(e.target.value)}
+                              placeholder="Answer"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start">
+                              <div className="font-medium mb-1">
+                                {idx + 1}. {q.question || "—"}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditQuestion(q)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteQuestion(q.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            {q.answer ? (
+                              <div className="text-sm text-muted-foreground">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {String(q.answer)}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground italic">No answer.</div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-            {q.answer ? (
-              <div className="text-sm text-muted-foreground">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {String(q.answer)}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground italic">No answer.</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  ))}
-</div>
-
           </ScrollArea>
         </CardContent>
       </Card>
@@ -414,10 +615,9 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
       <NotebookInterface
         isOpen={isNotesOpen}
-        isEditable={currentClassification?false:true}
+        isEditable={!currentClassification}
         isPlanning={false}
-        onClose={() => setIsNotesOpen(false)
-        }
+        onClose={() => setIsNotesOpen(false)}
         recommendations={
           recommendations && currentClassification
             ? `### ${formatClassificationForDisplay(currentClassification)}\n\n${recommendations}`
