@@ -60,7 +60,7 @@ export function SaltEdgeAccountDataModal({
 
           {selectedAccount && (
             <div className="mt-6" ref={transactionsListRef}>
-              <TransactionsList 
+              <TransactionsList
                 connectionId={connectionId}
                 selectedAccount={selectedAccount}
               />
