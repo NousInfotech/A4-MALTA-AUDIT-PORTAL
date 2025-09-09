@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Building2, Loader2, Users, Mail, Globe, FileText, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel";
 
 const industries = [
   "Technology",
@@ -144,6 +145,9 @@ export const AddClient = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId="add-client" pageName="Add Client" />
 
       <div className="max-w-4xl mx-auto">
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">

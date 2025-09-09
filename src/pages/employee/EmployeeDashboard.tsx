@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
+import { ReviewNotesSummary } from "@/components/review-notes/ReviewNotesSummary";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
@@ -261,6 +262,9 @@ export const EmployeeDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Review Notes Summary */}
+        <ReviewNotesSummary className="lg:col-span-2" />
+        
         {/* Recent Engagements */}
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">

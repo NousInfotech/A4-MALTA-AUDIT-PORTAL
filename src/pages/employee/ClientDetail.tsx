@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -169,6 +170,9 @@ export const ClientDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId={`client-${id}`} pageName={`Client: ${client.companyName}`} />
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

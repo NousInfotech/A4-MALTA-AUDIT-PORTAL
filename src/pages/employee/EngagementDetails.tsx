@@ -18,6 +18,7 @@ import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
+import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -223,6 +224,9 @@ export const EngagementDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId={`engagement-${id}`} pageName={`Engagement: ${engagement?.title || 'Details'}`} />
 
       {/* Tabs Section */}
       <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">

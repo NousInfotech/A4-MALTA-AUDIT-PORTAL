@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 interface User {
   summary: string;
@@ -192,6 +193,9 @@ export const ClientManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId="clients" pageName="Client Management" />
 
       {/* Clients Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">

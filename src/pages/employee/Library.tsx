@@ -43,6 +43,7 @@ import {
   type GlobalFolder,
 } from "@/lib/api/global-library"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
+import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel"
 
 export default function GlobalLibraryPage() {
   const [folders, setFolders] = useState<GlobalFolder[]>([])
@@ -394,6 +395,9 @@ export default function GlobalLibraryPage() {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId="library" pageName="Global Library" />
 
       {/* Main Content */}
       <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">

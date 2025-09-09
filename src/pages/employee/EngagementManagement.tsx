@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
+import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel";
 
 export const EngagementManagement = () => {
 
@@ -341,6 +342,9 @@ export const EngagementManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId="engagements" pageName="Engagement Management" />
 
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
