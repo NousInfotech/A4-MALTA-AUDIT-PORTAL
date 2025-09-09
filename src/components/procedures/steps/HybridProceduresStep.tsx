@@ -35,39 +35,12 @@ function normalize(items?: any[]) {
   })
 }
 
-function formatRecommendationsMarkdown(recs: any[]): string {
-  if (!Array.isArray(recs) || !recs.length) return ""
-  const out: string[] = ["## Recommendations", ""]
-  for (const r of recs) {
-    const title = (r?.title || "Recommendation").toString().trim()
-    const body = (r?.body || "").toString().trim()
-    out.push(`***${title}***`)
-    if (body) out.push(body)
-    out.push("")
-  }
-  return out.join("\n")
-}
-
 function formatClassificationForDisplay(classification?: string) {
   if (!classification) return "General"
   const parts = classification.split(" > ")
   const top = parts[0]
-  // Always show deepest for Assets/Liabilities
   if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
-  // Otherwise top-level
   return top
-}
-
-/* Assign classification if missing: round-robin from selectedClassifications */
-function ensureClassifications(questions: any[], selected: string[]) {
-  if (!selected?.length) return questions
-  let i = 0
-  return questions.map((q) => {
-    if (q.classification && String(q.classification).trim()) return q
-    const cls = selected[i % selected.length]
-    i++
-    return { ...q, classification: cls }
-  })
 }
 
 /* ---------------- component ---------------- */
@@ -81,6 +54,7 @@ export const HybridProceduresStep: React.FC<{
 }> = ({ engagement, stepData, onComplete, onBack }) => {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [generatingClassifications, setGeneratingClassifications] = useState<Set<string>>(new Set())
   const [questions, setQuestions] = useState<any[]>([])
   const [editingUid, setEditingUid] = useState<string | null>(null)
   const [editedQ, setEditedQ] = useState("")
@@ -135,8 +109,14 @@ export const HybridProceduresStep: React.FC<{
 
   /* ---------------- AI append ---------------- */
 
-  const generateMoreWithAI = async () => {
+  const generateMoreWithAI = async (classification: string) => {
     setLoading(true)
+    setGeneratingClassifications(prev => {
+      const newSet = new Set(prev)
+      newSet.add(classification)
+      return newSet
+    })
+    
     try {
       const base = import.meta.env.VITE_APIURL
       const res = await authFetch(`${base}/api/procedures/hybrid/questions`, {
@@ -144,8 +124,7 @@ export const HybridProceduresStep: React.FC<{
         body: JSON.stringify({
           engagementId: engagement?._id,
           materiality: stepData.materiality,
-          classifications: stepData.selectedClassifications || [],
-          // keep payload lightweight; drop local ids/uids
+          classification: classification,
           manualQuestions: questions.map(({ __uid, id, ...rest }) => rest),
         }),
       })
@@ -167,38 +146,30 @@ export const HybridProceduresStep: React.FC<{
         ? data.aiQuestions
         : []
 
-      let normalized = extra.map((q: any, i: number) => ({
+      const normalized = normalize(extra.map((q: any, i: number) => ({
         id: q.id || `ai_${i + 1}_${Math.random().toString(36).slice(2, 6)}`,
-        classification: q.classification || "",
+        classification: classification,
         question: q.question || q.title || "",
         answer: q.answer || "",
         isRequired: !!q.isRequired,
         origin: "ai",
-      }))
-
-      // ensure classification separation if missing
-      normalized = ensureClassifications(normalized, stepData?.selectedClassifications || [])
-      normalized = normalize(normalized)
+      })))
 
       setQuestions((prev) => [...prev, ...normalized])
-
-      // recommendations: array -> single markdown string
-      const nextRecs = Array.isArray(data?.recommendations)
-        ? formatRecommendationsMarkdown(data.recommendations)
-        : typeof data?.recommendations === "string"
-        ? data.recommendations
-        : ""
-      if (nextRecs) setRecommendationsStr(nextRecs)
-
-      toast({ title: "AI Added", description: `Appended ${normalized.length} AI questions.` })
+      toast({ title: "AI Added", description: `Appended ${normalized.length} AI questions for ${formatClassificationForDisplay(classification)}.` })
     } catch (e: any) {
       toast({ title: "AI append failed", description: e.message, variant: "destructive" })
     } finally {
       setLoading(false)
+      setGeneratingClassifications(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(classification)
+        return newSet
+      })
     }
   }
 
-  /* ---------------- per-row handlers (scoped by __uid) ---------------- */
+  /* ---------------- per-row handlers ---------------- */
 
   const startEdit = (uid: string) => {
     const q = questions.find((x) => x.__uid === uid)
@@ -267,12 +238,12 @@ export const HybridProceduresStep: React.FC<{
   const saveDraft = async () => {
     try {
       const base = import.meta.env.VITE_APIURL
-      await authFetch(`${base}/api/procedures/${engagement?._id}/save`, {
+      await authFetch(`${base}/api/procedures/${engagement?._id}`, {
         method: "POST",
         body: JSON.stringify({
           ...stepData,
           questions: questions.map(({ __uid, ...rest }) => rest),
-          recommendations: recommendationsStr, // single markdown string
+          recommendations: recommendationsStr,
           procedureType: "procedures",
           status: "in-progress",
           mode: "hybrid",
@@ -287,7 +258,7 @@ export const HybridProceduresStep: React.FC<{
   const handleProceed = () => {
     onComplete({
       questions: questions.map(({ __uid, ...rest }) => rest),
-      recommendations: recommendationsStr, // single formatted string for next component
+      recommendations: recommendationsStr,
       selectedClassifications: stepData?.selectedClassifications || [],
     })
   }
@@ -302,10 +273,6 @@ export const HybridProceduresStep: React.FC<{
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-3">
-            <Button onClick={generateMoreWithAI} disabled={loading || questions.length === 0}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              Generate More with AI
-            </Button>
             <Button variant="secondary" onClick={saveDraft} disabled={loading}>
               <Save className="h-4 w-4 mr-2" />
               Save Draft
@@ -333,14 +300,25 @@ export const HybridProceduresStep: React.FC<{
                           {items.length} item{items.length > 1 ? "s" : ""}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatClassificationForDisplay(bucket)} — review and refine.
-                      </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => addCustom(bucket)}>
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Custom Question
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => generateMoreWithAI(bucket)}
+                        disabled={loading || generatingClassifications.has(bucket)}
+                      >
+                        {generatingClassifications.has(bucket) ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        Add AI Questions
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => addCustom(bucket)}>
+                        <PlusCircle className="h-4 w-4 mr-2" />
+                        Add Custom
+                      </Button>
+                    </div>
                   </CardHeader>
 
                   <CardContent className="space-y-3">

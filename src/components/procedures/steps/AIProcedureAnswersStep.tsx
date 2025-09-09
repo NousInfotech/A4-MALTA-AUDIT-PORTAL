@@ -1,4 +1,3 @@
-// Replace the entire file with this updated version
 // @ts-nocheck
 import type React from "react";
 import { useMemo, useState } from "react";
@@ -215,16 +214,21 @@ const AIProcedureAnswersStep: React.FC<{
         ensureClassifications(nextQs, stepData.selectedClassifications || [])
       );
 
-      // Recommendations (keep existing if none returned)
-      const recStr =
+      // Recommendations - append to existing ones
+      const newRecStr =
         typeof data?.recommendations === "string"
           ? data.recommendations
           : Array.isArray(data?.recommendations)
           ? formatRecommendationsMarkdown(data.recommendations)
-          : recommendationsStr;
+          : "";
+
+      // Append new recommendations to existing ones
+      const updatedRecStr = recommendationsStr 
+        ? `${recommendationsStr}\n\n${newRecStr}`
+        : newRecStr;
 
       setQuestions(nextQs);
-      setRecommendationsStr(recStr);
+      setRecommendationsStr(updatedRecStr);
       toast({
         title: "Answers Generated",
         description: `Draft answers for ${formatClassificationForDisplay(classification)} updated.`,
