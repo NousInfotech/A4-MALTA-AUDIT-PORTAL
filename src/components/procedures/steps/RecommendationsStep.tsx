@@ -320,7 +320,10 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setIsNotesOpen(true)} 
+              onClick={() => {
+      console.log(recommendations," rec")
+                setIsNotesOpen(true)} 
+              }
               disabled={entryAnimating}
             >
                Preview Report

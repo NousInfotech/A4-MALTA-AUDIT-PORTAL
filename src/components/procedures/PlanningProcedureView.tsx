@@ -649,6 +649,8 @@ const handleSaveRecommendations = async (content: string) => {
                               </>
                             ) : (
                               <>
+                                  <SmallLabel className="mt-2">Answer</SmallLabel>
+
                                 {t === "textarea" ? (
                                   <Textarea value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
                                 ) : t === "text" ? (
@@ -721,7 +723,7 @@ const handleSaveRecommendations = async (content: string) => {
           ) : (
             <div className="text-muted-foreground">No sections.</div>
           )}
-
+{/* 
           {Array.isArray(proc.files) && proc.files.length > 0 && (
             <div className="rounded-lg border p-4">
               <div className="font-heading text-lg mb-2">Files</div>
@@ -735,7 +737,7 @@ const handleSaveRecommendations = async (content: string) => {
                 ))}
               </ul>
             </div>
-          )}
+          )} */}
         </CardContent>
       </Card>
 
