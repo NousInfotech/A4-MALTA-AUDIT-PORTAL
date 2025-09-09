@@ -2,17 +2,10 @@
 'use client';
 
 import { useState } from 'react';
-
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
-import { Landmark, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Landmark, ShieldCheck, Zap, Lock } from 'lucide-react';
 import { createConnectSession } from '@/lib/api/saltedge';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -53,49 +46,90 @@ export default function ConnectButton() {
   const isButtonDisabled = isLoading || authLoading || !user;
 
   return (
-    <>
-      <Card className='mx-auto w-full max-w-4xl shadow-lg'>
-        <CardHeader>
-          <CardTitle className='flex items-center gap-2'>
-            <Landmark className='h-6 w-6' />
-            <span>Connect Your Bank Account</span>
-          </CardTitle>
-          <CardDescription>
-            Securely link your bank account using Salt Edge to continue.
-            <span className='text-muted-foreground text-sm'>
-              By connecting your account, you agree to grant read-only access.
-              We will never have access to your credentials.
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div>
-            <ul className='space-y-4 text-sm'>
-              <li className='flex items-center gap-2'>
-                <ShieldCheck className='h-4 w-4 text-green-500' />
-                <span>Bank-level security</span>
-              </li>
-              <li className='flex items-center gap-2'>
-                <ShieldCheck className='h-4 w-4 text-green-500' />
-                <span>Your data is encrypted</span>
-              </li>
-              <li className='flex items-center gap-2'>
-                <ShieldCheck className='h-4 w-4 text-green-500' />
-                <span>You can disconnect at any time</span>
-              </li>
-            </ul>
+    <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      
+      <CardHeader className="relative pb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+            <Landmark className="h-8 w-8 text-white" />
           </div>
-        </CardContent>
-        <CardFooter className='flex justify-end'>
-          <button
-            onClick={handleConnect}
-            disabled={isButtonDisabled} // Use the new disabled state
-            className='rounded bg-blue-500 px-4 py-2 text-white disabled:opacity-50'
-          >
-            {isLoading ? 'Connecting...' : 'Connect Your Bank'}
-          </button>
-        </CardFooter>
-      </Card>
-    </>
+          <div className="flex-1">
+            <CardTitle className="text-2xl font-bold text-slate-800 group-hover:text-green-700 transition-colors duration-300">
+              Connect Your Bank Account
+            </CardTitle>
+            <CardDescription className="text-slate-600 mt-2 text-lg">
+              Securely link your bank account using Salt Edge to continue. By connecting your account, you agree to grant read-only access. We will never have access to your credentials.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="relative space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+              <ShieldCheck className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Bank-level security</p>
+              <p className="text-sm text-slate-600">PCI DSS compliant</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Lock className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Your data is encrypted</p>
+              <p className="text-sm text-slate-600">End-to-end protection</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-100/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">You can disconnect at any time</p>
+              <p className="text-sm text-slate-600">Full control</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+          <Badge className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200 rounded-xl px-4 py-2 text-sm font-semibold">
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            Secure Integration
+          </Badge>
+          <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold">
+            <Lock className="h-4 w-4 mr-2" />
+            Read-Only Access
+          </Badge>
+        </div>
+      </CardContent>
+
+      <CardFooter className="relative flex justify-center pt-6">
+        <Button
+          onClick={handleConnect}
+          disabled={isButtonDisabled}
+          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-4 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed group-hover:scale-105"
+          size="lg"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+              Connecting...
+            </>
+          ) : (
+            <>
+              <Landmark className="h-5 w-5 mr-3" />
+              Connect Your Bank
+            </>
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

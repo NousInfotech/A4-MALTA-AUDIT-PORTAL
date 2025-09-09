@@ -31,10 +31,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCheck, UserX, Loader2, Trash2, Users, RefreshCw, ArrowLeft } from "lucide-react";
+import { Search, UserCheck, UserX, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
-import { Link } from "react-router-dom";
 
 interface User {
   id: string;
@@ -297,14 +296,14 @@ export const UserManagement = () => {
         return (
           <Badge
             variant="outline"
-            className="text-yellow-600 border-yellow-600 bg-yellow-50"
+            className="text-yellow-600 border-yellow-600"
           >
             Pending
           </Badge>
         );
       case "approved":
         return (
-          <Badge variant="outline" className="text-green-600 border-green-600 bg-green-50">
+          <Badge variant="outline" className="text-green-600 border-green-600">
             Approved
           </Badge>
         );
@@ -322,114 +321,62 @@ export const UserManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
         <EnhancedLoader variant="pulse" size="lg" text="Loading Users..." />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <img src="/logo.png" alt="Logo" className="h-10 w-10" />
-                </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      User Management
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Manage user registrations, approvals, and account status
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
-                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto" 
-                onClick={fetchUsers}
-              >
-                <RefreshCw className="h-5 w-5 mr-2" />
-                Refresh
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-              >
-                <Link to="/admin">
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">
+          User Management
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          Manage user registrations, approvals, and account status
+        </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-yellow-100/50 hover:border-yellow-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Pending Approvals</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Users className="h-5 w-5 text-white" />
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Pending Approvals</CardTitle>
           </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-yellow-600 mb-2">
+          <CardContent>
+            <div className="text-3xl font-bold text-yellow-600">
               {pendingCount}
             </div>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground mt-1">
               Users awaiting approval
             </p>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-green-100/50 hover:border-green-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Active Users</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <UserCheck className="h-5 w-5 text-white" />
-              </div>
-            </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Active Users</CardTitle>
           </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-green-600 mb-2">
+          <CardContent>
+            <div className="text-3xl font-bold text-green-600">
               {approvedCount}
             </div>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground mt-1">
               Approved and active
             </p>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-purple-100/50 hover:border-purple-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Total Registrations</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
-            </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Total Registrations</CardTitle>
           </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">
               {users.length}
             </div>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground mt-1">
               All time registrations
             </p>
           </CardContent>
@@ -437,44 +384,49 @@ export const UserManagement = () => {
       </div>
 
       {/* User Table */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
-                <Users className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-bold text-slate-800">All Users</CardTitle>
-                <CardDescription className="text-slate-600">Manage user accounts and approval status</CardDescription>
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="truncate">All Users</CardTitle>
+              <CardDescription>
+                Manage user accounts and approval status
+              </CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              <Button
+                onClick={fetchUsers}
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                Refresh
+              </Button>
               <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full border-purple-200 focus:border-purple-400 rounded-2xl"
+                  className="pl-10 w-full"
                 />
               </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent>
           {/* Keep desktop table intact; enable horizontal scroll on small screens */}
           <div className="overflow-x-auto">
             <Table className="min-w-[720px]">
               <TableHeader>
-                <TableRow className="border-purple-100/50">
-                  <TableHead className="text-slate-700 font-semibold">Name</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">User ID</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Role</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Company</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Status</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Registered</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Actions</TableHead>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>User ID</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Registered</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -482,37 +434,32 @@ export const UserManagement = () => {
                   <TableRow>
                     <TableCell
                       colSpan={7}
-                      className="text-center py-12 text-slate-600"
+                      className="text-center py-8 text-muted-foreground"
                     >
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <Users className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <p className="font-medium">
-                        {searchTerm
-                          ? "No users found matching your search."
-                          : "No users found."}
-                      </p>
+                      {searchTerm
+                        ? "No users found matching your search."
+                        : "No users found."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredUsers.map((user) => (
-                    <TableRow key={user.id} className="border-purple-100/50 hover:bg-purple-50/30 transition-colors duration-200">
-                      <TableCell className="font-medium max-w-[220px] truncate text-slate-800">
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium max-w-[220px] truncate">
                         {user.name}
                       </TableCell>
-                      <TableCell className="font-mono text-sm whitespace-nowrap text-slate-600">
+                      <TableCell className="font-mono text-sm whitespace-nowrap">
                         {user.id.slice(0, 8)}...
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="capitalize bg-purple-100 text-purple-700 border-purple-200">
+                        <Badge variant="secondary" className="capitalize">
                           {user.role}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[240px] truncate text-slate-600">
+                      <TableCell className="max-w-[240px] truncate">
                         {user.companyName || "-"}
                       </TableCell>
                       <TableCell>{getStatusBadge(user.status)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-slate-600">
+                      <TableCell className="whitespace-nowrap">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -524,7 +471,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent rounded-xl"
+                                    className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -554,7 +501,6 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleApprove(user.id)}
-                                      className="bg-green-600 text-white hover:bg-green-700"
                                     >
                                       Approve
                                     </AlertDialogAction>
@@ -567,7 +513,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-xl"
+                                    className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -597,7 +543,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleReject(user.id)}
-                                      className="bg-red-600 text-white hover:bg-red-700"
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
                                       Reject
                                     </AlertDialogAction>
@@ -613,7 +559,7 @@ export const UserManagement = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-xl"
+                                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
                                 disabled={
                                   deletingId === user.id ||
                                   actionLoading === user.id
@@ -640,7 +586,7 @@ export const UserManagement = () => {
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleDelete(user.id)}
-                                  className="bg-red-600 text-white hover:bg-red-700"
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
                                   Delete
                                 </AlertDialogAction>

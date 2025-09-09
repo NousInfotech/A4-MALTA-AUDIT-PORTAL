@@ -9,11 +9,12 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, FileText, Eye, Building2, Briefcase, Loader2, Users, Mail, Clock, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Calendar, FileText, Eye, Building2, Briefcase, Loader2, Users, Mail, Shield, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -148,9 +149,9 @@ export const ClientDetail: React.FC = () => {
                 <Building2 className="h-10 w-10 text-white" />
               </div>
               <div className="space-y-2">
-                                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      {client.companyName}
-                    </h1>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  {client.companyName}
+                </h1>
                 <p className="text-lg text-slate-600 font-medium">{client.companyNumber}</p>
               </div>
             </div>
@@ -170,15 +171,18 @@ export const ClientDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId={`client-${id}`} pageName={`Client: ${client.companyName}`} />
+
       {/* Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Contact Information */}
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
             <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
-                          <Users className="h-5 w-5 text-white" />
-                        </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                <Users className="h-5 w-5 text-white" />
+              </div>
               <CardTitle className="text-xl font-bold text-slate-800">Contact Information</CardTitle>
             </div>
           </CardHeader>
@@ -206,7 +210,7 @@ export const ClientDetail: React.FC = () => {
               
               <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl">
                 <div className="w-10 h-10 bg-purple-100 rounded-2xl flex items-center justify-center">
-                  <img src="/logo.png" alt="Logo" className="h-8 w-8" />
+                  <Shield className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
                   <p className="text-sm text-slate-500 font-medium">Role</p>
@@ -223,9 +227,9 @@ export const ClientDetail: React.FC = () => {
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100/50">
             <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shrink-0">
-                          <Building2 className="h-5 w-5 text-white" />
-                        </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
               <CardTitle className="text-xl font-bold text-slate-800">Company Details</CardTitle>
             </div>
           </CardHeader>
@@ -285,7 +289,7 @@ export const ClientDetail: React.FC = () => {
       {/* Engagements Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
             <Briefcase className="h-6 w-6 text-white" />
           </div>
           <div>

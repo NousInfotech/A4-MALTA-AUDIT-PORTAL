@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Clock, Shield, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 
 export const PendingApprovalPage = () => {
   const { logout } = useAuth();
@@ -19,7 +19,7 @@ export const PendingApprovalPage = () => {
             <div className="flex justify-center mb-6">
               <div className="relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center shadow-lg">
-                  <img src="/logo.png" alt="Logo" className="h-14 w-14" />
+                  <Shield className="h-10 w-10 text-white" />
                 </div>
                 <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg border-2 border-white">
                   <Clock className="h-4 w-4 text-white" />

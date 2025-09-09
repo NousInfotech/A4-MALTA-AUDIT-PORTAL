@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 interface User {
   summary: string;
@@ -141,13 +142,13 @@ export const ClientManagement = () => {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <Users className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      Client Management
-                    </h1>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Client Management
+                  </h1>
                   <p className="text-slate-600 mt-1 text-lg">
                     Manage your client companies and their information
                   </p>
@@ -192,6 +193,9 @@ export const ClientManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Notes Panel */}
+      <ReviewNotesPanel pageId="clients" pageName="Client Management" />
 
       {/* Clients Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
