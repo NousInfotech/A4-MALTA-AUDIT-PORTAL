@@ -18,7 +18,7 @@ import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
-import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel";
+import { EnhancedReviewNotesPanel } from "@/components/review-notes/EnhancedReviewNotesPanel";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -226,7 +226,11 @@ export const EngagementDetails = () => {
       </div>
 
       {/* Review Notes Panel */}
-      <ReviewNotesPanel pageId={`engagement-${id}`} pageName={`Engagement: ${engagement?.title || 'Details'}`} />
+      <EnhancedReviewNotesPanel 
+        pageId={`engagement-${id}`} 
+        pageName={`Engagement: ${engagement?.title || 'Details'}`}
+        engagementId={id}
+      />
 
       {/* Tabs Section */}
       <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
@@ -286,12 +290,22 @@ export const EngagementDetails = () => {
                 engagement={engagement}
                 requests={requests}
               />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-overview`} 
+                pageName={`Overview - ${engagement?.title || 'Details'}`}
+                engagementId={id}
+              />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <LibraryTab
                 engagement={engagement}
                 requests={requests}
+              />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-library`} 
+                pageName={`Library - ${engagement?.title || 'Details'}`}
+                engagementId={id}
               />
             </TabsContent>
 
@@ -305,6 +319,11 @@ export const EngagementDetails = () => {
                 handleUploadTrialBalance={handleUploadTrialBalance}
                 tbLoading={tbLoading}
               />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-audit`} 
+                pageName={`Audit - ${engagement?.title || 'Details'}`}
+                engagementId={id}
+              />
             </TabsContent>
 
             <TabsContent value="requests" className="space-y-6">
@@ -314,16 +333,31 @@ export const EngagementDetails = () => {
                 setDocumentRequest={setDocumentRequest}
                 handleSendDocumentRequest={handleSendDocumentRequest}
               />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-requests`} 
+                pageName={`Document Requests - ${engagement?.title || 'Details'}`}
+                engagementId={id}
+              />
             </TabsContent>
 
             <TabsContent value="procedures" className="space-y-6">
               <ProceduresTab
                 engagement={engagement}
               />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-procedures`} 
+                pageName={`Procedures - ${engagement?.title || 'Details'}`}
+                engagementId={id}
+              />
             </TabsContent>
 
             <TabsContent value="checklist" className="space-y-6">
               <ChecklistTab engagementId={id!} />
+              <EnhancedReviewNotesPanel 
+                pageId={`engagement-${id}-checklist`} 
+                pageName={`Checklist - ${engagement?.title || 'Details'}`}
+                engagementId={id}
+              />
             </TabsContent>
           </div>
         </Tabs>

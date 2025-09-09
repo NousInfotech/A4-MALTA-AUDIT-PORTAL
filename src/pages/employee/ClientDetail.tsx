@@ -14,7 +14,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
-import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 const getStatusStyle = (status: string) => {
   switch (status) {

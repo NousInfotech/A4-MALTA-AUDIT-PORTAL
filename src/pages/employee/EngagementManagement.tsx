@@ -28,12 +28,13 @@ import {
 } from "lucide-react";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
-import { ReviewNotesPanel } from "@/components/review-notes/ReviewNotesPanel";
+import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
 
 export const EngagementManagement = () => {
 
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
+  const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,6 +43,19 @@ export const EngagementManagement = () => {
   >("active");
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
+
+  const handleKYCComplete = (kycData: any) => {
+    // Handle KYC completion - in a real app, this would save to backend
+    console.log('KYC completed:', kycData);
+    toast({
+      title: "KYC Setup Complete",
+      description: "KYC requirements have been configured and sent to the client",
+    });
+    
+    // After KYC completion, open e-signature portal
+    setIsKYCModalOpen(false);
+    setIsSignModalOpen(true);
+  };
 
   interface User {
     summary: string;
@@ -343,8 +357,6 @@ export const EngagementManagement = () => {
         </div>
       </div>
 
-      {/* Review Notes Panel */}
-      <ReviewNotesPanel pageId="engagements" pageName="Engagement Management" />
 
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -411,24 +423,18 @@ export const EngagementManagement = () => {
                   </Link>
                 </Button>
 
-                {/* new e-signture button */}
+                {/* Start Engagement button with KYC popup */}
                 <Button
                   className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105"
                   variant="default"
                   size="sm"
-                  asChild
                   onClick={() => {
-                    setIsSignModalOpen(true);
-                    setSelectedEngagement(engagement)
+                    setSelectedEngagement(engagement);
+                    setIsKYCModalOpen(true);
                   }}
                 >
-                  <Link
-                  to='#'
-                    // to={`/employee/engagements/${engagement._id}/e-signature`}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Start Engagement
-                  </Link>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Start Engagement
                 </Button>
               </CardContent>
             </Card>
@@ -472,6 +478,15 @@ export const EngagementManagement = () => {
           open={isSignModalOpen}
           onOpenChange={setIsSignModalOpen}
           
+        />
+      )}
+
+      {isKYCModalOpen && (
+        <KYCSetupModal
+          selectedEngagement={selectedEngagement}
+          open={isKYCModalOpen}
+          onOpenChange={setIsKYCModalOpen}
+          onKYCComplete={handleKYCComplete}
         />
       )}
     </div>

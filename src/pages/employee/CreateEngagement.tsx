@@ -11,7 +11,6 @@ import { useEngagements } from '@/hooks/useEngagements';
 import { ArrowLeft, Briefcase, Loader2, Users, Calendar, FileText, Sparkles, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ReviewNotesPanel } from '@/components/review-notes/ReviewNotesPanel';
 
 export const CreateEngagement = () => {
   const {user} = useAuth();
@@ -166,8 +165,6 @@ const [clients, setClients] = useState<User[]>([])
         </div>
       </div>
 
-      {/* Review Notes Panel */}
-      <ReviewNotesPanel pageId="create-engagement" pageName="Create Engagement" />
 
       <div className="max-w-4xl mx-auto">
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
