@@ -1,0 +1,139 @@
+"filename", "language", "TypeScript", "JSON", "JavaScript", "JSON with Comments", "Markdown", "MS SQL", "XML", "TypeScript JSX", "PostCSS", "HTML", "comment", "blank", "total"
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\README.md", "Markdown", 0, 0, 0, 0, 45, 0, 0, 0, 0, 0, 0, 29, 74
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\components.json", "JSON", 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\eslint.config.js", "JavaScript", 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 0, 2, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\index.html", "HTML", 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 4, 19
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\package-lock.json", "JSON", 0, 9401, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9402
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\package.json", "JSON", 0, 93, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 94
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\postcss.config.js", "JavaScript", 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 1, 7
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\public\placeholder.svg", "XML", 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\App.css", "PostCSS", 0, 0, 0, 0, 0, 0, 0, 0, 37, 0, 0, 6, 43
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\App.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 81, 0, 0, 7, 13, 101
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\auth\ProtectedRoute.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 28, 0, 0, 0, 7, 35
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ChecklistTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 312, 0, 0, 11, 29, 352
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ClassificationSection.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 1796, 0, 0, 61, 116, 1973
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\DocumentRequestsTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 232, 0, 0, 1, 16, 249
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\ExtendedTrialBalance.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 831, 0, 0, 47, 62, 940
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\LibraryTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 570, 0, 0, 28, 31, 629
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\OverviewTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 4, 7, 121
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\TrialBalanceTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 264, 0, 0, 10, 33, 307
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\engagement\TrialBalanceUpload.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 281, 0, 0, 11, 39, 331
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\DashboardLayout.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 2, 5, 31
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\Header.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 2, 6, 50
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\layout\Sidebar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 165, 0, 0, 15, 18, 198
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProcedureGeneration.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 175, 0, 0, 5, 16, 196
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProcedureView.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 305, 0, 0, 13, 35, 353
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\ProceduresTab.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 143, 0, 0, 1, 18, 162
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\ClassificationStep.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 312, 0, 0, 8, 29, 349
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\MaterialityStep.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 147, 0, 0, 1, 17, 165
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\ProcedureQuestionsStep.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 510, 0, 0, 5, 40, 555
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\procedures\steps\RecommendationsStep.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 374, 0, 0, 7, 27, 408
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\accordion.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 49, 0, 0, 1, 8, 58
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\alert-dialog.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 126, 0, 0, 0, 14, 140
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\alert.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 53, 0, 0, 0, 7, 60
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\aspect-ratio.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 6
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\avatar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 43, 0, 0, 0, 6, 49
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\badge.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 31, 0, 0, 1, 6, 38
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\breadcrumb.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 105, 0, 0, 0, 11, 116
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\button.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 51, 0, 0, 1, 6, 58
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\calendar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 5, 65
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\card.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 71, 0, 0, 0, 9, 80
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\carousel.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 231, 0, 0, 1, 30, 262
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\chart.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 326, 0, 0, 3, 36, 365
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\checkbox.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 1, 4, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\collapsible.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 10
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\command.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 136, 0, 0, 0, 18, 154
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\context-menu.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 181, 0, 0, 0, 18, 199
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\dialog.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 108, 0, 0, 1, 13, 122
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\drawer.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 104, 0, 0, 0, 13, 117
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\dropdown-menu.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 181, 0, 0, 0, 18, 199
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\enhanced-loader.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 118, 0, 0, 0, 7, 125
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\form.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 152, 0, 0, 1, 25, 178
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\hover-card.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 6, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\input-otp.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 8, 70
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\input.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 4, 23
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\label.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 5, 25
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\menubar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 216, 0, 0, 0, 19, 235
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\navigation-menu.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 117, 0, 0, 0, 12, 129
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\pagination.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 107, 0, 0, 1, 11, 119
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\popover.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 6, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\progress.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 1, 4, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\radio-group.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 38, 0, 0, 1, 5, 44
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\resizable.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 38, 0, 0, 0, 6, 44
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\scroll-area.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 1, 5, 48
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\select.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 145, 0, 0, 1, 14, 160
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\separator.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 26, 0, 0, 0, 4, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sheet.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 116, 0, 0, 1, 16, 133
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sidebar.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 696, 0, 0, 13, 54, 763
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\skeleton.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 3, 16
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\slider.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 1, 4, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\sonner.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 5, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\switch.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 1, 4, 29
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\table.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 107, 0, 0, 0, 11, 118
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\tabs.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 7, 54
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\textarea.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 5, 25
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toast.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 115, 0, 0, 0, 13, 128
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toaster.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 31, 0, 0, 1, 3, 35
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toggle-group.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 51, 0, 0, 0, 9, 60
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\toggle.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 38, 0, 0, 0, 6, 44
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\tooltip.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 7, 29
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\components\ui\use-toast.ts", "TypeScript", 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\contexts\AuthContext.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 156, 0, 0, 9, 28, 193
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\contexts\DataContext.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 245, 0, 0, 2, 25, 272
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\use-mobile.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 5, 20
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\use-toast.ts", "TypeScript", 159, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 31, 193
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useChecklist.ts", "TypeScript", 91, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 12, 110
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useDocumentRequests.ts", "TypeScript", 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 11, 91
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useEngagements.ts", "TypeScript", 82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 92
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useProcedures.ts", "TypeScript", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 96, 14, 110
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useQueryParams.ts", "TypeScript", 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 46
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\hooks\useTrialBalance.ts", "TypeScript", 44, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 10, 55
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\index.css", "PostCSS", 0, 0, 0, 0, 0, 0, 0, 0, 94, 0, 14, 34, 142
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\integrations\supabase\client.ts", "TypeScript", 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 11
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\integrations\supabase\types.ts", "TypeScript", 198, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 10, 211
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\lib\api\global-library.ts", "TypeScript", 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 12, 135
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\lib\utils.ts", "TypeScript", 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 7
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\main.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 2, 10
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\Index.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 6, 33
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\NotFound.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 5, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\admin\AdminDashboard.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 578, 0, 0, 15, 46, 639
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\admin\UserManagement.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 560, 0, 0, 9, 40, 609
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\LoginPage.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 92, 0, 0, 2, 10, 104
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\PendingApprovalPage.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 1, 4, 45
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\auth\SignupPage.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 246, 0, 0, 2, 17, 265
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\ClientDashboard.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 249, 0, 0, 10, 15, 274
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\ClientEngagements.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 152, 0, 0, 4, 15, 171
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\client\DocumentRequests.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 276, 0, 0, 4, 25, 305
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\AddClient.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 245, 0, 0, 5, 20, 270
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\ClientDetail.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 249, 0, 0, 7, 23, 279
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\ClientManagement.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 232, 0, 0, 4, 16, 252
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\CreateEngagement.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 211, 0, 0, 15, 25, 251
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EmployeeDashboard.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 311, 0, 0, 7, 17, 335
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EngagementDetails.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 238, 0, 0, 4, 25, 267
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\EngagementManagement.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 239, 0, 0, 7, 20, 266
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\pages\employee\Library.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 680, 0, 0, 26, 30, 736
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\services\api.ts", "TypeScript", 237, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 47, 294
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\classification-options.js", "JavaScript", 0, 0, 58, 0, 0, 0, 0, 0, 0, 0, 0, 2, 60
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\procedures.js", "JavaScript", 0, 0, 1585, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1586
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\proceduresPrompt.js", "JavaScript", 0, 0, 310, 0, 0, 0, 0, 0, 0, 0, 0, 84, 394
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\proceduresPromptHybrid.js", "JavaScript", 0, 0, 161, 0, 0, 0, 0, 0, 0, 0, 0, 42, 203
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\static\recommendationsPrompt.js", "JavaScript", 0, 0, 27, 0, 0, 0, 0, 0, 0, 0, 0, 1, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\src\vite-env.d.ts", "TypeScript", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805094200_6f7fe447-3148-4843-a8e9-c529a1101aae.sql", "MS SQL", 0, 0, 0, 0, 0, 75, 0, 0, 0, 0, 10, 13, 98
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100408_1bb6b92e-52c2-46f7-a46b-cb9b99918ede.sql", "MS SQL", 0, 0, 0, 0, 0, 34, 0, 0, 0, 0, 1, 3, 38
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100537_3b3b2d36-62e9-4fa8-bfdd-675747534781.sql", "MS SQL", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 5
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100700_e7ccd1af-3f5a-4c21-bbbe-7f43e5e46a59.sql", "MS SQL", 0, 0, 0, 0, 0, 37, 0, 0, 0, 0, 4, 2, 43
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805100951_9e5254de-6477-4eb1-aa18-aae44989e6d0.sql", "MS SQL", 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 2, 1, 26
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805101143_97bb9924-797e-4322-b985-43b56669cd4b.sql", "MS SQL", 0, 0, 0, 0, 0, 25, 0, 0, 0, 0, 2, 1, 28
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102402_8e040053-4108-4040-8b5a-d3f227808d57.sql", "MS SQL", 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 1, 5
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102500_1d9ad404-fd7f-4854-839e-ea039d1590d6.sql", "MS SQL", 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 3, 2, 69
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102528_8890bb1f-7e5a-4238-8b94-55bcd3730434.sql", "MS SQL", 0, 0, 0, 0, 0, 29, 0, 0, 0, 0, 1, 0, 30
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102559_1d69de55-dbce-4645-a44c-a2d2fff7355a.sql", "MS SQL", 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 2, 2, 15
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805102901_4f0cf49c-104c-487b-9300-acf1a31c15f1.sql", "MS SQL", 0, 0, 0, 0, 0, 28, 0, 0, 0, 0, 2, 1, 31
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\supabase\migrations\20250805161025_09eee76b-9fc9-422d-b1c7-2ede6eb43f0a.sql", "MS SQL", 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 2, 1, 33
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\tailwind.config.ts", "TypeScript", 119, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 121
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.app.json", "JSON", 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 31
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.json", "JSON with Comments", 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 0, 1, 20
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\tsconfig.node.json", "JSON", 0, 18, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 23
+"d:\Axtra Studios\Projects\Audit Portal\audit-portal\vite.config.ts", "TypeScript", 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 35
+"Total", "-", 1211, 9557, 2175, 19, 45, 358, 1, 16160, 131, 15, 588, 1920, 32180

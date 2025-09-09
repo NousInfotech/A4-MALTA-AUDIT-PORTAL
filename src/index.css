@@ -1,0 +1,232 @@
+/* Import Great Vibes from Fontsource */
+@import '@fontsource/great-vibes';
+/* If you need specific weights/styles, you can import those:
+@import '@fontsource/great-vibes/400.css'; // Regular 400 weight
+@import '@fontsource/great-vibes/latin.css'; // Or just latin subset
+*/
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Professional Legal Audit Portal Design System */
+
+@layer base {
+  :root {
+    /* Core backgrounds - Off-white for reduced eye strain */
+    --background: 210 40% 98%; /* #f8fafc - Off-white */
+    --foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    /* Card system - Pure white for content areas */
+    --card: 0 0% 100%; /* #ffffff - Pure white */
+    --card-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    /* Popover system */
+    --popover: 0 0% 100%; /* #ffffff - Pure white */
+    --popover-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    /* Brand colors - Deep Navy Blue for trust and authority */
+    --primary: 222 47% 11%; /* #0f172a - Deep Navy Blue */
+    --primary-foreground: 0 0% 100%; /* #ffffff - White text */
+    --primary-hover: 222 47% 15%; /* Slightly lighter navy for hover */
+
+    /* Secondary colors - Slate Gray for modern sophistication */
+    --secondary: 215 25% 27%; /* #374151 - Slate Gray */
+    --secondary-foreground: 0 0% 100%; /* #ffffff - White text */
+
+    /* Muted colors - Cool Gray for subtle backgrounds */
+    --muted: 220 14% 96%; /* #f1f5f9 - Light cool gray */
+    --muted-foreground: 215 25% 27%; /* #374151 - Slate gray text */
+
+    /* Accent colors - Gold for highlights and CTAs */
+    --accent: 43 96% 56%; /* #f59e0b - Gold */
+    --accent-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+    --accent-hover: 43 96% 62%; /* Slightly lighter gold for hover */
+
+    /* Status colors - Industry standard semantic colors */
+    --success: 142 76% 36%; /* #10b981 - Emerald Green for completed audits */
+    --success-foreground: 0 0% 100%; /* #ffffff - White text */
+    --warning: 38 92% 50%; /* #f59e0b - Amber for pending items */
+    --warning-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+    --destructive: 0 84% 60%; /* #ef4444 - Red for errors */
+    --destructive-foreground: 0 0% 100%; /* #ffffff - White text */
+    --info: 214 88% 52%; /* #3b82f6 - Electric Blue for information */
+    --info-foreground: 0 0% 100%; /* #ffffff - White text */
+
+    /* Interface elements - Subtle borders and inputs */
+    --border: 220 13% 91%; /* #e2e8f0 - Light gray border */
+    --input: 220 14% 96%; /* #f1f5f9 - Light cool gray input */
+    --ring: 222 47% 11%; /* #0f172a - Deep navy ring */
+
+    /* Sidebar colors - Charcoal Gray for professional navigation */
+    --sidebar-background: 222 47% 11%; /* #0f172a - Deep Navy Blue */
+    --sidebar-foreground: 240, 5%, 45%; /* #f1f5f9 - Light cool gray text */
+    --sidebar-primary: 43 96% 56%; /* #f59e0b - Gold accent */
+    --sidebar-primary-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+    --sidebar-accent: 215 25% 27%; /* #374151 - Slate gray */
+    --sidebar-accent-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+    --sidebar-border: 215 25% 27%; /* #374151 - Slate gray border */
+    --sidebar-ring: 43 96% 56%; /* #f59e0b - Gold ring */
+
+    /* Professional gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--muted)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)));
+
+    /* Shadows - Subtle and professional */
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.1), 0 2px 4px -1px hsl(222 47% 11% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.1), 0 4px 6px -2px hsl(222 47% 11% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1), 0 10px 10px -5px hsl(222 47% 11% / 0.04);
+
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark theme - Charcoal Gray for modern sleek appearance */
+    --background: 222 47% 11%; /* #0f172a - Deep Navy Blue */
+    --foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+
+    --card: 215 25% 27%; /* #374151 - Slate Gray */
+    --card-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+
+    --popover: 215 25% 27%; /* #374151 - Slate Gray */
+    --popover-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+
+    --primary: 43 96% 56%; /* #f59e0b - Gold */
+    --primary-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    --secondary: 220 13% 91%; /* #e2e8f0 - Light gray */
+    --secondary-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    --muted: 215 25% 27%; /* #374151 - Slate Gray */
+    --muted-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+
+    --accent: 43 96% 56%; /* #f59e0b - Gold */
+    --accent-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+
+    --destructive: 0 84% 60%; /* #ef4444 - Red */
+    --destructive-foreground: 0 0% 100%; /* #ffffff - White text */
+
+    --border: 215 25% 27%; /* #374151 - Slate Gray */
+    --input: 215 25% 27%; /* #374151 - Slate Gray */
+    --ring: 43 96% 56%; /* #f59e0b - Gold */
+    
+    --sidebar-background: 222 47% 11%; /* #0f172a - Deep Navy Blue */
+    --sidebar-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+    --sidebar-primary: 43 96% 56%; /* #f59e0b - Gold */
+    --sidebar-primary-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
+    --sidebar-accent: 215 25% 27%; /* #374151 - Slate Gray */
+    --sidebar-accent-foreground: 220 14% 96%; /* #f1f5f9 - Light cool gray text */
+    --sidebar-border: 215 25% 27%; /* #374151 - Slate Gray */
+    --sidebar-ring: 43 96% 56%; /* #f59e0b - Gold */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+
+
+
+/* View Transition Wave Effect */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  /* Ensure the outgoing view (old theme) is beneath */
+  z-index: 0;
+}
+
+::view-transition-new(root) {
+  /* Ensure the incoming view (new theme) is always on top */
+  z-index: 1;
+}
+
+@keyframes reveal {
+  from {
+    /* Use CSS variables for the origin, defaulting to center if not set */
+    clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+    opacity: 0.7;
+  }
+  to {
+    /* Use CSS variables for the origin, defaulting to center if not set */
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+    opacity: 1;
+  }
+}
+
+::view-transition-new(root) {
+  /* Apply the reveal animation */
+  animation: reveal 0.4s ease-in-out forwards;
+}
+
+
+
+
+
+
+/* //proposal page loader */
+/* HTML: <div class="loader"></div> */
+.classic-loader {
+  width: 60px;
+  aspect-ratio: 2;
+  --_g: no-repeat radial-gradient(circle closest-side,#ff8c00 90%,#0000);
+  background: 
+    var(--_g) 0%   50%,
+    var(--_g) 50%  50%,
+    var(--_g) 100% 50%;
+  background-size: calc(100%/3) 50%;
+  animation: l3 1s infinite linear;
+}
+@keyframes l3 {
+    20%{background-position:0%   0%, 50%  50%,100%  50%}
+    40%{background-position:0% 100%, 50%   0%,100%  50%}
+    60%{background-position:0%  50%, 50% 100%,100%   0%}
+    80%{background-position:0%  50%, 50%  50%,100% 100%}
+}
+
+
+
+
+
+
+
+
+/* Add these at the end of your global CSS file */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-in-out forwards;
+}

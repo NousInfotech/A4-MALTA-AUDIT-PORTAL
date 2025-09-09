@@ -1,0 +1,217 @@
+import axiosInstance from "../axiosInstance";
+
+
+const APIDECK_API = "/api/apideck"
+
+export const createSessionAndGetTokenFromApideck = async (consumerId: string) => {
+  const response = await axiosInstance.post(`${APIDECK_API}/vault/sessions`, {
+    consumerId
+  });
+  return response.data.sessionToken;
+};
+
+
+export const getServicesbyUserId = async (consumerId: string) => {
+  const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/services`);
+  return response.data;
+};
+
+
+
+
+// Helper function to safely extract data from APIDECK responses
+const extractAPIResponse = (response: any, endpointName: string) => {
+  // Check multiple possible response structures
+  if (response.data?.[`${endpointName}Response`]?.data) {
+    return response.data[`${endpointName}Response`].data;
+  }
+  if (response.data?.data) {
+    return response.data.data;
+  }
+  if (response.data) {
+    return response.data;
+  }
+  
+  console.warn(`Unexpected response structure for ${endpointName}:`, response);
+  return response;
+};
+
+export const getJournalEntries = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/journal-entries`);
+    return extractAPIResponse(response, 'getJournalEntries');
+  } catch (error) {
+    console.error('Error fetching journal entries:', error);
+    throw error;
+  }
+};
+
+export const getLedgerAccountsData = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/ledger-accounts`);
+    return extractAPIResponse(response, 'getLedgerAccounts');
+  } catch (error) {
+    console.error('Error fetching ledger accounts:', error);
+    throw error;
+  }
+};
+
+export const getProfitAndLoss = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/profit-and-loss`);
+    // P&L reports might have different structure - often direct data object
+    if (response.data?.getProfitAndLossResponse) {
+      return response.data.getProfitAndLossResponse.data || response.data.getProfitAndLossResponse;
+    }
+    return extractAPIResponse(response, 'getProfitAndLoss');
+  } catch (error) {
+    console.error('Error fetching profit and loss:', error);
+    throw error;
+  }
+};
+
+export const getBalanceSheet = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/balance-sheet`);
+    // Balance sheet might have different structure - often direct data object
+    if (response.data?.getBalanceSheetResponse) {
+      return response.data.getBalanceSheetResponse.data || response.data.getBalanceSheetResponse;
+    }
+    return extractAPIResponse(response, 'getBalanceSheet');
+  } catch (error) {
+    console.error('Error fetching balance sheet:', error);
+    throw error;
+  }
+};
+
+export const getAgedReceivables = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/aged-receivables`);
+    return extractAPIResponse(response, 'getAgedReceivables');
+  } catch (error) {
+    console.error('Error fetching aged receivables:', error);
+    throw error;
+  }
+};
+
+export const getAgedPayables = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/aged-payables`);
+    return extractAPIResponse(response, 'getAgedPayables');
+  } catch (error) {
+    console.error('Error fetching aged payables:', error);
+    throw error;
+  }
+};
+
+export const getCustomers = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/customers`);
+    return extractAPIResponse(response, 'getCustomers');
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    throw error;
+  }
+};
+
+export const getSuppliers = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/suppliers`);
+    return extractAPIResponse(response, 'getSuppliers');
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    throw error;
+  }
+};
+
+
+export const getBills = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/bills`);
+    return extractAPIResponse(response, 'getBills');
+  } catch (error) {
+    console.error('Error fetching bills:', error);
+    throw error;
+  }
+};
+
+export const getBillPayments = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/bill-payments`);
+    return extractAPIResponse(response, 'getBillPayments');
+  } catch (error) {
+    console.error('Error fetching bill payments:', error);
+    throw error;
+  }
+};
+
+
+export const getPayments = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/payments`);
+    return extractAPIResponse(response, 'getPayments');
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    throw error;
+  }
+};
+
+
+export const getExpenses = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/expenses`);
+    return extractAPIResponse(response, 'getExpenses');
+  } catch (error) {
+    console.error('Error fetching expenses:', error);
+    throw error;
+  }
+};
+
+
+
+export const getBankFeed = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/bank-feed`);
+    return extractAPIResponse(response, 'getBankFeed');
+  } catch (error) {
+    console.error('Error fetching bank feed:', error);
+    throw error;
+  }
+};
+
+export const getBankStatements = async (connectionId: string, consumerId: string) => {
+  try {
+    const response = await axiosInstance.get(`${APIDECK_API}/consumers/${consumerId}/connections/${connectionId}/bank-feed-statements`);
+    return extractAPIResponse(response, 'getBankStatements');
+  } catch (error) {
+    console.error('Error fetching bank statements:', error);
+    throw error;
+  }
+};
+
+// Optional: Add a test function to verify response structures
+export const testAPIResponseStructures = async (connectionId: string, consumerId: string) => {
+  const endpoints = [
+    { name: 'Journal Entries', fn: getJournalEntries },
+    { name: 'Ledger Accounts', fn: getLedgerAccountsData },
+    { name: 'Profit & Loss', fn: getProfitAndLoss },
+    { name: 'Balance Sheet', fn: getBalanceSheet },
+    { name: 'Customers', fn: getCustomers },
+    // Add more as needed
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      console.log(`Testing ${endpoint.name}...`);
+      const data = await endpoint.fn(connectionId, connectionId);
+      console.log(`${endpoint.name} structure:`, {
+        isArray: Array.isArray(data),
+        hasData: !!data,
+        keys: typeof data === 'object' && data ? Object.keys(data) : 'Not an object',
+        sampleLength: Array.isArray(data) ? data.length : 'Not an array'
+      });
+    } catch (error) {
+      console.error(`${endpoint.name} failed:`, error);
+    }
+  }
+};
