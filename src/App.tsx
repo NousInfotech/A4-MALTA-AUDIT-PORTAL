@@ -91,7 +91,6 @@ const App = () => (
                 <Route path="engagements/:id" element={<EngagementDetails />} />
                 <Route path="library" element={<GlobalLibraryPage />} />
                 <Route path="accounts" element={<AccountDataTab />} />
-
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
               </Route>
 
