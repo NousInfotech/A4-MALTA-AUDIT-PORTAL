@@ -148,16 +148,16 @@ const [clients, setClients] = useState<User[]>([])
                 <ArrowLeft className="h-5 w-5 text-blue-600" />
         </Button>
               <div className="space-y-2">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  Create New Engagement
-                </h1>
+                                    <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent leading-tight">
+                      Create New Engagement
+                    </h1>
                 <p className="text-slate-600 text-lg">
             Set up a new audit engagement for a client
           </p>
         </div>
       </div>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
             </div>
@@ -169,7 +169,7 @@ const [clients, setClients] = useState<User[]>([])
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>

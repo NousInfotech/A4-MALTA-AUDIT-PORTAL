@@ -188,9 +188,9 @@ export const EngagementDetails = () => {
               </Button>
               <div className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words">
-                    {engagement.title}
-                  </h1>
+                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words leading-tight">
+                      {engagement.title}
+                    </h1>
                   <Badge
                     variant="outline"
                     className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(engagement.status)}`}
@@ -215,10 +215,10 @@ export const EngagementDetails = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Briefcase className="h-6 w-6 text-white" />
-              </div>
+                          <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                  <Briefcase className="h-6 w-6 text-white" />
+                </div>
             </div>
           </div>
         </div>

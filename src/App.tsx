@@ -36,7 +36,6 @@ import NotFound from "./pages/NotFound";
 import { ClientDetail } from "./pages/employee/ClientDetail";
 
 import AccountDataTab from "./components/accounts-integration/AccountDataTab";
-
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
 
 const queryClient = new QueryClient();
@@ -53,33 +52,24 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
-              <Route
-                path="/pending-approval"
-                element={<PendingApprovalPage />}
-              />
-
+              <Route path="/pending-approval" element={<PendingApprovalPage />} />
+              
               {/* Admin Routes */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
+              <Route path="/admin" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }>
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<UserManagement />} />
               </Route>
-
+              
               {/* Employee Routes */}
-              <Route
-                path="/employee"
-                element={
-                  <ProtectedRoute allowedRoles={["employee"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
+              <Route path="/employee" element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }>
                 <Route index element={<EmployeeDashboard />} />
                 <Route path="clients" element={<ClientManagement />} />
                 <Route path="clients/:id" element={<ClientDetail />} />
@@ -91,22 +81,19 @@ const App = () => (
                 <Route path="accounts" element={<AccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
               </Route>
-
+              
               {/* Client Routes */}
-              <Route
-                path="/client"
-                element={
-                  <ProtectedRoute allowedRoles={["client"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
+              <Route path="/client" element={
+                <ProtectedRoute allowedRoles={['client']}>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }>
                 <Route index element={<ClientDashboard />} />
                 <Route path="engagements" element={<ClientEngagements />} />
                 <Route path="requests" element={<DocumentRequests />} />
                 <Route path="accounts" element={<AccountDataTab />} />
               </Route>
-
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
