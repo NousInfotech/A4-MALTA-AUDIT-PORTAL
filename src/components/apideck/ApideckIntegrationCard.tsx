@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { ApideckVault, Connection } from "@apideck/vault-js";
 import { useAuth } from "@/contexts/AuthContext";
-
+import { Zap, Shield, Lock, Building2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { createSessionAndGetTokenFromApideck } from "@/lib/api/apideck";
 
@@ -94,64 +96,107 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
   };
 
   return (
-    <div className="rounded-lg p-5 bg-gray-100">
-    <div className="w-full max-w-md mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-      {/* Card Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
-            <span className="text-lg font-bold text-blue-600">A</span>
+    <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      
+      <CardHeader className="relative pb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+            <Zap className="h-8 w-8 text-white" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800">
-            Connect Accounting System
-          </h2>
+          <div className="flex-1">
+            <CardTitle className="text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">
+              Connect Accounting System
+            </CardTitle>
+            <CardDescription className="text-slate-600 mt-2 text-lg">
+              Connect your accounting software (QuickBooks, Xero, etc.) to automatically import financial data through our unified API platform.
+            </CardDescription>
+          </div>
         </div>
-        <p className="mt-2 text-sm text-gray-600">
-          Connect your accounting software (QuickBooks, Xero, etc.) to
-          automatically import financial data.
-        </p>
-      </div>
+      </CardHeader>
 
-      {/* Card Content */}
-      <div className="p-6 space-y-5">
-        <div className="space-y-2">
-          <p className="text-sm text-gray-500">Supported platforms:</p>
+      <CardContent className="relative space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Building2 className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Multiple Platforms</p>
+              <p className="text-sm text-slate-600">QuickBooks, Xero, Sage</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Shield className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Enterprise Security</p>
+              <p className="text-sm text-slate-600">Bank-level protection</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-slate-600">Supported platforms:</p>
           <div className="flex flex-wrap gap-2">
             {["QuickBooks", "Xero", "Sage", "FreshBooks"].map((platform) => (
-              <span
+              <Badge
                 key={platform}
-                className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200"
+                className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-xs font-semibold"
               >
+                <CheckCircle className="h-3 w-3 mr-1" />
                 {platform}
-              </span>
+              </Badge>
             ))}
           </div>
         </div>
-        <button
+
+        <div className="flex items-center justify-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+          <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold">
+            <Shield className="h-4 w-4 mr-2" />
+            Secure Integration
+          </Badge>
+          <Badge className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200 rounded-xl px-4 py-2 text-sm font-semibold">
+            <Lock className="h-4 w-4 mr-2" />
+            OAuth 2.0
+          </Badge>
+        </div>
+      </CardContent>
+
+      <div className="relative p-6 pt-0">
+        <Button
           onClick={handleOpenVault}
-          disabled={loading || !linkToken || isVaultOpen} // Disable if vault is already open
-          className={`w-full px-4 py-2 rounded-md font-semibold text-white
-                     transition-colors duration-200
-                     ${
-                       loading || !linkToken || isVaultOpen
-                         ? "bg-blue-300 cursor-not-allowed"
-                         : "bg-blue-600 hover:bg-blue-700"
-                     }`}
+          disabled={loading || !linkToken || isVaultOpen}
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-4 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed group-hover:scale-105"
+          size="lg"
         >
-          {loading
-            ? "Initializing..."
-            : isVaultOpen
-            ? "Vault Open..."
-            : "Connect Accounting System"}
-        </button>
+          {loading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+              Initializing...
+            </>
+          ) : isVaultOpen ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+              Vault Open...
+            </>
+          ) : (
+            <>
+              <Zap className="h-5 w-5 mr-3" />
+              Connect Accounting System
+            </>
+          )}
+        </Button>
+        
         {loading && (
-          <p className="text-sm text-gray-500 text-center">
+          <p className="text-sm text-slate-500 text-center mt-3">
             Fetching connection details...
           </p>
         )}
       </div>
-    </div>
-    </div>
+    </Card>
   );
 };
 
