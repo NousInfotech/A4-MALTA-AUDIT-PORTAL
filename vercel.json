@@ -9,9 +9,6 @@
       }
     }
   ],
-  "env": {
-    "VITE_APIURL": "@vite_api_url"
-  },
   "routes": [
     {
       "src": "/(.*)",
