@@ -28,7 +28,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
-import { ReviewNotesSummary } from "@/components/review-notes/ReviewNotesSummary";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
@@ -190,13 +189,13 @@ export const EmployeeDashboard = () => {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    Employee Dashboard
-                  </h1>
+                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
+                      Employee Dashboard
+                    </h1>
                   <p className="text-slate-600 mt-1 text-lg">
                     Manage your audit engagements and client relationships
                   </p>
@@ -240,7 +239,7 @@ export const EmployeeDashboard = () => {
                   <CardTitle className="text-sm font-medium text-slate-600">
                     {stat.title}
                   </CardTitle>
-                  <div className={`w-10 h-10 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300`}>
+                  <div className={`w-10 h-10 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0`}>
                     <Icon className="h-5 w-5 text-white" />
                   </div>
                 </div>
@@ -262,9 +261,6 @@ export const EmployeeDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Review Notes Summary */}
-        <ReviewNotesSummary className="lg:col-span-2" />
-        
         {/* Recent Engagements */}
         <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">
@@ -358,7 +354,7 @@ export const EmployeeDashboard = () => {
           <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
                   <Users className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -387,7 +383,7 @@ export const EmployeeDashboard = () => {
                   className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-blue-100/50 rounded-2xl hover:border-blue-300/50 transition-all duration-300 hover:shadow-lg"
                 >
                   <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                       <Building2 className="h-6 w-6 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">

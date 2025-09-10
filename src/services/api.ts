@@ -23,26 +23,58 @@ export const initializeSocket = (token: string) => {
 
 export const getSocket = () => socket;
 
-// API helper function
+// API helper function with comprehensive logging
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
+  console.log(`🌐 API Call: ${options.method || 'GET'} ${API_URL}${endpoint}`);
   
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Network error' }));
-    throw new Error(error.message || 'API request failed');
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) {
+      console.error('❌ Session error:', error);
+      throw error;
+    }
+    
+    console.log('🔐 Session token obtained successfully');
+    
+    const requestOptions = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.session?.access_token}`,
+        ...options.headers,
+      },
+    };
+    
+    console.log('📤 Request options:', {
+      method: requestOptions.method || 'GET',
+      headers: Object.keys(requestOptions.headers),
+      body: requestOptions.body ? 'Present' : 'None'
+    });
+    
+    const response = await fetch(`${API_URL}${endpoint}`, requestOptions);
+    
+    console.log(`📡 Response received: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      console.error(`❌ API Error: ${response.status} ${response.statusText}`);
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      console.error('📄 Error details:', error);
+      throw new Error(error.message || 'API request failed');
+    }
+    
+    const result = await response.json();
+    console.log('✅ API call successful, response received');
+    return result;
+    
+  } catch (error) {
+    console.error('💥 API call failed:', {
+      endpoint: `${API_URL}${endpoint}`,
+      method: options.method || 'GET',
+      error: error.message,
+      stack: error.stack
+    });
+    throw error;
   }
-
-  return response.json();
 };
 
 // Engagement API
@@ -205,10 +237,21 @@ export const documentRequestApi = {
     category: string;
     description: string;
   }) => {
-    return apiCall('/api/document-requests', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    console.log('📄 Creating Document Request...');
+    console.log('📋 Document Request Data:', data);
+    
+    try {
+      const result = await apiCall('/api/document-requests', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('✅ Document Request created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Document Request creation failed:', error);
+      throw error;
+    }
   },
 
   getByEngagement: async (engagementId: string) => {
@@ -288,6 +331,122 @@ export const checklistApi = {
     return apiCall(`/api/checklist/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+// KYC API
+export const kycApi = {
+  // Create KYC workflow
+  create: async (data: {
+    engagementId: string;
+    clientId: string;
+    auditorId: string;
+    documentRequestId: string;
+  }) => {
+    console.log('🔄 Creating KYC Workflow...');
+    console.log('📋 KYC Workflow Data:', data);
+    
+    try {
+      const result = await apiCall('/api/kyc/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('✅ KYC Workflow created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ KYC Workflow creation failed:', error);
+      throw error;
+    }
+  },
+
+  // Get KYC by engagement ID
+  getByEngagement: async (engagementId: string) => {
+    return apiCall(`/api/kyc/engagement/${engagementId}`);
+  },
+
+  // Get KYC by ID
+  getById: async (id: string) => {
+    return apiCall(`/api/kyc/${id}`);
+  },
+
+  // Update KYC workflow
+  update: async (id: string, data: {
+    status?: 'pending' | 'in-review' | 'completed';
+    documentRequestId?: string;
+  }) => {
+    return apiCall(`/api/kyc/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete KYC workflow
+  delete: async (id: string) => {
+    return apiCall(`/api/kyc/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get all KYC workflows with filters
+  getAll: async (filters?: {
+    status?: 'pending' | 'in-review' | 'completed';
+    clientId?: string;
+    auditorId?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.clientId) params.append('clientId', filters.clientId);
+    if (filters?.auditorId) params.append('auditorId', filters.auditorId);
+    
+    const queryString = params.toString();
+    const endpoint = queryString ? `/api/kyc/?${queryString}` : '/api/kyc/';
+    return apiCall(endpoint);
+  },
+
+  // Add discussion to KYC
+  addDiscussion: async (kycId: string, data: {
+    message: string;
+    replyTo?: string;
+    documentRef?: {
+      documentRequestId: string;
+      documentIndex: number;
+    };
+  }) => {
+    return apiCall(`/api/kyc/${kycId}/discussions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Update discussion
+  updateDiscussion: async (kycId: string, discussionId: string, data: {
+    message: string;
+  }) => {
+    return apiCall(`/api/kyc/${kycId}/discussions/${discussionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete discussion
+  deleteDiscussion: async (kycId: string, discussionId: string) => {
+    return apiCall(`/api/kyc/${kycId}/discussions/${discussionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get discussions by document
+  getDiscussionsByDocument: async (documentRequestId: string, documentIndex: number) => {
+    return apiCall(`/api/kyc/discussions/document/${documentRequestId}/${documentIndex}`);
+  },
+
+  // Update KYC status
+  updateStatus: async (kycId: string, status: 'pending' | 'in-review' | 'completed') => {
+    return apiCall(`/api/kyc/${kycId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   },
 };

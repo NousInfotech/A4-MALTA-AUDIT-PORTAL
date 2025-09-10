@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Loader2, Eye, EyeOff, Sparkles, ArrowRight, Lock, Mail, Key, Users } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Sparkles, ArrowRight, Lock, Mail, Key, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export const LoginPage = () => {
@@ -52,7 +52,7 @@ export const LoginPage = () => {
             {/* Logo */}
             <div className="flex justify-center mb-6">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center shadow-lg">
-                <Shield className="h-10 w-10 text-white" />
+                <img src="/logo.png" alt="Logo" className="h-14 w-14" />
               </div>
             </div>
             

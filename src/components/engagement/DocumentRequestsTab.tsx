@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
-import { Send, ChevronsUpDown, Check, FileText } from "lucide-react"
+import { Send, ChevronsUpDown, Check, FileText, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { KYCSetupModal } from "@/components/kyc/KYCSetupModal"
 
 const categories = [
   "Planning",
@@ -109,6 +110,7 @@ interface DocumentRequestsTabProps {
   }
   setDocumentRequest: (request: any) => void
   handleSendDocumentRequest: () => void
+  engagement?: any
 }
 
 export const DocumentRequestsTab = ({
@@ -116,11 +118,19 @@ export const DocumentRequestsTab = ({
   documentRequest,
   setDocumentRequest,
   handleSendDocumentRequest,
+  engagement,
 }: DocumentRequestsTabProps) => {
+  const [kycModalOpen, setKycModalOpen] = useState(false)
+  
   const canSend =
     (documentRequest.category?.trim()?.length || 0) > 0 && (documentRequest.description?.trim()?.length || 0) > 0
   const descLen = documentRequest.description?.length || 0
   const DESC_MAX = 800
+
+  const handleKYCComplete = (kycData: any) => {
+    console.log('KYC completed:', kycData);
+    // You can add additional logic here if needed
+  };
 
   return (
     <div className="space-y-6">
@@ -177,7 +187,15 @@ export const DocumentRequestsTab = ({
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setKycModalOpen(true)}
+              className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Setup KYC
+            </Button>
             <Button onClick={handleSendDocumentRequest} disabled={!canSend}>
               <Send className="h-4 w-4 mr-2" />
               Send Request
@@ -243,6 +261,14 @@ export const DocumentRequestsTab = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* KYC Setup Modal */}
+      <KYCSetupModal
+        selectedEngagement={engagement}
+        open={kycModalOpen}
+        onOpenChange={setKycModalOpen}
+        onKYCComplete={handleKYCComplete}
+      />
     </div>
   )
 }

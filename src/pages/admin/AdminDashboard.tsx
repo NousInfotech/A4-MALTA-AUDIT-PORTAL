@@ -30,6 +30,13 @@ import {
   Building2,
   Briefcase,
   Activity,
+  TrendingUp,
+  Clock,
+  ArrowRight,
+  Plus,
+  BarChart3,
+  Settings,
+  FileText
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
@@ -281,13 +288,17 @@ export const AdminDashboard = () => {
       description: "All registered users",
       icon: Users,
       trend: `+${newUsersThisWeek} this week`,
+      color: "from-blue-500 to-indigo-600",
+      bgColor: "from-blue-50 to-indigo-50"
     },
     {
       title: "Pending Approvals",
       value: pendingUsers.length.toString(),
       description: "Awaiting approval",
-      icon: Users,
+      icon: Clock,
       trend: `+${newUsersToday} today`,
+      color: "from-yellow-500 to-amber-600",
+      bgColor: "from-yellow-50 to-amber-50"
     },
     {
       title: "Active Employees",
@@ -295,6 +306,8 @@ export const AdminDashboard = () => {
       description: "Approved auditors",
       icon: UserCheck,
       trend: `+${newEmployeesThisMonth} this month`,
+      color: "from-green-500 to-emerald-600",
+      bgColor: "from-green-50 to-emerald-50"
     },
     {
       title: "Client Companies",
@@ -302,6 +315,8 @@ export const AdminDashboard = () => {
       description: "Active clients",
       icon: Building2,
       trend: `+${newClientsThisMonth} this month`,
+      color: "from-purple-500 to-pink-600",
+      bgColor: "from-purple-50 to-pink-50"
     },
   ];
 
@@ -352,103 +367,161 @@ export const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+      <div className="flex items-center justify-center h-64">
         <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">
-            Admin Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Monitor and manage your audit portal users and system overview
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <Link to={"/admin/users"} className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto">
-              <Users className="h-4 w-4 mr-2 shrink-0" />
-              <span className="truncate">Manage Users</span>
-            </Button>
-          </Link>
+    <div className="bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20 space-y-8">
+      {/* Header Section */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
+        <div className="relative bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl p-8 shadow-xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                  <img src="/logo.png" alt="Logo" className="h-10 w-10" />
+                </div>
+                <div>
+                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
+                      Admin Dashboard
+                    </h1>
+                  <p className="text-slate-600 mt-1 text-lg">
+                    Monitor and manage your audit portal users and system overview
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto" 
+                asChild
+              >
+                <Link to="/admin/users">
+                  <Users className="h-5 w-5 mr-2" />
+                  Manage Users
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+              >
+                <Link to="/admin/logs">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Auditor Logs
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+              >
+                <Link to="/admin/settings">
+                  <Settings className="h-5 w-5 mr-2" />
+                  System Settings
+                </Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Grid (desktop unchanged) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+            <Card key={stat.title} className="group bg-white/80 backdrop-blur-sm border border-purple-100/50 hover:border-purple-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <CardHeader className="relative pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-slate-600">
+                    {stat.title}
+                  </CardTitle>
+                  <div className={`w-10 h-10 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0`}>
+                    <Icon className="h-5 w-5 text-white" />
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
+              <CardContent className="relative">
+                <div className="text-3xl font-bold text-slate-800 mb-2">
                   {stat.value}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-slate-600 mb-3">
                   {stat.description}
                 </p>
-                <p className="text-xs text-success mt-1">{stat.trend}</p>
+                <div className={`p-3 bg-gradient-to-r ${stat.bgColor} rounded-2xl border border-purple-100/50`}>
+                  <p className="text-xs font-semibold text-slate-700">{stat.trend}</p>
+                </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Pending Approvals */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="min-w-0">
-                <CardTitle className="truncate">Pending Approvals</CardTitle>
-                <CardDescription>
-                  Users waiting for account approval
-                </CardDescription>
+        <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-yellow-100/50">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-slate-800">Pending Approvals</CardTitle>
+                  <CardDescription className="text-slate-600">Users waiting for account approval</CardDescription>
+                </div>
               </div>
-              <Link to={"/admin/users"} className="w-full sm:w-auto">
-                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                asChild 
+                className="border-yellow-200 hover:bg-yellow-50/50 text-yellow-700 hover:text-yellow-800 rounded-2xl"
+              >
+                <Link to="/admin/users">
+                  <ArrowRight className="h-4 w-4 mr-2" />
                   View All
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="space-y-4">
               {pendingUsers.slice(0, 3).map((user) => (
                 <div
                   key={user.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-border rounded-lg"
+                  className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-50 to-yellow-50/30 border border-yellow-100/50 rounded-2xl hover:border-yellow-300/50 transition-all duration-300 hover:shadow-lg"
                 >
-                  <div className="flex items-start sm:items-center gap-3 min-w-0">
-                    <div className="w-2 h-2 mt-1.5 sm:mt-0 rounded-full bg-warning shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{user.name}</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">{user.role}</Badge>
-                        <span className="text-xs text-muted-foreground break-all">{user.email}</span>
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-800 truncate group-hover:text-yellow-700 transition-colors duration-300">
+                        {user.name}
+                      </p>
+                      <p className="text-sm text-slate-600 truncate">
+                        {user.email}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-700 border-yellow-200">
+                          {user.role}
+                        </Badge>
                       </div>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2">
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent"
+                          className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent rounded-xl"
                           disabled={actionLoading === user.id}
                         >
                           {actionLoading === user.id ? (
@@ -471,7 +544,12 @@ export const AdminDashboard = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleApprove(user.id)}>Approve</AlertDialogAction>
+                          <AlertDialogAction 
+                            onClick={() => handleApprove(user.id)}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                          >
+                            Approve
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -481,7 +559,7 @@ export const AdminDashboard = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground bg-transparent"
+                          className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-xl"
                           disabled={actionLoading === user.id}
                         >
                           {actionLoading === user.id ? (
@@ -506,7 +584,7 @@ export const AdminDashboard = () => {
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleReject(user.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            className="bg-red-600 text-white hover:bg-red-700"
                           >
                             Reject
                           </AlertDialogAction>
@@ -518,11 +596,12 @@ export const AdminDashboard = () => {
               ))}
 
               {pendingUsers.length === 0 && (
-                <div className="text-center py-8">
-                  <UserCheck className="h-8 w-8 text-success mx-auto mb-2" />
-                  <p className="text-muted-foreground">No pending approvals</p>
-                  <p className="text-xs text-muted-foreground">
-                    All users have been processed
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gradient-to-br from-yellow-500/20 to-amber-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                    <UserCheck className="h-8 w-8 text-yellow-600" />
+                  </div>
+                  <p className="text-slate-600 font-medium">
+                    No pending approvals. All users have been processed.
                   </p>
                 </div>
               )}
@@ -531,51 +610,61 @@ export const AdminDashboard = () => {
         </Card>
 
         {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Latest user management activities
-                </CardDescription>
+        <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                  <Activity className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-slate-800">Recent Activity</CardTitle>
+                  <CardDescription className="text-slate-600">Latest user management activities</CardDescription>
+                </div>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <div className="space-y-4">
               {recentActivity.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-border rounded-lg"
+                  className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-50 to-purple-50/30 border border-purple-100/50 rounded-2xl hover:border-purple-300/50 transition-all duration-300 hover:shadow-lg"
                 >
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div
-                      className={`w-2 h-2 mt-1.5 sm:mt-0 rounded-full ${
-                        activity.status === "pending"
-                          ? "bg-warning"
-                          : "bg-success"
-                      }`}
-                    />
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className={`w-10 h-10 bg-gradient-to-br ${
+                      activity.status === "pending" 
+                        ? "from-yellow-500 to-amber-600" 
+                        : "from-green-500 to-emerald-600"
+                    } rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300`}>
+                      <Activity className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-800 truncate group-hover:text-purple-700 transition-colors duration-300">
                         {activity.action}
                       </p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="text-sm text-slate-600 truncate">
                         {activity.user}
                       </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock className="h-3 w-3 text-slate-500" />
+                        <p className="text-xs text-slate-500">
+                          {activity.time}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {activity.time}
-                  </span>
                 </div>
               ))}
 
               {recentActivity.length === 0 && (
-                <div className="text-center py-8">
-                  <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-muted-foreground">No recent activity</p>
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                    <Activity className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <p className="text-slate-600 font-medium">
+                    No recent activity to display.
+                  </p>
                 </div>
               )}
             </div>
@@ -584,51 +673,54 @@ export const AdminDashboard = () => {
       </div>
 
       {/* System Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Overview</CardTitle>
-          <CardDescription>
-            Overview of engagements and document requests
-          </CardDescription>
+      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-100/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-slate-500 to-blue-600 rounded-2xl flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-800">System Overview</CardTitle>
+              <CardDescription className="text-slate-600">Overview of engagements and document requests</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+              <div className="text-3xl font-bold text-slate-800 mb-2">
                 {engagements.length}
               </div>
-              <p className="text-sm text-muted-foreground">Total Engagements</p>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <Briefcase className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  {engagements.filter((e) => e.status === "active").length}{" "}
-                  active
+              <p className="text-sm text-slate-600 mb-3">Total Engagements</p>
+              <div className="flex items-center justify-center gap-2">
+                <Briefcase className="h-4 w-4 text-blue-600" />
+                <span className="text-sm text-blue-700 font-medium">
+                  {engagements.filter((e) => e.status === "active").length} active
                 </span>
               </div>
             </div>
 
-            <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">
+            <div className="text-center p-6 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50">
+              <div className="text-3xl font-bold text-slate-800 mb-2">
                 {allRequests.length}
               </div>
-              <p className="text-sm text-muted-foreground">Document Requests</p>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <Activity className="h-3 w-3 text-warning" />
-                <span className="text-xs text-warning">
-                  {allRequests.filter((r) => r.status === "pending").length}{" "}
-                  pending
+              <p className="text-sm text-slate-600 mb-3">Document Requests</p>
+              <div className="flex items-center justify-center gap-2">
+                <Activity className="h-4 w-4 text-yellow-600" />
+                <span className="text-sm text-yellow-700 font-medium">
+                  {allRequests.filter((r) => r.status === "pending").length} pending
                 </span>
               </div>
             </div>
 
-            <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">
+            <div className="text-center p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
+              <div className="text-3xl font-bold text-slate-800 mb-2">
                 {approvedUsers.length}
               </div>
-              <p className="text-sm text-muted-foreground">Approved Users</p>
-              <div className="flex items-center justify-center gap-1 mt-1">
-                <UserCheck className="h-3 w-3 text-success" />
-                <span className="text-xs text-success">Active accounts</span>
+              <p className="text-sm text-slate-600 mb-3">Approved Users</p>
+              <div className="flex items-center justify-center gap-2">
+                <UserCheck className="h-4 w-4 text-green-600" />
+                <span className="text-sm text-green-700 font-medium">Active accounts</span>
               </div>
             </div>
           </div>

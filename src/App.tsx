@@ -17,6 +17,7 @@ import { PendingApprovalPage } from "@/pages/auth/PendingApprovalPage";
 // Admin pages
 import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { UserManagement } from "@/pages/admin/UserManagement";
+import { AuditorLogs } from "@/pages/admin/AuditorLogs";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -71,6 +72,7 @@ const App = () => (
               >
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<UserManagement />} />
+                <Route path="logs" element={<AuditorLogs />} />
               </Route>
 
               {/* Employee Routes */}
