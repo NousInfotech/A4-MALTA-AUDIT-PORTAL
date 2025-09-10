@@ -55,7 +55,7 @@ interface KYCWorkflow {
   };
   clientId: string;
   auditorId: string;
-  documentRequests: {
+  documentRequests?: {
     _id: string;
     category: string;
     description: string;
@@ -122,7 +122,7 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
     const matchesSearch = 
       workflow.engagement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflow.engagement.clientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      workflow.documentRequests.category.toLowerCase().includes(searchTerm.toLowerCase());
+      (workflow.documentRequests?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     
     const matchesStatus = statusFilter === "all" || workflow.status === statusFilter;
     
@@ -293,9 +293,11 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="text-sm font-medium text-slate-700">{workflow.documentRequests.category}</div>
+                          <div className="text-sm font-medium text-slate-700">
+                            {workflow.documentRequests?.category || 'No category'}
+                          </div>
                           <div className="text-xs text-slate-500">
-                            {workflow.documentRequests.documents.length} documents
+                            {workflow.documentRequests?.documents?.length || 0} documents
                           </div>
                         </div>
                       </TableCell>
@@ -376,28 +378,36 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
                                       </CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
-                                      <div>
-                                        <span className="text-sm font-medium text-slate-600">Category:</span>
-                                        <p className="text-slate-800">{selectedKYC.documentRequests.category}</p>
-                                      </div>
-                                      <div>
-                                        <span className="text-sm font-medium text-slate-600">Description:</span>
-                                        <p className="text-slate-800">{selectedKYC.documentRequests.description}</p>
-                                      </div>
-                                      <div>
-                                        <span className="text-sm font-medium text-slate-600">Documents ({selectedKYC.documentRequests.documents.length}):</span>
-                                        <div className="space-y-2 mt-2">
-                                          {selectedKYC.documentRequests.documents.map((doc, index) => (
-                                            <div key={index} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-                                              <FileText className="h-4 w-4 text-slate-500" />
-                                              <span className="text-sm text-slate-700">{doc.name}</span>
-                                              <span className="text-xs text-slate-500">
-                                                ({format(new Date(doc.uploadedAt), "MMM dd, yyyy")})
-                                              </span>
+                                      {selectedKYC.documentRequests ? (
+                                        <>
+                                          <div>
+                                            <span className="text-sm font-medium text-slate-600">Category:</span>
+                                            <p className="text-slate-800">{selectedKYC.documentRequests.category}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-sm font-medium text-slate-600">Description:</span>
+                                            <p className="text-slate-800">{selectedKYC.documentRequests.description}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-sm font-medium text-slate-600">Documents ({selectedKYC.documentRequests.documents?.length || 0}):</span>
+                                            <div className="space-y-2 mt-2">
+                                              {selectedKYC.documentRequests.documents?.map((doc, index) => (
+                                                <div key={index} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
+                                                  <FileText className="h-4 w-4 text-slate-500" />
+                                                  <span className="text-sm text-slate-700">{doc.name}</span>
+                                                  <span className="text-xs text-slate-500">
+                                                    ({format(new Date(doc.uploadedAt), "MMM dd, yyyy")})
+                                                  </span>
+                                                </div>
+                                              )) || (
+                                                <p className="text-slate-500 text-sm">No documents uploaded yet</p>
+                                              )}
                                             </div>
-                                          ))}
-                                        </div>
-                                      </div>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <p className="text-slate-500">No document request associated with this KYC workflow</p>
+                                      )}
                                     </CardContent>
                                   </Card>
 
