@@ -226,11 +226,11 @@ export const EngagementDetails = () => {
       </div>
 
       {/* Review Notes Panel */}
-      <EnhancedReviewNotesPanel 
+      {/* <EnhancedReviewNotesPanel 
         pageId={`engagement-${id}`} 
         pageName={`Engagement: ${engagement?.title || 'Details'}`}
         engagementId={id}
-      />
+      /> */}
 
       {/* Tabs Section */}
       <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
