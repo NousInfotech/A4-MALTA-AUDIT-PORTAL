@@ -97,13 +97,26 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
   const getStatusStyle = (status: Connection['status']) => {
     switch (status) {
       case 'active':
-        return 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200';
+        return 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 border-green-300 shadow-green-100';
       case 'inactive':
-        return 'bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border-slate-200';
+        return 'bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-800 border-amber-300 shadow-amber-100';
       case 'error':
-        return 'bg-gradient-to-r from-red-100 to-rose-100 text-red-700 border-red-200';
+        return 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-red-300 shadow-red-100';
       default:
-        return 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200';
+        return 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-800 border-blue-300 shadow-blue-100';
+    }
+  };
+
+  const getStatusIcon = (status: Connection['status']) => {
+    switch (status) {
+      case 'active':
+        return <Shield className="h-3 w-3" />;
+      case 'inactive':
+        return <Calendar className="h-3 w-3" />;
+      case 'error':
+        return <Settings className="h-3 w-3" />;
+      default:
+        return <Building2 className="h-3 w-3" />;
     }
   };
 
@@ -121,85 +134,79 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
     <TooltipProvider>
       <Card 
         onClick={() => onSelect(connection)} 
-        className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden cursor-pointer"
+        className="group bg-white border border-gray-200 hover:border-blue-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden cursor-pointer w-full max-w-sm"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-        
-        <CardHeader className="relative pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                <Building2 className="h-7 w-7 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-xl font-bold text-slate-800 truncate group-hover:text-blue-700 transition-colors duration-300">
-                  {connection.provider_name}
-                </CardTitle>
-                <CardDescription className="text-slate-600 font-medium">
-                  {connection.provider_code}
-                </CardDescription>
-              </div>
+        {/* Header */}
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+              <Building2 className="h-5 w-5 text-white" />
             </div>
-            <Badge 
-              variant={getStatusBadgeVariant(connection.status)} 
-              className={`rounded-xl px-4 py-2 text-sm font-semibold ${getStatusStyle(connection.status)}`}
-            >
-              {connection.status}
-            </Badge>
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base font-semibold text-gray-900 truncate">
+                {connection.provider_name}
+              </CardTitle>
+              <CardDescription className="text-sm text-gray-500">
+                {connection.provider_code}
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
 
-        <CardContent className="relative space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
+        {/* Content */}
+        <CardContent className="space-y-4">
+          {/* Status Badges */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
               <Calendar className="h-4 w-4 text-blue-600" />
               <div>
-                <p className="text-xs text-blue-600 font-semibold uppercase">Created</p>
-                <p className="text-sm font-semibold text-slate-700">
+                <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">CREATED</p>
+                <p className="text-sm font-semibold text-gray-900">
                   {formatDateTime(connection.created_at)}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl">
+            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
               <Shield className="h-4 w-4 text-green-600" />
               <div>
-                <p className="text-xs text-green-600 font-semibold uppercase">Last Success</p>
-                <p className="text-sm font-semibold text-slate-700">
+                <p className="text-xs font-medium text-green-600 uppercase tracking-wide">LAST SUCCESS</p>
+                <p className="text-sm font-semibold text-gray-900">
                   {formatDateTime(connection.last_success_at)}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl">
-              <span className="text-sm font-medium text-slate-600">Connection ID:</span>
+          {/* Connection Details */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-600">Connection ID:</span>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="text-sm text-slate-700 truncate max-w-[150px] cursor-help font-mono">
+                  <span className="text-sm font-mono text-gray-900 cursor-help">
                     {connection.id.slice(0, 8)}...
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{connection.id}</p>
+                  <p className="font-mono text-xs">{connection.id}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
 
-            <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl">
-              <span className="text-sm font-medium text-slate-600">Country:</span>
-              <span className="text-sm font-semibold text-slate-700">{connection.country_code}</span>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-600">Country:</span>
+              <span className="text-sm font-semibold text-gray-900">{connection.country_code}</span>
             </div>
 
-            <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl">
-              <span className="text-sm font-medium text-slate-600">Daily Refresh:</span>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-600">Daily Refresh:</span>
               <Badge 
-                variant={connection.daily_refresh ? 'outline' : 'secondary'}
-                className={`rounded-xl px-3 py-1 text-xs font-semibold ${
+                variant="secondary"
+                className={`text-xs px-2 py-1 ${
                   connection.daily_refresh 
-                    ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200' 
-                    : 'bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border-slate-200'
+                    ? 'bg-green-100 text-green-700' 
+                    : 'bg-gray-100 text-gray-600'
                 }`}
               >
                 {connection.daily_refresh ? 'Enabled' : 'Disabled'}
@@ -208,22 +215,34 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
           </div>
         </CardContent>
 
-        <CardFooter className="relative flex justify-end gap-3 p-6 pt-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="rounded-2xl px-4 py-2 border-blue-200 hover:bg-blue-50 text-blue-700 hover:text-blue-800 transition-all duration-300"
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            View Details
-          </Button>
-          <Button 
-            size="sm"
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-4 py-2"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Manage
-          </Button>
+        {/* Footer */}
+        <CardFooter className="flex  flex-col justify-between items-center pt-4 border-t border-gray-100 px-4 pb-4">
+          <div className="flex mb-2 items-center gap-2 flex-shrink-0">
+            <div className={`w-2 h-2 rounded-full ${
+              connection.status === 'active' ? 'bg-green-500' : 
+              connection.status === 'inactive' ? 'bg-yellow-500' : 
+              connection.status === 'error' ? 'bg-red-500' : 'bg-gray-400'
+            }`}></div>
+            <span className="text-sm font-medium text-gray-600 capitalize">{connection.status}</span>
+          </div>
+          
+          <div className="flex gap-1.5 flex-shrink-0">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="text-xs px-2 py-1.5 h-7 min-w-0 flex-shrink-0"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              View
+            </Button>
+            <Button 
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 h-7 min-w-0 flex-shrink-0"
+            >
+              <Settings className="h-3 w-3 mr-1" />
+              Manage
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </TooltipProvider>
