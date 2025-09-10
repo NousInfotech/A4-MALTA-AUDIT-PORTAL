@@ -18,7 +18,7 @@ import { PendingApprovalPage } from "@/pages/auth/PendingApprovalPage";
 import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { UserManagement } from "@/pages/admin/UserManagement";
 import { AuditorLogs } from "@/pages/admin/AuditorLogs";
-import ISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
+import AdminISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -28,6 +28,7 @@ import { EngagementManagement } from "@/pages/employee/EngagementManagement";
 import { CreateEngagement } from "@/pages/employee/CreateEngagement";
 import { EngagementDetails } from "@/pages/employee/EngagementDetails";
 import GlobalLibraryPage from "./pages/employee/Library";
+import ISQMQuestionnairePage from "@/pages/employee/ISQMQuestionnairePage";
 
 // Client pages
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
@@ -75,6 +76,7 @@ const App = () => (
               >
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<UserManagement />} />
+                <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
               </Route>
 
               {/* Employee Routes */}
@@ -94,6 +96,7 @@ const App = () => (
                 <Route path="engagements/new" element={<CreateEngagement />} />
                 <Route path="engagements/:id" element={<EngagementDetails />} />
                 <Route path="library" element={<GlobalLibraryPage />} />
+                <Route path="isqm" element={<ISQMQuestionnairePage />} />
                 <Route path="accounts" element={<AccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
               </Route>

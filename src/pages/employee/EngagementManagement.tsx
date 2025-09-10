@@ -31,7 +31,6 @@ import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal"
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
 
 export const EngagementManagement = () => {
-
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
@@ -42,7 +41,6 @@ export const EngagementManagement = () => {
     "All" | "draft" | "active" | "completed"
   >("active");
   const { engagements, loading } = useEngagements();
-  console.log("engagements", engagements)
   const { toast } = useToast();
 
   interface User {
@@ -60,8 +58,6 @@ export const EngagementManagement = () => {
 
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [clients, setClients] = useState<User[]>([]);
-  const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
-  const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
   const [isSigningPortalOpen, setIsSigningPortalOpen] = useState(false);
 
   useEffect(() => {
@@ -487,7 +483,8 @@ export const EngagementManagement = () => {
           selectedEngagement={selectedEngagement}
           open={isSignModalOpen}
           onOpenChange={setIsSignModalOpen}
-          
+          onEnterWorkspace={handleEnterWorkspace}
+          handleUploadSuccess={handleUploadSuccess}
         />
       )}
 
