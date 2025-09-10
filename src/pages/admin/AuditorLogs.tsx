@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -53,140 +53,40 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react";
-import { AuditorLog } from "@/lib/types/auditorLog";
+import { useEmployeeLogs, EmployeeLog, EmployeeLogFilters } from "@/hooks/useEmployeeLogs";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
-
-// Mock data generator
-const generateMockAuditorLogs = (): AuditorLog[] => {
-  const actions = [
-    "LOGIN",
-    "LOGOUT", 
-    "UPLOAD_DOCUMENT",
-    "VIEW_CLIENT_FILE",
-    "CREATE_ENGAGEMENT",
-    "UPDATE_ENGAGEMENT",
-    "DELETE_DOCUMENT",
-    "EXPORT_REPORT",
-    "VIEW_DASHBOARD",
-    "UPDATE_PROFILE",
-    "CHANGE_PASSWORD",
-    "VIEW_AUDIT_TRAIL",
-    "APPROVE_DOCUMENT",
-    "REJECT_DOCUMENT",
-    "SEND_MESSAGE",
-    "DOWNLOAD_FILE",
-    "CREATE_CLIENT",
-    "UPDATE_CLIENT",
-    "VIEW_REPORTS",
-    "SYSTEM_BACKUP"
-  ];
-
-  const auditorNames = [
-    "John Smith", "Sarah Johnson", "Michael Brown", "Emily Davis", 
-    "David Wilson", "Lisa Anderson", "Robert Taylor", "Jennifer Martinez",
-    "Christopher Lee", "Amanda Garcia", "Matthew Rodriguez", "Jessica White",
-    "Daniel Thompson", "Ashley Jackson", "James Harris", "Michelle Clark"
-  ];
-
-  const auditorEmails = [
-    "john.smith@auditfirm.com", "sarah.johnson@auditfirm.com", "michael.brown@auditfirm.com",
-    "emily.davis@auditfirm.com", "david.wilson@auditfirm.com", "lisa.anderson@auditfirm.com",
-    "robert.taylor@auditfirm.com", "jennifer.martinez@auditfirm.com", "christopher.lee@auditfirm.com",
-    "amanda.garcia@auditfirm.com", "matthew.rodriguez@auditfirm.com", "jessica.white@auditfirm.com",
-    "daniel.thompson@auditfirm.com", "ashley.jackson@auditfirm.com", "james.harris@auditfirm.com",
-    "michelle.clark@auditfirm.com"
-  ];
-
-  const locations = [
-    "New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ",
-    "Philadelphia, PA", "San Antonio, TX", "San Diego, CA", "Dallas, TX", "San Jose, CA",
-    "Austin, TX", "Jacksonville, FL", "Fort Worth, TX", "Columbus, OH", "Charlotte, NC"
-  ];
-
-  const deviceInfo = [
-    "Chrome 120.0.0.0 on Windows 10", "Safari 17.1 on macOS 14.1", "Firefox 121.0 on Ubuntu 22.04",
-    "Edge 120.0.0.0 on Windows 11", "Chrome 120.0.0.0 on macOS 14.1", "Safari 17.1 on iOS 17.1",
-    "Chrome 120.0.0.0 on Android 14", "Firefox 121.0 on Windows 10", "Edge 120.0.0.0 on macOS 14.1"
-  ];
-
-  const details = [
-    "Successfully logged into the system",
-    "Uploaded financial statements for Q3 2023",
-    "Viewed client ABC Corp engagement details",
-    "Created new engagement for XYZ Ltd",
-    "Updated engagement status to 'In Progress'",
-    "Downloaded audit report PDF",
-    "Exported client data to Excel",
-    "Changed password for security update",
-    "Viewed audit trail for engagement #12345",
-    "Approved document submission",
-    "Rejected document due to missing signatures",
-    "Sent message to client regarding document request",
-    "Created new client profile for TechStart Inc",
-    "Updated client contact information",
-    "Viewed quarterly reports dashboard",
-    "Performed system backup operation",
-    "Logged out after 2 hours of activity",
-    "Accessed client file repository",
-    "Generated compliance report",
-    "Updated user profile information"
-  ];
-
-  const logs: AuditorLog[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < 150; i++) {
-    const randomAction = actions[Math.floor(Math.random() * actions.length)];
-    const randomAuditorIndex = Math.floor(Math.random() * auditorNames.length);
-    const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-    const randomDevice = deviceInfo[Math.floor(Math.random() * deviceInfo.length)];
-    const randomDetail = details[Math.floor(Math.random() * details.length)];
-    
-    // Generate random timestamp within last 30 days
-    const randomDaysAgo = Math.floor(Math.random() * 30);
-    const randomHoursAgo = Math.floor(Math.random() * 24);
-    const randomMinutesAgo = Math.floor(Math.random() * 60);
-    const timestamp = new Date(now.getTime() - (randomDaysAgo * 24 * 60 * 60 * 1000) - (randomHoursAgo * 60 * 60 * 1000) - (randomMinutesAgo * 60 * 1000));
-
-    // Generate random IP address
-    const ipAddress = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
-
-    logs.push({
-      id: `log-${i + 1}`,
-      auditorId: `auditor-${randomAuditorIndex + 1}`,
-      auditorName: auditorNames[randomAuditorIndex],
-      auditorEmail: auditorEmails[randomAuditorIndex],
-      action: randomAction,
-      details: randomDetail,
-      ipAddress: ipAddress,
-      location: randomLocation,
-      timestamp: timestamp,
-      deviceInfo: randomDevice,
-      status: Math.random() > 0.1 ? "SUCCESS" : "FAIL" // 90% success rate
-    });
-  }
-
-  return logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-};
+import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 
 export const AuditorLogs = () => {
-  const [logs] = useState<AuditorLog[]>(generateMockAuditorLogs());
+  const {
+    logs,
+    statistics,
+    availableActions,
+    loading,
+    error,
+    pagination,
+    fetchLogs,
+    fetchStatistics,
+    exportLogs,
+  } = useEmployeeLogs();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedLog, setSelectedLog] = useState<AuditorLog | null>(null);
+  const [selectedLog, setSelectedLog] = useState<EmployeeLog | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Filter logs based on search and filters
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
       const matchesSearch = 
-        log.auditorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.auditorEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.employeeEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.location?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -198,22 +98,31 @@ export const AuditorLogs = () => {
     });
   }, [logs, searchTerm, actionFilter, statusFilter]);
 
-  // Pagination logic
+  // Pagination logic for filtered results
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
   // Reset to first page when filters change
-  React.useEffect(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, actionFilter, statusFilter]);
 
-  // Get unique actions for filter dropdown
-  const uniqueActions = useMemo(() => {
-    const actions = [...new Set(logs.map(log => log.action))];
-    return actions.sort();
-  }, [logs]);
+  // Refresh data when filters change
+  useEffect(() => {
+    const filters: EmployeeLogFilters = {
+      page: currentPage,
+      limit: itemsPerPage,
+      sortBy: 'timestamp',
+      sortOrder: 'desc',
+    };
+
+    if (actionFilter !== "all") filters.action = actionFilter;
+    if (statusFilter !== "all") filters.status = statusFilter as 'SUCCESS' | 'FAIL';
+
+    fetchLogs(filters);
+  }, [currentPage, actionFilter, statusFilter, fetchLogs]);
 
   const getStatusBadge = (status?: string) => {
     if (status === "SUCCESS") {
@@ -256,39 +165,36 @@ export const AuditorLogs = () => {
     }
   };
 
-  const exportLogs = async () => {
-    setLoading(true);
+  const handleExportLogs = async () => {
+    setExportLoading(true);
     try {
-      // Simulate loading for better UX
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const filters: any = {};
+      if (actionFilter !== "all") filters.action = actionFilter;
+      if (statusFilter !== "all") filters.status = statusFilter;
+      if (searchTerm) {
+        // Note: API doesn't support text search, so we'll export all and filter client-side
+      }
       
-      const csvContent = [
-        ["ID", "Auditor Name", "Auditor Email", "Action", "Details", "IP Address", "Location", "Timestamp", "Device Info", "Status"],
-        ...filteredLogs.map(log => [
-          log.id,
-          log.auditorName,
-          log.auditorEmail,
-          log.action,
-          log.details || "",
-          log.ipAddress || "",
-          log.location || "",
-          format(log.timestamp, "yyyy-MM-dd HH:mm:ss"),
-          log.deviceInfo || "",
-          log.status || ""
-        ])
-      ].map(row => row.join(",")).join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `auditor-logs-${format(new Date(), "yyyy-MM-dd")}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      await exportLogs({ ...filters, format: 'csv' });
+    } catch (error) {
+      console.error('Export failed:', error);
     } finally {
-      setLoading(false);
+      setExportLoading(false);
     }
   };
+
+  const handleRefresh = () => {
+    fetchLogs();
+    fetchStatistics();
+  };
+
+  if (loading && logs.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+        <EnhancedLoader variant="pulse" size="lg" text="Loading auditor logs..." />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20 space-y-8">
@@ -300,7 +206,7 @@ export const AuditorLogs = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <img src="/logo.png" alt="Logo" className="h-10 w-10" />
+                  <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
@@ -314,13 +220,13 @@ export const AuditorLogs = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={exportLogs}
-                disabled={loading}
+                onClick={handleExportLogs}
+                disabled={exportLoading}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto disabled:opacity-50"
               >
-                {loading ? (
+                {exportLoading ? (
                   <>
-                    <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                     Exporting...
                   </>
                 ) : (
@@ -333,9 +239,10 @@ export const AuditorLogs = () => {
               <Button
                 variant="outline"
                 className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                onClick={() => window.location.reload()}
+                onClick={handleRefresh}
+                disabled={loading}
               >
-                <RefreshCw className="h-5 w-5 mr-2" />
+                <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
               <Button
@@ -363,7 +270,9 @@ export const AuditorLogs = () => {
                 <FileText className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-blue-600">{logs.length}</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {statistics?.summary?.totalLogs || logs.length}
+                </div>
                 <div className="text-sm text-slate-600 font-medium">Total Logs</div>
                 <div className="text-xs text-slate-500">All time activities</div>
               </div>
@@ -375,7 +284,9 @@ export const AuditorLogs = () => {
                 <User className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-green-600">{new Set(logs.map(log => log.auditorId)).size}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {statistics?.topEmployees?.length || new Set(logs.map(log => log.employeeId)).size}
+                </div>
                 <div className="text-sm text-slate-600 font-medium">Active Auditors</div>
                 <div className="text-xs text-slate-500">Unique auditors</div>
               </div>
@@ -388,7 +299,8 @@ export const AuditorLogs = () => {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {Math.round((logs.filter(log => log.status === "SUCCESS").length / logs.length) * 100)}%
+                  {statistics?.summary?.successRate || 
+                   (logs.length > 0 ? Math.round((logs.filter(log => log.status === "SUCCESS").length / logs.length) * 100) : 0)}%
                 </div>
                 <div className="text-sm text-slate-600 font-medium">Success Rate</div>
                 <div className="text-xs text-slate-500">Successful actions</div>
@@ -454,7 +366,7 @@ export const AuditorLogs = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Actions</SelectItem>
-                    {uniqueActions.map(action => (
+                    {availableActions.map(action => (
                       <SelectItem key={action} value={action}>{action}</SelectItem>
                     ))}
                   </SelectContent>
@@ -567,13 +479,13 @@ export const AuditorLogs = () => {
                   </TableRow>
                 ) : (
                   paginatedLogs.map((log) => (
-                    <TableRow key={log.id} className="border-purple-100/50 hover:bg-purple-50/30 transition-colors duration-200 group">
+                    <TableRow key={log._id} className="border-purple-100/50 hover:bg-purple-50/30 transition-colors duration-200 group">
                       <TableCell className="py-4">
                         <div className="space-y-1">
                           <div className="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">
-                            {log.auditorName}
+                            {log.employeeName}
                           </div>
-                          <div className="text-sm text-slate-500">{log.auditorEmail}</div>
+                          <div className="text-sm text-slate-500">{log.employeeEmail}</div>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
@@ -600,10 +512,10 @@ export const AuditorLogs = () => {
                       <TableCell className="py-4">
                         <div className="space-y-1">
                           <div className="text-sm font-medium text-slate-700">
-                            {format(log.timestamp, "MMM dd, yyyy")}
+                            {format(new Date(log.timestamp), "MMM dd, yyyy")}
                           </div>
                           <div className="text-xs text-slate-500">
-                            {format(log.timestamp, "HH:mm:ss")}
+                            {format(new Date(log.timestamp), "HH:mm:ss")}
                           </div>
                         </div>
                       </TableCell>
@@ -638,8 +550,8 @@ export const AuditorLogs = () => {
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-sm font-medium text-slate-600">Auditor</label>
-                                  <div className="text-lg font-semibold text-slate-800">{selectedLog.auditorName}</div>
-                                  <div className="text-sm text-slate-600">{selectedLog.auditorEmail}</div>
+                                  <div className="text-lg font-semibold text-slate-800">{selectedLog.employeeName}</div>
+                                  <div className="text-sm text-slate-600">{selectedLog.employeeEmail}</div>
                                 </div>
                                 <div>
                                   <label className="text-sm font-medium text-slate-600">Action</label>
@@ -662,7 +574,7 @@ export const AuditorLogs = () => {
                                   <label className="text-sm font-medium text-slate-600">Timestamp</label>
                                   <div className="flex items-center gap-1 text-slate-800">
                                     <Clock className="h-4 w-4" />
-                                    <span>{format(selectedLog.timestamp, "MMM dd, yyyy 'at' HH:mm:ss")}</span>
+                                    <span>{format(new Date(selectedLog.timestamp), "MMM dd, yyyy 'at' HH:mm:ss")}</span>
                                   </div>
                                 </div>
                                 <div>

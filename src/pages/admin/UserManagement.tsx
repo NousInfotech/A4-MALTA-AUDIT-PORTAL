@@ -352,7 +352,7 @@ export const UserManagement = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <img src="/logo.png" alt="Logo" className="h-10 w-10" />
+                  <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
                 </div>
                 <div>
                                       <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">

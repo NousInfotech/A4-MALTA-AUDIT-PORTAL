@@ -162,31 +162,43 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col">
       <div className="flex-1">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-          <div className="overflow-x-auto -mx-2 px-2 md:mx-0 md:px-0">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-3 min-w-max md:min-w-0">
-              <TabsTrigger value="upload" className="flex items-center gap-2 whitespace-nowrap">
-                <FileSpreadsheet className="h-4 w-4" />
-                Upload TB
-              </TabsTrigger>
-              <TabsTrigger
-                value="etb"
-                disabled={!trialBalanceData}
-                className="flex items-center gap-2 whitespace-nowrap"
-              >
-                <Calculator className="h-4 w-4" />
-                Extended TB
-              </TabsTrigger>
-              <TabsTrigger value="sections" className="flex items-center gap-2 whitespace-nowrap">
-                <FolderOpen className="h-4 w-4" />
-                Sections
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          {/* Fixed tabs container outside of any table constraints */}
+          <div className="flex-shrink-0 border-b bg-white">
+            <div className="px-4 py-2">
+              <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
+                <TabsTrigger 
+                  value="upload" 
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                >
+                  <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Upload TB</span>
+                  <span className="sm:hidden">Upload</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="etb"
+                  disabled={!trialBalanceData}
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm disabled:opacity-50"
+                >
+                  <Calculator className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Extended TB</span>
+                  <span className="sm:hidden">ETB</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="sections" 
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                >
+                  <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Sections</span>
+                  <span className="sm:hidden">Sections</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
-          <TabsContent value="etb" className="h-full">
+          <TabsContent value="etb" className="flex-1 overflow-hidden">
             {trialBalanceData && (
               <ExtendedTrialBalance
                 engagement={engagement}
@@ -198,19 +210,19 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
             )}
           </TabsContent>
 
-          <TabsContent value="upload" className="h-full">
+          <TabsContent value="upload" className="flex-1 overflow-hidden">
             <TrialBalanceUpload engagement={engagement} onUploadSuccess={handleUploadSuccess} />
           </TabsContent>
 
-          <TabsContent value="sections" className="h-full">
+          <TabsContent value="sections" className="flex-1 overflow-hidden">
             <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
-              <div className="w-full md:w-80 border-r bg-gray-50">
+              <div className="w-full md:w-80 border-r bg-gray-50 flex-shrink-0">
                 <div className="p-4 border-b">
                   <h3 className="font-semibold">Sections</h3>
                   <p className="text-sm text-gray-600 mt-1">Quick views and classifications</p>
                 </div>
-                <ScrollArea className="h-full">
+                <ScrollArea className="flex-1">
                   <div className="p-2 space-y-2">
                     {etbCount > 0 && (
                       <Button
@@ -220,7 +232,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                       >
                         <span className="flex items-center gap-2">
                           <Calculator className="h-4 w-4" />
-                          Extended Trial Balance
+                          <span className="hidden sm:inline">Extended Trial Balance</span>
+                          <span className="sm:hidden">ETB</span>
                         </span>
                         <Badge variant="secondary">{etbCount}</Badge>
                       </Button>
@@ -276,7 +289,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
               </div>
 
               {/* Content Panel */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 {selectedClassification ? (
                   <ClassificationSection
                     engagement={engagement}

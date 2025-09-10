@@ -12,7 +12,7 @@ import { ArrowLeft, Building2, Calendar, Briefcase, FileText, CheckCircle, Libra
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
-import { OverviewTab } from "@/components/engagement/OverviewTab";
+import { PerEngagementKPIDashboard } from "../../components/kpi/PerEngagementKPIDashboard";
 import { LibraryTab } from "@/components/engagement/LibraryTab";
 import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
@@ -286,10 +286,7 @@ export const EngagementDetails = () => {
 
           <div className="p-6">
             <TabsContent value="overview" className="space-y-6">
-              <OverviewTab
-                engagement={engagement}
-                requests={requests}
-              />
+              <PerEngagementKPIDashboard engagementId={id} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">

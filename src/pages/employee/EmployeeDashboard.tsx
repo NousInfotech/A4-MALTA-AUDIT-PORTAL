@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { GlobalKPIDashboard } from "../../components/kpi/GlobalKPIDashboard";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 
 export const EmployeeDashboard = () => {
@@ -427,6 +428,11 @@ export const EmployeeDashboard = () => {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Global KPI Dashboard */}
+      <div className="mt-8">
+        <GlobalKPIDashboard />
       </div>
     </div>
   );

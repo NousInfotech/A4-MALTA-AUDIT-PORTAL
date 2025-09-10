@@ -121,7 +121,7 @@ export const SignupPage = () => {
               {/* Logo */}
               <div className="flex items-center justify-center space-x-3 mb-8">
                 <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30">
-                  <img src="/logo.png" alt="Logo" className="h-12 w-12" />
+                  <img src="/logo.png" alt="Logo" className="h-14 w-14 object-cover rounded" />
                 </div>
                 <span className="text-3xl font-bold">AuditPortal</span>
               </div>
@@ -187,7 +187,7 @@ export const SignupPage = () => {
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
               <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <img src="/logo.png" alt="Logo" className="h-11 w-11" />
+                <img src="/logo.png" alt="Logo" className="h-13 w-13 object-cover rounded" />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">AuditPortal</span>
             </div>
