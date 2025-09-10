@@ -230,6 +230,7 @@ export const EngagementDetails = () => {
         pageId={`engagement-${id}`} 
         pageName={`Engagement: ${engagement?.title || 'Details'}`}
         engagementId={id}
+        selectedEngagement={engagement}
       />
 
       {/* Tabs Section */}

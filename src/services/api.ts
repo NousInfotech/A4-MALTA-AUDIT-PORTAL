@@ -24,22 +24,39 @@ export const initializeSocket = (token: string) => {
 export const getSocket = () => socket;
 
 // API helper function
+// Updated to handle different content types including FormData
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error('Supabase getSession error:', error);
+    throw new Error('Authentication error: Could not get session.');
+  }
+
+  if (!data || !data.session || !data.session.access_token) {
+    throw new Error('Authentication error: No active session or access token found. Please log in again.');
+  }
+
+  const accessToken = data.session.access_token;
+
+  // Determine Content-Type. If body is FormData, don't set Content-Type header manually,
+  // the browser will set it automatically with the correct boundary.
+  const headers: HeadersInit = {
+    'Authorization': `Bearer ${accessToken}`,
+    ...options.headers,
+  };
+
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Network error' }));
-    throw new Error(error.message || 'API request failed');
+    const errorBody = await response.json().catch(() => ({ message: 'Network error or malformed error response' }));
+    throw new Error(errorBody.message || `API request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -94,106 +111,38 @@ export const engagementApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
-    const { data, error } = await supabase.auth.getSession()
-    if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
+    
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/engagements/${engagementId}/library`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${data.session?.access_token}`,
-      },
-      body: formData,
+      body: formData, // apiCall will detect FormData and handle headers
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload file');
-    }
-
-    return response.json();
   },
 
   deleteFromLibrary: async (engagementId: string, url: string) => {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    
-    const response = await fetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${data.session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to delete file');
-    }
-
-    return await response.json();
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/engagements/${engagementId}/library`, {
+      method: 'DELETE',
+      body: JSON.stringify({ url }),
+    });
   },
 
   changeFolder: async (engagementId: string, category: string, url: string) => {
-    const { data: sessionData, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library/change`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${sessionData.session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url, category }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to change folder');
-      }
-
-      return await response.json();
-    } catch (err) {
-      console.error('Error changing folder:', err);
-      throw err;
-    }
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/engagements/${engagementId}/library/change`, {
+      method: 'POST',
+      body: JSON.stringify({ url, category }),
+    });
   },
 
   getLibraryFiles: async (engagementId: string) => {
-    const { data, error } = await supabase.auth.getSession()
-    if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/library`, {
-      headers: {
-        'Authorization': `Bearer ${data.session?.access_token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch library files');
-    }
-
-    return response.json();
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/engagements/${engagementId}/library`);
   },
 
   getById: async (id: string) => {
-    const { data, error } = await supabase.auth.getSession()
-    if (error) throw error
-    const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${id}`, {
-      headers: {
-        'Authorization': `Bearer ${data.session?.access_token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch engagement');
-    }
-
-    return response.json();
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/engagements/${id}`);
   },
 };
 
@@ -223,28 +172,11 @@ export const documentRequestApi = {
   },
 
   uploadDocuments: async (id, formData) => {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-
-    const response = await fetch(
-      `${API_URL}/api/document-requests/${id}/documents`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${data.session?.access_token}`,
-        },
-        body: formData,
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response
-        .json()
-        .catch(() => ({ message: 'Network error' }));
-      throw new Error(err.message || 'API request failed');
-    }
-
-    return response.json();
+    // Now using apiCall which handles the session and token
+    return apiCall(`/api/document-requests/${id}/documents`, {
+      method: 'POST',
+      body: formData, // apiCall will detect FormData and handle headers
+    });
   }
 };
 
@@ -291,3 +223,8 @@ export const checklistApi = {
     });
   },
 };
+
+
+
+
+

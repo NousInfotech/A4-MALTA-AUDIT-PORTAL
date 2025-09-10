@@ -39,6 +39,8 @@ import { ClientDetail } from "./pages/employee/ClientDetail";
 import AccountDataTab from "./components/accounts-integration/AccountDataTab";
 
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
+import PBCAuditWorkflow from "./components/pbc-components/PBCAuditWorkflow";
+import PbcHome from "./components/pbc/PbcHome";
 
 const queryClient = new QueryClient();
 
@@ -48,70 +50,80 @@ const App = () => (
       <DataProvider>
         <ReviewNotesProvider>
           <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route
-                path="/pending-approval"
-                element={<PendingApprovalPage />}
-              />
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route
+                  path="/pending-approval"
+                  element={<PendingApprovalPage />}
+                />
 
-              {/* Admin Routes */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<AdminDashboard />} />
-                <Route path="users" element={<UserManagement />} />
-              </Route>
+                {/* Admin Routes */}
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="users" element={<UserManagement />} />
+                </Route>
 
-              {/* Employee Routes */}
-              <Route
-                path="/employee"
-                element={
-                  <ProtectedRoute allowedRoles={["employee"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<EmployeeDashboard />} />
-                <Route path="clients" element={<ClientManagement />} />
-                <Route path="clients/:id" element={<ClientDetail />} />
-                <Route path="clients/new" element={<AddClient />} />
-                <Route path="engagements" element={<EngagementManagement />} />
-                <Route path="engagements/new" element={<CreateEngagement />} />
-                <Route path="engagements/:id" element={<EngagementDetails />} />
-                <Route path="library" element={<GlobalLibraryPage />} />
-                <Route path="accounts" element={<AccountDataTab />} />
-                <Route path="salt-edge/callback" element={<CallbackPage />} />
-              </Route>
+                {/* Employee Routes */}
+                <Route
+                  path="/employee"
+                  element={
+                    <ProtectedRoute allowedRoles={["employee"]}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<EmployeeDashboard />} />
+                  <Route path="clients" element={<ClientManagement />} />
+                  <Route path="clients/:id" element={<ClientDetail />} />
+                  <Route path="clients/new" element={<AddClient />} />
+                  <Route
+                    path="engagements"
+                    element={<EngagementManagement />}
+                  />
+                  <Route
+                    path="engagements/new"
+                    element={<CreateEngagement />}
+                  />
+                  <Route
+                    path="engagements/:id"
+                    element={<EngagementDetails />}
+                  />
+                  <Route path="library" element={<GlobalLibraryPage />} />
+                  <Route path="accounts" element={<AccountDataTab />} />
+                  <Route path="salt-edge/callback" element={<CallbackPage />} />
+                  {/* <Route path="pbc" element={<PBCAuditWorkflow />} /> */}
+                </Route>
 
-              {/* Client Routes */}
-              <Route
-                path="/client"
-                element={
-                  <ProtectedRoute allowedRoles={["client"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<ClientDashboard />} />
-                <Route path="engagements" element={<ClientEngagements />} />
-                <Route path="requests" element={<DocumentRequests />} />
-                <Route path="accounts" element={<AccountDataTab />} />
-              </Route>
+                {/* Client Routes */}
+                <Route
+                  path="/client"
+                  element={
+                    <ProtectedRoute allowedRoles={["client"]}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<ClientDashboard />} />
+                  <Route path="engagements" element={<ClientEngagements />} />
+                  <Route path="requests" element={<DocumentRequests />} />
+                  <Route path="accounts" element={<AccountDataTab />} />
+                </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
           </TooltipProvider>
         </ReviewNotesProvider>
       </DataProvider>

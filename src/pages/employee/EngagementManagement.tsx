@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -29,12 +29,30 @@ import {
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
+import { useAuth } from "@/contexts/AuthContext";
+import PbcDialog from "@/components/pbc/PbcDialog";
 
 export const EngagementManagement = () => {
+  const navigate = useNavigate();
+  const {user, isLoading} = useAuth(); 
 
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
+  const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
+
+
+
+
+
+  const handlePbcOpen = (engagement) => {
+    setSelectedEngagement(engagement)
+    setIsPBCModalOpen(true)
+  }
+
+  const onClosePBC = () => {
+    setIsPBCModalOpen(false)
+  }
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,6 +60,7 @@ export const EngagementManagement = () => {
     "All" | "draft" | "active" | "completed"
   >("active");
   const { engagements, loading } = useEngagements();
+  console.log("engagements", engagements)
   const { toast } = useToast();
 
   const handleKYCComplete = (kycData: any) => {
@@ -423,6 +442,11 @@ export const EngagementManagement = () => {
                   </Link>
                 </Button>
 
+                {/* <div className="flex justify-between items-center">
+                  <button className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200 px-8 border rounded-full">KYC</button>
+                  <button className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200 px-8 border rounded-full" onClick={() => handlePbcOpen(engagement)}>PBC</button>
+                </div> */}
+
                 {/* Start Engagement button with KYC popup */}
                 <Button
                   className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105"
@@ -487,6 +511,17 @@ export const EngagementManagement = () => {
           open={isKYCModalOpen}
           onOpenChange={setIsKYCModalOpen}
           onKYCComplete={handleKYCComplete}
+        />
+      )}
+
+
+      {isPBCModalOpen && (
+        <PbcDialog
+          selectedEngagement={selectedEngagement}
+          open={isPBCModalOpen}
+          onOpenChange={setIsPBCModalOpen}
+          onClosePBC = {onClosePBC}
+          
         />
       )}
     </div>
