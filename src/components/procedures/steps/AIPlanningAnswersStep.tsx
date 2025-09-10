@@ -199,7 +199,6 @@ const AIPlanningAnswersStep: React.FC<{
   const [procedures, setProcedures] = useState<any[]>(stepData.procedures || [])
   const [loading, setLoading] = useState(false)
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
-  const [recommendations, setRecommendations] = useState(stepData.recommendations || "")
   const fileInput = useRef<HTMLInputElement>(null)
 
   const { toast } = useToast()
@@ -253,7 +252,6 @@ const fillAnswersForSection = async (sectionId: string) => {
       sec.sectionId === data.sectionId
         ? {
             ...sec,
-            sectionRecommendations: data.sectionRecommendations || sec.sectionRecommendations,
             fields: (sec.fields || []).map((existingField: any) => {
               const key = existingField?.key;
               if (!key) return existingField;
@@ -287,23 +285,10 @@ const handleSave = async () => {
   try {
     setLoading(true)
     
-    // Collect all section recommendations with properly formatted headings
-    const allSectionRecommendations = procedures
-      .filter(section => section.sectionRecommendations && section.sectionRecommendations.trim() !== '')
-      .map((section, index) => {
-        const sectionTitle = PLANNING_SECTIONS.find(s => s.sectionId === section.sectionId)?.title || section.sectionId;
-        return `Section ${index + 1}: ${sectionTitle}\n${section.sectionRecommendations}`;
-      })
-      .join('\n\n');
-
-    // Add the main heading
-    const formattedRecommendations = `${allSectionRecommendations}`;
-
     const form = new FormData();
     const payload = {
       ...stepData,
       procedures: procedures,
-      recommendations: formattedRecommendations, // Use properly formatted recommendations
       status: "in-progress",
       procedureType: "planning",
       mode: mode,
@@ -329,10 +314,8 @@ const handleSave = async () => {
 
     const saved = await res.json();
     
-    // Pass recommendations to onComplete
     onComplete({
       saved,
-      recommendations: formattedRecommendations,
       procedures: procedures,
       engagement: engagement
     });
