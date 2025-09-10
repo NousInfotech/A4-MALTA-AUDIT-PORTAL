@@ -220,27 +220,44 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
     return () => cancelAnimationFrame(raf)
   }, [shouldAnimate, durationMs])
 
-  const generateAIRecommendations = async () => {
-    setLoading(true)
-    try {
-      // we DO NOT refetch; we just adopt already prepared content
-      // (kept your original mapping for parity; not used for fetch)
+// Update the generateAIRecommendations function
+const generateAIRecommendations = async () => {
+  setLoading(true)
+  try {
+    const base = import.meta.env.VITE_APIURL
+    
+    // For hybrid mode, we need to call the recommendations endpoint
+    if (mode === "hybrid") {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          procedures: stepData.procedures,
+          materiality: stepData.materiality || 0,
+        }),
+      })
+      
+      if (!res.ok) throw new Error("Failed to generate recommendations")
+      const data = await res.json()
+      setRecommendations(data.recommendations || "")
+    } else {
+      // Existing AI mode logic
       const _ = stepData.questions
         ?.map((q: any) => `${q.question}: ${q.answer || "No answer provided"}`)
         .join("\n")
 
       setRecommendations(stepData.recommendations)
-    } catch (error) {
-      console.error("Error generating AI recommendations:", error)
-      toast({
-        title: "Generation Failed",
-        description: "Failed to generate AI recommendations. You can enter them manually.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
     }
+  } catch (error) {
+    console.error("Error generating AI recommendations:", error)
+    toast({
+      title: "Generation Failed",
+      description: "Failed to generate AI recommendations. You can enter them manually.",
+      variant: "destructive",
+    })
+  } finally {
+    setLoading(false)
   }
+}
 
 const handleSaveProcedures = async () => {
   setSaving(true);

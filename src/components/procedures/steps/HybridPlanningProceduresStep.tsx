@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, Bot, Sparkles } from "lucide-react"
+import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, Bot, Sparkles, PlusCircle, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -105,7 +105,7 @@ function TableEditor({
 
   const addRow = () => {
     const emptyRow: any = {}
-    ;(field.columns || []).forEach((c: string) => (emptyRow[c] = ""))
+      ; (field.columns || []).forEach((c: string) => (emptyRow[c] = ""))
     onChange([...rows, emptyRow])
   }
 
@@ -227,18 +227,28 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
 }) => {
   const [procedures, setProcedures] = useState<any[]>(Array.isArray(stepData.procedures) ? stepData.procedures : [])
   const [saving, setSaving] = useState(false)
-  const [recommendations,setRecommendations] = useState(null)
+  const [recommendations, setRecommendations] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [anyGenerationInProgress, setAnyGenerationInProgress] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [generatingQuestions, setGeneratingQuestions] = useState(false)
   const [generatingAnswers, setGeneratingAnswers] = useState(false)
   const [questionsGenerated, setQuestionsGenerated] = useState(false)
+  const [generatingQuestionsSections, setGeneratingQuestionsSections] = useState<Set<string>>(new Set())
+  const [generatingAnswersSections, setGeneratingAnswersSections] = useState<Set<string>>(new Set())
   const [answersGenerated, setAnswersGenerated] = useState(false)
-  const [fieldsDisabled, setFieldsDisabled] = useState(true) // Start with disabled fields
   const { toast } = useToast()
 
   // for smooth scroll to first invalid field
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
+    useEffect(() => {
+  const inProgress = 
+    generatingQuestions || 
+    generatingAnswers || 
+    generatingQuestionsSections.size > 0 || 
+    generatingAnswersSections.size > 0;
+  setAnyGenerationInProgress(inProgress);
+}, [generatingQuestions, generatingAnswers, generatingQuestionsSections, generatingAnswersSections])
 
   useEffect(() => {
     const ids = Array.isArray(stepData.selectedSections) ? stepData.selectedSections : []
@@ -281,7 +291,166 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
     setProcedures(next)
     setIsLoading(false)
   }, [JSON.stringify(stepData.selectedSections)])
+  const handleGenerateSectionQuestions = async (sectionId: string) => {
+    setGeneratingQuestionsSections(prev => {
+      const newSet = new Set(prev)
+      newSet.add(sectionId)
+      return newSet
+    })
 
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-section-questions`, {
+        method: "POST",
+        body: JSON.stringify({
+          sectionId,
+          materiality: stepData.materiality || 0
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to generate questions for section")
+      const data = await res.json()
+
+      // Add new fields to the section
+      setProcedures(prev =>
+        prev.map(section =>
+          section.sectionId === sectionId
+            ? {
+              ...section,
+              fields: [
+                ...section.fields,
+                ...(data.additionalFields || []).map((f: any) => ({
+                  ...f,
+                  answer: f.type === "checkbox" ? false :
+                    f.type === "multiselect" ? [] :
+                      f.type === "table" ? [] :
+                        f.type === "group" ? {} : ""
+                }))
+              ]
+            }
+            : section
+        )
+      )
+
+      toast({
+        title: "Questions Added",
+        description: `Additional questions for section generated successfully.`
+      })
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" })
+    } finally {
+      setGeneratingQuestionsSections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sectionId)
+        return newSet
+      })
+    }
+  }
+const handleGenerateSectionAnswers = async (sectionId: string) => {
+  setGeneratingAnswersSections(prev => {
+    const newSet = new Set(prev)
+    newSet.add(sectionId)
+    return newSet
+  })
+
+  try {
+    const base = import.meta.env.VITE_APIURL;
+    const section = procedures.find(proc => proc.sectionId === sectionId);
+    
+    if (!section) {
+      throw new Error("Section not found");
+    }
+
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-section-answers`, {
+      method: "POST",
+      body: JSON.stringify({
+        sectionId,
+        materiality: stepData.materiality || 0,
+        sectionData: section // Send the current section data
+      }),
+    })
+
+    if (!res.ok) throw new Error("Failed to generate answers for section");
+    const data = await res.json();
+
+    // Update only the specific section, not the entire procedures array
+    setProcedures(prev => 
+      prev.map(proc => 
+        proc.sectionId === sectionId 
+          ? { ...proc, fields: data.fields } 
+          : proc
+      )
+    );
+
+    toast({
+      title: "Answers Generated",
+      description: `Answers for section generated successfully.`
+    });
+  } catch (e: any) {
+    toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+  } finally {
+    setGeneratingAnswersSections(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(sectionId);
+      return newSet;
+    });
+  }
+}
+
+// Update the handleGenerateAnswers function similarly
+const handleGenerateAnswers = async () => {
+  setGeneratingAnswers(true);
+  try {
+    const base = import.meta.env.VITE_APIURL;
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-answers`, {
+      method: "POST",
+      body: JSON.stringify({
+        procedures: procedures,
+        materiality: stepData.materiality || 0,
+      }),
+    });
+    
+    if (!res.ok) throw new Error("Failed to generate answers");
+    const data = await res.json();
+    
+    // Update the procedures with the answered data
+    setProcedures(data.procedures || []);
+    setRecommendations(data.recommendations || '');
+    setAnswersGenerated(true);
+    
+    toast({
+      title: "Answers Generated",
+      description: "AI has filled in the answers. You can now review and edit them.",
+    });
+  } catch (e: any) {
+    toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+  } finally {
+    setGeneratingAnswers(false);
+  }
+};
+
+
+// Update the updateProcedureField function to handle user edits
+const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
+  setProcedures((prev) =>
+    (prev || []).map((proc) =>
+      proc.id === procedureId
+        ? { 
+            ...proc, 
+            fields: (proc.fields || []).map((f: any) => 
+              f.key === fieldKey ? { ...f, answer: value } : f
+            ) 
+          }
+        : proc,
+    ),
+  );
+  // clear error for this field if now valid
+  setErrors((prev) => {
+    const next = { ...prev };
+    delete next[`${procedureId}.${fieldKey}`];
+    return next;
+  });
+}
   const handleGenerateMoreQuestions = async () => {
     setGeneratingQuestions(true);
     try {
@@ -295,13 +464,13 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
           existingProcedures: procedures, // Send current procedures
         }),
       });
-      
+
       if (!res.ok) throw new Error("Failed to generate additional questions");
       const data = await res.json();
-      
+
       // Merge additional fields into existing procedures
       const updatedProcedures = [...procedures];
-      
+
       data.additionalFields?.forEach((additional: any) => {
         const targetSection = updatedProcedures.find(p => p.sectionId === additional.sectionId);
         if (targetSection) {
@@ -309,18 +478,18 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
             ...targetSection.fields,
             ...additional.fields.map((f: any) => ({
               ...f,
-              answer: f.type === "checkbox" ? false : 
-                      f.type === "multiselect" ? [] :
-                      f.type === "table" ? [] :
-                      f.type === "group" ? {} : ""
+              answer: f.type === "checkbox" ? false :
+                f.type === "multiselect" ? [] :
+                  f.type === "table" ? [] :
+                    f.type === "group" ? {} : ""
             }))
           ];
         }
       });
-      
+
       setProcedures(updatedProcedures);
       setQuestionsGenerated(true);
-      
+
       toast({
         title: "Questions Enhanced",
         description: "AI has generated additional questions. Review and then generate answers.",
@@ -332,33 +501,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
     }
   };
 
-  const handleGenerateAnswers = async () => {
-    setGeneratingAnswers(true);
-    try {
-      const base = import.meta.env.VITE_APIURL;
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-answers`, {
-        method: "POST",
-        body: JSON.stringify({
-          procedures: procedures,
-          materiality: stepData.materiality || 0,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to generate answers");
-      const data = await res.json();
-      setProcedures(data.procedures || []);
-      setRecommendations(data.recommendations || '');
-      setAnswersGenerated(true);
-      setFieldsDisabled(false); // Enable fields after AI generates answers
-      toast({
-        title: "Answers Generated",
-        description: "AI has filled in the answers. You can now review and edit them.",
-      });
-    } catch (e: any) {
-      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-    } finally {
-      setGeneratingAnswers(false);
-    }
-  };
+
 
   const getAnswersMap = (proc: any) =>
     (proc.fields || []).reduce((acc: any, f: any) => ((acc[f.key] = f.answer), acc), {})
@@ -369,51 +512,51 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
 
     currentProcedures.forEach((proc) => {
       const answersMap = getAnswersMap(proc)
-      ;(proc.fields || []).forEach((field: any) => {
-        const visible = isFieldVisible(field, answersMap)
-        if (!visible) return
-        if (!field.required) return
+        ; (proc.fields || []).forEach((field: any) => {
+          const visible = isFieldVisible(field, answersMap)
+          if (!visible) return
+          if (!field.required) return
 
-        const key = `${proc.id}.${field.key}`
-        const val = field.answer
+          const key = `${proc.id}.${field.key}`
+          const val = field.answer
 
-        switch (field.type) {
-          case "text":
-          case "textarea":
-          case "user":
-            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
-            break
-          case "number":
-            if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
-              nextErrors[key] = "Please enter a valid number."
-            break
-          case "checkbox":
-            if (!val) nextErrors[key] = "Please confirm this item."
-            break
-          case "select":
-            if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
-            break
-          case "multiselect":
-            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Select at least one option."
-            break
-          case "table":
-            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Add at least one row."
-            break
-          case "group":
-            if (!val || typeof val !== "object" || Object.values(val).every((v) => !v))
-              nextErrors[key] = "Select at least one option."
-            break
-          case "file":
-            // Accept either a File (new upload) or a non-empty string (pre-saved reference)
-            if (!(val instanceof File) && !isNotEmpty(val)) nextErrors[key] = "Please upload a file."
-            break
-          case "markdown":
-            // no validation
-            break
-          default:
-            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
-        }
-      })
+          switch (field.type) {
+            case "text":
+            case "textarea":
+            case "user":
+              if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
+              break
+            case "number":
+              if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
+                nextErrors[key] = "Please enter a valid number."
+              break
+            case "checkbox":
+              if (!val) nextErrors[key] = "Please confirm this item."
+              break
+            case "select":
+              if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
+              break
+            case "multiselect":
+              if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Select at least one option."
+              break
+            case "table":
+              if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Add at least one row."
+              break
+            case "group":
+              if (!val || typeof val !== "object" || Object.values(val).every((v) => !v))
+                nextErrors[key] = "Select at least one option."
+              break
+            case "file":
+              // Accept either a File (new upload) or a non-empty string (pre-saved reference)
+              if (!(val instanceof File) && !isNotEmpty(val)) nextErrors[key] = "Please upload a file."
+              break
+            case "markdown":
+              // no validation
+              break
+            default:
+              if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
+          }
+        })
     })
 
     setErrors(nextErrors)
@@ -481,75 +624,54 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
     }
   }
 
- /** ---------- Helper function ---------- **/
-/**
- * Add spaces and new lines to a single string input.
- * Input: Single-line string with numbered sections.
- * Output: Formatted string with proper new lines and spacing.
- */
- /**
- * Add spaces, new lines, and Markdown-style formatting to a single string input.
- * Input: Single-line string with numbered sections.
- * Output: Formatted string with proper new lines, spacing, and headings.
- */
-function formatAuditString(input: string): string {
-  // Split the input into sections based on the pattern 'X. Title: Content'
-  const sections = input.split(/\d+\.\s/).filter(Boolean); // Remove empty results after split
-  
-  return sections
-    .map((section, index) => {
-      const num = index + 1;
-      const sectionTitle = section.split(':')[0];  // Extract the title before the colon (e.g., "Key Risk Areas")
-      
-      // Markdown-style heading for the title
-      const heading = `## **${sectionTitle.trim()}**`; // Add '##' for heading and '**' for bold text
-      const content = section.split(':').slice(1).join(':').trim(); // Get the content after the title
-      return `${num}. ${heading}\n\n${content}`;
-    })
-    .join(" \n\n");
-}
+  /** ---------- Helper function ---------- **/
+  /**
+   * Add spaces and new lines to a single string input.
+   * Input: Single-line string with numbered sections.
+   * Output: Formatted string with proper new lines and spacing.
+   */
+  /**
+  * Add spaces, new lines, and Markdown-style formatting to a single string input.
+  * Input: Single-line string with numbered sections.
+  * Output: Formatted string with proper new lines, spacing, and headings.
+  */
+  function formatAuditString(input: string): string {
+    // Split the input into sections based on the pattern 'X. Title: Content'
+    const sections = input.split(/\d+\.\s/).filter(Boolean); // Remove empty results after split
 
+    return sections
+      .map((section, index) => {
+        const num = index + 1;
+        const sectionTitle = section.split(':')[0];  // Extract the title before the colon (e.g., "Key Risk Areas")
 
-/** ---------- proceed (strict) ---------- **/
-const handleProceed = () => {
-  // Format recommendations string
-  const formattedRecommendations = formatAuditString(recommendations);
-
-  // Validate the procedures
-  const errs = validateAll(procedures);
-  if (Object.keys(errs).length > 0) {
-    const count = Object.keys(errs).length;
-    toast({
-      title: "Missing required answers",
-      description: `Please complete ${count} required ${count === 1 ? "field" : "fields"} before proceeding.`,
-      variant: "destructive",
-    });
-    scrollToFirstError(errs);
-    return;
+        // Markdown-style heading for the title
+        const heading = `## **${sectionTitle.trim()}**`; // Add '##' for heading and '**' for bold text
+        const content = section.split(':').slice(1).join(':').trim(); // Get the content after the title
+        return `${num}. ${heading}\n\n${content}`;
+      })
+      .join(" \n\n");
   }
 
-  // Proceed with formatted recommendations
-  onComplete({ procedures, recommendations: formattedRecommendations });
-};
 
+  /** ---------- proceed (strict) ---------- **/
+  const handleProceed = () => {
+    // Validate the procedures
+    const errs = validateAll(procedures);
+    if (Object.keys(errs).length > 0) {
+      const count = Object.keys(errs).length;
+      toast({
+        title: "Missing required answers",
+        description: `Please complete ${count} required ${count === 1 ? "field" : "fields"} before proceeding.`,
+        variant: "destructive",
+      });
+      scrollToFirstError(errs);
+      return;
+    }
 
-  const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
-    if (fieldsDisabled && !answersGenerated) return
+    // Proceed with formatted recommendations
+    onComplete({ procedures, recommendations: "" });
+  };
 
-    setProcedures((prev) =>
-      (prev || []).map((proc) =>
-        proc.id === procedureId
-          ? { ...proc, fields: (proc.fields || []).map((f: any) => (f.key === fieldKey ? { ...f, answer: value } : f)) }
-          : proc,
-      ),
-    )
-    // clear error for this field if now valid
-    setErrors((prev) => {
-      const next = { ...prev }
-      delete next[`${procedureId}.${fieldKey}`]
-      return next
-    })
-  }
 
   const totalMissing = useMemo(() => Object.keys(errors).length, [errors])
 
@@ -574,12 +696,12 @@ const handleProceed = () => {
               Planning Procedures (Hybrid)
             </CardTitle>
             <div className="flex items-center gap-2">
-              {!questionsGenerated && (
+              {/* {!questionsGenerated && (
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={anyGenerationInProgress}
                   onClick={handleGenerateMoreQuestions}
-                  disabled={generatingQuestions}
                   className="flex items-center gap-2 bg-transparent"
                 >
                   <Bot className="h-4 w-4" />
@@ -592,13 +714,13 @@ const handleProceed = () => {
                   variant="default"
                   size="sm"
                   onClick={handleGenerateAnswers}
-                  disabled={generatingAnswers}
+disabled={anyGenerationInProgress || !questionsGenerated}
                   className="flex items-center gap-2"
                 >
                   <Sparkles className="h-4 w-4" />
                   {generatingAnswers ? "Generating..." : "Generate answers from AI"}
                 </Button>
-              )}
+              )} */}
 
               <Button
                 variant="outline"
@@ -650,6 +772,37 @@ const handleProceed = () => {
               const answersMap = getAnswersMap(procedure)
               return (
                 <Card key={procedure.id} className="border-l-4 border-l-primary">
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleGenerateSectionQuestions(procedure.sectionId)}
+                      disabled={anyGenerationInProgress}
+                      className="flex items-center gap-2"
+                    >
+                      {generatingQuestionsSections.has(procedure.sectionId) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <PlusCircle className="h-4 w-4" />
+                      )}
+                      Add AI Questions
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => handleGenerateSectionAnswers(procedure.sectionId)}
+                      disabled={generatingAnswersSections.has(procedure.sectionId) || anyGenerationInProgress}
+                      className="flex items-center gap-2"
+                    >
+                      {generatingAnswersSections.has(procedure.sectionId) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      Generate Answers
+                    </Button>
+                  </div>
                   <CardHeader>
                     <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                       {procedure.title}
@@ -666,7 +819,7 @@ const handleProceed = () => {
                         const required = !!field.required
                         const fieldKey = `${procedure.id}.${field.key}`
                         const invalid = !!errors[fieldKey]
-                        const isFieldDisabled = fieldsDisabled || field.type === "file"
+                        const isFieldDisabled = field.type === "file"
 
                         return (
                           <div
@@ -721,7 +874,7 @@ const handleProceed = () => {
                                     invalid && "border-destructive focus-visible:ring-destructive",
                                   )}
                                   aria-invalid={invalid || undefined}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 />
                                 {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
                               </>
@@ -746,7 +899,7 @@ const handleProceed = () => {
                                   placeholder={`Enter ${field.label?.toLowerCase() || field.key}...`}
                                   className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
                                   aria-invalid={invalid || undefined}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 />
                                 {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
                               </>
@@ -759,7 +912,7 @@ const handleProceed = () => {
                                     checked={!!field.answer}
                                     onCheckedChange={(ck) => updateProcedureField(procedure.id, field.key, !!ck)}
                                     id={`${procedure.id}_${field.key}`}
-                                    disabled={isFieldDisabled}
+                                    disabled={false}
                                   />
                                   <Label
                                     htmlFor={`${procedure.id}_${field.key}`}
@@ -782,7 +935,7 @@ const handleProceed = () => {
                                   value={field.answer ?? ""}
                                   onChange={(e) => updateProcedureField(procedure.id, field.key, e.target.value)}
                                   aria-invalid={invalid || undefined}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 >
                                   <option value="" disabled>
                                     Select…
@@ -811,7 +964,7 @@ const handleProceed = () => {
                                     updateProcedureField(procedure.id, field.key, selected)
                                   }}
                                   aria-invalid={invalid || undefined}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 >
                                   {(field.options || []).map((opt: string) => (
                                     <option key={opt} value={opt}>
@@ -830,7 +983,7 @@ const handleProceed = () => {
                                   value={Array.isArray(field.answer) ? field.answer : []}
                                   onChange={(rows) => updateProcedureField(procedure.id, field.key, rows)}
                                   invalid={invalid}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 />
                                 {invalid && <p className="text-xs text-destructive mt-1">{errors[fieldKey]}</p>}
                               </>
@@ -846,7 +999,7 @@ const handleProceed = () => {
                                   }}
                                   className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
                                   aria-invalid={invalid || undefined}
-                                  // File fields are never disabled - user must upload manually
+                                // File fields are never disabled - user must upload manually
                                 />
                                 {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
                               </>
@@ -861,7 +1014,7 @@ const handleProceed = () => {
                                   placeholder="Type or select user (manual entry)"
                                   className={clsx(invalid && "border-destructive focus-visible:ring-destructive")}
                                   aria-invalid={invalid || undefined}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 />
                                 {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
                               </>
@@ -873,7 +1026,7 @@ const handleProceed = () => {
                                   field={field}
                                   value={field.answer}
                                   onChange={(val) => updateProcedureField(procedure.id, field.key, val)}
-                                  disabled={isFieldDisabled}
+                                  disabled={false}
                                 />
                                 {invalid && <p className="text-xs text-destructive">{errors[fieldKey]}</p>}
                               </>
@@ -909,7 +1062,7 @@ const handleProceed = () => {
           <ArrowLeft className="h-4 w-4" />
           Back to Sections
         </Button>
-        <Button onClick={handleProceed} disabled={isLoading || !answersGenerated} className="flex items-center gap-2">
+        <Button onClick={handleProceed} disabled={false} className="flex items-center gap-2">
           Proceed to Recommendations
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -919,7 +1072,7 @@ const handleProceed = () => {
 }
 /** ---------- Predefined Sections (manual mode, full spec) ---------- **/
 function getPredefinedSection(sectionId: string) {
-  const sections: Record<string, any> = 
+  const sections: Record<string, any> =
   {
     "engagement_setup_acceptance_independence": {
       title: "Section 1: Engagement Setup, Acceptance & Independence",
@@ -929,7 +1082,7 @@ function getPredefinedSection(sectionId: string) {
           key: "reporting_framework",
           type: "select",
           label: "Reporting Framework",
-          options: ["IFRS","EU-IFRS","Local GAAP","GAPSME","Other"],
+          options: ["IFRS", "EU-IFRS", "Local GAAP", "GAPSME", "Other"],
           required: true,
           help: "Choose the framework used for financial statements; ISA 210 requires an acceptable framework (GAPSME included)."
         },
@@ -958,7 +1111,7 @@ function getPredefinedSection(sectionId: string) {
           key: "engagement_type",
           type: "select",
           label: "Engagement Type",
-          options: ["New Acceptance","Continuation","Declination"],
+          options: ["New Acceptance", "Continuation", "Declination"],
           required: true,
           help: "Select appropriate action; ISA 300 emphasizes that planning and acceptance may need revisiting."
         },
@@ -1013,7 +1166,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Independence Declarations",
           required: true,
-          columns: ["Name","Role","Declaration Date","Exceptions"],
+          columns: ["Name", "Role", "Declaration Date", "Exceptions"],
           help: "Record confirmations from all team members per ISA 220 (Revised)."
         },
         {
@@ -1027,7 +1180,7 @@ function getPredefinedSection(sectionId: string) {
           key: "fee_dependency_actions",
           type: "multiselect",
           label: "Safeguards triggered by fee dependency",
-          options: ["Partner rotation / Cooling-off","TCWG disclosure","EQR required","Disengagement plan"],
+          options: ["Partner rotation / Cooling-off", "TCWG disclosure", "EQR required", "Disengagement plan"],
           required: true,
           visibleIf: { audit_fee_percent: [{ operator: ">=", value: 15 }] },
           help: "Select safeguards if dependency is high, especially for PIEs."
@@ -1051,7 +1204,7 @@ function getPredefinedSection(sectionId: string) {
           key: "ethical_threat_types",
           type: "multiselect",
           label: "Threat types identified",
-          options: ["Self-review","Familiarity","Advocacy","Intimidation","Self-interest","Other"],
+          options: ["Self-review", "Familiarity", "Advocacy", "Intimidation", "Self-interest", "Other"],
           help: "ISA 220 (Revised) requires documentation of identified threats."
         },
         {
@@ -1067,7 +1220,7 @@ function getPredefinedSection(sectionId: string) {
           type: "textarea",
           label: "Safeguards applied to address threats",
           required: true,
-          visibleIf: { ethical_threat_types: [{ operator: "any", value: ["Self-review","Familiarity","Advocacy","Intimidation","Self-interest","Other"] }] },
+          visibleIf: { ethical_threat_types: [{ operator: "any", value: ["Self-review", "Familiarity", "Advocacy", "Intimidation", "Self-interest", "Other"] }] },
           help: "Document safeguards that reduce threats per ISA 220."
         },
         {
@@ -1089,7 +1242,7 @@ function getPredefinedSection(sectionId: string) {
           label: "Describe actions taken if any ethical issues flagged",
           required: true,
           visibleIf: {
-            ethical_additional_checks: [{ operator: "any", value: ["long_tenure","client_relationships","management_functions","non_audit_services"] }]
+            ethical_additional_checks: [{ operator: "any", value: ["long_tenure", "client_relationships", "management_functions", "non_audit_services"] }]
           },
           help: "Explain mitigation if any ethical issues are flagged."
         },
@@ -1111,7 +1264,7 @@ function getPredefinedSection(sectionId: string) {
           key: "eqr_required",
           type: "select",
           label: "Is Engagement Quality Reviewer (EQR) required?",
-          options: ["No","Yes – mandated","Yes – risk-based"],
+          options: ["No", "Yes – mandated", "Yes – risk-based"],
           required: true,
           help: "Include EQR if required by ISQM 1 or firm policy."
         },
@@ -1120,7 +1273,7 @@ function getPredefinedSection(sectionId: string) {
           type: "user",
           label: "Assigned EQR Reviewer",
           required: true,
-          visibleIf: { eqr_required: ["Yes – mandated","Yes – risk-based"] },
+          visibleIf: { eqr_required: ["Yes – mandated", "Yes – risk-based"] },
           help: "Assign a reviewer if EQR is required."
         },
         {
@@ -1134,7 +1287,7 @@ function getPredefinedSection(sectionId: string) {
           key: "consultation_triggers",
           type: "multiselect",
           label: "Consultation triggers",
-          options: ["Fraud","Going Concern","IT","Estimates","Complex Transactions","Legal","Group Consolidation","Other"],
+          options: ["Fraud", "Going Concern", "IT", "Estimates", "Complex Transactions", "Legal", "Group Consolidation", "Other"],
           required: true,
           help: "Identify areas requiring consultation during planning."
         },
@@ -1253,7 +1406,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Identified Risks of Material Misstatement (Financial Statement & Assertion Level)",
           required: true,
-          columns: ["Risk Description","Level (FS / Assertion)","Assertion Affected","Inherent Risk Factors","Controls Related"],
+          columns: ["Risk Description", "Level (FS / Assertion)", "Assertion Affected", "Inherent Risk Factors", "Controls Related"],
           help: "List identified risks by level, related assertions, IRF tags, and relevant controls (ISA 315 ¶25, ¶26)."
         },
         {
@@ -1302,7 +1455,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Specific Materiality for Particular Items",
           required: false,
-          columns: ["Item","Materiality (€)","Rationale"],
+          columns: ["Item", "Materiality (€)", "Rationale"],
           help: "Lower thresholds for sensitive balances."
         },
         {
@@ -1367,7 +1520,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Component Materiality (€)",
           required: false,
-          columns: ["Component","Materiality (€)","Rationale"],
+          columns: ["Component", "Materiality (€)", "Rationale"],
           help: "Set lower thresholds for components to address aggregation risk."
         },
         {
@@ -1393,7 +1546,7 @@ function getPredefinedSection(sectionId: string) {
           key: "risk_inherent_factor_tags",
           type: "multiselect",
           label: "Inherent Risk Factors",
-          options: ["Complexity","Subjectivity","Uncertainty","Change","Bias/Fraud Susceptibility"],
+          options: ["Complexity", "Subjectivity", "Uncertainty", "Change", "Bias/Fraud Susceptibility"],
           required: true,
           help: "Tag risk factors per ISA 315 revised."
         },
@@ -1408,7 +1561,7 @@ function getPredefinedSection(sectionId: string) {
           key: "control_test_type",
           type: "select",
           label: "Type of Control Test",
-          options: ["Design & Implementation","Operating Effectiveness"],
+          options: ["Design & Implementation", "Operating Effectiveness"],
           required: false,
           visibleIf: { controls_relied_on: [{ operator: "not_empty" }] },
           help: "Select control test type (only if controls are relied on)."
@@ -1451,7 +1604,7 @@ function getPredefinedSection(sectionId: string) {
 
     "fraud_gc_planning": {
       title: "Section 5: Fraud Risk & Going Concern Planning",
-      standards: ["ISA 240 (Revised)","ISA 570 (Revised 2024)"],
+      standards: ["ISA 240 (Revised)", "ISA 570 (Revised 2024)"],
       fields: [
         {
           key: "fraud_lens_discussion",
@@ -1507,7 +1660,7 @@ function getPredefinedSection(sectionId: string) {
           type: "select",
           label: "Auditor Report Section: Going Concern or MURGC",
           required: true,
-          options: ["Going Concern – No material uncertainty","Material Uncertainty Related to Going Concern (MURGC)"],
+          options: ["Going Concern – No material uncertainty", "Material Uncertainty Related to Going Concern (MURGC)"],
           help: "ISA 570 (Revised) requires a dedicated report section in all cases."
         },
         {
