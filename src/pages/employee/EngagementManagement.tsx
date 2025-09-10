@@ -60,7 +60,7 @@ export const EngagementManagement = () => {
 
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [clients, setClients] = useState<User[]>([]);
-  const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
+  // const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState(false);
   const [isSigningPortalOpen, setIsSigningPortalOpen] = useState(false);
 
