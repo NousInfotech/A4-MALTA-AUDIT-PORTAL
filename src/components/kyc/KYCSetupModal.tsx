@@ -27,6 +27,8 @@ import {
   Eye
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { kycApi, documentRequestApi } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 
 interface KYCDocument {
   id: string;
@@ -183,27 +185,136 @@ export function KYCSetupModal({
     setCurrentStep('preview');
   };
 
-  const handleCompleteKYC = () => {
-    const finalKycData = {
-      ...kycData,
-      documents,
-      createdAt: new Date().toISOString(),
-      status: 'pending',
+  const handleCompleteKYC = async () => {
+    console.log('🚀 Starting KYC API Integration Process...');
+    console.log('📋 KYC Data:', {
       engagementId: selectedEngagement?._id,
-    };
-
-    onKYCComplete(finalKycData);
-    setCurrentStep('complete');
-    
-    toast({
-      title: "KYC Setup Complete",
-      description: "KYC requirements have been configured and sent to the client",
+      clientId: selectedEngagement?.clientId,
+      clientName: kycData.clientName,
+      companyName: kycData.companyName,
+      documentsCount: documents.length,
+      requiredDocuments: documents.filter(d => d.type === 'required').length,
+      optionalDocuments: documents.filter(d => d.type === 'optional').length
     });
 
-    setTimeout(() => {
-      onOpenChange(false);
-      setCurrentStep('setup');
-    }, 2000);
+    try {
+      // Step 1: Get current user info
+      console.log('👤 Step 1: Getting current user info...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('❌ User authentication failed:', userError);
+        throw new Error(`User authentication failed: ${userError.message}`);
+      }
+      
+      if (!user) {
+        console.error('❌ No user found');
+        throw new Error('User not authenticated');
+      }
+      
+      console.log('✅ User authenticated successfully:', {
+        userId: user.id,
+        userEmail: user.email
+      });
+
+      // Step 2: Create document request for KYC
+      console.log('📄 Step 2: Creating document request...');
+      const documentRequestData = {
+        engagementId: selectedEngagement?._id,
+        clientId: selectedEngagement?.clientId,
+        category: 'KYC Documents',
+        description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${documents.filter(d => d.type === 'required').map(d => d.name).join(', ')}`,
+      };
+
+      console.log('📤 Sending document request data:', documentRequestData);
+      const documentRequest = await documentRequestApi.create(documentRequestData);
+      console.log('✅ Document request created successfully:', {
+        requestId: documentRequest._id,
+        status: documentRequest.status || 'created'
+      });
+
+      // Step 3: Create KYC workflow
+      console.log('🔄 Step 3: Creating KYC workflow...');
+      const kycWorkflowData = {
+        engagementId: selectedEngagement?._id,
+        clientId: selectedEngagement?.clientId,
+        auditorId: user.id,
+        documentRequestId: documentRequest._id,
+      };
+
+      console.log('📤 Sending KYC workflow data:', kycWorkflowData);
+      const kycWorkflow = await kycApi.create(kycWorkflowData);
+      console.log('✅ KYC workflow created successfully:', {
+        kycId: kycWorkflow._id,
+        status: kycWorkflow.status || 'created'
+      });
+
+      // Step 4: Prepare final data
+      const finalKycData = {
+        ...kycData,
+        documents,
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+        engagementId: selectedEngagement?._id,
+        kycId: kycWorkflow._id,
+        documentRequestId: documentRequest._id,
+      };
+
+      console.log('🎉 KYC API Integration completed successfully!');
+      console.log('📊 Final KYC Data:', finalKycData);
+
+      // Step 5: Complete the process
+      onKYCComplete(finalKycData);
+      setCurrentStep('complete');
+      
+      toast({
+        title: "KYC Setup Complete",
+        description: "KYC workflow has been created and sent to the client",
+      });
+
+      console.log('✅ KYC process completed, closing modal in 2 seconds...');
+      setTimeout(() => {
+        onOpenChange(false);
+        setCurrentStep('setup');
+        console.log('🔚 KYC modal closed');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('❌ KYC API Integration failed!');
+      console.error('🔍 Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        code: error?.code,
+        status: error?.status,
+        response: error?.response
+      });
+
+      // Log specific API errors
+      if (error?.response) {
+        console.error('📡 API Response Error:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+      }
+
+      // Log network errors
+      if (error?.code === 'NETWORK_ERROR' || error?.message?.includes('fetch')) {
+        console.error('🌐 Network Error detected - check internet connection and API endpoints');
+      }
+
+      // Log authentication errors
+      if (error?.message?.includes('authentication') || error?.message?.includes('unauthorized')) {
+        console.error('🔐 Authentication Error detected - check user session');
+      }
+
+      toast({
+        title: "KYC Setup Failed",
+        description: error?.message || "Failed to create KYC workflow. Check console for details.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownloadTemplate = (templateUrl: string, documentName: string) => {

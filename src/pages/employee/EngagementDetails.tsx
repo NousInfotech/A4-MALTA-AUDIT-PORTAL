@@ -8,17 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { engagementApi } from "@/services/api";
-import { ArrowLeft, Building2, Calendar, Briefcase, FileText, CheckCircle, Library, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, Briefcase, FileText, CheckCircle, Library, BarChart3, Shield } from 'lucide-react';
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
-import { OverviewTab } from "@/components/engagement/OverviewTab";
+import { PerEngagementKPIDashboard } from "../../components/kpi/PerEngagementKPIDashboard";
 import { LibraryTab } from "@/components/engagement/LibraryTab";
 import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
-import { EnhancedReviewNotesPanel } from "@/components/review-notes/EnhancedReviewNotesPanel";
+import { KYCManagement } from "@/components/kyc/KYCManagement";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -189,9 +189,9 @@ export const EngagementDetails = () => {
               </Button>
               <div className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words">
-                    {engagement.title}
-                  </h1>
+                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words leading-tight">
+                      {engagement.title}
+                    </h1>
                   <Badge
                     variant="outline"
                     className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(engagement.status)}`}
@@ -216,10 +216,10 @@ export const EngagementDetails = () => {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Briefcase className="h-6 w-6 text-white" />
-              </div>
+                          <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                  <Briefcase className="h-6 w-6 text-white" />
+                </div>
             </div>
           </div>
         </div>
@@ -230,7 +230,6 @@ export const EngagementDetails = () => {
         pageId={`engagement-${id}`} 
         pageName={`Engagement: ${engagement?.title || 'Details'}`}
         engagementId={id}
-        selectedEngagement={engagement}
       />
 
       {/* Tabs Section */}
@@ -281,32 +280,26 @@ export const EngagementDetails = () => {
                   <Library className="h-4 w-4 mr-2" />
                   Library
                 </TabsTrigger>
+                <TabsTrigger 
+                  value="kyc" 
+                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  KYC
+                </TabsTrigger>
               </TabsList>
             </div>
           </div>
 
           <div className="p-6">
             <TabsContent value="overview" className="space-y-6">
-              <OverviewTab
-                engagement={engagement}
-                requests={requests}
-              />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-overview`} 
-                pageName={`Overview - ${engagement?.title || 'Details'}`}
-                engagementId={id}
-              />
+              <PerEngagementKPIDashboard engagementId={id} />
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
               <LibraryTab
                 engagement={engagement}
                 requests={requests}
-              />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-library`} 
-                pageName={`Library - ${engagement?.title || 'Details'}`}
-                engagementId={id}
               />
             </TabsContent>
 
@@ -320,11 +313,6 @@ export const EngagementDetails = () => {
                 handleUploadTrialBalance={handleUploadTrialBalance}
                 tbLoading={tbLoading}
               />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-audit`} 
-                pageName={`Audit - ${engagement?.title || 'Details'}`}
-                engagementId={id}
-              />
             </TabsContent>
 
             <TabsContent value="requests" className="space-y-6">
@@ -333,11 +321,7 @@ export const EngagementDetails = () => {
                 documentRequest={documentRequest}
                 setDocumentRequest={setDocumentRequest}
                 handleSendDocumentRequest={handleSendDocumentRequest}
-              />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-requests`} 
-                pageName={`Document Requests - ${engagement?.title || 'Details'}`}
-                engagementId={id}
+                engagement={engagement}
               />
             </TabsContent>
 
@@ -345,20 +329,14 @@ export const EngagementDetails = () => {
               <ProceduresTab
                 engagement={engagement}
               />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-procedures`} 
-                pageName={`Procedures - ${engagement?.title || 'Details'}`}
-                engagementId={id}
-              />
             </TabsContent>
 
             <TabsContent value="checklist" className="space-y-6">
               <ChecklistTab engagementId={id!} />
-              <EnhancedReviewNotesPanel 
-                pageId={`engagement-${id}-checklist`} 
-                pageName={`Checklist - ${engagement?.title || 'Details'}`}
-                engagementId={id}
-              />
+            </TabsContent>
+
+            <TabsContent value="kyc" className="space-y-6">
+              <KYCManagement engagementId={id!} />
             </TabsContent>
           </div>
         </Tabs>

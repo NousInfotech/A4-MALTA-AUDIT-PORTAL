@@ -17,6 +17,8 @@ import { PendingApprovalPage } from "@/pages/auth/PendingApprovalPage";
 // Admin pages
 import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { UserManagement } from "@/pages/admin/UserManagement";
+import { AuditorLogs } from "@/pages/admin/AuditorLogs";
+import ISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -62,49 +64,39 @@ const App = () => (
                   element={<PendingApprovalPage />}
                 />
 
-                {/* Admin Routes */}
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<AdminDashboard />} />
-                  <Route path="users" element={<UserManagement />} />
-                </Route>
+              {/* Admin Routes */}
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AdminDashboard />} />
+                <Route path="users" element={<UserManagement />} />
+              </Route>
 
-                {/* Employee Routes */}
-                <Route
-                  path="/employee"
-                  element={
-                    <ProtectedRoute allowedRoles={["employee"]}>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<EmployeeDashboard />} />
-                  <Route path="clients" element={<ClientManagement />} />
-                  <Route path="clients/:id" element={<ClientDetail />} />
-                  <Route path="clients/new" element={<AddClient />} />
-                  <Route
-                    path="engagements"
-                    element={<EngagementManagement />}
-                  />
-                  <Route
-                    path="engagements/new"
-                    element={<CreateEngagement />}
-                  />
-                  <Route
-                    path="engagements/:id"
-                    element={<EngagementDetails />}
-                  />
-                  <Route path="library" element={<GlobalLibraryPage />} />
-                  <Route path="accounts" element={<AccountDataTab />} />
-                  <Route path="salt-edge/callback" element={<CallbackPage />} />
-                  {/* <Route path="pbc" element={<PBCAuditWorkflow />} /> */}
-                </Route>
+              {/* Employee Routes */}
+              <Route
+                path="/employee"
+                element={
+                  <ProtectedRoute allowedRoles={["employee"]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<EmployeeDashboard />} />
+                <Route path="clients" element={<ClientManagement />} />
+                <Route path="clients/:id" element={<ClientDetail />} />
+                <Route path="clients/new" element={<AddClient />} />
+                <Route path="engagements" element={<EngagementManagement />} />
+                <Route path="engagements/new" element={<CreateEngagement />} />
+                <Route path="engagements/:id" element={<EngagementDetails />} />
+                <Route path="library" element={<GlobalLibraryPage />} />
+                <Route path="accounts" element={<AccountDataTab />} />
+                <Route path="salt-edge/callback" element={<CallbackPage />} />
+              </Route>
 
                 {/* Client Routes */}
                 <Route

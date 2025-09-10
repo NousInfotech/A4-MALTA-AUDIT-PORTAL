@@ -24,39 +24,22 @@ export const initializeSocket = (token: string) => {
 export const getSocket = () => socket;
 
 // API helper function
-// Updated to handle different content types including FormData
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error('Supabase getSession error:', error);
-    throw new Error('Authentication error: Could not get session.');
-  }
-
-  if (!data || !data.session || !data.session.access_token) {
-    throw new Error('Authentication error: No active session or access token found. Please log in again.');
-  }
-
-  const accessToken = data.session.access_token;
-
-  // Determine Content-Type. If body is FormData, don't set Content-Type header manually,
-  // the browser will set it automatically with the correct boundary.
-  const headers: HeadersInit = {
-    'Authorization': `Bearer ${accessToken}`,
-    ...options.headers,
-  };
-
-  if (!(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${data.session?.access_token}`,
+      ...options.headers,
+    },
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({ message: 'Network error or malformed error response' }));
-    throw new Error(errorBody.message || `API request failed with status ${response.status}`);
+    const error = await response.json().catch(() => ({ message: 'Network error' }));
+    throw new Error(error.message || 'API request failed');
   }
 
   return response.json();
@@ -154,10 +137,21 @@ export const documentRequestApi = {
     category: string;
     description: string;
   }) => {
-    return apiCall('/api/document-requests', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    console.log('📄 Creating Document Request...');
+    console.log('📋 Document Request Data:', data);
+    
+    try {
+      const result = await apiCall('/api/document-requests', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('✅ Document Request created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Document Request creation failed:', error);
+      throw error;
+    }
   },
 
   getByEngagement: async (engagementId: string) => {
@@ -223,8 +217,3 @@ export const checklistApi = {
     });
   },
 };
-
-
-
-
-

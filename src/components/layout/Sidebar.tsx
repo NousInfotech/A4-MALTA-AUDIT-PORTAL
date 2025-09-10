@@ -12,13 +12,15 @@ import {
   FolderOpen,
   UserCheck,
   Briefcase,
-  Shield,
   Sparkles,
   Zap,
   TrendingUp,
   Home,
   Calendar,
-  Clock
+  Clock,
+  Activity,
+  Target,
+  Shield
 } from 'lucide-react';
 
 interface NavItem {
@@ -48,6 +50,21 @@ const navItems: NavItem[] = [
     roles: ['admin'],
     description: 'Manage Users & Permissions'
   },
+  { 
+    title: 'Auditor Logs', 
+    href: '/admin/logs', 
+    icon: Activity, 
+    roles: ['admin'],
+    description: 'Monitor Auditor Activities'
+  },
+  { 
+    title: 'ISQM Questionnaire', 
+    href: '/admin/isqm', 
+    icon: FileText, 
+    roles: ['admin'],
+    description: 'Quality Management Assessment',
+    badge: 'New'
+  },
 
   // Employee
   { 
@@ -74,6 +91,7 @@ const navItems: NavItem[] = [
     description: 'Audit Engagements',
     getBadge: (stats) => `${stats.activeEngagements} Active`
   },
+ 
   { 
     title: 'Library', 
     href: '/employee/library', 
@@ -86,8 +104,15 @@ const navItems: NavItem[] = [
     href: '/employee/accounts', 
     icon: FileText, 
     roles: ['employee'],
-    description: 'Accounts&Finance Details',
-    
+    description: 'Accounts&Finance Details'
+  },
+  { 
+    title: 'ISQM Questionnaire', 
+    href: '/employee/isqm', 
+    icon: Shield, 
+    roles: ['employee'],
+    description: 'Quality Management Assessment',
+    badge: 'New'
   },
 
   // Client
@@ -113,14 +138,7 @@ const navItems: NavItem[] = [
     roles: ['client'],
     description: 'Requested Documents',
     getBadge: (stats) => `${stats.pendingRequests} Pending`
-  },
-  { 
-    title: 'Accounts&Finance', 
-    href: '/client/accounts', 
-    icon: FileText, 
-    roles: ['client'],
-    description: 'Accounts&Finance Details',
-  },
+  }
 ];
 
 export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
@@ -162,7 +180,8 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <Shield className="h-6 w-6 text-white" />            </div>
+              <img src="/logo.png" alt="Logo" className="h-10 w-10 object-cover rounded" />
+            </div>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
           </div>
           

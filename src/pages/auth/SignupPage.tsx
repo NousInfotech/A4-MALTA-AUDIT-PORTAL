@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Loader2, Eye, EyeOff, CheckCircle, DollarSign, TrendingUp, Sparkles, ArrowRight, User, Mail, Key, Building2, Globe, FileText } from "lucide-react";
+import { Loader2, Eye, EyeOff, CheckCircle, DollarSign, TrendingUp, Sparkles, ArrowRight, User, Mail, Key, Building2, Globe, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const industries = [
@@ -121,7 +121,7 @@ export const SignupPage = () => {
               {/* Logo */}
               <div className="flex items-center justify-center space-x-3 mb-8">
                 <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30">
-                  <Shield className="h-8 w-8 text-white" />
+                  <img src="/logo.png" alt="Logo" className="h-14 w-14 object-cover rounded" />
                 </div>
                 <span className="text-3xl font-bold">AuditPortal</span>
               </div>
@@ -186,8 +186,8 @@ export const SignupPage = () => {
           {/* Header */}
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Shield className="h-6 w-6 text-white" />
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <img src="/logo.png" alt="Logo" className="h-13 w-13 object-cover rounded" />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">AuditPortal</span>
             </div>
