@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -717,7 +717,13 @@ const ISQMQuestionnairePage: React.FC = () => {
     addQuestionNote,
     updateSectionHeading,
     deleteSection,
-    addSectionNote
+    addSectionNote,
+    generatePolicy,
+    generateProcedure,
+    generateRiskAssessment,
+    generateComplianceChecklist,
+    generateAllDocuments,
+    getGenerationTypes
   } = useISQM();
 
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -820,6 +826,35 @@ const ISQMQuestionnairePage: React.FC = () => {
     setExpandedSections(newExpanded);
   };
 
+  // Local state for immediate UI updates
+  const [localAnswers, setLocalAnswers] = useState<Map<string, string>>(new Map());
+  const [localStates, setLocalStates] = useState<Map<string, boolean>>(new Map());
+  const [pendingSaves, setPendingSaves] = useState<Set<string>>(new Set());
+  
+  // Debounce timer for answer updates
+  const answerUpdateTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  // Initialize local state only when questionnaires first load or when local state is empty
+  useEffect(() => {
+    if (questionnaires.length > 0 && localAnswers.size === 0 && localStates.size === 0) {
+      const newLocalAnswers = new Map<string, string>();
+      const newLocalStates = new Map<string, boolean>();
+      
+      questionnaires.forEach(questionnaire => {
+        questionnaire.sections.forEach((section, sectionIdx) => {
+          section.qna.forEach((q, questionIdx) => {
+            const key = `${questionnaire._id}-${sectionIdx}-${questionIdx}`;
+            newLocalAnswers.set(key, q.answer);
+            newLocalStates.set(key, q.state);
+          });
+        });
+      });
+      
+      setLocalAnswers(newLocalAnswers);
+      setLocalStates(newLocalStates);
+    }
+  }, [questionnaires, localAnswers.size, localStates.size]);
+
   const handleAnswerUpdate = async (
     questionnaireId: string,
     sectionIndex: number,
@@ -827,20 +862,48 @@ const ISQMQuestionnairePage: React.FC = () => {
     answer: string
   ) => {
     const answerKey = `${questionnaireId}-${sectionIndex}-${questionIndex}`;
-    setSavingAnswers(prev => new Set(prev).add(answerKey));
     
-    try {
-      console.log('🔄 Updating answer:', { questionnaireId, sectionIndex, questionIndex, answer });
-      await updateQuestionAnswer(questionnaireId, sectionIndex, questionIndex, answer);
-    } catch (error) {
-      console.error('❌ Failed to update answer:', error);
-    } finally {
-      setSavingAnswers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(answerKey);
-        return newSet;
-      });
+    // Update local state immediately for smooth typing
+    setLocalAnswers(prev => {
+      const newMap = new Map(prev);
+      newMap.set(answerKey, answer);
+      return newMap;
+    });
+    
+    // Mark as pending save
+    setPendingSaves(prev => new Set(prev).add(answerKey));
+    
+    // Clear existing timer for this answer
+    const existingTimer = answerUpdateTimers.current.get(answerKey);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
+    
+    // Debounce the API call
+    const timer = setTimeout(async () => {
+      try {
+        console.log('🔄 Updating answer:', { questionnaireId, sectionIndex, questionIndex, answer });
+        await updateQuestionAnswer(questionnaireId, sectionIndex, questionIndex, answer);
+        // Remove from pending saves on success
+        setPendingSaves(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(answerKey);
+          return newSet;
+        });
+      } catch (error) {
+        console.error('❌ Failed to update answer:', error);
+        // Remove from pending saves even on error to avoid stuck state
+        setPendingSaves(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(answerKey);
+          return newSet;
+        });
+      } finally {
+        answerUpdateTimers.current.delete(answerKey);
+      }
+    }, 1000); // Increased to 1 second for better UX
+    
+    answerUpdateTimers.current.set(answerKey, timer);
   };
 
   const handleStateUpdate = async (
@@ -849,19 +912,40 @@ const ISQMQuestionnairePage: React.FC = () => {
     questionIndex: number,
     state: boolean
   ) => {
-    const answerKey = `${questionnaireId}-${sectionIndex}-${questionIndex}`;
-    setSavingAnswers(prev => new Set(prev).add(answerKey));
+    const stateKey = `${questionnaireId}-${sectionIndex}-${questionIndex}`;
+    
+    // Update local state immediately
+    setLocalStates(prev => {
+      const newMap = new Map(prev);
+      newMap.set(stateKey, state);
+      return newMap;
+    });
+    
+    // Mark as pending save
+    setPendingSaves(prev => new Set(prev).add(stateKey));
     
     try {
       console.log('🔄 Updating state:', { questionnaireId, sectionIndex, questionIndex, state });
-      // For now, we'll update the answer with the state as a comment
-      await updateQuestionAnswer(questionnaireId, sectionIndex, questionIndex, '', `State: ${state}`);
+      
+      // Get current answer to preserve it
+      const questionnaire = questionnaires.find(q => q._id === questionnaireId);
+      const currentAnswer = questionnaire?.sections[sectionIndex]?.qna[questionIndex]?.answer || '';
+      
+      // Update the question with the new state - send state field to backend
+      await updateQuestionAnswer(questionnaireId, sectionIndex, questionIndex, currentAnswer, '', state);
+      
+      // Remove from pending saves on success
+      setPendingSaves(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(stateKey);
+        return newSet;
+      });
     } catch (error) {
       console.error('❌ Failed to update state:', error);
-    } finally {
-      setSavingAnswers(prev => {
+      // Remove from pending saves even on error
+      setPendingSaves(prev => {
         const newSet = new Set(prev);
-        newSet.delete(answerKey);
+        newSet.delete(stateKey);
         return newSet;
       });
     }
@@ -1102,7 +1186,7 @@ const ISQMQuestionnairePage: React.FC = () => {
     }
   };
 
-  const generatePolicy = () => {
+  const handleGeneratePolicy = async () => {
     if (!currentParent) {
       alert("Please select an ISQM pack first.");
       return;
@@ -1120,7 +1204,64 @@ const ISQMQuestionnairePage: React.FC = () => {
       return;
     }
     
-    setActiveTab("policy-generator");
+    try {
+      console.log('🤖 Generating all documents for parent:', currentParent._id);
+      
+      // Generate all documents (policies and procedures) for the parent
+      const result = await generateAllDocuments(currentParent._id, {
+        firmDetails: {
+          size: "mid-sized",
+          specializations: ["audit", "tax", "advisory"],
+          jurisdiction: currentParent.metadata.jurisdiction_note || "UK",
+          additionalInfo: "Generated from ISQM questionnaire responses"
+        }
+      });
+      
+      console.log('✅ Documents generated successfully:', result);
+      
+      // Download the generated files
+      if (result.policies && result.policies.length > 0) {
+        result.policies.forEach((policy: any) => {
+          downloadGeneratedDocument(policy.document, policy.pdfFilename || `${policy.componentKey}_policy.pdf`);
+        });
+      }
+      
+      if (result.procedures && result.procedures.length > 0) {
+        result.procedures.forEach((procedure: any) => {
+          downloadGeneratedDocument(procedure.document, procedure.pdfFilename || `${procedure.componentKey}_procedure.pdf`);
+        });
+      }
+      
+      setActiveTab("policy-generator");
+    } catch (error) {
+      console.error('❌ Failed to generate documents:', error);
+    }
+  };
+
+  const downloadGeneratedDocument = (content: string, filename: string) => {
+    try {
+      // Create a blob with the content
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      
+      // Trigger download
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      
+      console.log('✅ Document downloaded:', filename);
+    } catch (error) {
+      console.error('❌ Failed to download document:', error);
+    }
   };
 
   // Dialog handler functions
@@ -1264,6 +1405,52 @@ const ISQMQuestionnairePage: React.FC = () => {
     console.log("Sending questionnaire to auditor:", selectedAuditor);
     // Add actual implementation here
   };
+  
+  // Save all pending changes for a section
+  const handleSaveSection = async (questionnaireId: string, sectionIndex: number) => {
+    const questionnaire = questionnaires.find(q => q._id === questionnaireId);
+    if (!questionnaire) return;
+    
+    const section = questionnaire.sections[sectionIndex];
+    if (!section) return;
+    
+    try {
+      console.log('💾 Saving section:', { questionnaireId, sectionIndex });
+      
+      // Save all questions in the section
+      const savePromises = section.qna.map(async (q, questionIndex) => {
+        const answerKey = `${questionnaireId}-${sectionIndex}-${questionIndex}`;
+        const localAnswer = localAnswers.get(answerKey);
+        const localState = localStates.get(answerKey);
+        
+        // Only save if there are changes
+        if (localAnswer !== undefined || localState !== undefined) {
+          return updateQuestionAnswer(
+            questionnaireId, 
+            sectionIndex, 
+            questionIndex, 
+            localAnswer ?? q.answer,
+            '',
+            localState ?? q.state
+          );
+        }
+      });
+      
+      await Promise.all(savePromises);
+      
+      // Clear pending saves for this section
+      const sectionKeys = section.qna.map((_, questionIndex) => `${questionnaireId}-${sectionIndex}-${questionIndex}`);
+      setPendingSaves(prev => {
+        const newSet = new Set(prev);
+        sectionKeys.forEach(key => newSet.delete(key));
+        return newSet;
+      });
+      
+      console.log('✅ Section saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save section:', error);
+    }
+  };
 
   const downloadQuestionnaire = () => {
     if (!currentParent) {
@@ -1348,7 +1535,7 @@ const ISQMQuestionnairePage: React.FC = () => {
                   Export Data
                 </Button>
                 <Button 
-                  onClick={generatePolicy}
+                  onClick={handleGeneratePolicy}
                   className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
                   disabled={!currentParent}
                 >
@@ -1757,6 +1944,18 @@ const ISQMQuestionnairePage: React.FC = () => {
                                 >
                                   <XCircle className="w-3 h-3 text-orange-600" />
                                 </Button>
+                                {/* Save Section Button */}
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSaveSection(questionnaire._id, sectionIdx);
+                                  }}
+                                  className="h-7 px-3 bg-green-500 hover:bg-green-600 text-white"
+                                >
+                                  <Save className="w-3 h-3 mr-1" />
+                                  Save
+                                </Button>
                               </div>
                               {expandedSections.has(sectionKey) ? (
                                 <ChevronDown className="w-5 h-5 text-green-600 group-hover:scale-110 transition-transform duration-300" />
@@ -1829,12 +2028,12 @@ const ISQMQuestionnairePage: React.FC = () => {
                                               <div className="relative">
                                         <Textarea
                                           placeholder="Enter your detailed answer here..."
-                                          value={q.answer}
+                                          value={localAnswers.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.answer}
                                                   onChange={(e) => handleAnswerUpdate(questionnaire._id, sectionIdx, questionIdx, e.target.value)}
                                           className="min-h-[100px] border-2 border-gray-200 focus:border-purple-400 rounded-xl resize-none transition-colors duration-300"
                                                   disabled={isSaving}
                                                 />
-                                                {isSaving && (
+                                                {(savingAnswers.has(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) || pendingSaves.has(`${questionnaire._id}-${sectionIdx}-${questionIdx}`)) && (
                                                   <div className="absolute top-2 right-2">
                                                     <Loader2 className="w-4 h-4 text-purple-600 animate-spin" />
                                                   </div>
@@ -1847,7 +2046,7 @@ const ISQMQuestionnairePage: React.FC = () => {
                                           <div className="flex items-center space-x-3 mb-3">
                                             <Checkbox
                                                     id={`implemented-${questionnaire._id}-${sectionIdx}-${questionIdx}`}
-                                              checked={q.state}
+                                              checked={localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state}
                                                     onCheckedChange={(checked) => handleStateUpdate(questionnaire._id, sectionIdx, questionIdx, checked as boolean)}
                                               className="data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
                                                     disabled={isSaving}
@@ -1860,22 +2059,22 @@ const ISQMQuestionnairePage: React.FC = () => {
                                             </label>
                                           </div>
                                           <div className="flex items-center gap-2">
-                                            {q.state ? (
+                                            {(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? (
                                               <CheckCircle className="w-5 h-5 text-green-600" />
                                             ) : (
                                               <XCircle className="w-5 h-5 text-red-500" />
                                             )}
-                                            <span className={`text-sm font-medium ${q.state ? "text-green-700" : "text-red-600"}`}>
-                                              {q.state ? "Implemented" : "Not Implemented"}
+                                            <span className={`text-sm font-medium ${(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? "text-green-700" : "text-red-600"}`}>
+                                              {(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? "Implemented" : "Not Implemented"}
                                             </span>
                                           </div>
                                         </div>
                                         
-                                        {q.answer.trim() !== "" && (
+                                        {(localAnswers.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.answer).trim() !== "" && (
                                           <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
                                             <div className="flex items-center gap-2 text-blue-700">
                                               <Clock className="w-4 h-4" />
-                                              <span className="text-xs font-medium">Answer Length: {q.answer.length} characters</span>
+                                              <span className="text-xs font-medium">Answer Length: {(localAnswers.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.answer).length} characters</span>
                                             </div>
                                           </div>
                                         )}
@@ -1940,10 +2139,30 @@ const ISQMQuestionnairePage: React.FC = () => {
                   <ISQMPolicyGenerator 
                     questionnaireData={{
                       metadata: currentParent.metadata,
-                      ISQM_1: questionnaires.find(q => q.key === 'ISQM_1') || { heading: 'ISQM 1', sections: [] },
-                      ISQM_2: questionnaires.find(q => q.key === 'ISQM_2') || { heading: 'ISQM 2', sections: [] },
-                      ISA_220_Revised: questionnaires.find(q => q.key === 'ISA_220_Revised') || { heading: 'ISA 220 Revised', sections: [] }
-                    }} 
+                      ISQM_1: questionnaires.find(q => q.key === 'ISQM_1') || { 
+                        _id: 'fallback-isqm1', 
+                        key: 'ISQM_1', 
+                        heading: 'ISQM 1', 
+                        sections: [], 
+                        stats: { totalQuestions: 0, answeredQuestions: 0, completionPercentage: 0 }
+                      },
+                      ISQM_2: questionnaires.find(q => q.key === 'ISQM_2') || { 
+                        _id: 'fallback-isqm2', 
+                        key: 'ISQM_2', 
+                        heading: 'ISQM 2', 
+                        sections: [], 
+                        stats: { totalQuestions: 0, answeredQuestions: 0, completionPercentage: 0 }
+                      },
+                      ISA_220_Revised: questionnaires.find(q => q.key === 'ISA_220_Revised') || { 
+                        _id: 'fallback-isa220', 
+                        key: 'ISA_220_Revised', 
+                        heading: 'ISA 220 Revised', 
+                        sections: [], 
+                        stats: { totalQuestions: 0, answeredQuestions: 0, completionPercentage: 0 }
+                      }
+                    }}
+                    parentId={currentParent._id}
+                    questionnaires={questionnaires}
                   />
                 ) : (
                   <div className="p-12 text-center">

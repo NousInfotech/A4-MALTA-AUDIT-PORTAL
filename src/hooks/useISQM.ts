@@ -501,7 +501,8 @@ export const useISQM = () => {
     sectionIndex: number,
     questionIndex: number,
     answer: string,
-    comments?: string
+    comments?: string,
+    state?: boolean
   ) => {
     try {
       console.log('🔄 Updating question answer:', { questionnaireId, sectionIndex, questionIndex, answer });
@@ -509,7 +510,9 @@ export const useISQM = () => {
         questionnaireId,
         sectionIndex,
         questionIndex,
-        { answer, comments }
+        answer,
+        comments,
+        state
       );
       
       // Update the questionnaire in local state
@@ -892,6 +895,264 @@ export const useISQM = () => {
     }
   };
 
+  // AI Document Generation
+  const generatePolicy = useCallback(async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+      additionalInfo?: string;
+    }
+  }) => {
+    try {
+      console.log('🤖 Generating policy document:', questionnaireId, data);
+      const result = await isqmApi.generatePolicy(questionnaireId, data);
+      
+      toast({
+        title: "Success",
+        description: "Policy document generated successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate policy document';
+      console.error('❌ Failed to generate policy document:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  // Generate documents from QNA array
+  const generateDocumentsFromQNA = useCallback(async (data: {
+    qnaArray: Array<{
+      question: string;
+      answer: string;
+      state: boolean;
+    }>;
+    categoryName: string;
+    firmDetails?: {
+      size?: string;
+      jurisdiction?: string;
+      specializations?: string[];
+      [key: string]: any;
+    };
+  }) => {
+    try {
+      console.log('🤖 Generating documents from QNA array:', data.categoryName);
+      const result = await isqmApi.generateDocumentsFromQNA(data);
+      
+      toast({
+        title: "Success",
+        description: `Documents generated successfully for ${data.categoryName}`,
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate documents from QNA';
+      console.error('❌ Failed to generate documents from QNA:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  // Download generated document
+  const downloadGeneratedDocument = useCallback(async (filename: string) => {
+    try {
+      console.log('📥 Downloading generated document:', filename);
+      const result = await isqmApi.downloadGeneratedDocument(filename);
+      
+      // Create download link
+      const blob = new Blob([result], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Document downloaded successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to download document';
+      console.error('❌ Failed to download document:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  const generateProcedure = useCallback(async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      processes?: string[];
+      jurisdiction: string;
+    };
+    policyDetails?: {
+      title: string;
+      requirements: string[];
+      responsibilities: Record<string, string>;
+    };
+  }) => {
+    try {
+      console.log('🤖 Generating procedure document:', questionnaireId, data);
+      const result = await isqmApi.generateProcedure(questionnaireId, data);
+      
+      toast({
+        title: "Success",
+        description: "Procedure document generated successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate procedure document';
+      console.error('❌ Failed to generate procedure document:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  const generateRiskAssessment = useCallback(async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+    }
+  }) => {
+    try {
+      console.log('🤖 Generating risk assessment:', questionnaireId, data);
+      const result = await isqmApi.generateRiskAssessment(questionnaireId, data);
+      
+      toast({
+        title: "Success",
+        description: "Risk assessment generated successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate risk assessment';
+      console.error('❌ Failed to generate risk assessment:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  const generateComplianceChecklist = useCallback(async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+    }
+  }) => {
+    try {
+      console.log('🤖 Generating compliance checklist:', questionnaireId, data);
+      const result = await isqmApi.generateComplianceChecklist(questionnaireId, data);
+      
+      toast({
+        title: "Success",
+        description: "Compliance checklist generated successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate compliance checklist';
+      console.error('❌ Failed to generate compliance checklist:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  const generateAllDocuments = useCallback(async (parentId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+      additionalInfo?: string;
+    }
+  }) => {
+    try {
+      console.log('🤖 Generating all documents for parent:', parentId, data);
+      const result = await isqmApi.generateAllDocuments(parentId, data);
+      
+      toast({
+        title: "Success",
+        description: "All documents generated successfully",
+      });
+      
+      return result;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to generate all documents';
+      console.error('❌ Failed to generate all documents:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
+  const getGenerationTypes = useCallback(async () => {
+    try {
+      console.log('🤖 Fetching available generation types');
+      return await isqmApi.getGenerationTypes();
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to fetch generation types';
+      console.error('❌ Failed to fetch generation types:', err);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw err;
+    }
+  }, [toast]);
+
   return {
     // State
     parents,
@@ -934,5 +1195,17 @@ export const useISQM = () => {
     reviewSupportingDocument,
     addDocumentNote,
     getSupportingDocumentStats,
+    
+    // AI Document Generation
+    generatePolicy,
+    generateProcedure,
+    generateRiskAssessment,
+    generateComplianceChecklist,
+    generateAllDocuments,
+    getGenerationTypes,
+    
+    // QNA Document Generation
+    generateDocumentsFromQNA,
+    downloadGeneratedDocument,
   };
 };
