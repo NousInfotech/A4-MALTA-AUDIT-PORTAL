@@ -134,9 +134,10 @@ export function WorkflowSettings({ workflow, userRole, onUpdate }: WorkflowSetti
                 )}
 
                 <Button
+                variant='link'
                   onClick={handleStatusUpdate}
                   disabled={loading || selectedStatus === workflow.status}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-indigo-500 text-white"
                 >
                   <Save className="h-4 w-4" />
                   Update Status
