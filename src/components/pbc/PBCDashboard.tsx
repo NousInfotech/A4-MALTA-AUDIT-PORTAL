@@ -290,7 +290,7 @@ import {
 import { PBCWorkflow } from "@/types/pbc"; // Assuming PBCWorkflow type is correctly defined
 import { getDocumentRequests } from "@/lib/api/documentRequests";
 import { useAuth } from "@/contexts/AuthContext";
-import { pbcApi } from "@/lib/api/pbc-workflow";
+import { generateQnaAI, pbcApi } from "@/lib/api/pbc-workflow";
 import { toast } from "sonner";
 
 const statusColors = {
@@ -402,6 +402,16 @@ export function PBCDashboard({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
   };
+
+
+  const handleGenerateQnaAi = async (pbcId:string) => {
+    try {
+      const response = await generateQnaAI(pbcId);
+      console.log("aidata", response)
+    } catch (error) {
+      console.log(error)
+    }
+  }
 
   if (authLoading) {
     return <div>Loading authentication...</div>;
@@ -530,8 +540,10 @@ export function PBCDashboard({
                         {formatDate(workflow.createdAt)}
                       </span>
                     </div>
+                    {/* <button onClick={() => handleGenerateQnaAi(workflow._id)} disabled={workflow.status !== "qna-preparation"} className="text-sm px-4 py-1 rounded-full bg-indigo-500 hover:brightness-110 disabled:opacity-50">Q&A&nbsp;with&nbsp;AI</button> */}
                   </div>
                 </CardContent>
+                
               </Card>
             );
           })}

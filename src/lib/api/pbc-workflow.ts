@@ -60,3 +60,15 @@ export const pbcApi = {
     return response.data;
   },
 };
+
+
+
+// ai
+export async function generateQnaAI(pbcId: string) {
+    const response = await axiosInstance.post(`${API_BASE}/${pbcId}/generate-qna-ai`);
+    return response.data;
+}
+
+
+
+

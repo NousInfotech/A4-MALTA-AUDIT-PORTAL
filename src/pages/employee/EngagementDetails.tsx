@@ -8,7 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { engagementApi } from "@/services/api";
-import { ArrowLeft, Building2, Calendar, Briefcase, FileText, CheckCircle, Library, BarChart3, Shield } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Briefcase,
+  FileText,
+  CheckCircle,
+  Library,
+  BarChart3,
+  Shield,
+} from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
@@ -19,6 +29,7 @@ import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { KYCManagement } from "@/components/kyc/KYCManagement";
+import PbcDialog from "@/components/pbc/PbcDialog";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -46,6 +57,17 @@ export const EngagementDetails = () => {
   } = useTrialBalance();
   const { requests, createRequest } = useDocumentRequests(id);
   const { toast } = useToast();
+
+  const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
+
+  const handleOpenPBC = () => {
+    // setSelectedEngagement(engagement);
+    setIsPBCModalOpen(true);
+  };
+
+  const handleClosePBC = () => {
+    setIsPBCModalOpen(false);
+  };
 
   useEffect(() => {
     const fetchEngagement = async () => {
@@ -157,14 +179,14 @@ export const EngagementDetails = () => {
 
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'active':
-        return 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200';
-      case 'completed':
-        return 'bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border-slate-200';
-      case 'draft':
-        return 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border-yellow-200';
+      case "active":
+        return "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200";
+      case "completed":
+        return "bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border-slate-200";
+      case "draft":
+        return "bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border-yellow-200";
       default:
-        return 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200';
+        return "bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200";
     }
   };
 
@@ -189,12 +211,14 @@ export const EngagementDetails = () => {
               </Button>
               <div className="space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words leading-tight">
-                      {engagement.title}
-                    </h1>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words leading-tight">
+                    {engagement.title}
+                  </h1>
                   <Badge
                     variant="outline"
-                    className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(engagement.status)}`}
+                    className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(
+                      engagement.status
+                    )}`}
                   >
                     {engagement.status}
                   </Badge>
@@ -205,21 +229,26 @@ export const EngagementDetails = () => {
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                       <Building2 className="h-4 w-4 text-white" />
                     </div>
-                    <span className="font-medium">Client ID: {engagement.clientId}</span>
+                    <span className="font-medium">
+                      Client ID: {engagement.clientId}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                       <Calendar className="h-4 w-4 text-white" />
                     </div>
-                    <span className="font-medium">Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}</span>
+                    <span className="font-medium">
+                      Year End:{" "}
+                      {new Date(engagement.yearEndDate).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
-                          <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <Briefcase className="h-6 w-6 text-white" />
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                <Briefcase className="h-6 w-6 text-white" />
+              </div>
             </div>
           </div>
         </div>
@@ -235,53 +264,53 @@ export const EngagementDetails = () => {
       {/* Tabs Section */}
       <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
         <Tabs defaultValue="overview" className="space-y-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6 flex justify-between">
             <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent sm:scrollbar-none">
               <TabsList className="min-w-max sm:min-w-0 bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-1">
-                <TabsTrigger 
-                  value="overview" 
+                <TabsTrigger
+                  value="overview"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Overview
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="trial-balance" 
+                <TabsTrigger
+                  value="trial-balance"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Audit
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="requests" 
+                <TabsTrigger
+                  value="requests"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Document Requests
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="procedures" 
+                <TabsTrigger
+                  value="procedures"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Procedures
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="checklist" 
+                <TabsTrigger
+                  value="checklist"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-500 data-[state=active]:to-amber-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Checklist
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="library" 
+                <TabsTrigger
+                  value="library"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <Library className="h-4 w-4 mr-2" />
                   Library
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="kyc" 
+                <TabsTrigger
+                  value="kyc"
                   className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <Shield className="h-4 w-4 mr-2" />
@@ -289,6 +318,9 @@ export const EngagementDetails = () => {
                 </TabsTrigger>
               </TabsList>
             </div>
+            <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-indigo-500 text-white hover:brightness-105">
+              See the PBC Work Flow
+            </button>
           </div>
 
           <div className="p-6">
@@ -297,10 +329,7 @@ export const EngagementDetails = () => {
             </TabsContent>
 
             <TabsContent value="library" className="space-y-6">
-              <LibraryTab
-                engagement={engagement}
-                requests={requests}
-              />
+              <LibraryTab engagement={engagement} requests={requests} />
             </TabsContent>
 
             <TabsContent value="trial-balance" className="space-y-6">
@@ -326,9 +355,7 @@ export const EngagementDetails = () => {
             </TabsContent>
 
             <TabsContent value="procedures" className="space-y-6">
-              <ProceduresTab
-                engagement={engagement}
-              />
+              <ProceduresTab engagement={engagement} />
             </TabsContent>
 
             <TabsContent value="checklist" className="space-y-6">
@@ -341,6 +368,15 @@ export const EngagementDetails = () => {
           </div>
         </Tabs>
       </div>
+
+      {isPBCModalOpen && (
+        <PbcDialog
+          selectedEngagement={engagement}
+          open={isPBCModalOpen}
+          onOpenChange={setIsPBCModalOpen}
+          onClosePBC={handleClosePBC}
+        />
+      )}
     </div>
   );
 };
