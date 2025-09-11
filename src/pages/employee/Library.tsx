@@ -43,6 +43,7 @@ import {
   type GlobalFolder,
 } from "@/lib/api/global-library"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
+import { useActivityLogger } from "@/hooks/useActivityLogger"
 
 export default function GlobalLibraryPage() {
   const [folders, setFolders] = useState<GlobalFolder[]>([])
@@ -67,6 +68,7 @@ export default function GlobalLibraryPage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { toast } = useToast()
+  const { logUploadDocument, logDeleteDocument, logViewClientFile } = useActivityLogger()
 
   useEffect(()=>{
    if(selectedFolder && selectedFolder?.name)
@@ -220,6 +222,8 @@ export default function GlobalLibraryPage() {
     try {
       for (const file of Array.from(filesList)) {
         await apiUploadFile(selectedFolder.name, file)
+        // Log file upload
+        logUploadDocument(`Uploaded file: ${file.name} to folder: ${selectedFolder.name}`)
       }
       await refreshFiles(selectedFolder)
       toast({ title: "Upload complete", description: `${filesList.length} file(s) uploaded.` })
@@ -244,6 +248,9 @@ export default function GlobalLibraryPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
+      
+      // Log file download/view
+      logViewClientFile(`Downloaded/viewed file: ${file.name} from folder: ${selectedFolder?.name || 'Unknown'}`);
     } finally {
       setDownloading(null);
     }
@@ -274,6 +281,10 @@ export default function GlobalLibraryPage() {
     try {
       await apiDeleteFile(selectedFolder.name, fileToDelete.name)
       await refreshFiles(selectedFolder)
+      
+      // Log file deletion
+      logDeleteDocument(`Deleted file: ${fileToDelete.name} from folder: ${selectedFolder.name}`)
+      
       toast({ title: "File deleted", description: `"${fileToDelete.name}" was removed.` })
     } catch (e: any) {
       toast({ title: "Delete failed", description: e.message || "Unable to delete file", variant: "destructive" })

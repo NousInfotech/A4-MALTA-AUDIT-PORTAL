@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -45,6 +46,7 @@ export const ClientDetail: React.FC = () => {
   const [client, setClient] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { engagements } = useEngagements();
+  const { logViewClient } = useActivityLogger();
 
   useEffect(() => {
     if (id) fetchClient(id);
@@ -89,7 +91,7 @@ export const ClientDetail: React.FC = () => {
         console.warn('Could not fetch email:', emailError);
       }
 
-      setClient({
+      const clientData = {
         id: profileData.user_id,
         name: profileData.name,
         email,
@@ -101,7 +103,12 @@ export const ClientDetail: React.FC = () => {
         companyNumber: profileData.company_number,
         industry: profileData.industry,
         summary: profileData.company_summary,
-      });
+      };
+      
+      setClient(clientData);
+      
+      // Log client view
+      logViewClient(`Viewed client details for: ${clientData.companyName}`);
     } catch (err: any) {
       console.error('Error fetching client:', err);
       toast({

@@ -11,6 +11,7 @@ import { useEngagements } from '@/hooks/useEngagements';
 import { ArrowLeft, Briefcase, Loader2, Users, Calendar, FileText, Sparkles, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 export const CreateEngagement = () => {
   const {user} = useAuth();
@@ -26,6 +27,7 @@ export const CreateEngagement = () => {
   const { createEngagement } = useEngagements();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { logCreateEngagement } = useActivityLogger();
 
   interface User {
   summary: string;
@@ -109,6 +111,9 @@ const [clients, setClients] = useState<User[]>([])
 
     try {
       const newEngagement = await createEngagement(formData);
+      
+      // Log engagement creation
+      logCreateEngagement(`Created new engagement: ${formData.title}`);
       
       toast({
         title: "Engagement created successfully",

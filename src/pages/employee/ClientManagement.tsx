@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
+import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 interface User {
   summary: string;
@@ -30,6 +31,7 @@ export const ClientManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { engagements } = useEngagements();
   const { toast } = useToast();
+  const { logViewClient } = useActivityLogger();
 
   useEffect(() => {
     fetchClients();
@@ -260,7 +262,10 @@ export const ClientManagement = () => {
                   variant="default" 
                   asChild
                 >
-                  <Link to={`/employee/clients/${client.id}`}>
+                  <Link 
+                    to={`/employee/clients/${client.id}`}
+                    onClick={() => logViewClient(client.companyName || 'Unknown Client', `Employee viewed client details for ${client.companyName}`)}
+                  >
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </Link>

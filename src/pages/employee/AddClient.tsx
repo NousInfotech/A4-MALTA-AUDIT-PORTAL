@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Building2, Loader2, Users, Mail, Globe, FileText, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 const industries = [
   "Technology",
@@ -58,6 +59,7 @@ export const AddClient = () => {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { logCreateClient } = useActivityLogger();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +95,9 @@ export const AddClient = () => {
       if (!response.ok) {
         throw new Error(res.error || "Failed to create client");
       }
+
+      // Log client creation
+      logCreateClient(`Created new client: ${companyName}`);
 
       toast({
         title: "Client created",

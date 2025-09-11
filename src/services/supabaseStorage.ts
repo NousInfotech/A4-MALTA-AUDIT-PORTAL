@@ -23,7 +23,7 @@ export interface DownloadResult {
 }
 
 class SupabaseStorageService {
-  private bucketName = 'isqm-documents';
+  private bucketName = 'engagement-documents';
 
   /**
    * Check if user is authenticated and return session info
@@ -95,7 +95,8 @@ class SupabaseStorageService {
       
       // Generate unique filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const uniqueFileName = `${folder}/${timestamp}-${sanitizedFileName}`;
+      // Use ISQM-specific folder structure: isqm/{parentId}/{type}/{filename}
+      const uniqueFileName = `isqm/${folder}/${timestamp}-${sanitizedFileName}`;
 
       console.log('📤 Sanitized filename:', { original: fileName, sanitized: sanitizedFileName, storageKey: uniqueFileName });
 

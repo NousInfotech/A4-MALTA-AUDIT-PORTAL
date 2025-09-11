@@ -19,6 +19,7 @@ import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { KYCManagement } from "@/components/kyc/KYCManagement";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -46,6 +47,7 @@ export const EngagementDetails = () => {
   } = useTrialBalance();
   const { requests, createRequest } = useDocumentRequests(id);
   const { toast } = useToast();
+  const { logViewEngagement, logUploadDocument, logUpdateEngagement } = useActivityLogger();
 
   useEffect(() => {
     const fetchEngagement = async () => {
@@ -54,6 +56,9 @@ export const EngagementDetails = () => {
         setLoading(true);
         const engagementData = await engagementApi.getById(id);
         setEngagement(engagementData);
+
+        // Log engagement view
+        logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
 
         try {
           const tbData = await engagementApi.getTrialBalance(id);
@@ -77,7 +82,7 @@ export const EngagementDetails = () => {
     };
 
     fetchEngagement();
-  }, [id]);
+  }, [id, logViewEngagement]);
 
   if (loading || !engagement) {
     return (
@@ -112,6 +117,9 @@ export const EngagementDetails = () => {
         status: "active",
       }));
 
+      // Log trial balance upload
+      logUploadDocument(`Uploaded trial balance for engagement: ${engagement?.title}`);
+
       toast({
         title: "Success",
         description: "Trial balance uploaded successfully",
@@ -142,6 +150,10 @@ export const EngagementDetails = () => {
         clientId: engagement.clientId,
       });
       setDocumentRequest({ category: "", description: "" });
+      
+      // Log document request creation
+      logUploadDocument(`Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`);
+      
       toast({
         title: "Success",
         description: "Document request sent successfully",

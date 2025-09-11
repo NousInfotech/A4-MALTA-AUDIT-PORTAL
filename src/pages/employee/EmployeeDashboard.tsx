@@ -29,9 +29,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalKPIDashboard } from "../../components/kpi/GlobalKPIDashboard";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
+  const { logViewDashboard } = useActivityLogger();
 
   const { toast } = useToast();
 
@@ -52,7 +54,9 @@ export const EmployeeDashboard = () => {
   const [clients, setClients] = useState<User[]>([]);
   useEffect(() => {
     fetchClients();
-  }, []);
+    // Log dashboard view
+    logViewDashboard('Employee accessed the main dashboard');
+  }, [logViewDashboard]);
 
   const fetchClients = async () => {
     try {
