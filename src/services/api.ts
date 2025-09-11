@@ -28,13 +28,20 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   
+  // Don't set Content-Type for FormData - let the browser set it with boundary
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${data.session?.access_token}`,
+    ...options.headers,
+  };
+  
+  // Only set Content-Type to JSON if body is not FormData
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

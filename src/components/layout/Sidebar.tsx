@@ -148,14 +148,6 @@ const navItems: NavItem[] = [
     getBadge: (stats) => `${stats.pendingRequests} Pending`
   },
   { 
-    title: 'KYC Workflows', 
-    href: '/client/kyc', 
-    icon: Shield, 
-    roles: ['client'],
-    description: 'Know Your Client Requirements',
-    badge: 'New'
-  },
-  { 
     title: 'Accounts & Finance', 
     href: '/client/accounts', 
     icon: Zap, 

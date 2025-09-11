@@ -35,7 +35,6 @@ import { KYCManagement } from "@/pages/employee/KYCManagement";
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
 import { ClientEngagements } from "@/pages/client/ClientEngagements";
 import { DocumentRequests } from "@/pages/client/DocumentRequests";
-import { ClientKYCPage } from "@/pages/client/KYCWorkflows";
 
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -117,7 +116,6 @@ const App = () => (
                   <Route index element={<ClientDashboard />} />
                   <Route path="engagements" element={<ClientEngagements />} />
                   <Route path="requests" element={<DocumentRequests />} />
-                  <Route path="kyc" element={<ClientKYCPage />} />
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 </Route>
 

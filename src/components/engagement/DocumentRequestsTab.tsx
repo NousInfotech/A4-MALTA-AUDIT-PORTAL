@@ -132,6 +132,31 @@ export const DocumentRequestsTab = ({
     // You can add additional logic here if needed
   };
 
+  // Debug logging
+  console.log('📋 DocumentRequestsTab - requests:', requests);
+  console.log('📋 DocumentRequestsTab - requests length:', requests?.length);
+  requests?.forEach((request, index) => {
+    console.log(`📋 Request ${index}:`, {
+      id: request._id,
+      status: request.status,
+      documents: request.documents,
+      documentsLength: request.documents?.length
+    });
+    
+    // Log each document individually
+    if (request.documents?.length > 0) {
+      request.documents.forEach((doc, docIndex) => {
+        console.log(`📄 Document ${docIndex}:`, {
+          name: doc.name,
+          url: doc.url,
+          uploadedAt: doc.uploadedAt,
+          status: doc.status,
+          fullDoc: doc
+        });
+      });
+    }
+  });
+
   return (
     <div className="space-y-6">
       <Card>
@@ -232,22 +257,43 @@ export const DocumentRequestsTab = ({
                     {request.status}
                   </Badge>
 
-                  {request.status === "completed" && request.documents?.length > 0 && (
+                  {request.documents?.length > 0 && (
                     <div className="flex flex-wrap gap-2">
-                      {request.documents.map((doc: any) => (
-                        <a
-                          key={doc.name}
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex"
-                          title={doc.name}
-                        >
-                          <Badge variant="outline" className="gap-1 hover:bg-muted">
-                            <FileText className="h-3.5 w-3.5" />
-                            View {doc.name}
-                          </Badge>
-                        </a>
+                      {request.documents.map((doc: any, docIndex: number) => {
+                        console.log(`🎨 Rendering document ${docIndex}:`, doc);
+                        return (
+                          <div key={`${doc.name}-${docIndex}`} className="inline-block">
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 transition-colors"
+                              title={doc.name}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              View {doc.name}
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Debug info - remove this after fixing */}
+                  {request.documents?.length > 0 && (
+                    <div className="text-xs text-red-600 mt-1 p-2 bg-red-50 border border-red-200 rounded">
+                      🔍 DEBUG: {request.documents.length} document(s) found - Should be visible above
+                    </div>
+                  )}
+                  
+                  {/* Force render test */}
+                  {request.documents?.length > 0 && (
+                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                      <div className="text-sm font-bold text-yellow-800">TEST: Documents should appear below:</div>
+                      {request.documents.map((doc: any, docIndex: number) => (
+                        <div key={`test-${docIndex}`} className="text-xs text-yellow-700">
+                          {docIndex + 1}. {doc.name} - {doc.url ? 'Has URL' : 'NO URL'}
+                        </div>
                       ))}
                     </div>
                   )}

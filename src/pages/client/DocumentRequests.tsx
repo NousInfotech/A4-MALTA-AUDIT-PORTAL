@@ -49,6 +49,52 @@ export const DocumentRequests = () => {
 
   const handleFileUpload = async (requestId, files) => {
     if (!files?.length) return;
+    
+    // Validate file sizes and types before upload
+    const maxFileSize = 50 * 1024 * 1024; // 50MB
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain',
+      'application/zip',
+      'application/x-zip-compressed'
+    ];
+
+    for (const file of Array.from(files)) {
+      if (file.size > maxFileSize) {
+        toast({
+          title: 'File too large',
+          description: `${file.name} is larger than 50MB. Please compress or split the file.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: 'Invalid file type',
+          description: `${file.name} has an unsupported file type. Please use PDF, images, or Office documents.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+    }
+
+    if (files.length > 10) {
+      toast({
+        title: 'Too many files',
+        description: 'You can upload a maximum of 10 files at once.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setUploadingFiles(prev => ({ ...prev, [requestId]: true }));
 
     try {
@@ -57,7 +103,12 @@ export const DocumentRequests = () => {
       formData.append('markCompleted', 'true'); // optional flag
 
       // Call the real upload endpoint
+      console.log('📤 Uploading documents for request:', requestId);
+      console.log('📤 Files being uploaded:', Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type })));
+      
       const updatedReq = await documentRequestApi.uploadDocuments(requestId, formData);
+      
+      console.log('✅ Upload successful, updated request:', updatedReq);
 
       // Sync local state with response
       setAllRequests(prev => prev.map(req => 
@@ -68,9 +119,26 @@ export const DocumentRequests = () => {
         title: 'Documents uploaded successfully',
         description: `${files.length} file(s) sent to your auditor.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
-      toast({ title: 'Upload failed', description: 'Please try again.', variant: 'destructive' });
+      
+      let errorMessage = 'Please try again.';
+      
+      if (error.message?.includes('FILE_TOO_LARGE')) {
+        errorMessage = 'One or more files are too large. Maximum size is 50MB per file.';
+      } else if (error.message?.includes('TOO_MANY_FILES')) {
+        errorMessage = 'Too many files. Maximum 10 files allowed.';
+      } else if (error.message?.includes('INVALID_FILE_TYPE')) {
+        errorMessage = 'One or more files have unsupported file types.';
+      } else if (error.message?.includes('Network error') || error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      toast({ 
+        title: 'Upload failed', 
+        description: errorMessage, 
+        variant: 'destructive' 
+      });
     } finally {
       setUploadingFiles(prev => ({ ...prev, [requestId]: false }));
     }
@@ -260,6 +328,10 @@ export const DocumentRequests = () => {
                             or drag and drop
                           </span>
                         </Label>
+                        <div className="mt-2 text-xs text-slate-500">
+                          <p>Max 10 files, 50MB each</p>
+                          <p>Supported: PDF, Images, Office docs, ZIP</p>
+                        </div>
                         <Input
                           id={`file-${request._id}`}
                           type="file"
