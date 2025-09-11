@@ -408,22 +408,17 @@ ${procedureSteps}
         const status = typeof q.state === "boolean" ? (q.state ? "Implemented" : "Not Implemented") : "Under Review";
         
         return `### ${i + 1}. ${question}
-
-**Policy Requirement:** ${answer}
-**Implementation Status:** ${status}
-**Compliance Level:** ${q.state === true ? "Fully Compliant" : q.state === false ? "Non-Compliant" : "Under Review"}
-
+**Requirement:** ${answer}
+**Status:** ${status}
 `;
       }).join("");
 
       return `## ${section.heading}
-
 ${sectionRequirements}`;
     }).join("\n\n");
 
-    const appendix = options.includeAppendixQA
-      ? `\n\n## Appendix — Complete Q&A Reference\n` + allQna.map((q, i) => `**Q${i + 1}. [${q.sectionName}] ${q.question}**\n\nA: ${q.answer || "(no answer)"}\n\nStatus: ${typeof q.state === "boolean" ? (q.state ? "Implemented" : "Not Implemented") : "Under Review"}\n`).join("\n")
-      : "";
+    // Disable appendix by default to reduce file size
+    const appendix = "";
 
     return `# ${title}
 
@@ -506,13 +501,9 @@ ${policyRequirementsBySection}
         const status = typeof q.state === "boolean" ? (q.state ? "Implemented" : "Not Implemented") : "Under Review";
         
         return `### Step ${i + 1}: ${question}
-
 **Procedure:** ${answer}
-**Implementation Status:** ${status}
-**Compliance Level:** ${q.state === true ? "Fully Compliant" : q.state === false ? "Non-Compliant" : "Under Review"}
-
-**Action Required:** ${q.state === true ? "Maintain current implementation" : q.state === false ? "Implement required procedures" : "Review and define implementation approach"}
-
+**Status:** ${status}
+**Action:** ${q.state === true ? "Maintain" : q.state === false ? "Implement" : "Review"}
 `;
       }).join("");
 
@@ -521,9 +512,8 @@ ${policyRequirementsBySection}
 ${sectionSteps}`;
     }).join("\n\n");
 
-    const appendix = options.includeAppendixQA
-      ? `\n\n## Appendix — Complete Q&A Reference\n` + allQna.map((q, i) => `**Q${i + 1}. [${q.sectionName}] ${q.question}**\n\nA: ${q.answer || "(no answer)"}\n\nStatus: ${typeof q.state === "boolean" ? (q.state ? "Implemented" : "Not Implemented") : "Under Review"}\n`).join("\n")
-      : "";
+    // Disable appendix by default to reduce file size
+    const appendix = "";
 
     return `# ${title}
 
@@ -675,19 +665,21 @@ ${procedureStepsBySection}
       // Add to DOM temporarily
       document.body.appendChild(tempDiv);
       
-      // Convert to canvas
+      // Convert to canvas with optimized settings for smaller file size
       const canvas = await html2canvas(tempDiv, {
-        scale: 2,
+        scale: 1, // Reduced from 2 to 1 for smaller file size
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        width: 800, // Limit width to reduce canvas size
+        height: tempDiv.scrollHeight // Use actual content height
       });
       
       // Remove temporary div
       document.body.removeChild(tempDiv);
       
-      // Create PDF
-      const imgData = canvas.toDataURL('image/png');
+      // Create PDF with JPEG compression for smaller file size
+      const imgData = canvas.toDataURL('image/jpeg', 0.8); // JPEG with 80% quality
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       const imgWidth = 210; // A4 width in mm
@@ -698,21 +690,49 @@ ${procedureStepsBySection}
       let position = 0;
       
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
       
       // Add additional pages if needed
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
       
       // Convert PDF to blob
       const pdfBlob = pdf.output('blob');
       
-      console.log('✅ PDF blob generated successfully:', filename);
+      // Check file size and compress if needed (Supabase free plan limit is 50MB)
+      const maxSize = 45 * 1024 * 1024; // 45MB to be safe
+      if (pdfBlob.size > maxSize) {
+        console.log(`⚠️ PDF size (${Math.round(pdfBlob.size / 1024 / 1024)}MB) exceeds limit, regenerating with higher compression...`);
+        
+        // Regenerate with higher compression
+        const compressedImgData = canvas.toDataURL('image/jpeg', 0.6); // Lower quality
+        const compressedPdf = new jsPDF('p', 'mm', 'a4');
+        
+        const compressedImgHeight = (canvas.height * imgWidth) / canvas.width;
+        let compressedHeightLeft = compressedImgHeight;
+        let compressedPosition = 0;
+        
+        compressedPdf.addImage(compressedImgData, 'JPEG', 0, compressedPosition, imgWidth, compressedImgHeight);
+        compressedHeightLeft -= pageHeight;
+        
+        while (compressedHeightLeft >= 0) {
+          compressedPosition = compressedHeightLeft - compressedImgHeight;
+          compressedPdf.addPage();
+          compressedPdf.addImage(compressedImgData, 'JPEG', 0, compressedPosition, imgWidth, compressedImgHeight);
+          compressedHeightLeft -= pageHeight;
+        }
+        
+        const compressedBlob = compressedPdf.output('blob');
+        console.log(`✅ Compressed PDF size: ${Math.round(compressedBlob.size / 1024 / 1024)}MB`);
+        return compressedBlob;
+      }
+      
+      console.log(`✅ PDF blob generated successfully: ${filename} (${Math.round(pdfBlob.size / 1024 / 1024)}MB)`);
       return pdfBlob;
       
     } catch (error) {
