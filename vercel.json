@@ -1,21 +1,9 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
+    "rewrites": [
+      {
+        "source": "/(.*)",
+        "destination": "/"
       }
-    }
-  ],
-  "env": {
-    "VITE_APIURL": "@vite_api_url"
-  },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
-}
+    ]
+  }
+  
