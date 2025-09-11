@@ -4,6 +4,7 @@ import { isqmApi } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { supabaseStorage, StorageFile } from '@/services/supabaseStorage';
 
 // Type definitions for the questionnaire data structure
 interface QuestionAnswer {
@@ -13,6 +14,16 @@ interface QuestionAnswer {
   questionId?: string;
   isMandatory?: boolean;
   questionType?: string;
+}
+
+interface ISQMDocumentUrl {
+  _id?: string;
+  name: string;
+  url: string;
+  version?: string;
+  uploadedBy: string;
+  description?: string;
+  updatedAt?: string;
 }
 
 interface Section {
@@ -28,8 +39,8 @@ interface Questionnaire {
   heading: string;
   description?: string;
   sections: Section[];
-  policyUrls?: string[];
-  procedureUrls?: string[];
+  policyUrls?: ISQMDocumentUrl[];
+  procedureUrls?: ISQMDocumentUrl[];
   stats: {
     totalQuestions: number;
     answeredQuestions: number;
@@ -69,6 +80,8 @@ interface GeneratedDocument {
   url: string;
   content: string;
   generatedAt: string;
+  storageFile?: StorageFile;
+  isUploaded?: boolean;
 }
 
 interface ISQMPolicyGeneratorProps {
@@ -91,6 +104,7 @@ export default function ISQMPolicyGenerator({
     includeAppendixQA: false,
     generatePDF: true,
   });
+  const [uploadingToStorage, setUploadingToStorage] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState<string | null>(null);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]);
 
@@ -331,16 +345,21 @@ ${procedureSteps}
       // Create document name
       const safeName = `${sanitize(section.heading).replace(/[^a-z0-9\-\s]/gi, "").slice(0, 80)} — ${type}`;
       
-      // Create document with actual Q&A content (no API call needed)
+      // Upload document to Supabase storage
+      const storageFile = await uploadDocumentToStorage(content, safeName, questionnaire._id, type);
+      
+      // Create document with actual Q&A content and storage info
       const newDoc: GeneratedDocument = {
         id: `${questionnaire._id}-${sectionIndex}-${type}-${Date.now()}`,
         name: safeName,
         type,
         questionnaireId: questionnaire._id,
         sectionIndex,
-        url: `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`,
+        url: storageFile?.url || `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`,
         content: content, // Use the actual generated content from Q&A data
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        storageFile: storageFile || undefined,
+        isUploaded: !!storageFile
       };
       
       console.log('✅ Document generated successfully with Q&A content:', newDoc);
@@ -558,29 +577,47 @@ ${procedureStepsBySection}
 
       // Generate comprehensive policy document for entire questionnaire
       const comprehensivePolicyContent = generateComprehensivePolicyContent(questionnaire);
+      const policyStorageFile = await uploadDocumentToStorage(
+        comprehensivePolicyContent, 
+        `${questionnaire.heading} — Comprehensive Policy`, 
+        questionnaire._id, 
+        'policy'
+      );
+      
       const policyDoc: GeneratedDocument = {
         id: `policy-${questionnaire._id}-comprehensive-${Date.now()}`,
         name: `${questionnaire.heading} — Comprehensive Policy`,
         type: 'policy',
         questionnaireId: questionnaire._id,
         sectionIndex: -1, // -1 indicates comprehensive document
-        url: `data:text/plain;charset=utf-8,${encodeURIComponent(comprehensivePolicyContent)}`,
+        url: policyStorageFile?.url || `data:text/plain;charset=utf-8,${encodeURIComponent(comprehensivePolicyContent)}`,
         content: comprehensivePolicyContent,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        storageFile: policyStorageFile || undefined,
+        isUploaded: !!policyStorageFile
       };
       generatedDocs.push(policyDoc);
 
       // Generate comprehensive procedure document for entire questionnaire
       const comprehensiveProcedureContent = generateComprehensiveProcedureContent(questionnaire);
+      const procedureStorageFile = await uploadDocumentToStorage(
+        comprehensiveProcedureContent, 
+        `${questionnaire.heading} — Comprehensive Procedures`, 
+        questionnaire._id, 
+        'procedure'
+      );
+      
       const procedureDoc: GeneratedDocument = {
         id: `procedure-${questionnaire._id}-comprehensive-${Date.now()}`,
         name: `${questionnaire.heading} — Comprehensive Procedures`,
         type: 'procedure',
         questionnaireId: questionnaire._id,
         sectionIndex: -1, // -1 indicates comprehensive document
-        url: `data:text/plain;charset=utf-8,${encodeURIComponent(comprehensiveProcedureContent)}`,
+        url: procedureStorageFile?.url || `data:text/plain;charset=utf-8,${encodeURIComponent(comprehensiveProcedureContent)}`,
         content: comprehensiveProcedureContent,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        storageFile: procedureStorageFile || undefined,
+        isUploaded: !!procedureStorageFile
       };
       generatedDocs.push(procedureDoc);
 
@@ -598,8 +635,8 @@ ${procedureStepsBySection}
     }
   };
 
-  // Download document as PDF using jsPDF
-  const downloadDocument = async (content: string, filename: string) => {
+  // Generate PDF blob from content
+  const generatePDFBlob = async (content: string, filename: string): Promise<Blob> => {
     try {
       // Create a temporary div to render the HTML content
       const tempDiv = document.createElement('div');
@@ -672,8 +709,94 @@ ${procedureStepsBySection}
         heightLeft -= pageHeight;
       }
       
-      // Download the PDF
-      pdf.save(filename);
+      // Convert PDF to blob
+      const pdfBlob = pdf.output('blob');
+      
+      console.log('✅ PDF blob generated successfully:', filename);
+      return pdfBlob;
+      
+    } catch (error) {
+      console.error('❌ Failed to generate PDF blob:', error);
+      throw error;
+    }
+  };
+
+  // Save document URL to backend
+  const saveDocumentUrl = async (questionnaireId: string, storageFile: StorageFile, type: 'policy' | 'procedure') => {
+    try {
+      console.log('💾 Saving document URL to backend:', { questionnaireId, storageFile, type });
+      
+      const urlData = {
+        name: storageFile.name,
+        url: storageFile.url,
+        version: '1.0',
+        description: `Generated ${type} document stored in Supabase`,
+        uploadedBy: user?.id || 'system'
+      };
+
+      if (type === 'policy') {
+        await isqmApi.addPolicyUrl(questionnaireId, urlData);
+      } else {
+        await isqmApi.addProcedureUrl(questionnaireId, urlData);
+      }
+
+      console.log('✅ Document URL saved to backend successfully');
+    } catch (error) {
+      console.error('❌ Failed to save document URL to backend:', error);
+      // Don't throw error - this is not critical for the main functionality
+    }
+  };
+
+  // Upload document to Supabase storage
+  const uploadDocumentToStorage = async (content: string, filename: string, questionnaireId: string, type: 'policy' | 'procedure'): Promise<StorageFile | null> => {
+    const uploadKey = `${questionnaireId}-${type}-${filename}`;
+    
+    try {
+      console.log('📤 Uploading document to Supabase storage:', { filename, type });
+      setUploadingToStorage(prev => new Set(prev).add(uploadKey));
+      
+      // Generate PDF blob
+      const pdfBlob = await generatePDFBlob(content, filename);
+      
+      // Create folder structure: isqm-documents/questionnaireId/type/
+      const folder = `questionnaires/${questionnaireId}/${type}`;
+      const fileName = `${filename}.pdf`;
+      
+      // Upload to Supabase storage
+      const uploadResult = await supabaseStorage.uploadFile(pdfBlob, fileName, folder);
+      
+      if (uploadResult.success && uploadResult.file) {
+        console.log('✅ Document uploaded to Supabase:', uploadResult.file);
+        
+        // Save URL to backend
+        await saveDocumentUrl(questionnaireId, uploadResult.file, type);
+        
+        return uploadResult.file;
+      } else {
+        console.error('❌ Upload failed:', uploadResult.error);
+        return null;
+      }
+      
+    } catch (error) {
+      console.error('❌ Upload to storage failed:', error);
+      return null;
+    } finally {
+      setUploadingToStorage(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(uploadKey);
+        return newSet;
+      });
+    }
+  };
+
+  // Download document as PDF using jsPDF
+  const downloadDocument = async (content: string, filename: string) => {
+    try {
+      // Generate PDF blob
+      const pdfBlob = await generatePDFBlob(content, filename);
+      
+      // Download the blob as file
+      await supabaseStorage.downloadBlobAsFile(pdfBlob, `${filename}.pdf`);
       
       console.log('✅ PDF download completed:', filename);
     } catch (error) {
@@ -1021,6 +1144,14 @@ ${procedureStepsBySection}
                         <span className={`text-sm font-medium ${doc.type === 'policy' ? 'text-blue-700' : 'text-green-700'}`}>
                           {doc.type === 'policy' ? 'Policy' : 'Procedure'}
                         </span>
+                        {doc.isUploaded && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Supabase
+                          </span>
+                        )}
                       </div>
                       <h4 className="font-medium text-gray-800 mb-1">{doc.name}</h4>
                       <p className="text-xs text-gray-500">
@@ -1074,6 +1205,11 @@ ${procedureStepsBySection}
                       <>
                         <Loader2 className="w-5 h-5 mr-2 inline animate-spin" />
                         Generating All...
+                      </>
+                    ) : uploadingToStorage.has(`${questionnaire._id}-comprehensive`) ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 inline animate-spin text-green-500" />
+                        Uploading to Supabase...
                       </>
                     ) : (
                       <>
@@ -1142,8 +1278,13 @@ ${procedureStepsBySection}
                       >
                         {generating === `${questionnaire._id}-${sectionIdx}-procedures` ? (
                           <Loader2 className="w-4 h-4 mr-2 inline animate-spin" />
+                        ) : uploadingToStorage.has(`${questionnaire._id}-procedure-${section.heading}`) ? (
+                          <Loader2 className="w-4 h-4 mr-2 inline animate-spin text-green-500" />
                         ) : null}
                         Generate Procedures
+                        {uploadingToStorage.has(`${questionnaire._id}-procedure-${section.heading}`) && (
+                          <span className="ml-2 text-xs">Uploading to Supabase...</span>
+                        )}
                       </button>
                       <button
                         className="flex-1 px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1153,8 +1294,13 @@ ${procedureStepsBySection}
                       >
                         {generating === `${questionnaire._id}-${sectionIdx}-policy` ? (
                           <Loader2 className="w-4 h-4 mr-2 inline animate-spin" />
+                        ) : uploadingToStorage.has(`${questionnaire._id}-policy-${section.heading}`) ? (
+                          <Loader2 className="w-4 h-4 mr-2 inline animate-spin text-green-500" />
                         ) : null}
                         Generate Policy
+                        {uploadingToStorage.has(`${questionnaire._id}-policy-${section.heading}`) && (
+                          <span className="ml-2 text-xs">Uploading to Supabase...</span>
+                        )}
                       </button>
                     </div>
 
@@ -1163,20 +1309,35 @@ ${procedureStepsBySection}
                       <div className="mt-4 pt-4 border-t border-gray-200">
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Generated Documents:</h4>
                         <div className="space-y-2">
-                          {(questionnaire.policyUrls || []).map((url, idx) => (
+                          {(questionnaire.policyUrls || []).map((docUrl, idx) => (
                             <div key={`policy-${idx}`} className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-blue-600" />
-                                <span className="text-sm text-blue-700">Policy Document {idx + 1}</span>
+                                <span className="text-sm text-blue-700">{docUrl.name}</span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  Supabase
+                                </span>
                               </div>
                                 <div className="flex gap-1">
                                   {/* <button
-                                    onClick={() => window.open(url, '_blank')}
+                                    onClick={() => window.open(docUrl.url, '_blank')}
                                     className="p-1 text-blue-600 hover:text-blue-800 rounded"
                                     title="View Document"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button> */}
+                                  <button
+                                    onClick={() => window.open(docUrl.url, '_blank')}
+                                    className="p-1 text-blue-600 hover:text-blue-800 rounded"
+                                    title="Open Document"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </button>
                                   <button
                                     onClick={() => downloadDocument(`Policy Document ${idx + 1}`, `policy-${idx + 1}.pdf`)}
                                     className="p-1 text-blue-600 hover:text-blue-800 rounded"
@@ -1187,28 +1348,43 @@ ${procedureStepsBySection}
                     </div>
                             </div>
                           ))}
-                          {(questionnaire.procedureUrls || []).map((url, idx) => (
+                          {(questionnaire.procedureUrls || []).map((docUrl, idx) => (
                             <div key={`procedure-${idx}`} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-green-600" />
-                                <span className="text-sm text-green-700">Procedure Document {idx + 1}</span>
+                                <span className="text-sm text-green-700">{docUrl.name}</span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  Supabase
+                                </span>
                               </div>
                                 <div className="flex gap-1">
                                   {/* <button
-                                    onClick={() => window.open(url, '_blank')}
+                                    onClick={() => window.open(docUrl.url, '_blank')}
                                     className="p-1 text-green-600 hover:text-green-800 rounded"
                                     title="View Document"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button> */}
                                   <button
+                                    onClick={() => window.open(docUrl.url, '_blank')}
+                                    className="p-1 text-green-600 hover:text-green-800 rounded"
+                                    title="Open Document"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </button>
+                                  <button
                                     onClick={() => downloadDocument(`Procedure Document ${idx + 1}`, `procedure-${idx + 1}.pdf`)}
                                     className="p-1 text-green-600 hover:text-green-800 rounded"
                                     title="Download PDF"
                                   >
                                     <Download className="w-4 h-4" />
-                                  </button>
-                                </div>
+                      </button>
+                    </div>
                             </div>
                           ))}
                         </div>

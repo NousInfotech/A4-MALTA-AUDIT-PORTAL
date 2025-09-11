@@ -773,7 +773,13 @@ export const isqmApi = {
   },
 
   // URL Management
-  addPolicyUrl: async (questionnaireId: string, data: { name: string; url: string; version?: string; description?: string }) => {
+  addPolicyUrl: async (questionnaireId: string, data: { 
+    name: string; 
+    url: string; 
+    version?: string; 
+    description?: string;
+    uploadedBy?: string;
+  }) => {
     console.log('📄 Adding policy URL:', { questionnaireId, data });
     return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls`, {
       method: 'POST',
@@ -781,7 +787,13 @@ export const isqmApi = {
     });
   },
 
-  addProcedureUrl: async (questionnaireId: string, data: { name: string; url: string; version?: string; description?: string }) => {
+  addProcedureUrl: async (questionnaireId: string, data: { 
+    name: string; 
+    url: string; 
+    version?: string; 
+    description?: string;
+    uploadedBy?: string;
+  }) => {
     console.log('📄 Adding procedure URL:', { questionnaireId, data });
     return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls`, {
       method: 'POST',
@@ -792,6 +804,20 @@ export const isqmApi = {
   getQuestionnaireUrls: async (questionnaireId: string) => {
     console.log('📄 Getting questionnaire URLs:', questionnaireId);
     return apiCall(`/api/isqm/questionnaires/${questionnaireId}/urls`);
+  },
+
+  deletePolicyUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('📄 Deleting policy URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls/${urlId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  deleteProcedureUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('📄 Deleting procedure URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls/${urlId}`, {
+      method: 'DELETE',
+    });
   },
 
   removePolicyUrl: async (questionnaireId: string, urlId: string) => {
@@ -1098,52 +1124,6 @@ export const isqmApi = {
   getGenerationTypes: async () => {
     console.log('🤖 Fetching available generation types');
     return apiCall('/api/isqm/generation/types');
-  },
-
-  // URL Management APIs
-  addProcedureUrl: async (questionnaireId: string, data: {
-    name: string;
-    url: string;
-    version: string;
-    description?: string;
-  }) => {
-    console.log('🔗 Adding procedure URL:', questionnaireId, data);
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  addPolicyUrl: async (questionnaireId: string, data: {
-    name: string;
-    url: string;
-    version: string;
-    description?: string;
-  }) => {
-    console.log('🔗 Adding policy URL:', questionnaireId, data);
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  getQuestionnaireUrls: async (questionnaireId: string) => {
-    console.log('🔗 Fetching questionnaire URLs:', questionnaireId);
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/urls`);
-  },
-
-  removeProcedureUrl: async (questionnaireId: string, urlId: string) => {
-    console.log('🔗 Removing procedure URL:', questionnaireId, urlId);
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls/${urlId}`, {
-      method: 'DELETE',
-    });
-  },
-
-  removePolicyUrl: async (questionnaireId: string, urlId: string) => {
-    console.log('🔗 Removing policy URL:', questionnaireId, urlId);
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls/${urlId}`, {
-      method: 'DELETE',
-    });
   },
 
   // Dynamic Tagging APIs

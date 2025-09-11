@@ -42,6 +42,8 @@ export interface ISQMQuestionnaire {
   };
   sections: ISQMSection[];
   assignedTo?: string;
+  policyUrls?: ISQMDocumentUrl[];
+  procedureUrls?: ISQMDocumentUrl[];
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +74,16 @@ export interface ISQMNote {
   text: string;
   addedBy: string;
   addedAt: string;
+}
+
+export interface ISQMDocumentUrl {
+  _id?: string;
+  name: string;
+  url: string;
+  version?: string;
+  uploadedBy: string;
+  description?: string;
+  updatedAt?: string;
 }
 
 export interface ISQMSupportingDocument {
