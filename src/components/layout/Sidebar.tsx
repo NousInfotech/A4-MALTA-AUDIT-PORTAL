@@ -114,6 +114,14 @@ const navItems: NavItem[] = [
     description: 'Quality Management Assessment',
     badge: 'New'
   },
+  { 
+    title: 'KYC Management', 
+    href: '/employee/kyc', 
+    icon: Shield, 
+    roles: ['employee'],
+    description: 'Know Your Client Workflows',
+    badge: 'New'
+  },
 
   // Client
   { 
@@ -138,6 +146,21 @@ const navItems: NavItem[] = [
     roles: ['client'],
     description: 'Requested Documents',
     getBadge: (stats) => `${stats.pendingRequests} Pending`
+  },
+  { 
+    title: 'KYC Workflows', 
+    href: '/client/kyc', 
+    icon: Shield, 
+    roles: ['client'],
+    description: 'Know Your Client Requirements',
+    badge: 'New'
+  },
+  { 
+    title: 'Accounts & Finance', 
+    href: '/client/accounts', 
+    icon: Zap, 
+    roles: ['client'],
+    description: 'Financial Data & Integrations'
   }
 ];
 

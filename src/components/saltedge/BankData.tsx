@@ -10,7 +10,11 @@ import { SaltEdgeAccountDataModal } from "./SaltEdgeAccountDataModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchConnections } from "@/lib/api/saltedge";
 
-export default function BankData() {
+interface BankDataProps {
+  readOnly?: boolean;
+}
+
+export default function BankData({ readOnly = false }: BankDataProps) {
   const { user, isLoading: authLoading } = useAuth();
 
   const [connections, setConnections] = useState<any>([]);
@@ -126,20 +130,54 @@ export default function BankData() {
         </Card>
       </div>
 
-      {/* Connect Button Section */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
-          <CardTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <CreditCard className="h-6 w-6 text-white" />
+      {/* Connect Button Section - Only show for clients */}
+      {!readOnly && (
+        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
+            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <CreditCard className="h-6 w-6 text-white" />
+              </div>
+              Bank Account Connection
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <ConnectButton />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Read-Only Notice for Auditors */}
+      {readOnly && (
+        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
+            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Shield className="h-6 w-6 text-white" />
+              </div>
+              Connected Bank Accounts (Read-Only)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center shadow-lg mx-auto">
+                <Shield className="h-8 w-8 text-blue-600" />
+              </div>
+              <h4 className="text-xl font-bold text-slate-800">Audit Access</h4>
+              <p className="text-slate-600 max-w-md mx-auto">
+                You can view connected bank accounts and transaction data for audit purposes. 
+                You cannot create new connections or modify existing ones.
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                  <Shield className="h-3 w-3 mr-1" />
+                  Read-Only Access
+                </Badge>
+              </div>
             </div>
-            Bank Account Connection
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-8">
-          <ConnectButton />
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Connections Grid */}
       {connections.length > 0 && (
