@@ -71,9 +71,9 @@ export function DocumentRequestsView({ documentRequests, userRole }: DocumentReq
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documentRequests.map((request) => (
+          {documentRequests.map((request, index) => (
             <>
-            <div key={request.category} className="flex flex-col items-center p-4">
+            <div key={index} className="flex flex-col items-center p-4">
               <Folder size={48} className="text-blue-500" />
               <p className="mt-2 text-sm font-semibold text-center">{request.category}</p>
             </div>

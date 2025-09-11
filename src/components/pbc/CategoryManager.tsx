@@ -131,10 +131,10 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
         {canEdit && workflowStatus === 'qna-preparation' && (
           <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
+              <button className="px-4 py-2 rounded-lg flex items-center gap-2 bg-indigo-500 hover:brightness-110">
                 <Plus className="h-4 w-4" />
                 Add Category
-              </Button>
+              </button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -155,7 +155,7 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Create Category</Button>
+                  <button type="submit" className='px-4 py-2 rounded-md bg-indigo-500 hover:brightness-110'>Create Category</button>
                 </div>
               </form>
             </DialogContent>
@@ -248,6 +248,7 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                             </div>
                             <div className="flex gap-2">
                               <Button
+                              className='bg-indigo-500 hover:brightness-110'
                                 size="sm"
                                 onClick={() => handleAddQuestion(category._id)}
                               >
@@ -255,7 +256,7 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                               </Button>
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="destructive"
                                 onClick={() => setShowCreateQuestion(null)}
                               >
                                 Cancel
@@ -263,15 +264,15 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                             </div>
                           </div>
                         ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
+                          <button
+                            
+                           
                             onClick={() => setShowCreateQuestion(category._id)}
-                            className="flex items-center gap-2"
+                            className="px-4 py-2 rounded-lg text-sm flex items-center gap-2 bg-indigo-500 hover:brightness-110"
                           >
                             <Plus className="h-4 w-4" />
                             Add Question
-                          </Button>
+                          </button>
                         )}
                       </div>
                     )}
