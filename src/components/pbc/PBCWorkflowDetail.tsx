@@ -1,27 +1,38 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, FileText, MessageSquare, Plus, Settings } from 'lucide-react';
-import { PBCWorkflow, QnACategory } from '@/types/pbc';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ArrowLeft,
+  FileText,
+  MessageSquare,
+  Plus,
+  Settings,
+} from "lucide-react";
+import { PBCWorkflow, QnACategory } from "@/types/pbc";
 
-import { CategoryManager } from './CategoryManager';
-import { DocumentRequestsView } from './DocumentRequestsView';
-import { WorkflowSettings } from './WorkflowSettings';
-import { pbcApi } from '@/lib/api/pbc-workflow';
+import { CategoryManager } from "./CategoryManager";
+import { DocumentRequestsView } from "./DocumentRequestsView";
+import { WorkflowSettings } from "./WorkflowSettings";
+import { pbcApi } from "@/lib/api/pbc-workflow";
 
 interface PBCWorkflowDetailProps {
   workflow: PBCWorkflow;
-  userRole: 'employee' | 'client' | 'admin';
+  userRole: "employee" | "client" | "admin";
   onBack: () => void;
   onWorkflowUpdate: (workflow: PBCWorkflow) => void;
 }
 
-export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate }: PBCWorkflowDetailProps) {
+export function PBCWorkflowDetail({
+  workflow,
+  userRole,
+  onBack,
+  onWorkflowUpdate,
+}: PBCWorkflowDetailProps) {
   const [categories, setCategories] = useState<QnACategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     loadCategories();
@@ -33,7 +44,7 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
       const data = await pbcApi.getCategoriesByPBC(workflow._id);
       setCategories(data);
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error("Error loading categories:", error);
     } finally {
       setLoading(false);
     }
@@ -49,43 +60,55 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
 
   const getStatusColor = (status: string) => {
     const colors = {
-      'document-collection': 'bg-blue-500',
-      'qna-preparation': 'bg-yellow-500',
-      'client-responses': 'bg-orange-500',
-      'doubt-resolution': 'bg-red-500',
-      'submitted': 'bg-green-500',
+      "document-collection": "bg-blue-500",
+      "qna-preparation": "bg-yellow-500",
+      "client-responses": "bg-orange-500",
+      "doubt-resolution": "bg-red-500",
+      submitted: "bg-green-500",
     };
-    return colors[status as keyof typeof colors] || 'bg-gray-500';
+    return colors[status as keyof typeof colors] || "bg-gray-500";
   };
 
   const getStatusLabel = (status: string) => {
-    return status.split('-').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    return status
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   };
 
   const getTotalQuestions = () => {
-    return categories.reduce((total, category) => total + category.qnaQuestions.length, 0);
+    return categories.reduce(
+      (total, category) => total + category.qnaQuestions.length,
+      0
+    );
   };
 
   const getAnsweredQuestions = () => {
-    return categories.reduce((total, category) => 
-      total + category.qnaQuestions.filter(q => q.status === 'answered').length, 0);
+    return categories.reduce(
+      (total, category) =>
+        total +
+        category.qnaQuestions.filter((q) => q.status === "answered").length,
+      0
+    );
   };
 
   const getQuestionsWithDoubts = () => {
-    return categories.reduce((total, category) => 
-      total + category.qnaQuestions.filter(q => q.status === 'doubt').length, 0);
+    return categories.reduce(
+      (total, category) =>
+        total +
+        category.qnaQuestions.filter((q) => q.status === "doubt").length,
+      0
+    );
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={onBack}
-          className="flex items-center gap-2"
+          className="bg- flex items-center gap-2 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl hover:brightness-105"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
@@ -94,7 +117,9 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
 
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{workflow.engagement.title}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {workflow.engagement.title}
+          </h1>
           <p className="text-gray-600 mt-2">
             Year End: {formatDate(workflow.engagement.yearEndDate)}
           </p>
@@ -107,19 +132,25 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Documents</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Documents
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-blue-500" />
-              <span className="text-2xl font-bold">{workflow.documentRequests.length}</span>
+              <span className="text-2xl font-bold">
+                {workflow.documentRequests.length}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Categories</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Categories
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -131,11 +162,15 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Questions</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Questions
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{getAnsweredQuestions()}/{getTotalQuestions()}</span>
+              <span className="text-2xl font-bold">
+                {getAnsweredQuestions()}/{getTotalQuestions()}
+              </span>
               <span className="text-sm text-gray-500">Answered</span>
             </div>
           </CardContent>
@@ -143,23 +178,47 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Doubts</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">
+              Doubts
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-red-500"></div>
-              <span className="text-2xl font-bold">{getQuestionsWithDoubts()}</span>
+              <span className="text-2xl font-bold">
+                {getQuestionsWithDoubts()}
+              </span>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="categories">Q&A Categories</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 border-b">
+          <TabsTrigger
+            value="overview"
+            className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
+          >
+            Overview
+          </TabsTrigger>
+          <TabsTrigger
+            value="documents"
+            className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
+          >
+            Documents
+          </TabsTrigger>
+          <TabsTrigger
+            value="categories"
+            className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
+          >
+            Q&A Categories
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
+          >
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -170,7 +229,9 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
             <CardContent>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Questions Answered</span>
+                  <span className="text-sm font-medium">
+                    Questions Answered
+                  </span>
                   <span className="text-sm text-gray-500">
                     {getAnsweredQuestions()} of {getTotalQuestions()}
                   </span>
@@ -179,7 +240,11 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
                   <div
                     className="bg-blue-600 h-2 rounded-full"
                     style={{
-                      width: `${getTotalQuestions() > 0 ? (getAnsweredQuestions() / getTotalQuestions()) * 100 : 0}%`
+                      width: `${
+                        getTotalQuestions() > 0
+                          ? (getAnsweredQuestions() / getTotalQuestions()) * 100
+                          : 0
+                      }%`,
                     }}
                   ></div>
                 </div>
@@ -222,15 +287,21 @@ export function PBCWorkflowDetail({ workflow, userRole, onBack, onWorkflowUpdate
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Client ID:</span>
-                    <span className="text-sm font-mono">{workflow.clientId}</span>
+                    <span className="text-sm font-mono">
+                      {workflow.clientId}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Auditor ID:</span>
-                    <span className="text-sm font-mono">{workflow.auditorId}</span>
+                    <span className="text-sm font-mono">
+                      {workflow.auditorId}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Status:</span>
-                    <Badge variant="outline">{getStatusLabel(workflow.status)}</Badge>
+                    <Badge variant="outline">
+                      {getStatusLabel(workflow.status)}
+                    </Badge>
                   </div>
                 </div>
               </CardContent>

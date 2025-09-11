@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Clock, CheckCircle, AlertCircle, Folder } from 'lucide-react';
 import { DocumentRequest } from '@/types/pbc';
 
 interface DocumentRequestsViewProps {
@@ -72,7 +72,13 @@ export function DocumentRequestsView({ documentRequests, userRole }: DocumentReq
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {documentRequests.map((request) => (
-            <Card key={request._id} className="hover:shadow-md transition-shadow">
+            <>
+            <div key={request.category} className="flex flex-col items-center p-4">
+              <Folder size={48} className="text-blue-500" />
+              <p className="mt-2 text-sm font-semibold text-center">{request.category}</p>
+            </div>
+
+            {/* <Card key={request._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{request.category}</CardTitle>
@@ -92,7 +98,8 @@ export function DocumentRequestsView({ documentRequests, userRole }: DocumentReq
                   </div>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
+            </>
           ))}
         </div>
       )}

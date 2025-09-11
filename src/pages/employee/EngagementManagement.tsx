@@ -29,11 +29,23 @@ import {
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
+import PbcDialog from "@/components/pbc/PbcDialog";
 
 export const EngagementManagement = () => {
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
+  const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
+
+
+  const handleOpenPBC = (engagement) => {
+    setSelectedEngagement(engagement)
+    setIsPBCModalOpen(true)
+  }
+
+  const handleClosePBC = () => {
+    setIsPBCModalOpen(false)
+  }
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -419,6 +431,11 @@ export const EngagementManagement = () => {
                     Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
                   </span>
                 </div>
+
+                <div>
+                    <button onClick={() => handleOpenPBC(engagement)} className="text-blue-500 ">see the pbc work flow 👉</button>
+                </div>
+
                 <Button
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105"
                   variant="default"
@@ -494,6 +511,15 @@ export const EngagementManagement = () => {
           open={isKYCModalOpen}
           onOpenChange={setIsKYCModalOpen}
           onKYCComplete={handleKYCComplete}
+        />
+      )}
+
+      {isPBCModalOpen && (
+        <PbcDialog
+          selectedEngagement={selectedEngagement}
+          open={isPBCModalOpen}
+          onOpenChange={setIsPBCModalOpen}
+          onClosePBC={handleClosePBC}
         />
       )}
     </div>

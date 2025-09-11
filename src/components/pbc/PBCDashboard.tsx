@@ -383,6 +383,7 @@ export function PBCDashboard({
 
       const data = await pbcApi.getAllPBCWorkflows(params);
       setWorkflows(data);
+      console.log("work-flows", data)
     } catch (error) {
       console.error("Error loading workflows:", error);
       toast.error("Failed to load PBC Workflows.");
@@ -417,7 +418,7 @@ export function PBCDashboard({
           <Button
             onClick={handleCreatePBCWorkflow}
             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
-            disabled={!selectedEngagement || documentRequests.length === 0} // Disable if no engagement or no document requests
+            disabled={!selectedEngagement} // Disable if no engagement or no document requests
           >
             <Plus className="h-4 w-4" />
             New Workflow
@@ -553,7 +554,7 @@ export function PBCDashboard({
               <Button
                 onClick={handleCreatePBCWorkflow}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
-                disabled={!selectedEngagement || documentRequests.length === 0}
+                disabled={!selectedEngagement}
               >
                 <Plus className="h-4 w-4" />
                 Create Workflow
