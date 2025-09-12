@@ -226,7 +226,7 @@ export const EngagementManagement = () => {
     completed: engagements.filter(e => e.status === 'completed').length,
     draft: engagements.filter(e => e.status === 'draft').length,
   };
-
+  console.log(engagements)
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
       {/* Header Section */}

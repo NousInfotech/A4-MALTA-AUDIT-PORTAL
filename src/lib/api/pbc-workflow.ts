@@ -1,8 +1,21 @@
 import axiosInstance from "../axiosInstance";
 
-const API_BASE = '/api/pbc';
+const API_BASE = "/api/pbc";
 
 export const pbcApi = {
+  async createPbcDocumentRequests(data: any) {
+    const response = await axiosInstance.post(
+      `${API_BASE}/document-requests`, data
+    );
+    return response.data.documentRequest;
+  },
+  async getPbcDocumentRequests(engagementId: string) {
+    const response = await axiosInstance.get(
+      `${API_BASE}/document-requests/engagement/${engagementId}`
+    );
+    return response.data.documentRequests;
+  },
+
   // PBC Workflow endpoints
   async createPBCWorkflow(data: any) {
     const response = await axiosInstance.post(`${API_BASE}/`, data);
@@ -10,7 +23,9 @@ export const pbcApi = {
   },
 
   async getPBCByEngagement(engagementId: string) {
-    const response = await axiosInstance.get(`${API_BASE}/engagement/${engagementId}`);
+    const response = await axiosInstance.get(
+      `${API_BASE}/engagement/${engagementId}`
+    );
     return response.data;
   },
 
@@ -24,7 +39,7 @@ export const pbcApi = {
     return response.data;
   },
 
-  async getAllPBCWorkflows(params?: { status?: string, clientId?: string }) {
+  async getAllPBCWorkflows(params?: { status?: string; clientId?: string }) {
     const response = await axiosInstance.get(`${API_BASE}/`, { params });
     return response.data;
   },
@@ -36,39 +51,61 @@ export const pbcApi = {
   },
 
   async getCategoriesByPBC(pbcId: string) {
-    const response = await axiosInstance.get(`${API_BASE}/categories/pbc/${pbcId}`);
+    const response = await axiosInstance.get(
+      `${API_BASE}/categories/pbc/${pbcId}`
+    );
     return response.data;
   },
 
   async addQuestionToCategory(categoryId: string, data: any) {
-    const response = await axiosInstance.post(`${API_BASE}/categories/${categoryId}/questions`, data);
+    const response = await axiosInstance.post(
+      `${API_BASE}/categories/${categoryId}/questions`,
+      data
+    );
     return response.data;
   },
 
   async updateQuestion(categoryId: string, questionIndex: number, data: any) {
-    const response = await axiosInstance.patch(`${API_BASE}/categories/${categoryId}/questions/${questionIndex}`, data);
+    const response = await axiosInstance.patch(
+      `${API_BASE}/categories/${categoryId}/questions/${questionIndex}`,
+      data
+    );
     return response.data;
   },
 
   async addDiscussion(categoryId: string, questionIndex: number, data: any) {
-    const response = await axiosInstance.post(`${API_BASE}/categories/${categoryId}/questions/${questionIndex}/discussions`, data);
+    const response = await axiosInstance.post(
+      `${API_BASE}/categories/${categoryId}/questions/${questionIndex}/discussions`,
+      data
+    );
     return response.data;
   },
 
   async deleteCategory(categoryId: string) {
-    const response = await axiosInstance.delete(`${API_BASE}/categories/${categoryId}`);
+    const response = await axiosInstance.delete(
+      `${API_BASE}/categories/${categoryId}`
+    );
     return response.data;
   },
 };
 
-
-
 // ai
 export async function generateQnaAI(pbcId: string) {
-    const response = await axiosInstance.post(`${API_BASE}/${pbcId}/generate-qna-ai`);
-    return response.data;
+  const response = await axiosInstance.post(
+    `${API_BASE}/${pbcId}/generate-qna-ai`
+  );
+  return response.data;
 }
 
-
-
-
+export async function singleUploadPbc(requestId: string, formData: FormData) {
+  const response = await axiosInstance.post(
+    `${API_BASE}/document-requests/${requestId}/document`,
+    formData, // This is the request body for the file
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Essential for Multer to parse correctly
+      },
+    }
+  );
+  return response.data;
+}

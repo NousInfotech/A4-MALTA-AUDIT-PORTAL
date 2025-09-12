@@ -292,6 +292,7 @@ import { getDocumentRequests } from "@/lib/api/documentRequests";
 import { useAuth } from "@/contexts/AuthContext";
 import { generateQnaAI, pbcApi } from "@/lib/api/pbc-workflow";
 import { toast } from "sonner";
+import { CreatePBCDialog } from "./CreatePBCDialog";
 
 const statusColors = {
   "document-collection": "bg-blue-500",
@@ -324,13 +325,29 @@ export function PBCDashboard({
   const [workflows, setWorkflows] = useState<PBCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [documentRequests, setDocumentRequests] = useState<any[]>([]); // Initialize as an array
+  const [documentRequests, setDocumentRequests] = useState<any[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const fetchDocumentRequests = async () => {
     try {
       if (selectedEngagement?.id) {
-        const response = await getDocumentRequests(selectedEngagement.id);
-        setDocumentRequests(response);
+        const existed_document_request = await pbcApi.getPbcDocumentRequests(
+          selectedEngagement.id
+        );
+
+        if (existed_document_request.length < 1) {
+          const new_document_request = await pbcApi.createPbcDocumentRequests({
+            engagementId: selectedEngagement.id,
+            name: selectedEngagement.title,
+            description: selectedEngagement.title,
+            requiredDocuments: [],
+          });
+          // FIX: Wrap new_document_request in an array
+          console.log("new_document_request",[new_document_request])
+          setDocumentRequests([new_document_request]);
+        } else {
+          setDocumentRequests(existed_document_request);
+        }
       }
     } catch (error) {
       console.error("Error fetching document requests:", error);
@@ -343,30 +360,6 @@ export function PBCDashboard({
       fetchDocumentRequests();
     }
   }, [selectedEngagement]);
-
-  const handleCreatePBCWorkflow = async () => {
-    if (!selectedEngagement || !user) {
-      toast.error("Engagement or user information is missing.");
-      return;
-    }
-
-    try {
-      const body = {
-        engagementId: selectedEngagement.id,
-        clientId: selectedEngagement.clientId,
-        auditorId: user.id,
-        documentRequests: documentRequests.map((item: any) => item._id),
-      };
-      const response = await pbcApi.createPBCWorkflow(body);
-      if (response) {
-        toast.success("PBC Workflow created successfully!");
-        loadWorkflows();
-      }
-    } catch (error) {
-      console.error("Error creating PBC Workflow:", error);
-      toast.error("Failed to create PBC Workflow.");
-    }
-  };
 
   useEffect(() => {
     loadWorkflows();
@@ -383,7 +376,7 @@ export function PBCDashboard({
 
       const data = await pbcApi.getAllPBCWorkflows(params);
       setWorkflows(data);
-      console.log("work-flows", data)
+      console.log("work-flows", data);
     } catch (error) {
       console.error("Error loading workflows:", error);
       toast.error("Failed to load PBC Workflows.");
@@ -403,15 +396,18 @@ export function PBCDashboard({
       .join(" ");
   };
 
-
-  const handleGenerateQnaAi = async (pbcId:string) => {
+  const handleGenerateQnaAi = async (
+    event: React.MouseEvent,
+    pbcId: string
+  ) => {
+    event.stopPropagation();
     try {
       const response = await generateQnaAI(pbcId);
-      console.log("aidata", response)
+      console.log("aidata", response);
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-  }
+  };
 
   if (authLoading) {
     return <div>Loading authentication...</div>;
@@ -426,7 +422,7 @@ export function PBCDashboard({
         </div>
         {(userRole === "employee" || userRole === "admin") && (
           <Button
-            onClick={handleCreatePBCWorkflow}
+            onClick={() => setShowCreateDialog(true)}
             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
             disabled={!selectedEngagement} // Disable if no engagement or no document requests
           >
@@ -540,10 +536,9 @@ export function PBCDashboard({
                         {formatDate(workflow.createdAt)}
                       </span>
                     </div>
-                    {/* <button onClick={() => handleGenerateQnaAi(workflow._id)} disabled={workflow.status !== "qna-preparation"} className="text-sm px-4 py-1 rounded-full bg-indigo-500 hover:brightness-110 disabled:opacity-50">Q&A&nbsp;with&nbsp;AI</button> */}
+                    {/* <button onClick={(e) => handleGenerateQnaAi(e,workflow._id)} disabled={workflow.status !== "qna-preparation"} className="text-sm px-4 py-1 rounded-full bg-indigo-500 hover:brightness-110 disabled:opacity-50">Q&A&nbsp;with&nbsp;AI</button> */}
                   </div>
                 </CardContent>
-                
               </Card>
             );
           })}
@@ -564,7 +559,7 @@ export function PBCDashboard({
           {!statusFilter &&
             (userRole === "employee" || userRole === "admin") && (
               <Button
-                onClick={handleCreatePBCWorkflow}
+                onClick={() => setShowCreateDialog(true)}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
                 disabled={!selectedEngagement}
               >
@@ -574,6 +569,14 @@ export function PBCDashboard({
             )}
         </div>
       )}
+
+      <CreatePBCDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        selectedEngagement={selectedEngagement}
+        documentRequests={documentRequests}
+        loadWorkflows={loadWorkflows}
+      />
     </div>
   );
 }
