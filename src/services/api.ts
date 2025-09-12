@@ -28,13 +28,20 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   
+  // Don't set Content-Type for FormData - let the browser set it with boundary
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${data.session?.access_token}`,
+    ...options.headers,
+  };
+  
+  // Only set Content-Type to JSON if body is not FormData
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${data.session?.access_token}`,
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -690,11 +697,15 @@ export const isqmApi = {
     questionnaireId: string,
     sectionIndex: number,
     questionIndex: number,
-    data: {
-      answer: string;
-      comments?: string;
-    }
+    answer: string,
+    comments?: string,
+    state?: boolean
   ) => {
+    const data: any = {};
+    if (answer !== undefined) data.answer = answer;
+    if (comments !== undefined) data.comments = comments;
+    if (state !== undefined) data.state = state;
+    
     console.log('💬 Updating question answer:', { questionnaireId, sectionIndex, questionIndex, data });
     return apiCall(`/api/isqm/questionnaires/${questionnaireId}/sections/${sectionIndex}/questions/${questionIndex}`, {
       method: 'PATCH',
@@ -741,6 +752,93 @@ export const isqmApi = {
   exportQuestionnaire: async (id: string, format: 'csv' | 'json' = 'json') => {
     console.log('📤 Exporting questionnaire:', { id, format });
     return apiCall(`/api/isqm/questionnaires/${id}/export?format=${format}`);
+  },
+
+  // Document Generation
+  generatePolicyDocument: async (questionnaireId: string, firmDetails: any = {}) => {
+    console.log('📄 Generating policy document:', { questionnaireId, firmDetails });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/policy`, {
+      method: 'POST',
+      body: JSON.stringify({ firmDetails }),
+    });
+  },
+
+  generateProcedureDocument: async (questionnaireId: string, firmDetails: any = {}, policyDetails: any = {}) => {
+    console.log('📄 Generating procedure document:', { questionnaireId, firmDetails, policyDetails });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/procedure`, {
+      method: 'POST',
+      body: JSON.stringify({ firmDetails, policyDetails }),
+    });
+  },
+
+  generateAllDocuments: async (parentId: string, firmDetails: any = {}) => {
+    console.log('📄 Generating all ISQM documents:', { parentId, firmDetails });
+    return apiCall(`/api/isqm/parents/${parentId}/generate-documents`, {
+      method: 'POST',
+      body: JSON.stringify({ firmDetails }),
+    });
+  },
+
+  // URL Management
+  addPolicyUrl: async (questionnaireId: string, data: { 
+    name: string; 
+    url: string; 
+    version?: string; 
+    description?: string;
+    uploadedBy?: string;
+  }) => {
+    console.log('📄 Adding policy URL:', { questionnaireId, data });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  addProcedureUrl: async (questionnaireId: string, data: { 
+    name: string; 
+    url: string; 
+    version?: string; 
+    description?: string;
+    uploadedBy?: string;
+  }) => {
+    console.log('📄 Adding procedure URL:', { questionnaireId, data });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getQuestionnaireUrls: async (questionnaireId: string) => {
+    console.log('📄 Getting questionnaire URLs:', questionnaireId);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/urls`);
+  },
+
+  deletePolicyUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('📄 Deleting policy URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls/${urlId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  deleteProcedureUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('📄 Deleting procedure URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls/${urlId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  removePolicyUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('🗑️ Removing policy URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/policy-urls/${urlId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  removeProcedureUrl: async (questionnaireId: string, urlId: string) => {
+    console.log('🗑️ Removing procedure URL:', { questionnaireId, urlId });
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/procedure-urls/${urlId}`, {
+      method: 'DELETE',
+    });
   },
 
   // Supporting Document Management
@@ -918,5 +1016,158 @@ export const isqmApi = {
   getSupportingDocumentStats: async (parentId: string) => {
     console.log('📊 Fetching supporting document statistics:', parentId);
     return apiCall(`/api/isqm/parents/${parentId}/supporting-documents/stats`);
+  },
+
+  // Generate documents from QNA array
+  generateDocumentsFromQNA: async (data: {
+    qnaArray: Array<{
+      question: string;
+      answer: string;
+      state: boolean;
+    }>;
+    categoryName: string;
+    firmDetails?: {
+      size?: string;
+      jurisdiction?: string;
+      specializations?: string[];
+      [key: string]: any;
+    };
+  }) => {
+    console.log('🤖 Generating documents from QNA array:', data.categoryName, data.qnaArray.length, 'questions');
+    return apiCall('/api/isqm/generate-documents-from-qna', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Download generated document
+  downloadGeneratedDocument: async (filename: string) => {
+    console.log('📥 Downloading generated document:', filename);
+    return apiCall(`/api/isqm/download/${filename}`, {
+      method: 'GET',
+      responseType: 'blob',
+    });
+  },
+
+  // AI Document Generation APIs
+  generatePolicy: async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+      additionalInfo?: string;
+    }
+  }) => {
+    console.log('🤖 Generating policy document:', questionnaireId, data);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/policy`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateProcedure: async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      processes?: string[];
+      jurisdiction: string;
+    };
+    policyDetails?: {
+      title: string;
+      requirements: string[];
+      responsibilities: Record<string, string>;
+    };
+  }) => {
+    console.log('🤖 Generating procedure document:', questionnaireId, data);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/procedure`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateRiskAssessment: async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+    }
+  }) => {
+    console.log('🤖 Generating risk assessment:', questionnaireId, data);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/risk-assessment`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateComplianceChecklist: async (questionnaireId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+    }
+  }) => {
+    console.log('🤖 Generating compliance checklist:', questionnaireId, data);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/compliance-checklist`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateAllDocuments: async (parentId: string, data: {
+    firmDetails: {
+      size: string;
+      specializations: string[];
+      jurisdiction: string;
+      additionalInfo?: string;
+    }
+  }) => {
+    console.log('🤖 Generating all documents for parent:', parentId, data);
+    return apiCall(`/api/isqm/parents/${parentId}/generate-documents`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getGenerationTypes: async () => {
+    console.log('🤖 Fetching available generation types');
+    return apiCall('/api/isqm/generation/types');
+  },
+
+  // Dynamic Tagging APIs
+  getQuestionnaireTags: async (questionnaireId: string) => {
+    console.log('🏷️ Fetching questionnaire tags:', questionnaireId);
+    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/tags`);
+  },
+
+  getQuestionnairesByComponentType: async (componentType: string, filters?: {
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    
+    const queryString = params.toString();
+    const endpoint = queryString 
+      ? `/api/isqm/questionnaires/component/${componentType}?${queryString}` 
+      : `/api/isqm/questionnaires/component/${componentType}`;
+    
+    console.log('🏷️ Fetching questionnaires by component type:', componentType);
+    return apiCall(endpoint);
+  },
+
+  getQuestionnairesByTags: async (tags: string[], filters?: {
+    page?: number;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    params.append('tags', tags.join(','));
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    
+    const endpoint = `/api/isqm/questionnaires/by-tags?${params.toString()}`;
+    
+    console.log('🏷️ Fetching questionnaires by tags:', tags);
+    return apiCall(endpoint);
   }
 };

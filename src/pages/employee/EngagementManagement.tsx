@@ -30,6 +30,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
 import PbcDialog from "@/components/pbc/PbcDialog";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 export const EngagementManagement = () => {
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
@@ -54,6 +55,13 @@ export const EngagementManagement = () => {
   >("active");
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
+  const { 
+    logViewEngagement, 
+    logStartEngagement, 
+    logKYCSetup, 
+    logKYCComplete, 
+    logESignature 
+  } = useActivityLogger();
 
   interface User {
     summary: string;
@@ -127,6 +135,10 @@ export const EngagementManagement = () => {
     setSelectedEngagement(engagement);
     setIsKYCModalOpen(true);
     
+    // Log the engagement start
+    const client = clients.find(c => c.id === engagement.clientId);
+    logStartEngagement(engagement.title, client?.companyName || 'Unknown Client');
+    
     console.log('🔐 Opening KYC Modal...');
     toast({
       title: "Starting Engagement",
@@ -146,6 +158,9 @@ export const EngagementManagement = () => {
       status: kycData.status,
       createdAt: kycData.createdAt
     });
+    
+    // Log KYC completion
+    logKYCComplete(kycData.engagementTitle || 'Unknown Engagement', kycData.clientName || 'Unknown Client');
     
     console.log('🔄 Opening E-Signature Portal...');
     // After KYC completion, open the signing portal modal
@@ -442,7 +457,10 @@ export const EngagementManagement = () => {
                   size="sm"
                   asChild
                 >
-                  <Link to={`/employee/engagements/${engagement._id}`}>
+                  <Link 
+                    to={`/employee/engagements/${engagement._id}`}
+                    onClick={() => logViewEngagement(engagement.title)}
+                  >
                     <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </Link>

@@ -29,6 +29,7 @@ import { CreateEngagement } from "@/pages/employee/CreateEngagement";
 import { EngagementDetails } from "@/pages/employee/EngagementDetails";
 import GlobalLibraryPage from "./pages/employee/Library";
 import ISQMQuestionnairePage from "@/pages/employee/ISQMQuestionnairePage";
+import { KYCManagement } from "@/pages/employee/KYCManagement";
 
 // Client pages
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
@@ -39,7 +40,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { ClientDetail } from "./pages/employee/ClientDetail";
 
-import AccountDataTab from "./components/accounts-integration/AccountDataTab";
+import RoleBasedAccountDataTab from "./components/accounts-integration/RoleBasedAccountDataTab";
 
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
 import PBCAuditWorkflow from "./components/pbc-components/PBCAuditWorkflow";
@@ -98,7 +99,8 @@ const App = () => (
                 <Route path="engagements/:id" element={<EngagementDetails />} />
                 <Route path="library" element={<GlobalLibraryPage />} />
                 <Route path="isqm" element={<ISQMQuestionnairePage />} />
-                <Route path="accounts" element={<AccountDataTab />} />
+                <Route path="kyc" element={<KYCManagement />} />
+                <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
               </Route>
 
@@ -114,7 +116,7 @@ const App = () => (
                   <Route index element={<ClientDashboard />} />
                   <Route path="engagements" element={<ClientEngagements />} />
                   <Route path="requests" element={<DocumentRequests />} />
-                  <Route path="accounts" element={<AccountDataTab />} />
+                  <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

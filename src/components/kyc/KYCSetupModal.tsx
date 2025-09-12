@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,15 +54,90 @@ export function KYCSetupModal({
 }: KYCSetupModalProps) {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<'setup' | 'preview' | 'complete'>('setup');
+  const [clientInfo, setClientInfo] = useState<any>(null);
   const [kycData, setKycData] = useState({
-    clientName: selectedEngagement?.clientName || '',
-    companyName: selectedEngagement?.companyName || '',
+    clientName: '',
+    companyName: '',
     documents: [] as KYCDocument[],
     instructions: '',
     deadline: '',
     contactEmail: '',
     contactPhone: '',
   });
+
+  // Fetch client information when engagement changes
+  useEffect(() => {
+    if (selectedEngagement?.clientId) {
+      fetchClientInfo(selectedEngagement.clientId);
+    }
+  }, [selectedEngagement]);
+
+  const fetchClientInfo = async (clientId: string) => {
+    try {
+      const { data: client, error } = await supabase
+        .from('profiles')
+        .select('name, company_name')
+        .eq('user_id', clientId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching client info:', error);
+        // Fallback to engagement title if client info not found
+        setKycData(prev => ({
+          ...prev,
+          clientName: selectedEngagement?.title || '',
+          companyName: selectedEngagement?.title || '',
+        }));
+        return;
+      }
+
+      setClientInfo(client);
+      
+      // Fetch email separately
+      let email = '';
+      try {
+        email = await getClientEmail(clientId);
+      } catch (emailError) {
+        console.warn('Could not fetch email:', emailError);
+      }
+
+      setKycData(prev => ({
+        ...prev,
+        clientName: client.name || selectedEngagement?.title || '',
+        companyName: client.company_name || selectedEngagement?.title || '',
+        contactEmail: email,
+      }));
+    } catch (error) {
+      console.error('Error fetching client info:', error);
+      // Fallback to engagement title
+      setKycData(prev => ({
+        ...prev,
+        clientName: selectedEngagement?.title || '',
+        companyName: selectedEngagement?.title || '',
+      }));
+    }
+  };
+
+  const getClientEmail = async (id: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/users/email/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.session?.access_token}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch client email');
+      const res = await response.json();
+      return res.clientData.email;
+    } catch (error) {
+      console.error('Error fetching email:', error);
+      return '';
+    }
+  };
 
   // Default KYC documents based on the requirements
   const defaultDocuments: KYCDocument[] = [
@@ -217,53 +292,50 @@ export function KYCSetupModal({
         userEmail: user.email
       });
 
-      // Step 2: Create document request for KYC
-      console.log('📄 Step 2: Creating document request...');
-      const documentRequestData = {
-        engagementId: selectedEngagement?._id,
-        clientId: selectedEngagement?.clientId,
-        category: 'KYC Documents',
-        description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${documents.filter(d => d.type === 'required').map(d => d.name).join(', ')}`,
-      };
-
-      console.log('📤 Sending document request data:', documentRequestData);
-      const documentRequest = await documentRequestApi.create(documentRequestData);
-      console.log('✅ Document request created successfully:', {
-        requestId: documentRequest._id,
-        status: documentRequest.status || 'created'
-      });
-
-      // Step 3: Create KYC workflow
-      console.log('🔄 Step 3: Creating KYC workflow...');
+      // Step 2: Create KYC workflow with document request (API creates DocumentRequest automatically)
+      console.log('🔄 Step 2: Creating KYC workflow with document requirements...');
       const kycWorkflowData = {
         engagementId: selectedEngagement?._id,
         clientId: selectedEngagement?.clientId,
         auditorId: user.id,
-        documentRequestId: documentRequest._id,
+        documentRequest: {
+          name: `KYC Documents - ${kycData.clientName || selectedEngagement?.title}`,
+          description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${documents.filter(d => d.type === 'required').map(d => d.name).join(', ')}. Additional instructions: ${kycData.instructions || 'Please ensure all documents are clear and legible.'}`,
+          documents: documents.map(doc => ({
+            name: doc.name,
+            type: doc.type,
+            description: doc.description,
+            templateUrl: doc.templateUrl,
+            isTemplate: doc.isTemplate
+          }))
+        }
       };
 
       console.log('📤 Sending KYC workflow data:', kycWorkflowData);
       const kycWorkflow = await kycApi.create(kycWorkflowData);
       console.log('✅ KYC workflow created successfully:', {
-        kycId: kycWorkflow._id,
-        status: kycWorkflow.status || 'created'
+        kycId: kycWorkflow.kyc._id,
+        status: kycWorkflow.kyc.status || 'pending',
+        documentRequestId: kycWorkflow.kyc.documentRequests?._id
       });
 
-      // Step 4: Prepare final data
+      // Step 3: Prepare final data
       const finalKycData = {
         ...kycData,
         documents,
         createdAt: new Date().toISOString(),
         status: 'pending',
         engagementId: selectedEngagement?._id,
-        kycId: kycWorkflow._id,
-        documentRequestId: documentRequest._id,
+        kycId: kycWorkflow.kyc._id,
+        documentRequestId: kycWorkflow.kyc.documentRequests?._id,
+        clientId: selectedEngagement?.clientId,
+        auditorId: user.id,
       };
 
       console.log('🎉 KYC API Integration completed successfully!');
       console.log('📊 Final KYC Data:', finalKycData);
 
-      // Step 5: Complete the process
+      // Step 4: Complete the process
       onKYCComplete(finalKycData);
       setCurrentStep('complete');
       
