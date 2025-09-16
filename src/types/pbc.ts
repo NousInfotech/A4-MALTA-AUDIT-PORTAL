@@ -16,6 +16,7 @@ export interface DocumentRequest {
   category: string;
   description: string;
   status: 'pending' | 'submitted' | 'approved';
+  documents: any;
 }
 
 export interface Discussion {

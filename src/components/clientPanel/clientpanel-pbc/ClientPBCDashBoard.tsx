@@ -11,7 +11,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { PBCWorkflow } from "@/types/pbc"; // Assuming PBCWorkflow type is correctly defined
-import { getDocumentRequests } from "@/lib/api/documentRequests";
 import { useAuth } from "@/contexts/AuthContext";
 import { pbcApi } from "@/lib/api/pbc-workflow";
 import { toast } from "sonner";
@@ -32,32 +31,94 @@ const statusIcons = {
   submitted: CheckCircle,
 };
 
-interface PBCDashboardProps {
+interface ClientPBCDashBoardProps {
   userRole: "employee" | "client" | "admin";
   onSelectWorkflow: (workflow: PBCWorkflow) => void;
   selectedEngagement: any; // Consider creating a more specific type for selectedEngagement
 }
 
-export function PBCDashboard({
+export function ClientPBCDashBoard({
   userRole,
   onSelectWorkflow,
   selectedEngagement,
-}: PBCDashboardProps) {
+}: ClientPBCDashBoardProps) {
   const { user, isLoading: authLoading } = useAuth();
   const [workflows, setWorkflows] = useState<PBCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [documentRequests, setDocumentRequests] = useState<any[]>([]); // Initialize as an array
+  const [engagementFilter, setEngagementFilter] = useState<boolean>(false); // New state for engagement filter
+  const [documentRequests, setDocumentRequests] = useState<any[]>([]);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const fetchDocumentRequests = async () => {
     try {
       if (selectedEngagement?.id) {
-        const response = await getDocumentRequests(selectedEngagement.id);
-        setDocumentRequests(response);
+        const existed_document_request = await pbcApi.getPbcDocumentRequests(
+          selectedEngagement.id
+        );
+
+        // Scenario 1: No existing document requests
+        if (existed_document_request.length < 1) {
+          console.log(
+            "No existing PBC document requests found. Creating a new one."
+          );
+          const new_document_request = await pbcApi.createPbcDocumentRequests({
+            engagementId: selectedEngagement.id,
+            name: selectedEngagement.title,
+            description: selectedEngagement.title,
+            requiredDocuments: [],
+          });
+          setDocumentRequests([new_document_request]);
+          toast.success("New PBC document request created.");
+        }
+        // Scenario 2: More than one existing document request (duplicates)
+        else if (existed_document_request.length > 1) {
+          console.warn(
+            "Multiple PBC document requests found for this engagement. Deleting duplicates and creating a single new one."
+          );
+          toast.info("Cleaning up duplicate PBC document requests...");
+
+          // Delete all existing document requests
+          const deletePromises = existed_document_request.map(
+            async (docReq: any) => {
+              try {
+                await pbcApi.deletePbcDocumentRequests(docReq._id);
+                console.log(
+                  `Deleted duplicate document request: ${docReq._id}`
+                );
+              } catch (deleteError) {
+                console.error(
+                  `Error deleting document request ${docReq._id}:`,
+                  deleteError
+                );
+                toast.error(
+                  `Failed to delete a duplicate document request: ${docReq._id}`
+                );
+              }
+            }
+          );
+          await Promise.all(deletePromises);
+          toast.success("Duplicate PBC document requests cleared.");
+
+          // After deleting all, create a single new one
+          const new_document_request = await pbcApi.createPbcDocumentRequests({
+            engagementId: selectedEngagement.id,
+            name: selectedEngagement.title,
+            description: selectedEngagement.title,
+            requiredDocuments: [],
+          });
+          setDocumentRequests([new_document_request]);
+          toast.success("A single new PBC document request has been created.");
+        }
+        // Scenario 3: Exactly one existing document request (ideal case)
+        else {
+          console.log("Exactly one PBC document request found. Using it.");
+          setDocumentRequests(existed_document_request);
+        }
       }
     } catch (error) {
-      console.error("Error fetching document requests:", error);
-      toast.error("Failed to load document requests.");
+      console.error("Error fetching or managing document requests:", error);
+      toast.error("Failed to load or manage document requests.");
     }
   };
 
@@ -67,33 +128,9 @@ export function PBCDashboard({
     }
   }, [selectedEngagement]);
 
-  const handleCreatePBCWorkflow = async () => {
-    if (!selectedEngagement || !user) {
-      toast.error("Engagement or user information is missing.");
-      return;
-    }
-
-    try {
-      const body = {
-        engagementId: selectedEngagement.id,
-        clientId: selectedEngagement.clientId,
-        auditorId: user.id,
-        documentRequests: documentRequests.map((item: any) => item.id),
-      };
-      const response = await pbcApi.createPBCWorkflow(body);
-      if (response) {
-        toast.success("PBC Workflow created successfully!");
-        loadWorkflows();
-      }
-    } catch (error) {
-      console.error("Error creating PBC Workflow:", error);
-      toast.error("Failed to create PBC Workflow.");
-    }
-  };
-
   useEffect(() => {
     loadWorkflows();
-  }, [statusFilter, selectedEngagement]); // Add selectedEngagement to dependency array
+  }, [statusFilter, engagementFilter, selectedEngagement]); // Add engagementFilter to dependency array
 
   const loadWorkflows = async () => {
     try {
@@ -101,10 +138,21 @@ export function PBCDashboard({
       const params: { status?: string; clientId?: string } = {};
       if (statusFilter) params.status = statusFilter;
       // Add clientId to the filter if available from selectedEngagement
-      if (selectedEngagement?.clientId) params.clientId = selectedEngagement.clientId;
-      
-      const data = await pbcApi.getAllPBCWorkflows(params);
+      if (selectedEngagement?.clientId)
+        params.clientId = selectedEngagement.clientId;
+
+      let data = await pbcApi.getAllPBCWorkflows(params);
+
+      // Apply engagement filter if active
+      if (engagementFilter && selectedEngagement?.id) {
+        data = data.filter(
+          (workflow: PBCWorkflow) =>
+            workflow.engagement._id === selectedEngagement.id
+        );
+      }
+
       setWorkflows(data);
+      console.log("work-flows", data);
     } catch (error) {
       console.error("Error loading workflows:", error);
       toast.error("Failed to load PBC Workflows.");
@@ -137,9 +185,9 @@ export function PBCDashboard({
         </div>
         {(userRole === "employee" || userRole === "admin") && (
           <Button
-            onClick={handleCreatePBCWorkflow}
-            className="flex items-center gap-2"
-            disabled={!selectedEngagement || documentRequests.length === 0} // Disable if no engagement or no document requests
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
+            disabled={!selectedEngagement} // Disable if no engagement or no document requests
           >
             <Plus className="h-4 w-4" />
             New Workflow
@@ -148,23 +196,54 @@ export function PBCDashboard({
       </div>
 
       <div className="flex gap-4 items-center">
-        <span className="text-sm font-medium text-gray-700">
-          Filter by status:
-        </span>
+        <span className="text-sm font-medium text-gray-700">Filter by :</span>
         <div className="flex gap-2">
           <Button
-            variant={statusFilter === "" ? "default" : "outline"}
+            variant={
+              statusFilter === "" && !engagementFilter ? "default" : "outline"
+            }
             size="sm"
-            onClick={() => setStatusFilter("")}
+            onClick={() => {
+              setStatusFilter("");
+              setEngagementFilter(false);
+            }}
+            className={`transition-all duration-300 ${
+              statusFilter === "" && !engagementFilter
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+            }`}
           >
             All
+          </Button>
+          <Button
+            variant={engagementFilter ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setEngagementFilter(!engagementFilter);
+              setStatusFilter(""); // Reset status filter when toggling engagement filter
+            }}
+            className={`transition-all duration-300 ${
+              engagementFilter
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+            }`}
+          >
+            Engagement
           </Button>
           {Object.keys(statusColors).map((status) => (
             <Button
               key={status}
               variant={statusFilter === status ? "default" : "outline"}
               size="sm"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setStatusFilter(status);
+                setEngagementFilter(false); // Reset engagement filter when toggling status filter
+              }}
+              className={`transition-all duration-300 ${
+                statusFilter === status
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
+                  : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+              }`}
             >
               {getStatusLabel(status)}
             </Button>
@@ -196,7 +275,8 @@ export function PBCDashboard({
             return (
               <Card
                 key={workflow._id}
-                className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                // className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden cursor-pointer"
                 onClick={() => onSelectWorkflow(workflow)}
               >
                 <CardHeader>
@@ -220,16 +300,18 @@ export function PBCDashboard({
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Documents:</span>
+                      <span className="text-gray-600">Documents(PBC):</span>
                       <span className="font-medium">
-                        {workflow.documentRequests.length}
+                        {workflow.documentRequests[0].documents.length}
                       </span>
                     </div>
                     {/* Assuming categories are populated as an array of objects or IDs */}
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Categories:</span>
+                      <span className="text-gray-600">Categories(PBC):</span>
                       <span className="font-medium">
-                        {new Set(workflow.documentRequests.map(dr => dr.category)).size || 0}
+                        {new Set(
+                          workflow.documentRequests.map((dr) => dr.category)
+                        ).size || 0}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -255,14 +337,17 @@ export function PBCDashboard({
           <p className="text-gray-600 mb-6">
             {statusFilter
               ? `No workflows with status "${getStatusLabel(statusFilter)}"`
+              : engagementFilter && selectedEngagement
+              ? `No workflows for engagement "${selectedEngagement.title}"`
               : "Get started by creating your first PBC workflow"}
           </p>
           {!statusFilter &&
+            !engagementFilter &&
             (userRole === "employee" || userRole === "admin") && (
               <Button
-                onClick={handleCreatePBCWorkflow}
-                className="flex items-center gap-2"
-                disabled={!selectedEngagement || documentRequests.length === 0}
+                onClick={() => setShowCreateDialog(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
+                disabled={!selectedEngagement}
               >
                 <Plus className="h-4 w-4" />
                 Create Workflow

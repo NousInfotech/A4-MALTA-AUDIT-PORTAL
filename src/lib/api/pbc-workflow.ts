@@ -16,6 +16,13 @@ export const pbcApi = {
     return response.data.documentRequests;
   },
 
+  async deletePbcDocumentRequests(requestId: string) {
+    const response = await axiosInstance.delete(
+      `${API_BASE}/document-requests/${requestId}`
+    );
+    return response.data.success;
+  },
+
   // PBC Workflow endpoints
   async createPBCWorkflow(data: any) {
     const response = await axiosInstance.post(`${API_BASE}/`, data);
@@ -43,6 +50,7 @@ export const pbcApi = {
     const response = await axiosInstance.get(`${API_BASE}/`, { params });
     return response.data;
   },
+  
 
   // Category endpoints
   async createCategory(data: any) {

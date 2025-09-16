@@ -133,14 +133,14 @@ export function PBCWorkflowDetail({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Documents
+              Documents(PBC)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-blue-500" />
               <span className="text-2xl font-bold">
-                {workflow.documentRequests.length}
+                {workflow.documentRequests[0].documents.length}
               </span>
             </div>
           </CardContent>
@@ -312,6 +312,7 @@ export function PBCWorkflowDetail({
         <TabsContent value="documents">
           <DocumentRequestsView
             documentRequests={workflow.documentRequests}
+            workflow={workflow}
             userRole={userRole}
           />
         </TabsContent>
@@ -323,6 +324,7 @@ export function PBCWorkflowDetail({
             userRole={userRole}
             onUpdate={handleCategoryUpdate}
             workflowStatus={workflow.status}
+            workflow={workflow}
           />
         </TabsContent>
 

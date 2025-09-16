@@ -9,6 +9,7 @@ import { Briefcase, Calendar, FileText, Clock, Loader2, User, ArrowLeft } from '
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import PbcDialog from '@/components/pbc/PbcDialog';
 
 export const ClientEngagements = () => {
   const { user } = useAuth();
@@ -16,6 +17,18 @@ export const ClientEngagements = () => {
   const [clientEngagements, setClientEngagements] = useState([]);
   const [engagementRequests, setEngagementRequests] = useState({});
   const [loading, setLoading] = useState(true);
+  const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
+  const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
+
+
+  const handleOpenPBC = (engagement) => {
+    setSelectedEngagement(engagement)
+    setIsPBCModalOpen(true)
+  }
+
+  const handleClosePBC = () => {
+    setIsPBCModalOpen(false)
+  }
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -74,6 +87,8 @@ export const ClientEngagements = () => {
         </div>
       )
     }
+
+    console.log("clientEngagements", clientEngagements)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20 p-6 space-y-8">
@@ -165,12 +180,21 @@ export const ClientEngagements = () => {
                   </div>
                 </div>
                 
-                {engagement.trialBalanceUrl && (
+                {engagement.trialBalanceUrl ? (
                   <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
                     <FileText className="h-4 w-4 text-blue-600" />
                     <span className="text-sm text-blue-700 font-medium">Trial Balance: Uploaded</span>
                   </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 font-medium">Trial Balance: Not Uploaded</span>
+                  </div>
                 )}
+
+                <div>
+                  <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gradient-to-br from-indigo-500 via-violet-500 to-blue-500 hover:brightness-105 rounded-full w-full text-white'>PBC WorkFlow</button>
+                </div>
                 
                 {pendingRequests > 0 && (
                   <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50">
@@ -200,6 +224,16 @@ export const ClientEngagements = () => {
             </p>
           </CardContent>
         </Card>
+      )}
+
+
+      {isPBCModalOpen && (
+        <PbcDialog
+          selectedEngagement={selectedEngagement}
+          open={isPBCModalOpen}
+          onOpenChange={setIsPBCModalOpen}
+          onClosePBC={handleClosePBC}
+        />
       )}
     </div>
   );
