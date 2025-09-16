@@ -30,7 +30,8 @@ export const DocumentRequests = () => {
         setClientEngagements(clientFiltered);
 
         const promises = clientFiltered.map(e =>
-          documentRequestApi.getByEngagement(e._id).catch(() => []));
+          documentRequestApi.getByEngagement(e._id).catch(() => [])
+        );
         const arrays = await Promise.all(promises);
         setAllRequests(arrays.flat());
       } catch (err) {
@@ -46,6 +47,8 @@ export const DocumentRequests = () => {
 
   const pendingRequests = allRequests.filter(r => r.status === 'pending');
   const completedRequests = allRequests.filter(r => r.status === 'completed');
+  // New: Filter requests specifically for the 'pbc' category
+  const pbcRequests = allRequests.filter(r => r.category === 'pbc');
 
   const handleFileUpload = async (requestId, files) => {
     if (!files?.length) return;
@@ -154,7 +157,7 @@ export const DocumentRequests = () => {
         </div>
       )
     }
-
+    console.log("allRequests", allRequests)
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20 p-6 space-y-8">
       {/* Header Section */}
@@ -268,6 +271,10 @@ export const DocumentRequests = () => {
           </TabsTrigger>
           <TabsTrigger value="completed" className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white">
             Completed ({completedRequests.length})
+          </TabsTrigger>
+          {/* New PBC Tab Trigger */}
+          <TabsTrigger value="pbc" className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white">
+            PBC ({pbcRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -419,6 +426,114 @@ export const DocumentRequests = () => {
                           ))}
                         </div>
                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* New PBC Tab Content */}
+        <TabsContent value="pbc" className="space-y-6">
+          {pbcRequests.length === 0 ? (
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
+              <CardContent className="text-center py-16">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <FileText className="h-10 w-10 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-3">
+                  No PBC requests found
+                </h3>
+                <p className="text-slate-600">
+                  There are no document requests categorized as 'PBC' at the moment.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {pbcRequests.map((request) => (
+                <Card key={request._id} className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-lg font-bold text-slate-800">{request.description}</CardTitle>
+                        <CardDescription className="mt-1 text-slate-600">
+                          Engagement: {getEngagementTitle(request.engagement)}
+                        </CardDescription>
+                      </div>
+                      <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50">
+                        PBC
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent className="p-6 space-y-4">
+                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+                          {request.category}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>Requested: {new Date(request.requestedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Conditional rendering for upload functionality based on status */}
+                    {request.status === 'pending' ? (
+                      <div className="border-2 border-dashed border-blue-200 rounded-2xl p-6 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
+                        <div className="text-center">
+                          <Upload className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                          <Label htmlFor={`pbc-file-${request._id}`} className="cursor-pointer">
+                            <span className="text-sm font-medium text-slate-800">
+                              Click to upload files
+                            </span>
+                            <span className="text-sm text-slate-600 block">
+                              or drag and drop
+                            </span>
+                          </Label>
+                          <div className="mt-2 text-xs text-slate-500">
+                            <p>Max 10 files, 50MB each</p>
+                            <p>Supported: PDF, Images, Office docs, ZIP</p>
+                          </div>
+                          <Input
+                            id={`pbc-file-${request._id}`}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => handleFileUpload(request._id, e.target.files)}
+                            disabled={uploadingFiles[request._id]}
+                          />
+                        </div>
+                        
+                        {uploadingFiles[request._id] && (
+                          <div className="mt-4 flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            <span className="text-sm text-slate-600">Uploading files...</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      request.documents && request.documents.length > 0 && (
+                        <div>
+                          <h4 className="font-medium mb-3 text-slate-800">Uploaded Documents:</h4>
+                          <div className="space-y-3">
+                            {request.documents.map((doc, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-100/50 rounded-2xl hover:border-slate-300/50 transition-all duration-300 hover:shadow-lg">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="h-4 w-4 text-blue-600" />
+                                  <span className="text-sm font-medium text-slate-800">{doc.name}</span>
+                                </div>
+                                <Button size="sm" variant="outline" className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-xl">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
                     )}
                   </CardContent>
                 </Card>
