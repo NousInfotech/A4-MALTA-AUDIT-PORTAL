@@ -140,7 +140,7 @@ export function PBCWorkflowDetail({
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-blue-500" />
               <span className="text-2xl font-bold">
-                {workflow.documentRequests.length}
+                {workflow.documentRequests[0].documents.length}
               </span>
             </div>
           </CardContent>
@@ -323,6 +323,7 @@ export function PBCWorkflowDetail({
             userRole={userRole}
             onUpdate={handleCategoryUpdate}
             workflowStatus={workflow.status}
+            workflow={workflow}
           />
         </TabsContent>
 

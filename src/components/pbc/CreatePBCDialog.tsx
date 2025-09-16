@@ -114,7 +114,7 @@ export function CreatePBCDialog({
     try {
       const formattedDocumentRequests =
         documentRequests?.map((item: any) => ({
-          _id: item._id,
+          _id: item._id, // Keep the original _id for matching
           name: item.name,
           description: item.description,
           documents: item.documents || [],
@@ -131,13 +131,16 @@ export function CreatePBCDialog({
       };
 
       const apiResponse = await pbcApi.createPBCWorkflow(body);
+      console.log("apiResponse", apiResponse)
 
+      // --- UPDATED LOGIC HERE ---
       if (
         apiResponse &&
         typeof apiResponse === "object" &&
-        apiResponse.documentRequests
+        apiResponse.pbc && // Check for the 'pbc' key
+        apiResponse.pbc.documentRequests // Check for documentRequests within the 'pbc' object
       ) {
-        const createdWorkflow = apiResponse;
+        const createdWorkflow = apiResponse.pbc; // Get the actual PBC object from the 'pbc' key
         console.log("[CreatePBC] Created Workflow from API:", createdWorkflow);
         console.log(
           "[CreatePBC] Number of document requests in API response:",
@@ -150,19 +153,20 @@ export function CreatePBCDialog({
         ) {
           const newIdMap = new Map<string, string>();
 
-          createdWorkflow.documentRequests.forEach((newDocReqId: string) => {
+          // Iterate over the actual document request objects returned by the backend
+          createdWorkflow.documentRequests.forEach((newDocReq: any) => {
             const originalDocReqSent = formattedDocumentRequests.find(
-              (fd: any) => fd._id === newDocReqId
+              (fd: any) => fd._id === newDocReq._id
             );
 
             if (originalDocReqSent) {
-              newIdMap.set(originalDocReqSent._id, newDocReqId);
+              newIdMap.set(originalDocReqSent._id, newDocReq._id);
               console.log(
-                `[Mapping] Mapped Original ID ${originalDocReqSent._id} to New ID ${newDocReqId}`
+                `[Mapping] Mapped Original ID ${originalDocReqSent._id} to New ID ${newDocReq._id}`
               );
             } else {
               console.warn(
-                `[Mapping Warning] Could not map original docRequestId with ${newDocReqId}`
+                `[Mapping Warning] Could not map original docRequestId with ${newDocReq._id}`
               );
             }
           });
@@ -179,7 +183,7 @@ export function CreatePBCDialog({
             );
             const newDocReqId = newIdMap.get(originalDocReq._id);
             console.log(
-              `[FileUpload] newDocReqId for ${originalDocReq.name} (original ID: ${originalDocReq._id}):`,
+              `[FileUpload] newDocReq._id for ${originalDocReq.name} (original ID: ${originalDocReq._id}):`,
               newDocReqId
             );
 

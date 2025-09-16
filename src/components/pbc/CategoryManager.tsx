@@ -1,35 +1,84 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, MessageSquare, AlertTriangle, CheckCircle, Clock, Trash2 } from 'lucide-react';
-import { QnACategory, QnAQuestion } from '@/types/pbc';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Plus,
+  MessageSquare,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+import { QnACategory, QnAQuestion } from "@/types/pbc";
 
-import { QuestionDiscussion } from './QuestionDiscussion';
-import { pbcApi } from '@/lib/api/pbc-workflow';
+import { QuestionDiscussion } from "./QuestionDiscussion";
+import { generateQnaAI, pbcApi } from "@/lib/api/pbc-workflow";
 
 interface CategoryManagerProps {
   pbcId: string;
   categories: QnACategory[];
-  userRole: 'employee' | 'client' | 'admin';
+  userRole: "employee" | "client" | "admin";
   onUpdate: () => void;
   workflowStatus: string;
+  workflow: any;
 }
 
-export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflowStatus }: CategoryManagerProps) {
-  const [newCategoryTitle, setNewCategoryTitle] = useState('');
+export function CategoryManager({
+  pbcId,
+  categories,
+  userRole,
+  onUpdate,
+  workflowStatus,
+  workflow,
+}: CategoryManagerProps) {
+  const [newCategoryTitle, setNewCategoryTitle] = useState("");
   const [showCreateCategory, setShowCreateCategory] = useState(false);
-  const [newQuestionText, setNewQuestionText] = useState('');
+  const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionMandatory, setNewQuestionMandatory] = useState(false);
-  const [showCreateQuestion, setShowCreateQuestion] = useState<string | null>(null);
+  const [showCreateQuestion, setShowCreateQuestion] = useState<string | null>(
+    null
+  );
 
-  const canEdit = userRole === 'employee' || userRole === 'admin';
-  const canAnswer = userRole === 'client' || userRole === 'admin';
+  const [loadingAi, setLoadingAi] = useState(false); // New loading state
+
+  const canEdit = userRole === "employee" || userRole === "admin";
+  const canAnswer = userRole === "client" || userRole === "admin";
+
+  const handleGenerateQnaAi = async (
+    event: React.MouseEvent,
+    pbcId: string
+  ) => {
+    event.stopPropagation();
+    setLoadingAi(true); // Start loading
+    try {
+      const response = await generateQnaAI(pbcId);
+      console.log("aidata", response);
+      onUpdate(); // Re-render the component to reflect new data
+    } catch (error) {
+      console.error("Error generating Q&A with AI:", error);
+      // Optionally, show an error message to the user
+    } finally {
+      setLoadingAi(false); // Stop loading
+    }
+  };
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,11 +89,11 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
         pbcId,
         title: newCategoryTitle.trim(),
       });
-      setNewCategoryTitle('');
+      setNewCategoryTitle("");
       setShowCreateCategory(false);
       onUpdate();
     } catch (error) {
-      console.error('Error creating category:', error);
+      console.error("Error creating category:", error);
     }
   };
 
@@ -56,41 +105,53 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
         question: newQuestionText.trim(),
         isMandatory: newQuestionMandatory,
       });
-      setNewQuestionText('');
+      setNewQuestionText("");
       setNewQuestionMandatory(false);
       setShowCreateQuestion(null);
       onUpdate();
     } catch (error) {
-      console.error('Error adding question:', error);
+      console.error("Error adding question:", error);
     }
   };
 
-  const handleAnswerQuestion = async (categoryId: string, questionIndex: number, answer: string) => {
+  const handleAnswerQuestion = async (
+    categoryId: string,
+    questionIndex: number,
+    answer: string
+  ) => {
     try {
       await pbcApi.updateQuestion(categoryId, questionIndex, {
-        status: 'answered',
+        status: "answered",
         answer,
       });
       onUpdate();
     } catch (error) {
-      console.error('Error answering question:', error);
+      console.error("Error answering question:", error);
     }
   };
 
-  const handleMarkDoubt = async (categoryId: string, questionIndex: number, doubtReason: string) => {
+  const handleMarkDoubt = async (
+    categoryId: string,
+    questionIndex: number,
+    doubtReason: string
+  ) => {
     try {
       await pbcApi.updateQuestion(categoryId, questionIndex, {
-        status: 'doubt',
+        status: "doubt",
         doubtReason,
       });
       onUpdate();
     } catch (error) {
-      console.error('Error marking doubt:', error);
+      console.error("Error marking doubt:", error);
     }
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('Are you sure you want to delete this category and all its questions?')) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this category and all its questions?"
+      )
+    ) {
       return;
     }
 
@@ -98,15 +159,15 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
       await pbcApi.deleteCategory(categoryId);
       onUpdate();
     } catch (error) {
-      console.error('Error deleting category:', error);
+      console.error("Error deleting category:", error);
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'answered':
+      case "answered":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'doubt':
+      case "doubt":
         return <AlertTriangle className="h-4 w-4 text-red-500" />;
       default:
         return <Clock className="h-4 w-4 text-gray-400" />;
@@ -115,25 +176,41 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'answered':
-        return 'bg-green-500';
-      case 'doubt':
-        return 'bg-red-500';
+      case "answered":
+        return "bg-green-500";
+      case "doubt":
+        return "bg-red-500";
       default:
-        return 'bg-gray-400';
+        return "bg-gray-400";
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-10">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Q&A Categories</h2>
-        {canEdit && workflowStatus === 'qna-preparation' && (
-          <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
+        <button
+          onClick={(e) => handleGenerateQnaAi(e, workflow._id)}
+          disabled={workflow.status !== "qna-preparation" || loadingAi} // Disable while loading
+          className="text-sm px-6 py-2 rounded-full text-white font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 transition duration-300 ease-in-out"
+        >
+          {loadingAi ? (
+            <span className="flex items-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
+            </span>
+          ) : (
+            "Q&A with AI"
+          )}
+        </button>
+        {canEdit && workflowStatus === "qna-preparation" && (
+          <Dialog
+            open={showCreateCategory}
+            onOpenChange={setShowCreateCategory}
+          >
             <DialogTrigger asChild>
-              <button className="px-4 py-2 rounded-lg flex items-center gap-2 bg-indigo-500 hover:brightness-110">
+              <button className="px-4 py-1 rounded-full text-lg flex items-center gap-2 bg-indigo-500 hover:brightness-110">
                 <Plus className="h-4 w-4" />
-                Add Category
+                Add&nbsp;Category
               </button>
             </DialogTrigger>
             <DialogContent>
@@ -155,7 +232,12 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                   >
                     Cancel
                   </Button>
-                  <button type="submit" className='px-4 py-2 rounded-md bg-indigo-500 hover:brightness-110'>Create Category</button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-md bg-indigo-500 hover:brightness-110"
+                  >
+                    Create Category
+                  </button>
                 </div>
               </form>
             </DialogContent>
@@ -167,9 +249,13 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
         <Card>
           <CardContent className="py-12 text-center">
             <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No categories yet
+            </h3>
             <p className="text-gray-600">
-              {canEdit ? 'Create your first Q&A category to get started' : 'No Q&A categories have been created yet'}
+              {canEdit
+                ? "Create your first Q&A category to get started"
+                : "No Q&A categories have been created yet"}
             </p>
           </CardContent>
         </Card>
@@ -181,18 +267,33 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                 <AccordionTrigger className="px-6 py-4 hover:no-underline">
                   <div className="flex items-center justify-between w-full mr-4">
                     <div className="flex items-center gap-4">
-                      <h3 className="text-lg font-semibold">{category.title}</h3>
+                      <h3 className="text-lg font-semibold">
+                        {category.title}
+                      </h3>
                       <Badge variant="outline">
-                        {category.qnaQuestions.length} question{category.qnaQuestions.length !== 1 ? 's' : ''}
+                        {category.qnaQuestions.length} question
+                        {category.qnaQuestions.length !== 1 ? "s" : ""}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">
-                        {category.qnaQuestions.filter(q => q.status === 'answered').length} answered
+                        {
+                          category.qnaQuestions.filter(
+                            (q) => q.status === "answered"
+                          ).length
+                        }{" "}
+                        answered
                       </span>
-                      {category.qnaQuestions.some(q => q.status === 'doubt') && (
+                      {category.qnaQuestions.some(
+                        (q) => q.status === "doubt"
+                      ) && (
                         <Badge className="bg-red-500 text-white">
-                          {category.qnaQuestions.filter(q => q.status === 'doubt').length} doubts
+                          {
+                            category.qnaQuestions.filter(
+                              (q) => q.status === "doubt"
+                            ).length
+                          }{" "}
+                          doubts
                         </Badge>
                       )}
                       {canEdit && (
@@ -226,29 +327,36 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                       />
                     ))}
 
-                    {canEdit && workflowStatus === 'qna-preparation' && (
+                    {canEdit && workflowStatus === "qna-preparation" && (
                       <div className="pt-4 border-t">
                         {showCreateQuestion === category._id ? (
                           <div className="space-y-3">
                             <Textarea
                               placeholder="Enter your question"
                               value={newQuestionText}
-                              onChange={(e) => setNewQuestionText(e.target.value)}
+                              onChange={(e) =>
+                                setNewQuestionText(e.target.value)
+                              }
                               rows={3}
                             />
                             <div className="flex items-center gap-2">
                               <Checkbox
                                 id={`mandatory-${category._id}`}
                                 checked={newQuestionMandatory}
-                                onCheckedChange={(checked) => setNewQuestionMandatory(!!checked)}
+                                onCheckedChange={(checked) =>
+                                  setNewQuestionMandatory(!!checked)
+                                }
                               />
-                              <label htmlFor={`mandatory-${category._id}`} className="text-sm">
+                              <label
+                                htmlFor={`mandatory-${category._id}`}
+                                className="text-sm"
+                              >
                                 Mandatory question
                               </label>
                             </div>
                             <div className="flex gap-2">
                               <Button
-                              className='bg-indigo-500 hover:brightness-110'
+                                className="bg-indigo-500 hover:brightness-110"
                                 size="sm"
                                 onClick={() => handleAddQuestion(category._id)}
                               >
@@ -265,8 +373,6 @@ export function CategoryManager({ pbcId, categories, userRole, onUpdate, workflo
                           </div>
                         ) : (
                           <button
-                            
-                           
                             onClick={() => setShowCreateQuestion(category._id)}
                             className="px-4 py-2 rounded-lg text-sm flex items-center gap-2 bg-indigo-500 hover:brightness-110"
                           >
@@ -292,8 +398,16 @@ interface QuestionCardProps {
   questionIndex: number;
   categoryId: string;
   canAnswer: boolean;
-  onAnswerQuestion: (categoryId: string, questionIndex: number, answer: string) => void;
-  onMarkDoubt: (categoryId: string, questionIndex: number, doubtReason: string) => void;
+  onAnswerQuestion: (
+    categoryId: string,
+    questionIndex: number,
+    answer: string
+  ) => void;
+  onMarkDoubt: (
+    categoryId: string,
+    questionIndex: number,
+    doubtReason: string
+  ) => void;
   onDiscussionUpdate: () => void;
 }
 
@@ -307,9 +421,9 @@ function QuestionCard({
   onDiscussionUpdate,
 }: QuestionCardProps) {
   const [showAnswerForm, setShowAnswerForm] = useState(false);
-  const [answer, setAnswer] = useState(question.answer || '');
+  const [answer, setAnswer] = useState(question.answer || "");
   const [showDoubtForm, setShowDoubtForm] = useState(false);
-  const [doubtReason, setDoubtReason] = useState('');
+  const [doubtReason, setDoubtReason] = useState("");
 
   const handleSubmitAnswer = () => {
     if (answer.trim()) {
@@ -322,15 +436,15 @@ function QuestionCard({
     if (doubtReason.trim()) {
       onMarkDoubt(categoryId, questionIndex, doubtReason.trim());
       setShowDoubtForm(false);
-      setDoubtReason('');
+      setDoubtReason("");
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'answered':
+      case "answered":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'doubt':
+      case "doubt":
         return <AlertTriangle className="h-4 w-4 text-red-500" />;
       default:
         return <Clock className="h-4 w-4 text-gray-400" />;
@@ -345,7 +459,9 @@ function QuestionCard({
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 {getStatusIcon(question.status)}
-                <span className="text-sm font-medium capitalize">{question.status}</span>
+                <span className="text-sm font-medium capitalize">
+                  {question.status}
+                </span>
                 {question.isMandatory && (
                   <Badge variant="destructive" className="text-xs">
                     Mandatory
@@ -356,19 +472,20 @@ function QuestionCard({
             </div>
           </div>
 
-          {question.status === 'answered' && question.answer && (
+          {question.status === "answered" && question.answer && (
             <div className="bg-green-50 p-3 rounded-lg">
               <p className="text-sm font-medium text-green-800 mb-1">Answer:</p>
               <p className="text-green-700">{question.answer}</p>
               {question.answeredAt && (
                 <p className="text-xs text-green-600 mt-2">
-                  Answered on {new Date(question.answeredAt).toLocaleDateString()}
+                  Answered on{" "}
+                  {new Date(question.answeredAt).toLocaleDateString()}
                 </p>
               )}
             </div>
           )}
 
-          {question.status === 'doubt' && question.doubtReason && (
+          {question.status === "doubt" && question.doubtReason && (
             <div className="bg-red-50 p-3 rounded-lg">
               <p className="text-sm font-medium text-red-800 mb-1">Doubt:</p>
               <p className="text-red-700">{question.doubtReason}</p>
@@ -384,14 +501,11 @@ function QuestionCard({
             />
           )}
 
-          {canAnswer && question.status !== 'answered' && (
+          {canAnswer && question.status !== "answered" && (
             <div className="flex gap-2">
               {!showAnswerForm && !showDoubtForm && (
                 <>
-                  <Button
-                    size="sm"
-                    onClick={() => setShowAnswerForm(true)}
-                  >
+                  <Button size="sm" onClick={() => setShowAnswerForm(true)}>
                     Answer
                   </Button>
                   <Button
