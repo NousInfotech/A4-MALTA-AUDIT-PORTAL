@@ -137,86 +137,78 @@ const [clients, setClients] = useState<User[]>([])
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => navigate(-1)}
-                className="w-12 h-12 bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300"
-              >
-                <ArrowLeft className="h-5 w-5 text-blue-600" />
-        </Button>
-              <div className="space-y-2">
-                                    <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent leading-tight">
-                      Create New Engagement
-                    </h1>
-                <p className="text-slate-600 text-lg">
-            Set up a new audit engagement for a client
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => navigate(-1)}
+              className="rounded-xl border-gray-200 hover:bg-gray-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                <Briefcase className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">Create New Engagement</h1>
+                <p className="text-gray-700 animate-fade-in-delay">Set up a new audit engagement for your client</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto">
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">
+        {/* Form Card */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl font-bold text-slate-800">Engagement Details</CardTitle>
-                <CardDescription className="text-slate-600 text-lg">
+                <h2 className="text-2xl font-semibold text-gray-900">Engagement Details</h2>
+                <p className="text-gray-600">
                   Enter the basic information for the new audit engagement
-                </CardDescription>
+                </p>
               </div>
             </div>
-          </CardHeader>
+          </div>
           
-          <CardContent className="p-8">
+          <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Client Selection */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Users className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Client Selection</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Client Selection</h3>
                 </div>
                 
                 <div className="space-y-3">
-                  <Label htmlFor="clientId" className="text-sm font-medium text-slate-700">Select Client *</Label>
+                  <Label htmlFor="clientId" className="text-sm font-medium text-gray-700">Select Client *</Label>
                 <Select value={formData.clientId} onValueChange={(value) => handleChange('clientId', value)}>
-                    <SelectTrigger className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg">
+                    <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
                     <SelectValue placeholder="Choose a client for this engagement" />
                   </SelectTrigger>
-                    <SelectContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl">
+                    <SelectContent className="bg-white border border-gray-200 rounded-xl">
                     {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id} className="rounded-xl">
+                        <SelectItem key={client.id} value={client.id} className="rounded-lg">
                           <div className="py-1">
-                            <div className="font-semibold text-slate-800">{client.companyName}</div>
-                            <div className="text-sm text-slate-600">{client.industry}</div>
+                            <div className="font-semibold text-gray-900">{client.companyName}</div>
+                            <div className="text-sm text-gray-600">{client.industry}</div>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {clients.length === 0 && (
-                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-200">
-                      <p className="text-sm text-slate-700 font-medium">
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <p className="text-sm text-gray-700 font-medium">
                     No clients available. Please add a client first.
                   </p>
                     </div>
@@ -227,33 +219,33 @@ const [clients, setClients] = useState<User[]>([])
               {/* Engagement Details */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Briefcase className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Engagement Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Engagement Information</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label htmlFor="title" className="text-sm font-medium text-slate-700">Engagement Title *</Label>
+                    <Label htmlFor="title" className="text-sm font-medium text-gray-700">Engagement Title *</Label>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleChange('title', e.target.value)}
                   placeholder="e.g., Annual Audit 2024, Interim Review Q3 2024"
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                   required
                 />
               </div>
               
                   <div className="space-y-3">
-                    <Label htmlFor="yearEndDate" className="text-sm font-medium text-slate-700">Year End Date *</Label>
+                    <Label htmlFor="yearEndDate" className="text-sm font-medium text-gray-700">Year End Date *</Label>
                 <Input
                   id="yearEndDate"
                   type="date"
                   value={formData.yearEndDate}
                   onChange={(e) => handleChange('yearEndDate', e.target.value)}
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                   required
                 />
                   </div>
@@ -263,49 +255,49 @@ const [clients, setClients] = useState<User[]>([])
               {/* Next Steps */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <FileText className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Next Steps</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Next Steps</h3>
                 </div>
                 
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100/50">
-                  <h4 className="font-semibold text-slate-800 mb-4 text-lg">After creating this engagement:</h4>
+                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-4 text-lg">After creating this engagement:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
                         <CheckCircle className="h-3 w-3 text-white" />
                       </div>
-                      <span className="text-sm text-slate-700">Upload trial balance data</span>
+                      <span className="text-sm text-gray-700">Upload trial balance data</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-gray-700 rounded-full flex items-center justify-center">
                         <CheckCircle className="h-3 w-3 text-white" />
                       </div>
-                      <span className="text-sm text-slate-700">Send document requests</span>
+                      <span className="text-sm text-gray-700">Send document requests</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
                         <CheckCircle className="h-3 w-3 text-white" />
                       </div>
-                      <span className="text-sm text-slate-700">Generate audit procedures</span>
+                      <span className="text-sm text-gray-700">Generate audit procedures</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
                         <CheckCircle className="h-3 w-3 text-white" />
                       </div>
-                      <span className="text-sm text-slate-700">Export final reports</span>
+                      <span className="text-sm text-gray-700">Export final reports</span>
                     </div>
                   </div>
                 </div>
               </div>
               
               {/* Actions */}
-              <div className="flex items-center gap-4 pt-6 border-t border-blue-100/50">
+              <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button 
                   type="submit" 
                   disabled={isSubmitting || clients.length === 0}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                   Create Engagement
@@ -314,14 +306,14 @@ const [clients, setClients] = useState<User[]>([])
                   type="button" 
                   variant="outline" 
                   onClick={() => navigate(-1)}
-                  className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   Cancel
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

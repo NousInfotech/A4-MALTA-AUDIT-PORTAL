@@ -44,8 +44,8 @@ export default function CenteredActionPage({
       button: 'bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500',
     },
     success: {
-      iconColor: 'text-green-500',
-      button: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500',
+      iconColor: 'text-gray-500',
+      button: 'bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500',
     },
     error: {
       iconColor: 'text-red-500',

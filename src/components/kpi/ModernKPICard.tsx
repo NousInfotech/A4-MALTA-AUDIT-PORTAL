@@ -58,14 +58,14 @@ export function ModernKPICard({ metric }: ModernKPICardProps) {
   };
 
   const getTrendIcon = () => {
-    if (metric.trend === 'up') return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (metric.trend === 'down') return <TrendingDown className="h-4 w-4 text-red-600" />;
+    if (metric.trend === 'up') return <TrendingUp className="h-4 w-4 text-gray-600" />;
+    if (metric.trend === 'down') return <TrendingDown className="h-4 w-4 text-gray-600" />;
     return <Minus className="h-4 w-4 text-gray-400" />;
   };
 
   const getTrendColor = () => {
-    if (metric.trend === 'up') return 'text-green-600';
-    if (metric.trend === 'down') return 'text-red-600';
+    if (metric.trend === 'up') return 'text-gray-600';
+    if (metric.trend === 'down') return 'text-gray-600';
     return 'text-gray-400';
   };
 

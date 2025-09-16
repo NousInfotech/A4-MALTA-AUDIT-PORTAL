@@ -96,19 +96,19 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
   };
 
   return (
-    <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+    <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
       
       <CardHeader className="relative pb-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+          <div className="w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
             <Zap className="h-8 w-8 text-white" />
           </div>
           <div className="flex-1">
-            <CardTitle className="text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors duration-300">
+            <CardTitle className="text-2xl font-bold text-gray-800 group-hover:text-gray-900 transition-colors duration-300">
               Connect Accounting System
             </CardTitle>
-            <CardDescription className="text-slate-600 mt-2 text-lg">
+            <CardDescription className="text-gray-600 mt-2 text-lg">
               Connect your accounting software (QuickBooks, Xero, etc.) to automatically import financial data through our unified API platform.
             </CardDescription>
           </div>
@@ -117,34 +117,34 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
 
       <CardContent className="relative space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+            <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center shadow-lg">
               <Building2 className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-slate-800">Multiple Platforms</p>
-              <p className="text-sm text-slate-600">QuickBooks, Xero, Sage</p>
+              <p className="font-semibold text-gray-800">Multiple Platforms</p>
+              <p className="text-sm text-gray-600">QuickBooks, Xero, Sage</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
-            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+            <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center shadow-lg">
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-slate-800">Enterprise Security</p>
-              <p className="text-sm text-slate-600">Bank-level protection</p>
+              <p className="font-semibold text-gray-800">Enterprise Security</p>
+              <p className="text-sm text-gray-600">Bank-level protection</p>
             </div>
           </div>
         </div>
 
         <div className="space-y-3">
-          <p className="text-sm font-medium text-slate-600">Supported platforms:</p>
+          <p className="text-sm font-medium text-gray-600">Supported platforms:</p>
           <div className="flex flex-wrap gap-2">
             {["QuickBooks", "Xero", "Sage", "FreshBooks"].map((platform) => (
               <Badge
                 key={platform}
-                className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-xs font-semibold"
+                className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 rounded-xl px-3 py-1 text-xs font-semibold"
               >
                 <CheckCircle className="h-3 w-3 mr-1" />
                 {platform}
@@ -153,12 +153,12 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-          <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold">
+        <div className="flex items-center justify-center gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+          <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold">
             <Shield className="h-4 w-4 mr-2" />
             Secure Integration
           </Badge>
-          <Badge className="bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200 rounded-xl px-4 py-2 text-sm font-semibold">
+          <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold">
             <Lock className="h-4 w-4 mr-2" />
             OAuth 2.0
           </Badge>
@@ -169,7 +169,7 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
         <Button
           onClick={handleOpenVault}
           disabled={loading || !linkToken || isVaultOpen}
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-4 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed group-hover:scale-105"
+          className="w-full bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-700 hover:to-gray-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-4 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed group-hover:scale-105"
           size="lg"
         >
           {loading ? (
@@ -191,7 +191,7 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
         </Button>
         
         {loading && (
-          <p className="text-sm text-slate-500 text-center mt-3">
+          <p className="text-sm text-gray-500 text-center mt-3">
             Fetching connection details...
           </p>
         )}

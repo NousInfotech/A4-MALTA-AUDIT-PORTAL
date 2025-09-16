@@ -135,157 +135,138 @@ export const ClientManagement = () => {
     }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <Users className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      Client Management
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Manage your client companies and their information
-                  </p>
-                </div>
-              </div>
-            </div>
-            <Button 
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-3 h-auto" 
-              variant='default' 
-              asChild
-            >
-              <Link to="/employee/clients/new">
-                <Plus className="h-5 w-5 mr-2" />
-                Add New Client
-              </Link>
-            </Button>
-          </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">Client Management</h1>
+          <p className="text-gray-700 animate-fade-in-delay">
+            Manage your client companies and their information
+          </p>
         </div>
-      </div>
 
-      {/* Search Section */}
-      <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-6 shadow-xl">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-          <div className="relative flex-1 w-full max-w-2xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl blur-xl"></div>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-500 h-5 w-5" />
+        {/* Action Button */}
+        <div className="mb-8">
+          <Button 
+            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl transition-all duration-300" 
+            variant='default' 
+            asChild
+          >
+            <Link to="/employee/clients/new">
+              <Plus className="h-5 w-5 mr-2" />
+              Add New Client
+            </Link>
+          </Button>
+        </div>
+
+        {/* Search Section */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30 mb-8">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="relative flex-1 w-full max-w-2xl">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-600 h-5 w-5" />
               <Input
                 placeholder="Search by company name, industry, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 w-full h-14 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg shadow-lg"
+                className="pl-12 w-full h-14 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
               />
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl px-6 py-3">
-              <span className="text-blue-700 font-semibold text-lg">
-                {filteredClients.length} of {clients.length} clients
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="bg-gray-50 rounded-xl px-6 py-3">
+                <span className="text-gray-700 font-semibold text-lg">
+                  {filteredClients.length} of {clients.length} clients
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Clients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-        {filteredClients.map((client) => {
-          const activeEngagements = engagements.filter(eng => eng.clientId === client.id && eng.status === 'active').length;
-          const totalEngagements = engagements.filter(eng => eng.clientId === client.id).length;
-          
-          return (
-            <Card key={client.id} className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <CardHeader className="relative pb-6">
-                <div className="flex items-start justify-between">
+        {/* Clients Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredClients.map((client) => {
+            const activeEngagements = engagements.filter(eng => eng.clientId === client.id && eng.status === 'active').length;
+            const totalEngagements = engagements.filter(eng => eng.clientId === client.id).length;
+            
+            return (
+              <div key={client.id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                      <Building2 className="h-8 w-8 text-white" />
+                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-bold text-slate-800 truncate group-hover:text-blue-700 transition-colors duration-300">
+                      <h3 className="text-lg font-semibold text-gray-900 truncate">
                         {client.companyName}
-                      </CardTitle>
-                      <p className="text-sm text-slate-500 font-medium">{client.companyNumber}</p>
+                      </h3>
+                      <p className="text-sm text-gray-600 font-medium">{client.companyNumber}</p>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="relative space-y-6">
-                <div className="space-y-4">
-                  <Badge 
-                    variant="secondary" 
-                    className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold"
+                  
+                  <div className="space-y-4">
+                    <Badge 
+                      variant="secondary" 
+                      className="bg-gray-100 text-gray-700 border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold"
+                    >
+                      {client.industry || 'N/A'}
+                    </Badge>
+                    <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+                      {client.summary || 'No summary available for this client.'}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <TrendingUp className="h-4 w-4 text-gray-600" />
+                        <span className="text-xs text-gray-600 font-semibold uppercase">Active</span>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-700">{activeEngagements}</span>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Calendar className="h-4 w-4 text-gray-600" />
+                        <span className="text-xs text-gray-600 font-semibold uppercase">Total</span>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-700">{totalEngagements}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm pt-2">
+                    <span className="text-gray-500">Added</span>
+                    <span className="font-semibold text-gray-700">
+                      {new Date(client.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  
+                  <Button 
+                    className="w-full bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl py-3 h-auto" 
+                    size="sm" 
+                    variant="default" 
+                    asChild
                   >
-                    {client.industry || 'N/A'}
-                  </Badge>
-                  <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">
-                    {client.summary || 'No summary available for this client.'}
-                  </p>
+                    <Link 
+                      to={`/employee/clients/${client.id}`}
+                      onClick={() => logViewClient(client.companyName || 'Unknown Client', `Employee viewed client details for ${client.companyName}`)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </Link>
+                  </Button>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-blue-100/50">
-                  <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <TrendingUp className="h-4 w-4 text-blue-600" />
-                      <span className="text-xs text-blue-600 font-semibold uppercase">Active</span>
-                    </div>
-                    <span className="text-2xl font-bold text-blue-700">{activeEngagements}</span>
-                  </div>
-                  <div className="text-center p-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <Calendar className="h-4 w-4 text-indigo-600" />
-                      <span className="text-xs text-indigo-600 font-semibold uppercase">Total</span>
-                    </div>
-                    <span className="text-2xl font-bold text-indigo-700">{totalEngagements}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between text-sm pt-2">
-                  <span className="text-slate-500">Added</span>
-                  <span className="font-semibold text-slate-700">
-                    {new Date(client.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                
-                <Button 
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105" 
-                  size="sm" 
-                  variant="default" 
-                  asChild
-                >
-                  <Link 
-                    to={`/employee/clients/${client.id}`}
-                    onClick={() => logViewClient(client.companyName || 'Unknown Client', `Employee viewed client details for ${client.companyName}`)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
 
-      {filteredClients.length === 0 && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl">
-          <CardContent className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <Building2 className="h-10 w-10 text-blue-600" />
+        {filteredClients.length === 0 && (
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-16 text-center shadow-lg shadow-gray-300/30">
+            <div className="w-20 h-20 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <Building2 className="h-10 w-10 text-gray-600" />
             </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3">
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">
               {searchTerm ? 'No clients found' : 'No clients yet'}
             </h3>
-            <p className="text-slate-600 text-lg mb-6 max-w-md mx-auto">
+            <p className="text-gray-600 text-lg mb-6 max-w-md mx-auto">
               {searchTerm 
                 ? 'Try adjusting your search terms to find what you\'re looking for'
                 : 'Start by adding your first client to begin managing audit engagements'
@@ -293,7 +274,7 @@ export const ClientManagement = () => {
             </p>
             {!searchTerm && (
               <Button 
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-3" 
+                className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3" 
                 variant='default' 
                 asChild
               >
@@ -303,9 +284,9 @@ export const ClientManagement = () => {
                 </Link>
               </Button>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

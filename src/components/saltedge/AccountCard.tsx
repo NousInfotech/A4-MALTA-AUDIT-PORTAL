@@ -75,7 +75,7 @@ const AccountCard: React.FC<AccountCardProps> = ({ account, onSelect, selectedAc
         </div>
         <Badge
           className={`text-xs capitalize ${
-            extra.status === 'active' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+            extra.status === 'active' ? 'bg-gray-500 hover:bg-gray-600' : 'bg-red-500 hover:bg-red-600'
           }`}
         >
           {nature.replace('_', ' ')}
@@ -98,7 +98,7 @@ const AccountCard: React.FC<AccountCardProps> = ({ account, onSelect, selectedAc
 
         <div className='flex items-baseline justify-between'>
           <div className='text-3xl font-bold'>
-            <span className={isNegativeBalance ? 'text-red-600' : 'text-green-600'}>
+            <span className={isNegativeBalance ? 'text-red-600' : 'text-gray-600'}>
               {formatCurrency(balance, currency_code)}
             </span>
           </div>

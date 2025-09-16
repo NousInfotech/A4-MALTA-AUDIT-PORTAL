@@ -178,56 +178,49 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
     <div
       className={cn(
         // container
-        "fixed inset-y-0 left-0 bg-gradient-to-b from-slate-50 via-blue-50/30 to-indigo-50/20 text-slate-800 flex flex-col transform transition-all duration-300 ease-in-out z-50 md:static md:z-auto md:translate-x-0",
+        "fixed inset-y-0 left-0 bg-black text-white flex flex-col transform transition-all duration-300 ease-in-out z-50 md:static md:z-auto md:translate-x-0",
         // mobile slide
         isOpen ? "translate-x-0" : "-translate-x-full",
         // desktop width
         isCollapsed ? "md:w-20" : "md:w-72",
         // modern styling
-        "backdrop-blur-xl border-r border-blue-100/50 shadow-xl"
+        "border-r border-gray-800 shadow-xl"
       )}
     >
       {/* Header */}
       <div className={cn(
-        "border-b border-blue-100/30",
+        "border-b border-gray-800",
         isCollapsed ? "p-4" : "p-6"
       )}>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <img src="/logo.png" alt="Logo" className="h-10 w-10 object-cover rounded" />
+            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
+              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-cover rounded" />
             </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
           </div>
           
           <div className={cn(
             "flex-1 transition-all duration-300 ease-in-out",
             isCollapsed ? "md:opacity-0 md:w-0 md:overflow-hidden" : "md:opacity-100 md:w-auto"
           )}>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              AuditPortal
+            <h1 className="text-xl font-bold text-white">
+              Audit Portal
             </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <p className="text-sm text-slate-600 capitalize font-medium">
-                {user.role} Panel
-              </p>
-            </div>
           </div>
         </div>
 
         {/* Mobile close */}
         <button
-          className="md:hidden absolute top-6 right-6 p-2 rounded-lg bg-blue-100/50 hover:bg-blue-200/50 transition-colors"
+          className="md:hidden absolute top-6 right-6 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
           onClick={onClose}
           aria-label="Close Menu"
         >
           <div className="w-5 h-5 relative">
             <div className="absolute inset-0 rotate-45">
-              <div className="w-0.5 h-5 bg-slate-600 rounded-full"></div>
+              <div className="w-0.5 h-5 bg-white rounded-full"></div>
             </div>
             <div className="absolute inset-0 -rotate-45">
-              <div className="w-0.5 h-5 bg-slate-600 rounded-full"></div>
+              <div className="w-0.5 h-5 bg-white rounded-full"></div>
             </div>
           </div>
         </button>
@@ -235,20 +228,20 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
 
       {/* Quick Stats */}
       {!isCollapsed && (
-        <div className="px-4 py-3 border-b border-blue-100/20">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-3 border border-blue-100/30">
+        <div className="px-4 py-3 border-b border-gray-800">
+          <div className="bg-gray-900 rounded-2xl p-3 border border-gray-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-600" />
-                <span className="text-xs text-slate-600 font-medium">Today's Tasks</span>
+                <Clock className="h-4 w-4 text-white" />
+                <span className="text-xs text-gray-300 font-medium">Today's Tasks</span>
               </div>
-              <span className="text-xs font-semibold text-blue-600">
+              <span className="text-xs font-semibold text-white">
                 {loading ? '...' : stats.todayTasks}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <Calendar className="h-3 w-3 text-slate-500" />
-              <span className="text-xs text-slate-500">
+              <Calendar className="h-3 w-3 text-gray-400" />
+              <span className="text-xs text-gray-400">
                 Next: {loading ? 'Loading...' : stats.nextTask}
               </span>
             </div>
@@ -279,16 +272,16 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                   isCollapsed 
                     ? 'justify-center px-2 py-3 rounded-2xl' 
                     : 'gap-4 px-4 py-3 rounded-2xl',
-                  'hover:scale-[1.02] hover:shadow-lg hover:shadow-blue-500/10',
+                  'hover:scale-[1.02] hover:shadow-lg hover:shadow-gray-500/10',
                   isActive
-                    ? 'bg-gradient-to-r from-blue-500/20 to-indigo-500/10 text-blue-700 border border-blue-200/50 shadow-lg shadow-blue-500/20'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-blue-50/50 border border-transparent'
+                    ? 'bg-gray-800 text-white border border-gray-700 shadow-lg shadow-gray-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800/50 border border-transparent'
                 )}
                 title={isCollapsed ? item.title : undefined}
               >
                 {/* Active indicator */}
                 {isActive && !isCollapsed && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-r-full"></div>
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full"></div>
                 )}
                 
                 {/* Icon container */}
@@ -297,15 +290,12 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                   isCollapsed ? 'w-8 h-8' : 'w-10 h-10',
                   'rounded-xl',
                   isActive
-                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30'
-                    : 'bg-blue-100/50 text-slate-600 group-hover:bg-blue-200/50 group-hover:text-slate-800'
+                    ? 'bg-white text-black shadow-lg'
+                    : 'bg-gray-800 text-white group-hover:bg-gray-700'
                 )}>
                   <Icon className={cn(
                     isCollapsed ? "h-4 w-4" : "h-5 w-5"
                   )} />
-                  {isActive && (
-                    <div className="absolute inset-0 rounded-xl bg-blue-500/20 animate-ping"></div>
-                  )}
                 </div>
 
                 {/* Text content */}
@@ -314,13 +304,13 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-sm">{item.title}</div>
                       {item.badge && (
-                        <div className="px-2 py-0.5 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 text-xs rounded-full font-medium border border-blue-200">
+                        <div className="px-2 py-0.5 bg-gray-700 text-white text-xs rounded-full font-medium border border-gray-600">
                           {loading && item.getBadge ? '...' : item.badge}
                         </div>
                       )}
                     </div>
                     {item.description && (
-                      <div className="text-xs text-slate-500 mt-0.5">
+                      <div className="text-xs text-gray-400 mt-0.5">
                         {item.description}
                       </div>
                     )}
@@ -332,8 +322,8 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                   'absolute inset-0 transition-opacity duration-300',
                   isCollapsed ? 'rounded-2xl' : 'rounded-2xl',
                   isActive
-                    ? 'bg-gradient-to-r from-blue-500/5 to-transparent opacity-100'
-                    : 'bg-gradient-to-r from-blue-100/5 to-transparent opacity-0 group-hover:opacity-100'
+                    ? 'bg-gradient-to-r from-gray-800/5 to-transparent opacity-100'
+                    : 'bg-gradient-to-r from-gray-800/5 to-transparent opacity-0 group-hover:opacity-100'
                 )}></div>
               </Link>
             );
@@ -343,40 +333,40 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
 
       {/* Footer / User */}
       <div className={cn(
-        "border-t border-blue-100/30",
+        "border-t border-gray-800",
         isCollapsed ? "p-2" : "p-4"
       )}>
         <div className={cn(
-          "border border-blue-100/30",
-          isCollapsed ? "bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-2" : "bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-4"
+          "border border-gray-700",
+          isCollapsed ? "bg-gray-900 rounded-2xl p-2" : "bg-gray-900 rounded-2xl p-4"
         )}>
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className={cn(
-                "bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25",
+                "bg-white rounded-2xl flex items-center justify-center",
                 isCollapsed ? "w-8 h-8" : "w-10 h-10"
               )}>
                 <span className={cn(
-                  "font-bold text-white",
+                  "font-bold text-black",
                   isCollapsed ? "text-xs" : "text-sm"
                 )}>
                   {user.name?.charAt(0)?.toUpperCase()}
                 </span>
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-black"></div>
             </div>
 
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">
+                <p className="text-sm font-semibold text-white truncate">
                   {user.name}
                 </p>
-                <p className="text-xs text-slate-600 truncate">
+                <p className="text-xs text-gray-400 truncate">
                   {user.email}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-slate-500">Online</span>
+                  <span className="text-xs text-gray-400">Online</span>
                 </div>
               </div>
             )}

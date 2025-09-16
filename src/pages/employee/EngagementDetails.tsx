@@ -203,135 +203,92 @@ export const EngagementDetails = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <Button
-                variant="outline"
-                size="icon"
-                asChild
-                className="w-12 h-12 bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300"
-                aria-label="Back to engagements"
-              >
-                <Link to="/employee/engagements">
-                  <ArrowLeft className="h-5 w-5 text-blue-600" />
-                </Link>
-              </Button>
-              <div className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent break-words leading-tight">
-                    {engagement.title}
-                  </h1>
-                  <Badge
-                    variant="outline"
-                    className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(
-                      engagement.status
-                    )}`}
-                  >
-                    {engagement.status}
-                  </Badge>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-6 text-slate-600">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                      <Building2 className="h-4 w-4 text-white" />
-                    </div>
-                    <span className="font-medium">
-                      Client ID: {engagement.clientId}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                      <Calendar className="h-4 w-4 text-white" />
-                    </div>
-                    <span className="font-medium">
-                      Year End:{" "}
-                      {new Date(engagement.yearEndDate).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="outline"
+              size="icon"
+              asChild
+              className="rounded-xl border-gray-200 hover:bg-gray-50"
+              aria-label="Back to engagements"
+            >
+              <Link to="/employee/engagements">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">{engagement.title}</h1>
+                <p className="text-gray-700 animate-fade-in-delay">Engagement Details</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Review Notes Panel */}
-      {/* <EnhancedReviewNotesPanel 
-      {/* <EnhancedReviewNotesPanel 
-        pageId={`engagement-${id}`} 
-        pageName={`Engagement: ${engagement?.title || 'Details'}`}
-        engagementId={id}
-      /> */}
-
-      {/* Tabs Section */}
-      <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <Tabs defaultValue="overview" className="space-y-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6 flex justify-between">
-            <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-transparent sm:scrollbar-none">
-              <TabsList className="min-w-max sm:min-w-0 bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-1">
-                <TabsTrigger
-                  value="overview"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger
-                  value="trial-balance"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Audit
-                </TabsTrigger>
+        {/* Tabs Section */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          <Tabs defaultValue="overview" className="space-y-6">
+            <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between">
+              <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none">
+                <TabsList className="min-w-max sm:min-w-0 bg-white border border-gray-200 rounded-xl p-1">
+                  <TabsTrigger
+                    value="overview"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="trial-balance"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Audit
+                  </TabsTrigger>
                 <TabsTrigger
                   value="requests"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Document Requests
                 </TabsTrigger>
                 <TabsTrigger
                   value="procedures"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Procedures
                 </TabsTrigger>
                 <TabsTrigger
                   value="checklist"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-500 data-[state=active]:to-amber-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Checklist
                 </TabsTrigger>
                 <TabsTrigger
                   value="library"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <Library className="h-4 w-4 mr-2" />
                   Library
                 </TabsTrigger>
                 <TabsTrigger
                   value="kyc"
-                  className="whitespace-nowrap rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   KYC
                 </TabsTrigger>
               </TabsList>
             </div>
-            <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-indigo-500 text-white hover:brightness-105">
+            <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-900">
               See the PBC Work Flow
             </button>
           </div>
@@ -390,6 +347,7 @@ export const EngagementDetails = () => {
           onClosePBC={handleClosePBC}
         />
       )}
+      </div>
     </div>
   );
 };

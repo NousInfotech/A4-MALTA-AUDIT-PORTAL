@@ -59,7 +59,7 @@ export default function ApideckHomePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-gray-800 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -71,75 +71,75 @@ export default function ApideckHomePage() {
     <div className="space-y-8">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 Total Services
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <Building2 className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               {services.length}
             </div>
-            <p className="text-sm text-slate-600 mb-3">Available services</p>
-            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">Available services</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 API integrations
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 Active Connections
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <TrendingUp className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               {activeConnections}
             </div>
-            <p className="text-sm text-slate-600 mb-3">Currently active</p>
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">Currently active</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 Live connections
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 API Status
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <Shield className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               Unified
             </div>
-            <p className="text-sm text-slate-600 mb-3">API platform</p>
-            <div className="p-3 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">API platform</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 Enterprise ready
               </p>
             </div>
@@ -148,16 +148,16 @@ export default function ApideckHomePage() {
       </div>
 
       {/* Connection List Section */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
+      <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-gray-50/50 to-gray-100/50 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-3 text-xl font-bold text-slate-800">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
                 <Zap className="h-5 w-5 text-white" />
               </div>
               API Connections
             </CardTitle>
-            <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold">
+            <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold">
               {activeConnections} Active
             </Badge>
           </div>
@@ -168,10 +168,10 @@ export default function ApideckHomePage() {
       </Card>
 
       {/* Data Display Section */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
-          <CardTitle className="flex items-center gap-3 text-xl font-bold text-slate-800">
-            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+      <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-gray-50/50 to-gray-100/50 border-b border-gray-200">
+          <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800">
+            <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
               <Building2 className="h-5 w-5 text-white" />
             </div>
             Data Display

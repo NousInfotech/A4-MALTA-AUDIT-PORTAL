@@ -29,24 +29,11 @@ import {
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
-import PbcDialog from "@/components/pbc/PbcDialog";
-import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 export const EngagementManagement = () => {
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
-  const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
-
-
-  const handleOpenPBC = (engagement) => {
-    setSelectedEngagement(engagement)
-    setIsPBCModalOpen(true)
-  }
-
-  const handleClosePBC = () => {
-    setIsPBCModalOpen(false)
-  }
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,13 +42,6 @@ export const EngagementManagement = () => {
   >("active");
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
-  const { 
-    logViewEngagement, 
-    logStartEngagement, 
-    logKYCSetup, 
-    logKYCComplete, 
-    logESignature 
-  } = useActivityLogger();
 
   interface User {
     summary: string;
@@ -135,10 +115,6 @@ export const EngagementManagement = () => {
     setSelectedEngagement(engagement);
     setIsKYCModalOpen(true);
     
-    // Log the engagement start
-    const client = clients.find(c => c.id === engagement.clientId);
-    logStartEngagement(engagement.title, client?.companyName || 'Unknown Client');
-    
     console.log('🔐 Opening KYC Modal...');
     toast({
       title: "Starting Engagement",
@@ -158,9 +134,6 @@ export const EngagementManagement = () => {
       status: kycData.status,
       createdAt: kycData.createdAt
     });
-    
-    // Log KYC completion
-    logKYCComplete(kycData.engagementTitle || 'Unknown Engagement', kycData.clientName || 'Unknown Client');
     
     console.log('🔄 Opening E-Signature Portal...');
     // After KYC completion, open the signing portal modal
@@ -241,265 +214,189 @@ export const EngagementManagement = () => {
     completed: engagements.filter(e => e.status === 'completed').length,
     draft: engagements.filter(e => e.status === 'draft').length,
   };
-  console.log(engagements)
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <Briefcase className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent leading-tight">
-                      Engagement Management
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Manage your audit engagements and track progress
-                  </p>
-                </div>
-              </div>
-            </div>
-            <Button 
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto" 
-              asChild
-            >
-              <Link to="/employee/engagements/new">
-                <Plus className="h-5 w-5 mr-2" />
-                New Engagement
-              </Link>
-            </Button>
-          </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">Engagement Management</h1>
+          <p className="text-gray-700 animate-fade-in-delay">
+            Manage and track all your audit engagements
+          </p>
         </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">Total</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Briefcase className="h-5 w-5 text-white" />
+        {/* Action Button */}
+        <div className="mb-8">
+          <Button 
+            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl transition-all duration-300" 
+            asChild
+          >
+            <Link to="/employee/engagements/new">
+              <Plus className="h-5 w-5 mr-2" />
+              New Engagement
+            </Link>
+          </Button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { title: "Total Engagements", value: stats.total, icon: Briefcase, color: "text-gray-300" },
+            { title: "Active Engagements", value: stats.active, icon: TrendingUp, color: "text-gray-300" },
+            { title: "Completed Engagements", value: stats.completed, icon: FileText, color: "text-gray-300" },
+            { title: "Draft Engagements", value: stats.draft, icon: Clock, color: "text-gray-300" }
+          ].map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+                <div className="flex items-center justify-between mb-4">
+                  <Icon className="h-6 w-6 text-gray-800" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                  <p className="text-sm text-gray-700">{stat.title}</p>
+                </div>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">{stats.total}</div>
-            <p className="text-sm text-slate-600 mb-3">All engagements</p>
-            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-              <p className="text-xs font-semibold text-slate-700">Total count</p>
-            </div>
-          </CardContent>
-        </Card>
+            );
+          })}
+        </div>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">Active</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <TrendingUp className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">{stats.active}</div>
-            <p className="text-sm text-slate-600 mb-3">Ongoing audits</p>
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
-              <p className="text-xs font-semibold text-slate-700">Currently active</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-gray-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">Completed</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-slate-500 to-gray-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">{stats.completed}</div>
-            <p className="text-sm text-slate-600 mb-3">Finished audits</p>
-            <div className="p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl border border-slate-100/50">
-              <p className="text-xs font-semibold text-slate-700">Successfully completed</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">Draft</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Clock className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">{stats.draft}</div>
-            <p className="text-sm text-slate-600 mb-3">In preparation</p>
-            <div className="p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50">
-              <p className="text-xs font-semibold text-slate-700">Draft status</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search + Status Section */}
-      <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-6 shadow-xl">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-          <div className="relative flex-1 w-full max-w-2xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl blur-xl"></div>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-500 h-5 w-5" />
+        {/* Search + Status Section */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30 mb-8">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="relative flex-1 w-full max-w-2xl">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-600 h-5 w-5" />
               <Input
                 placeholder="Search by engagement title, status, client company, or industry..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 w-full h-14 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg shadow-lg"
+                className="pl-12 w-full h-14 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
               />
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-2">
+                <Filter className="h-4 w-4 text-gray-600" />
+                <span className="text-sm text-gray-700 font-medium">Filter:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {['All', 'draft', 'active', 'completed'].map((status) => (
+                  <Button
+                    key={status}
+                    variant={statusFilter === status ? 'default' : 'outline'}
+                    onClick={() => setStatusFilter(status as any)}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                      statusFilter === status 
+                        ? 'bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800'
+                    }`}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl px-4 py-2">
-              <Filter className="h-4 w-4 text-blue-600" />
-              <span className="text-sm text-blue-700 font-medium">Filter:</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {['All', 'draft', 'active', 'completed'].map((status) => (
-                <Button
-                  key={status}
-                  variant={statusFilter === status ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter(status as any)}
-                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                    statusFilter === status 
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg'
-                      : 'border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Button>
-              ))}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="bg-gray-50 rounded-xl px-6 py-3">
+              <span className="text-gray-700 font-semibold text-lg">
+                {filteredEngagements.length} of {engagements.length} engagements
+              </span>
             </div>
           </div>
         </div>
-        
-        <div className="mt-4 flex items-center justify-between">
-          <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-2xl px-6 py-3">
-            <span className="text-blue-700 font-semibold text-lg">
-              {filteredEngagements.length} of {engagements.length} engagements
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* Engagements Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {filteredEngagements.map((engagement: any) => {
-          const client = clients.find((c) => c.id === engagement.clientId);
-          return (
-            <Card key={engagement._id} className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <CardHeader className="relative pb-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                      <Briefcase className="h-7 w-7 text-white" />
+        {/* Engagements Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredEngagements.map((engagement: any) => {
+            const client = clients.find((c) => c.id === engagement.clientId);
+            return (
+              <div key={engagement._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                      <Briefcase className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-bold text-slate-800 truncate group-hover:text-green-700 transition-colors duration-300">
+                      <h3 className="text-lg font-semibold text-gray-900 truncate">
                         {engagement.title}
-                      </CardTitle>
-                      <p className="text-sm text-slate-600 flex items-center gap-2 min-w-0 mt-1">
+                      </h3>
+                      <p className="text-sm text-gray-600 flex items-center gap-2 min-w-0 mt-1">
                         <Building2 className="h-4 w-4 flex-shrink-0" />
                         <span className="truncate">{client?.companyName || 'Unknown Client'}</span>
                       </p>
                     </div>
+                    <Badge variant="outline" className={`rounded-xl px-3 py-1 text-sm font-semibold ${
+                      engagement.status === 'active' ? 'bg-gray-800 text-white border-gray-800' :
+                      engagement.status === 'completed' ? 'bg-gray-700 text-white border-gray-700' :
+                      'bg-gray-600 text-white border-gray-600'
+                    }`}>
+                      {engagement.status}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className={`rounded-2xl px-4 py-2 text-sm font-semibold ${getStatusStyle(engagement.status)} self-start`}>
-                    {engagement.status}
-                  </Badge>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <Calendar className="h-5 w-5 text-gray-600" />
+                      <span className="text-sm text-gray-700 font-medium">
+                        Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <FileText className="h-5 w-5 text-gray-600" />
+                      <span className="text-sm text-gray-700 font-medium">
+                        Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button
+                      className="flex-1 bg-gray-800 hover:bg-gray-900 text-white rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                      variant="default"
+                      size="sm"
+                      asChild
+                    >
+                      <Link to={`/employee/engagements/${engagement._id}`}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Link>
+                    </Button>
+                    <Button
+                      className="bg-gray-700 hover:bg-gray-800 text-white rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedEngagement(engagement);
+                        setIsKYCModalOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Start
+                    </Button>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="relative space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm text-slate-700 font-medium">
-                    Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl">
-                  <FileText className="h-5 w-5 text-indigo-600" />
-                  <span className="text-sm text-slate-700 font-medium">
-                    Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
-                  </span>
-                </div>
+              </div>
+            );
+          })}
+        </div>
 
-                {/* <div>
-                    <button onClick={() => handleOpenPBC(engagement)} className="text-blue-500 ">see the pbc work flow 👉</button>
-                </div> */}
-
-                <Button
-                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105"
-                  variant="default"
-                  size="sm"
-                  asChild
-                >
-                  <Link 
-                    to={`/employee/engagements/${engagement._id}`}
-                    onClick={() => logViewEngagement(engagement.title)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Link>
-                </Button>
-
-                {/* Start Engagement button with KYC popup */}
-                <Button
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl py-3 h-auto group-hover:scale-105"
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedEngagement(engagement);
-                    setIsKYCModalOpen(true);
-                  }}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Start Engagement
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {filteredEngagements.length === 0 && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl">
-          <CardContent className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <Briefcase className="h-10 w-10 text-green-600" />
+        {filteredEngagements.length === 0 && (
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-16 text-center shadow-lg shadow-gray-300/30">
+            <div className="w-20 h-20 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <Briefcase className="h-10 w-10 text-gray-600" />
             </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3">
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">
               {searchTerm ? 'No engagements found' : 'No engagements yet'}
             </h3>
-            <p className="text-slate-600 text-lg mb-6 max-w-md mx-auto">
+            <p className="text-gray-600 text-lg mb-6 max-w-md mx-auto">
               {searchTerm ? 'Try adjusting your search terms to find what you\'re looking for' : 'Start by creating your first audit engagement'}
             </p>
             {!searchTerm && (
               <Button 
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-3" 
+                className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3" 
                 asChild
               >
                 <Link to="/employee/engagements/new">
@@ -508,10 +405,10 @@ export const EngagementManagement = () => {
                 </Link>
               </Button>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
+      </div>
 
       {isSignModalOpen && (
         <SigningPortalModal
@@ -529,15 +426,6 @@ export const EngagementManagement = () => {
           open={isKYCModalOpen}
           onOpenChange={setIsKYCModalOpen}
           onKYCComplete={handleKYCComplete}
-        />
-      )}
-
-      {isPBCModalOpen && (
-        <PbcDialog
-          selectedEngagement={selectedEngagement}
-          open={isPBCModalOpen}
-          onOpenChange={setIsPBCModalOpen}
-          onClosePBC={handleClosePBC}
         />
       )}
     </div>

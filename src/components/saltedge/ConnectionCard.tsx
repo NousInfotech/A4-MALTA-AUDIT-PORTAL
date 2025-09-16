@@ -97,13 +97,13 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
   const getStatusStyle = (status: Connection['status']) => {
     switch (status) {
       case 'active':
-        return 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 border-green-300 shadow-green-100';
+        return 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 border-gray-300 shadow-gray-100';
       case 'inactive':
-        return 'bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-800 border-amber-300 shadow-amber-100';
+        return 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 border-gray-300 shadow-gray-100';
       case 'error':
         return 'bg-gradient-to-r from-red-50 to-rose-50 text-red-800 border-red-300 shadow-red-100';
       default:
-        return 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-800 border-blue-300 shadow-blue-100';
+        return 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 border-gray-300 shadow-gray-100';
     }
   };
 
@@ -134,12 +134,12 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
     <TooltipProvider>
       <Card 
         onClick={() => onSelect(connection)} 
-        className="group bg-white border border-gray-200 hover:border-blue-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden cursor-pointer w-full max-w-sm"
+        className="group bg-white border border-gray-200 hover:border-gray-300 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden cursor-pointer w-full max-w-sm"
       >
         {/* Header */}
         <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center">
               <Building2 className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
@@ -157,20 +157,20 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
         <CardContent className="space-y-4">
           {/* Status Badges */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-              <Calendar className="h-4 w-4 text-blue-600" />
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+              <Calendar className="h-4 w-4 text-gray-600" />
               <div>
-                <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">CREATED</p>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">CREATED</p>
                 <p className="text-sm font-semibold text-gray-900">
                   {formatDateTime(connection.created_at)}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-              <Shield className="h-4 w-4 text-green-600" />
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+              <Shield className="h-4 w-4 text-gray-600" />
               <div>
-                <p className="text-xs font-medium text-green-600 uppercase tracking-wide">LAST SUCCESS</p>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">LAST SUCCESS</p>
                 <p className="text-sm font-semibold text-gray-900">
                   {formatDateTime(connection.last_success_at)}
                 </p>
@@ -205,7 +205,7 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
                 variant="secondary"
                 className={`text-xs px-2 py-1 ${
                   connection.daily_refresh 
-                    ? 'bg-green-100 text-green-700' 
+                    ? 'bg-gray-100 text-gray-700' 
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
@@ -219,7 +219,7 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
         <CardFooter className="flex  flex-col justify-between items-center pt-4 border-t border-gray-100 px-4 pb-4">
           <div className="flex mb-2 items-center gap-2 flex-shrink-0">
             <div className={`w-2 h-2 rounded-full ${
-              connection.status === 'active' ? 'bg-green-500' : 
+              connection.status === 'active' ? 'bg-gray-500' : 
               connection.status === 'inactive' ? 'bg-yellow-500' : 
               connection.status === 'error' ? 'bg-red-500' : 'bg-gray-400'
             }`}></div>
@@ -237,7 +237,7 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
             </Button>
             <Button 
               size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 h-7 min-w-0 flex-shrink-0"
+              className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1.5 h-7 min-w-0 flex-shrink-0"
             >
               <Settings className="h-3 w-3 mr-1" />
               Manage

@@ -54,75 +54,75 @@ export default function BankData({ readOnly = false }: BankDataProps) {
     <div className="space-y-8">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 Total Connections
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <Building2 className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               {totalConnections}
             </div>
-            <p className="text-sm text-slate-600 mb-3">Bank connections</p>
-            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">Bank connections</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 All connections
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 Active Connections
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <TrendingUp className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               {activeConnections}
             </div>
-            <p className="text-sm text-slate-600 mb-3">Currently active</p>
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">Currently active</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 Live connections
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="group bg-white/80 backdrop-blur-sm border border-gray-200 hover:border-gray-300 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-gray-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <CardHeader className="relative pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-600">
                 Security Status
               </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                 <Shield className="h-5 w-5 text-white" />
               </div>
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="text-3xl font-bold text-gray-800 mb-2">
               PCI DSS
             </div>
-            <p className="text-sm text-slate-600 mb-3">Compliant</p>
-            <div className="p-3 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-100/50">
-              <p className="text-xs font-semibold text-slate-700">
+            <p className="text-sm text-gray-600 mb-3">Compliant</p>
+            <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+              <p className="text-xs font-semibold text-gray-700">
                 Bank-level security
               </p>
             </div>
@@ -132,10 +132,10 @@ export default function BankData({ readOnly = false }: BankDataProps) {
 
       {/* Connect Button Section - Only show for clients */}
       {!readOnly && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
-            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-gray-50/50 to-gray-100/50 border-b border-gray-200">
+            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-gray-800">
+              <div className="w-12 h-12 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
                 <CreditCard className="h-6 w-6 text-white" />
               </div>
               Bank Account Connection
@@ -149,10 +149,10 @@ export default function BankData({ readOnly = false }: BankDataProps) {
 
       {/* Read-Only Notice for Auditors */}
       {readOnly && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
-            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-slate-800">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-gray-50/50 to-gray-100/50 border-b border-gray-200">
+            <CardTitle className="flex items-center gap-3 text-2xl font-bold text-gray-800">
+              <div className="w-12 h-12 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
                 <Shield className="h-6 w-6 text-white" />
               </div>
               Connected Bank Accounts (Read-Only)
@@ -160,16 +160,16 @@ export default function BankData({ readOnly = false }: BankDataProps) {
           </CardHeader>
           <CardContent className="p-8">
             <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center shadow-lg mx-auto">
-                <Shield className="h-8 w-8 text-blue-600" />
+              <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center shadow-lg mx-auto">
+                <Shield className="h-8 w-8 text-gray-600" />
               </div>
-              <h4 className="text-xl font-bold text-slate-800">Audit Access</h4>
-              <p className="text-slate-600 max-w-md mx-auto">
+              <h4 className="text-xl font-bold text-gray-800">Audit Access</h4>
+              <p className="text-gray-600 max-w-md mx-auto">
                 You can view connected bank accounts and transaction data for audit purposes. 
                 You cannot create new connections or modify existing ones.
               </p>
               <div className="flex items-center justify-center gap-2">
-                <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                <Badge className="bg-gray-100 text-gray-700 border-gray-300">
                   <Shield className="h-3 w-3 mr-1" />
                   Read-Only Access
                 </Badge>
@@ -181,16 +181,16 @@ export default function BankData({ readOnly = false }: BankDataProps) {
 
       {/* Connections Grid */}
       {connections.length > 0 && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-blue-100/50">
+        <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-gray-50/50 to-gray-100/50 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-3 text-xl font-bold text-slate-800">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800">
+                <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
                   <Building2 className="h-5 w-5 text-white" />
                 </div>
                 Connected Banks
               </CardTitle>
-              <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200 rounded-xl px-4 py-2 text-sm font-semibold">
+              <Badge className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold">
                 {activeConnections} Active
               </Badge>
             </div>

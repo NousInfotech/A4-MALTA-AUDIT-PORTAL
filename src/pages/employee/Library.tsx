@@ -90,7 +90,7 @@ export default function GlobalLibraryPage() {
         return <FileText className="h-4 w-4 text-green-600" />
       case "docx":
       case "doc":
-        return <FileText className="h-4 w-4 text-blue-600" />
+        return <FileText className="h-4 w-4 text-gray-600" />
       case "jpg":
       case "jpeg":
       case "png":
@@ -295,212 +295,203 @@ export default function GlobalLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Library className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    Global Document Library
-                  </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Company-wide folders and documents
-                  </p>
-                </div>
-              </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+              <Library className="h-6 w-6 text-white" />
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
-                <DialogTrigger asChild>
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">Global Document Library</h1>
+              <p className="text-gray-700 animate-fade-in-delay">Company-wide folders and documents</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
+          <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                New Folder
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-white border border-gray-200 rounded-xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-gray-900">Create New Folder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <Input
+                  placeholder="Folder name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button 
+                    onClick={handleCreateFolder} 
+                    disabled={!newFolderName.trim() || creating} 
+                    className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                  >
+                    {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
+                    Create Folder
+                  </Button>
                   <Button 
                     variant="outline" 
-                    className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+                    onClick={() => setIsCreateFolderOpen(false)}
+                    className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
-                    New Folder
+                    Cancel
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-3xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-slate-800">Create New Folder</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="Folder name"
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
-                    />
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Button 
-                        onClick={handleCreateFolder} 
-                        disabled={!newFolderName.trim() || creating} 
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                      >
-                        {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
-                        Create Folder
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setIsCreateFolderOpen(false)}
-                        className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              {selectedFolder && (
-                <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline"
-                      className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                    >
-                      <Pencil className="h-5 w-5 mr-2" />
-                      Rename Folder
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-3xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl font-bold text-slate-800">Rename Folder</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Input
-                        placeholder="New folder name"
-                        value={renameFolderName}
-                        onChange={(e) => setRenameFolderName(e.target.value)}
-                        className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
-                      />
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <Button 
-                          onClick={handleRenameFolder} 
-                          disabled={!renameFolderName.trim() || renaming}
-                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                        >
-                          {renaming ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
-                          Rename
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => setIsRenameFolderOpen(false)}
-                          className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-      {/* Main Content */}
-      <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        {/* Toolbar */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 text-slate-700 font-medium">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                  <Home className="h-4 w-4 text-white" />
                 </div>
-                <span>Global Library</span>
-                {selectedFolder ? (
-                  <>
-                    <span className="text-slate-400">/</span>
-                    <span className="text-slate-800 font-semibold">{selectedFolder.name}</span>
-                  </>
-                ) : null}
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-1">
-                <Button
-                  className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
-                  variant={viewMode === "list" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
+            </DialogContent>
+          </Dialog>
+          {selectedFolder && (
+            <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                 >
-                  <List className="h-4 w-4" />
+                  <Pencil className="h-5 w-5 mr-2" />
+                  Rename Folder
                 </Button>
-                <Button
-                  className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg"
-                  variant={viewMode === "grid" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                </Button>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  refreshFolders()
-                  refreshFiles(selectedFolder)
-                }}
-                className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-2xl"
-              >
-                <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-              </Button>
-            </div>
-          </div>
+              </DialogTrigger>
+              <DialogContent className="bg-white border border-gray-200 rounded-xl">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-semibold text-gray-900">Rename Folder</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input
+                    placeholder="New folder name"
+                    value={renameFolderName}
+                    onChange={(e) => setRenameFolderName(e.target.value)}
+                    className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                  />
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button 
+                      onClick={handleRenameFolder} 
+                      disabled={!renameFolderName.trim() || renaming}
+                      className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                    >
+                      {renaming ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
+                      Rename
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsRenameFolderOpen(false)}
+                      className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center h-64 sm:h-[40vh]">
-            <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-          </div>
-        ) : (
-          <div className="flex flex-col md:flex-row">
-            {/* Sidebar: Folders */}
-            <aside className="w-full md:w-80 bg-white/80 backdrop-blur-sm border-r border-blue-100/50">
-              <div className="p-6 border-b border-blue-100/50">
-                <div className="text-sm text-slate-600 mb-3 font-medium">Folders</div>
-                <Input
-                  placeholder="Search files or folders..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl"
-                />
+        {/* Main Content */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          {/* Toolbar */}
+          <div className="bg-gray-50 border-b border-gray-200 p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 text-gray-700 font-medium">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
+                    <Home className="h-4 w-4 text-white" />
+                  </div>
+                  <span>Global Library</span>
+                  {selectedFolder ? (
+                    <>
+                      <span className="text-gray-400">/</span>
+                      <span className="text-gray-900 font-semibold">{selectedFolder.name}</span>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <div className="p-4 space-y-2 max-h-[60vh] md:max-h-[70vh] overflow-auto">
-                {folders
-                  .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((folder) => (
-                    <div
-                      key={folder._id}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50/50 cursor-pointer group transition-all duration-300",
-                        selectedFolder?._id === folder._id ? "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/50 shadow-lg" : ""
-                      )}
-                      onClick={() => setSelectedFolder(folder)}
-                    >
-                      <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center">
-                        <Folder className="h-4 w-4 text-white" />
-                      </div>
-                      <span className="text-sm truncate font-medium">{folder.name}</span>
-                      <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="outline" className="h-7 w-7 rounded-xl border-blue-200 hover:bg-blue-50/50">
-                              <MoreVertical className="h-4 w-4 text-blue-600" />
+              <div className="flex items-center gap-3">
+                <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
+                  <Button
+                    className="rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    variant={viewMode === "list" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    className="rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    variant={viewMode === "grid" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("grid")}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    refreshFolders()
+                    refreshFiles(selectedFolder)
+                  }}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl"
+                >
+                  <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center h-64 sm:h-[40vh]">
+              <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+            </div>
+          ) : (
+            <div className="flex flex-col md:flex-row">
+              {/* Sidebar: Folders */}
+              <aside className="w-full md:w-80 bg-white border-r border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="text-sm text-gray-600 mb-3 font-medium">Folders</div>
+                  <Input
+                    placeholder="Search files or folders..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="h-12 border-gray-200 focus:border-gray-400 rounded-xl"
+                  />
+                </div>
+                <div className="p-4 space-y-2 max-h-[60vh] md:max-h-[70vh] overflow-auto">
+                  {folders
+                    .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((folder) => (
+                      <div
+                        key={folder._id}
+                        className={cn(
+                          "flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer group transition-all duration-300",
+                          selectedFolder?._id === folder._id ? "bg-gray-50 border border-gray-200 shadow-lg" : ""
+                        )}
+                        onClick={() => setSelectedFolder(folder)}
+                      >
+                        <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
+                          <Folder className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-sm truncate font-medium">{folder.name}</span>
+                        <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="outline" className="h-7 w-7 rounded-xl border-gray-200 hover:bg-gray-50">
+                              <MoreVertical className="h-4 w-4 text-gray-600" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl">
+                          <DropdownMenuContent align="end" className="bg-white border border-gray-200 rounded-xl">
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -508,13 +499,13 @@ export default function GlobalLibraryPage() {
                                 setRenameFolderName(folder.name)
                                 setIsRenameFolderOpen(true)
                               }}
-                              className="rounded-xl"
+                              className="rounded-lg"
                             >
                               <Pencil className="h-4 w-4 mr-2" />
                               Rename
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="text-red-600 rounded-xl"
+                              className="text-red-600 rounded-lg"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 confirmDeleteFolder(folder)
@@ -530,10 +521,10 @@ export default function GlobalLibraryPage() {
                   ))}
                 {folders.length === 0 && (
                   <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                      <Folder className="h-8 w-8 text-blue-600" />
+                    <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                      <Folder className="h-8 w-8 text-gray-600" />
                     </div>
-                    <p className="text-slate-600 font-medium">No folders yet. Create one to get started.</p>
+                    <p className="text-gray-600 font-medium">No folders yet. Create one to get started.</p>
                   </div>
                 )}
               </div>
@@ -542,7 +533,7 @@ export default function GlobalLibraryPage() {
             {/* Main content */}
             <section className="flex-1 min-w-0">
               {/* Search and upload */}
-              <div className="p-6 border-b border-blue-100/50 bg-gradient-to-r from-slate-50 to-blue-50/30">
+              <div className="p-6 border-b border-gray-200 bg-gray-50">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3 w-full sm:w-auto">
                     <Input
@@ -551,12 +542,12 @@ export default function GlobalLibraryPage() {
                       multiple
                       disabled={!selectedFolder || uploading}
                       onChange={onFileInputChange}
-                      className="w-full sm:w-64 h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl"
+                      className="w-full sm:w-64 h-12 bg-white/90 border-gray-200 focus:border-gray-400 focus:ring-gray-400/20 rounded-2xl"
                     />
                     <Button
                       disabled={!selectedFolder || uploading}
                       onClick={() => fileInputRef.current?.click()}
-                      className="hidden md:flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+                      className="hidden md:flex bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
                     >
                       <Upload className="h-5 w-5" />
                     </Button>
@@ -568,18 +559,18 @@ export default function GlobalLibraryPage() {
               <div className="p-6">
                 {!selectedFolder ? (
                   <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                      <FolderOpen className="h-10 w-10 text-blue-600" />
+                    <div className="w-20 h-20 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                      <FolderOpen className="h-10 w-10 text-gray-600" />
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-3">No folder selected</h3>
-                    <p className="text-slate-600 text-lg">
+                    <h3 className="text-2xl font-bold text-gray-800 mb-3">No folder selected</h3>
+                    <p className="text-gray-600 text-lg">
                       Choose a folder on the left to view its files.
                     </p>
                   </div>
                 ) : viewMode === "list" ? (
                   <div className="space-y-2">
                     {/* Header (hidden on mobile) */}
-                    <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-slate-600 border-b border-blue-100/50">
+                    <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-gray-600 border-b border-gray-200">
                       <div className="col-span-6">Name</div>
                       <div className="col-span-2">Type</div>
                       <div className="col-span-2">Modified</div>
@@ -590,11 +581,11 @@ export default function GlobalLibraryPage() {
                       filteredFiles.map((file) => (
                         <div
                           key={file.name}
-                          className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-blue-50/30 rounded-2xl group transition-all duration-300"
+                          className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300"
                         >
                           {/* Name */}
                           <div className="flex items-center gap-3 sm:col-span-6 min-w-0">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                            <div className="w-8 h-8 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center">
                               {getFileIcon(file.name)}
                             </div>
                             <span className="text-sm truncate font-medium">{decodeURIComponent(file.name)}</span>
@@ -618,7 +609,7 @@ export default function GlobalLibraryPage() {
                               size="icon"
                               onClick={() => handleDownload(file)}
                               disabled={downloading === file.name}
-                              className="rounded-xl border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+                              className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
                               aria-label={`Download ${file.name}`}
                             >
                               {downloading === file.name ? (
@@ -629,7 +620,7 @@ export default function GlobalLibraryPage() {
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className="rounded-xl border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800" aria-label={`Move ${file.name}`}>
+                                <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800" aria-label={`Move ${file.name}`}>
                                   <FolderInputIcon className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -662,11 +653,11 @@ export default function GlobalLibraryPage() {
                       ))
                     ) : (
                       <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                          <File className="h-8 w-8 text-blue-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <File className="h-8 w-8 text-gray-600" />
                         </div>
-                        <h3 className="text-lg font-semibold text-slate-800 mb-2">This folder is empty</h3>
-                        <p className="text-slate-600">Upload documents to get started</p>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
+                        <p className="text-gray-600">Upload documents to get started</p>
                       </div>
                     )}
                   </div>
@@ -674,11 +665,11 @@ export default function GlobalLibraryPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     {filteredFiles.length > 0 ? (
                       filteredFiles.map((file) => (
-                        <Card key={file.name} className="p-4 text-center bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                        <Card key={file.name} className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                           <div className="mb-3 flex justify-center">
-                            <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">{getFileIcon(file.name)}</div>
+                            <div className="p-3 bg-gray-100 rounded-2xl border border-gray-200">{getFileIcon(file.name)}</div>
                           </div>
-                          <div className="text-sm font-semibold truncate text-slate-800" title={file.name}>
+                          <div className="text-sm font-semibold truncate text-gray-800" title={file.name}>
                             {decodeURIComponent(file.name)}
                           </div>
                           <div className="mt-3 flex justify-center gap-2">
@@ -687,7 +678,7 @@ export default function GlobalLibraryPage() {
                               size="icon"
                               onClick={() => handleDownload(file)}
                               disabled={downloading === file.name}
-                              className="rounded-xl border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+                              className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
                               aria-label={`Download ${file.name}`}
                             >
                               {downloading === file.name ? (
@@ -698,7 +689,7 @@ export default function GlobalLibraryPage() {
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className="rounded-xl border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800" aria-label={`Move ${file.name}`}>
+                                <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800" aria-label={`Move ${file.name}`}>
                                   <FolderInputIcon className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -724,11 +715,11 @@ export default function GlobalLibraryPage() {
                       ))
                     ) : (
                       <div className="col-span-full text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                          <File className="h-8 w-8 text-blue-600" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <File className="h-8 w-8 text-gray-600" />
                         </div>
-                        <h3 className="text-lg font-semibold text-slate-800 mb-2">This folder is empty</h3>
-                        <p className="text-slate-600">Upload documents to get started</p>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
+                        <p className="text-gray-600">Upload documents to get started</p>
                       </div>
                     )}
                   </div>
@@ -736,7 +727,7 @@ export default function GlobalLibraryPage() {
               </div>
 
               {/* Status bar */}
-              <div className="border-t border-blue-100/50 px-6 py-3 bg-gradient-to-r from-slate-50 to-blue-50/30 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-sm text-slate-600">
+              <div className="border-t border-gray-200 px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/30 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-sm text-gray-600">
                 <span className="truncate font-medium">
                   {filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
                 </span>
@@ -749,17 +740,17 @@ export default function GlobalLibraryPage() {
 
       {/* Delete folder confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-3xl">
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-slate-800">Delete folder?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600">
+            <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete folder?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
               This will permanently delete the folder{" "}
-              <span className="font-semibold text-slate-800">{folderToDelete?.name}</span> and all of its contents
+              <span className="font-semibold text-gray-800">{folderToDelete?.name}</span> and all of its contents
               from storage and the backend. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-2xl">Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
               onClick={handleDeleteFolder}
@@ -774,16 +765,16 @@ export default function GlobalLibraryPage() {
 
       {/* Delete file confirmation */}
       <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-3xl">
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-slate-800">Delete file?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600">
+            <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete file?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
               Are you sure you want to delete{" "}
-              <span className="font-semibold text-slate-800 break-all">{fileToDelete?.name}</span>?
+              <span className="font-semibold text-gray-800 break-all">{fileToDelete?.name}</span>?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-2xl">Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
               onClick={handleDeleteFile}
@@ -795,6 +786,7 @@ export default function GlobalLibraryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   )
 }

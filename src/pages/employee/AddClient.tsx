@@ -117,110 +117,102 @@ export const AddClient = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => navigate(-1)}
-                className="w-12 h-12 bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300"
-              >
-                <ArrowLeft className="h-5 w-5 text-blue-600" />
-              </Button>
-              <div className="space-y-2">
-                                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      Add New Client
-                    </h1>
-                <p className="text-slate-600 text-lg">
-                  Create a new client company profile
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => navigate(-1)}
+              className="rounded-xl border-gray-200 hover:bg-gray-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">Add New Client</h1>
+                <p className="text-gray-700 animate-fade-in-delay">Create a new client company profile</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto">
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
+        {/* Form Card */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <CardTitle className="text-2xl font-bold text-slate-800">Client Information</CardTitle>
-                <CardDescription className="text-slate-600 text-lg">
+                <h2 className="text-2xl font-semibold text-gray-900">Client Information</h2>
+                <p className="text-gray-600">
                   Enter the basic information for the new client company
-                </CardDescription>
+                </p>
               </div>
             </div>
-          </CardHeader>
-
-          <CardContent className="p-8">
+          </div>
+          
+          <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Basic Info */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Users className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Basic Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label htmlFor="name" className="text-sm font-medium text-slate-700">Client Name *</Label>
+                    <Label htmlFor="name" className="text-sm font-medium text-gray-700">Client Name *</Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => handleChange("name", e.target.value)}
                       placeholder="Enter Client's name"
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="companyName" className="text-sm font-medium text-slate-700">Company Name *</Label>
+                    <Label htmlFor="companyName" className="text-sm font-medium text-gray-700">Company Name *</Label>
                     <Input
                       id="companyName"
                       value={formData.companyName}
                       onChange={(e) => handleChange("companyName", e.target.value)}
                       placeholder="Enter company name"
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="companyNumber" className="text-sm font-medium text-slate-700">Company Number *</Label>
+                    <Label htmlFor="companyNumber" className="text-sm font-medium text-gray-700">Company Number *</Label>
                     <Input
                       id="companyNumber"
                       value={formData.companyNumber}
                       onChange={(e) => handleChange("companyNumber", e.target.value)}
                       placeholder="Enter company registration number"
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="email" className="text-sm font-medium text-slate-700">Company Email *</Label>
+                    <Label htmlFor="email" className="text-sm font-medium text-gray-700">Company Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       placeholder="contact@company.com"
-                      className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
@@ -230,25 +222,25 @@ export const AddClient = () => {
               {/* Industry */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Globe className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Industry Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Industry Details</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label htmlFor="industry" className="text-sm font-medium text-slate-700">Industry *</Label>
+                    <Label htmlFor="industry" className="text-sm font-medium text-gray-700">Industry *</Label>
                     <Select
                       value={formData.industry}
                       onValueChange={(value) => handleChange("industry", value)}
                     >
-                      <SelectTrigger className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg">
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
                         <SelectValue placeholder="Select industry" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl">
+                      <SelectContent className="bg-white border border-gray-200 rounded-xl">
                         {industries.map((industry) => (
-                          <SelectItem key={industry} value={industry} className="rounded-xl">
+                          <SelectItem key={industry} value={industry} className="rounded-lg">
                             {industry}
                           </SelectItem>
                         ))}
@@ -257,7 +249,7 @@ export const AddClient = () => {
                   </div>
                   {formData.industry === "Other" && (
                     <div className="space-y-3">
-                      <Label htmlFor="customValue" className="text-sm font-medium text-slate-700">
+                      <Label htmlFor="customValue" className="text-sm font-medium text-gray-700">
                         Please Specify The Industry
                       </Label>
                       <Input
@@ -265,7 +257,7 @@ export const AddClient = () => {
                         value={formData.customValue}
                         onChange={(e) => handleChange("customValue", e.target.value)}
                         placeholder="Enter your custom value"
-                        className="h-12 bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg"
+                        className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       />
                     </div>
                   )}
@@ -275,31 +267,31 @@ export const AddClient = () => {
               {/* Summary */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <FileText className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800">Company Summary</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Company Summary</h3>
                 </div>
                 
                 <div className="space-y-3">
-                  <Label htmlFor="summary" className="text-sm font-medium text-slate-700">Company Summary</Label>
+                  <Label htmlFor="summary" className="text-sm font-medium text-gray-700">Company Summary</Label>
                   <Textarea
                     id="summary"
                     value={formData.summary}
                     onChange={(e) => handleChange("summary", e.target.value)}
                     placeholder="Brief description of what the company does..."
                     rows={4}
-                    className="bg-white/90 border-blue-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-2xl text-lg resize-none"
+                    className="border-gray-200 focus:border-gray-400 rounded-xl text-lg resize-none"
                   />
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-4 pt-6 border-t border-blue-100/50">
+              <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -310,14 +302,14 @@ export const AddClient = () => {
                   type="button"
                   variant="outline"
                   onClick={() => navigate(-1)}
-                  className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   Cancel
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

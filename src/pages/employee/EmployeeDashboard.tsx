@@ -22,7 +22,17 @@ import {
   BarChart3,
   Clock,
   ArrowRight,
-  Eye
+  Eye,
+  Wallet,
+  RefreshCw,
+  CreditCard,
+  Mail,
+  Bell,
+  ChevronDown,
+  CheckCircle,
+  AlertCircle,
+  FileText as DocumentIcon,
+  Shield
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -30,6 +40,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { GlobalKPIDashboard } from "../../components/kpi/GlobalKPIDashboard";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import { ComprehensiveNavigation } from "@/components/ui/comprehensive-navigation";
+import { PortalAnalytics } from "@/components/ui/portal-analytics";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
@@ -50,6 +62,7 @@ export const EmployeeDashboard = () => {
     industry?: string;
   }
   const [isloading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [clients, setClients] = useState<User[]>([]);
   useEffect(() => {
@@ -103,6 +116,12 @@ export const EmployeeDashboard = () => {
           summary: profile.company_summary || undefined,
         })) || [];
 
+      // Set current user (employee)
+      const currentUserData = transformedClients.find((user) => user.role === "employee");
+      if (currentUserData) {
+        setCurrentUser(currentUserData);
+      }
+
       setClients(
         transformedClients.filter((client) => client.role === "client")
       );
@@ -122,7 +141,7 @@ export const EmployeeDashboard = () => {
 
   if (loading) {
       return (
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64 bg-gray-900">
           <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
         </div>
       )
@@ -135,274 +154,330 @@ export const EmployeeDashboard = () => {
   const completedEngMonth = engagements.filter(
     (user) => user.status === "completed" && new Date(user.createdAt) >= startOfMonth
   ).length;
+  
+  // Calculate real data from your engagements and clients
+  const totalClients = clients.length;
+  const activeEngagements = engagements.filter((e) => e.status === "active").length;
+  const totalEngagements = engagements.length;
+  const completedEngagements = engagements.filter((e) => e.status === "completed").length;
+  
+  // Calculate growth percentages (you can adjust these based on your actual data)
+  const clientsThisMonth = clients.filter((user) => new Date(user.createdAt) >= startOfMonth).length;
+  const engagementsThisWeek = engagements.filter((user) => new Date(user.createdAt) >= startOfWeek).length;
+  const draftEngagements = engagements.filter((e) => e.status === "draft").length;
+
   const stats = [
     {
       title: "Total Clients",
-      value: clients.length.toString(),
-      description: "Active client companies",
+      value: totalClients.toString(),
       icon: Building2,
-      trend: `${
-        clients.filter((user) => new Date(user.createdAt) >= startOfMonth)
-          .length
-      } this month`,
-      color: "from-blue-500 to-indigo-600",
-      bgColor: "from-blue-50 to-indigo-50"
+      color: "text-gray-300"
     },
     {
       title: "Active Engagements",
-      value: engagements.filter((e) => e.status === "active").length.toString(),
-      description: "Ongoing audits",
+      value: activeEngagements.toString(),
       icon: Briefcase,
-      trend: `${
-        engagements.filter((user) => new Date(user.createdAt) >= startOfWeek)
-          .length
-      } this week`,
-      color: "from-green-500 to-emerald-600",
-      bgColor: "from-green-50 to-emerald-50"
+      color: "text-gray-300"
     },
     {
       title: "Total Engagements",
-      value: engagements.length.toString(),
-      description: "All engagements",
+      value: totalEngagements.toString(),
       icon: FileText,
-      trend: `${engagements.filter((e) => e.status === "draft").length} drafts`,
-      color: "from-purple-500 to-pink-600",
-      bgColor: "from-purple-50 to-pink-50"
+      color: "text-gray-300"
     },
     {
-      title: "Completed",
-      value: engagements
-        .filter((e) => e.status === "completed")
-        .length.toString(),
-      description: "This month",
+      title: "Completed Engagements",
+      value: completedEngagements.toString(),
       icon: TrendingUp,
-      trend: `+${completedEngMonth} from last month`,
-      color: "from-orange-500 to-red-600",
-      bgColor: "from-orange-50 to-red-50"
+      color: "text-gray-300"
     },
+  ];
+
+  const performanceStats = [
+    {
+      title: "New clients this month",
+      value: clientsThisMonth.toString(),
+      trend: `${clientsThisMonth} this month`,
+      trendColor: "text-green-400",
+      icon: TrendingUp
+    },
+    {
+      title: "Draft engagements",
+      value: draftEngagements.toString(),
+      trend: `${draftEngagements} drafts`,
+      trendColor: "text-yellow-400",
+      icon: AlertCircle
+    }
   ];
 
   const recentEngagements = engagements.slice(0, 3);
   const recentClients = clients.slice(0, 3);
 
+  // Dynamic greeting message
+  const getGreetingMessage = () => {
+    const hour = new Date().getHours();
+    const userName = currentUser?.name || "User";
+    
+    if (hour < 12) {
+      return `Good morning, ${userName}!`;
+    } else if (hour < 17) {
+      return `Good afternoon, ${userName}!`;
+    } else {
+      return `Good evening, ${userName}!`;
+    }
+  };
+
+  const getGreetingDescription = () => {
+    const hour = new Date().getHours();
+    const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    
+    if (hour < 12) {
+      return `Ready to tackle today's audit tasks? You have ${activeEngagements} active engagements.`;
+    } else if (hour < 17) {
+      return `Keep up the great work! ${completedEngagements} engagements completed this week.`;
+    } else {
+      return `Great work today! Time to wrap up and plan for tomorrow.`;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <BarChart3 className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      Employee Dashboard
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Manage your audit engagements and client relationships
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto" 
-                asChild
-              >
-                <Link to="/employee/clients/new">
-                  <Plus className="h-5 w-5 mr-2" />
-                  Add Client
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-              >
-                <Link to="/employee/engagements/new">
-                  <Plus className="h-5 w-5 mr-2" />
-                  New Engagement
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">{getGreetingMessage()}</h1>
+          <p className="text-gray-700 animate-fade-in-delay">{getGreetingDescription()}</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content Area */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Key Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <CardHeader className="relative pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-slate-600">
-                    {stat.title}
-                  </CardTitle>
-                  <div className={`w-10 h-10 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0`}>
-                    <Icon className="h-5 w-5 text-white" />
+                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <Icon className="h-6 w-6 text-gray-800" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                      <p className="text-sm text-gray-700">{stat.title}</p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="relative">
-                <div className="text-3xl font-bold text-slate-800 mb-2">
-                  {stat.value}
-                </div>
-                <p className="text-sm text-slate-600 mb-3">
-                  {stat.description}
-                </p>
-                <div className={`p-3 bg-gradient-to-r ${stat.bgColor} rounded-2xl border border-blue-100/50`}>
-                  <p className="text-xs font-semibold text-slate-700">{stat.trend}</p>
-                </div>
-              </CardContent>
-            </Card>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Engagements */}
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center">
-                  <Briefcase className="h-5 w-5 text-white" />
+            {/* Performance Indicators */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {performanceStats.map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right" style={{ animationDelay: `${index * 0.2}s` }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <Icon className="h-6 w-6 text-gray-800" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-3xl font-semibold text-gray-900">{stat.value}</p>
+                      <p className="text-sm text-gray-700">{stat.title}</p>
+                      <p className={`text-sm font-medium ${stat.trendColor}`}>{stat.trend}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+
+            {/* Engagement Analytics Chart */}
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30 animate-fade-in">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Engagement Analytics</h3>
+              
+              {/* Circular Progress Charts */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                {[
+                  { status: 'Active', count: activeEngagements, total: totalEngagements, color: 'text-gray-700', bgColor: 'bg-gray-800', ringColor: 'ring-gray-800/20' },
+                  { status: 'Completed', count: completedEngagements, total: totalEngagements, color: 'text-gray-600', bgColor: 'bg-gray-700', ringColor: 'ring-gray-700/20' },
+                  { status: 'Draft', count: draftEngagements, total: totalEngagements, color: 'text-gray-500', bgColor: 'bg-gray-600', ringColor: 'ring-gray-600/20' },
+                  { status: 'Total', count: totalEngagements, total: totalEngagements, color: 'text-gray-800', bgColor: 'bg-gray-900', ringColor: 'ring-gray-900/20' }
+                ].map((item, index) => {
+                  const percentage = totalEngagements > 0 ? (item.count / item.total) * 100 : 0;
+                  const circumference = 2 * Math.PI * 30;
+                  const strokeDasharray = circumference;
+                  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+                  
+                  return (
+                    <div key={index} className="flex flex-col items-center">
+                      <div className="relative w-20 h-20 mb-3">
+                        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 70 70">
+                          <circle
+                            cx="35"
+                            cy="35"
+                            r="30"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                            className="text-gray-300"
+                          />
+                          <circle
+                            cx="35"
+                            cy="35"
+                            r="30"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                            strokeDasharray={strokeDasharray}
+                            strokeDashoffset={strokeDashoffset}
+                            className={`transition-all duration-1000 ease-out ${item.color}`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className={`text-lg font-bold ${item.color}`}>{item.count}</span>
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-700 text-center">{item.status}</span>
+                      <span className="text-xs text-gray-600">{percentage.toFixed(0)}%</span>
+                  </div>
+                  );
+                })}
+              </div>
+              
+              {/* Mini Bar Chart */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-800 mb-4">Status Distribution</h4>
+                <div className="space-y-3">
+                  {[
+                    { status: 'Active', count: activeEngagements, color: 'bg-gray-800', percentage: totalEngagements > 0 ? (activeEngagements / totalEngagements) * 100 : 0 },
+                    { status: 'Completed', count: completedEngagements, color: 'bg-gray-700', percentage: totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0 },
+                    { status: 'Draft', count: draftEngagements, color: 'bg-gray-600', percentage: totalEngagements > 0 ? (draftEngagements / totalEngagements) * 100 : 0 }
+                  ].map((item, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <div className="w-16 text-sm text-gray-700">{item.status}</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${item.color} transition-all duration-1000 ease-out`}
+                          style={{ width: `${item.percentage}%` }}
+                        ></div>
                 </div>
-                <div>
-                  <CardTitle className="text-xl font-bold text-slate-800">Recent Engagements</CardTitle>
-                  <CardDescription className="text-slate-600">Your latest audit projects</CardDescription>
+                      <div className="w-12 text-sm text-gray-700 text-right">{item.count}</div>
+                </div>
+                  ))}
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                asChild 
-                className="border-green-200 hover:bg-green-50/50 text-green-700 hover:text-green-800 rounded-2xl"
-              >
-                <Link to="/employee/engagements">
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  View All
-                </Link>
-              </Button>
             </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
+
+            {/* Comprehensive Navigation */}
+            <ComprehensiveNavigation />
+
+            {/* Portal Analytics */}
+            <PortalAnalytics />
+          </div>
+
+          {/* Right Sidebar */}
+          <div className="space-y-6">
+            {/* User Profile and Notifications */}
+            {/* <div className="flex items-center justify-end space-x-4 mb-6">
+              <Calendar className="h-6 w-6 text-gray-700" />
+              <Mail className="h-6 w-6 text-gray-700" />
+              <Bell className="h-6 w-6 text-gray-700" />
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gray-800 rounded-full"></div>
+                <ChevronDown className="h-4 w-4 text-gray-700" />
+              </div>
+            </div> */}
+
+            {/* Recent Engagements */}
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h3>
+              <div className="space-y-3">
               {recentEngagements.map((engagement) => {
-                const client = clients.find(
-                  (c) => c.id === engagement.clientId
-                );
+                  const client = clients.find((c) => c.id === engagement.clientId);
                 return (
-                  <div
-                    key={engagement._id}
-                    className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-blue-100/50 rounded-2xl hover:border-blue-300/50 transition-all duration-300 hover:shadow-lg"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-800 truncate group-hover:text-blue-700 transition-colors duration-300">
-                        {engagement.title}
-                      </p>
-                      <p className="text-sm text-slate-600 truncate">
-                        {client?.companyName || "Unknown Client"}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Calendar className="h-3 w-3 text-slate-500" />
-                        <p className="text-xs text-slate-500">
-                          Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
-                        </p>
+                    <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <Briefcase className="h-5 w-5 text-gray-600 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-900 font-medium truncate">{engagement.title}</p>
+                            <p className="text-gray-600 text-sm truncate">{client?.companyName || "Unknown Client"}</p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${
-                          engagement.status === "active"
-                            ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200"
-                            : engagement.status === "completed"
-                            ? "bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border border-slate-200"
-                            : "bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border border-yellow-200"
-                        }`}
-                      >
-                        {engagement.status}
                       </div>
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-xl"
+                          asChild
+                          className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
                       >
+                          <Link to={`/employee/engagements/${engagement._id}`}>
                         <Eye className="h-3 w-3" />
+                          </Link>
                       </Button>
+                    </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-3 w-3 text-gray-500" />
+                          <span className="text-gray-500 text-xs">
+                            Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
+                          </span>
+                    </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          engagement.status === "active" ? "bg-gray-800 text-white" :
+                          engagement.status === "completed" ? "bg-gray-700 text-white" :
+                          "bg-gray-600 text-white"
+                        }`}>
+                          {engagement.status}
+                        </span>
                     </div>
                   </div>
                 );
               })}
               {recentEngagements.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                    <Briefcase className="h-8 w-8 text-green-600" />
-                  </div>
-                  <p className="text-slate-600 font-medium">
-                    No engagements yet. Create your first engagement to get started.
-                  </p>
+                  <div className="text-center py-8">
+                    <Briefcase className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-600">No engagements yet. Create your first engagement to get started.</p>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+                </div>
 
-        {/* Recent Clients */}
-        <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
-                  <Users className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-bold text-slate-800">Recent Clients</CardTitle>
-                  <CardDescription className="text-slate-600">Your latest client additions</CardDescription>
-                </div>
+            {/* Formation Status */}
+            <div className="bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-2">Engagement Status</h3>
+              <p className="text-gray-300 mb-4">
+                {activeEngagements > 0 ? `${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} in progress` : 'No active engagements'}
+              </p>
+              <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
+                <div 
+                  className="bg-white h-2 rounded-full transition-all duration-1000 ease-out" 
+                  style={{ width: `${totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0}%` }}
+                ></div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                asChild 
-                className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-2xl"
-              >
-                <Link to="/employee/clients">
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  View All
-                </Link>
-              </Button>
+              <p className="text-gray-300 text-sm mb-4">
+                {completedEngagements} of {totalEngagements} engagements completed
+              </p>
+              <button className="w-full bg-white text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-gray-100 transition-colors duration-200">
+                View all engagements
+              </button>
             </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
+
+            {/* Recent Clients */}
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Clients</h3>
+              <div className="space-y-3">
               {recentClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-blue-100/50 rounded-2xl hover:border-blue-300/50 transition-all duration-300 hover:shadow-lg"
-                >
-                  <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                      <Building2 className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-800 truncate group-hover:text-blue-700 transition-colors duration-300">
-                        {client.companyName}
-                      </p>
-                      <p className="text-sm text-slate-600 truncate">
-                        {client.industry || 'N/A'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="h-3 w-3 text-slate-500" />
-                        <p className="text-xs text-slate-500">
+                  <div key={client.id} className="flex items-center justify-between p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <Building2 className="h-5 w-5 text-gray-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 font-medium truncate">{client.companyName || "Unknown Company"}</p>
+                        <p className="text-gray-600 text-sm truncate">{client.industry || 'N/A'}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Clock className="h-3 w-3 text-gray-500" />
+                        <span className="text-gray-500 text-xs">
                           Added {new Date(client.createdAt).toLocaleDateString()}
-                        </p>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -410,34 +485,66 @@ export const EmployeeDashboard = () => {
                     variant="outline" 
                     size="sm" 
                     asChild 
-                    className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-xl"
+                      className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
                   >
                     <Link to={`/employee/clients/${client.id}`}>
-                      <Eye className="h-3 w-3 mr-1" />
-                      View
+                        <Eye className="h-3 w-3" />
                     </Link>
                   </Button>
                 </div>
               ))}
               {recentClients.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-8 w-8 text-blue-600" />
+                  <div className="text-center py-8">
+                    <Building2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-600">No clients yet. Add your first client to get started.</p>
                   </div>
-                  <p className="text-slate-600 font-medium">
-                    No clients yet. Add your first client to get started.
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Global KPI Dashboard */}
-      <div className="mt-8">
-        <GlobalKPIDashboard />
+            {/* To-Do List */}
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your to-Do list</h3>
+              <div className="space-y-4">
+                {[
+                  { task: `Complete ${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''}`, date: "Today", icon: Briefcase },
+                  { task: `Review ${draftEngagements} draft engagement${draftEngagements !== 1 ? 's' : ''}`, date: "This week", icon: FileText },
+                  { task: `Follow up with ${recentClients.length} recent client${recentClients.length !== 1 ? 's' : ''}`, date: "This week", icon: Building2 },
+                  { task: "Update engagement statuses", date: "Today", icon: Clock }
+                ].map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={index} className="flex items-center space-x-3 p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                      <Icon className="h-4 w-4 text-gray-700" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 font-medium text-sm">{item.task}</p>
+                        <p className="text-gray-600 text-xs">{item.date}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Board Meeting */}
+            <div className="bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-2xl p-6">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+                <span className="text-white font-medium">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                </div>
+              <p className="text-gray-300 text-sm">
+                {totalClients > 0 
+                  ? `You have ${totalClients} client${totalClients !== 1 ? 's' : ''} and ${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} to manage.`
+                  : 'No clients or active engagements at the moment.'
+                }
+              </p>
+            </div>
+          </div>
+      </div>
       </div>
     </div>
   );
 };
+

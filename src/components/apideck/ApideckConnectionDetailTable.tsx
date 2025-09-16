@@ -143,7 +143,7 @@
 //       <button
 //         type='button'
 //         className='inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
-//                    bg-transparent hover:bg-gray-100 h-5 px-1 py-0 text-blue-600 hover:underline'
+//                    bg-transparent hover:bg-gray-100 h-5 px-1 py-0 text-gray-600 hover:underline'
 //         onClick={() => setShowFull(!showFull)}
 //       >
 //         {showFull ? 'Show Less' : 'Show More'}
@@ -266,7 +266,7 @@
 //           placeholder={`Search ${title.toLowerCase()}...`}
 //           value={searchTerm}
 //           onChange={handleSearchChange}
-//           className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 pl-9"
+//           className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-50 pl-9"
 //         />
 //       </div>
 
@@ -561,7 +561,7 @@ const TableCellContent: React.FC<TableCellContentProps> = ({
       <button
         type='button'
         className='inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
-                   bg-transparent hover:bg-gray-100 h-5 px-1 py-0 text-blue-600 hover:underline'
+                   bg-transparent hover:bg-gray-100 h-5 px-1 py-0 text-gray-600 hover:underline'
         onClick={() => setShowFull(!showFull)}
       >
         {showFull ? 'Show Less' : 'Show More'}
@@ -687,7 +687,7 @@ export function ConnectionDetailTable<T extends Record<string, any>>({
           placeholder={`Search ${title.toLowerCase()}...`}
           value={searchTerm}
           onChange={handleSearchChange}
-          className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 pl-9"
+          className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-50 pl-9"
         />
       </div>
 
