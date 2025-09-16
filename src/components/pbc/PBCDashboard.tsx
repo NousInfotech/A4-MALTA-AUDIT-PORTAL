@@ -314,14 +314,14 @@ export function PBCDashboard({
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Documents:</span>
+                      <span className="text-gray-600">Documents(PBC):</span>
                       <span className="font-medium">
                         {workflow.documentRequests[0].documents.length}
                       </span>
                     </div>
                     {/* Assuming categories are populated as an array of objects or IDs */}
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Categories:</span>
+                      <span className="text-gray-600">Categories(PBC):</span>
                       <span className="font-medium">
                         {new Set(
                           workflow.documentRequests.map((dr) => dr.category)

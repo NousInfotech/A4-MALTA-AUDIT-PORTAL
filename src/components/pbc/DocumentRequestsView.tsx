@@ -6,10 +6,11 @@ import { PbcFileBrowser } from './PbcFileBrowser';
 
 interface DocumentRequestsViewProps {
   documentRequests: DocumentRequest[];
+  workflow: any;
   userRole: 'employee' | 'client' | 'admin';
 }
 
-export function DocumentRequestsView({ documentRequests, userRole }: DocumentRequestsViewProps) {
+export function DocumentRequestsView({ documentRequests, workflow, userRole }: DocumentRequestsViewProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'approved':
@@ -79,7 +80,7 @@ export function DocumentRequestsView({ documentRequests, userRole }: DocumentReq
               <p className="mt-2 text-sm font-semibold text-center">{request.category}</p>
             </div> */}
             <div>
-              <PbcFileBrowser />
+              <PbcFileBrowser engagementId={workflow.engagement.id}/>
             </div>
 
             {/* <Card key={request._id} className="hover:shadow-md transition-shadow">

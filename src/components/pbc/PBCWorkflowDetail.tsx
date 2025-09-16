@@ -133,7 +133,7 @@ export function PBCWorkflowDetail({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Documents
+              Documents(PBC)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -312,6 +312,7 @@ export function PBCWorkflowDetail({
         <TabsContent value="documents">
           <DocumentRequestsView
             documentRequests={workflow.documentRequests}
+            workflow={workflow}
             userRole={userRole}
           />
         </TabsContent>

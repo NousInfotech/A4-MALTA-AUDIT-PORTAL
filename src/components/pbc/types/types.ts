@@ -3,6 +3,7 @@ export interface File {
   id: string;
   name: string;
   type: string;
+  url?: string;
 }
 
 export interface Folder {
