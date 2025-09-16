@@ -43,8 +43,8 @@ import { ClientDetail } from "./pages/employee/ClientDetail";
 import RoleBasedAccountDataTab from "./components/accounts-integration/RoleBasedAccountDataTab";
 
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
-import PBCAuditWorkflow from "./components/pbc-components/PBCAuditWorkflow";
 import PbcHome from "./components/pbc/PbcHome";
+import { ClientPBCDashBoard } from "./components/clientPanel/clientpanel-pbc/clientPBCDashBoard";
 
 const queryClient = new QueryClient();
 
@@ -117,6 +117,7 @@ const App = () => (
                   <Route path="engagements" element={<ClientEngagements />} />
                   <Route path="requests" element={<DocumentRequests />} />
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
+                  {/* <Route path="pbc" element={<ClientPBCDashBoard />} /> */}
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
