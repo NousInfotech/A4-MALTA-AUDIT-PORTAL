@@ -72,17 +72,15 @@ export function ModernKPICard({ metric }: ModernKPICardProps) {
   const progressValue = getProgressValue();
 
   return (
-    <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-      
-      <CardHeader className="relative pb-4">
+    <Card className="group bg-white/60 backdrop-blur-md border border-white/30 hover:bg-white/70 rounded-2xl shadow-lg shadow-gray-300/30 hover:shadow-xl transition-all duration-300 overflow-hidden">
+      <CardHeader className="relative pb-4 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+            <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
               <IconComponent className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="text-sm font-medium text-slate-600">
+              <CardTitle className="text-sm font-medium text-gray-700">
                 {metric.label}
               </CardTitle>
             </div>
@@ -98,29 +96,29 @@ export function ModernKPICard({ metric }: ModernKPICardProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="relative">
+      <CardContent className="relative p-6">
         <div className="space-y-4">
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-3xl font-bold text-slate-800 mb-1">
+              <div className="text-3xl font-bold text-gray-900 mb-1">
                 {metric.value}
-                {metric.unit && <span className="text-lg font-normal ml-1 text-slate-600">{metric.unit}</span>}
+                {metric.unit && <span className="text-lg font-normal ml-1 text-gray-600">{metric.unit}</span>}
               </div>
               {metric.description && (
-                <p className="text-xs text-slate-500">{metric.description}</p>
+                <p className="text-xs text-gray-500">{metric.description}</p>
               )}
             </div>
           </div>
           
           {/* Progress Bar */}
           <div className="space-y-2">
-            <div className="flex justify-between text-xs text-slate-500">
+            <div className="flex justify-between text-xs text-gray-500">
               <span>Progress</span>
               <span>{Math.round(progressValue)}%</span>
             </div>
             <Progress 
               value={progressValue} 
-              className="h-2 bg-slate-100"
+              className="h-2 bg-gray-100"
             />
           </div>
         </div>
@@ -141,19 +139,16 @@ export function ModernKPISection({ title, metrics, icon, description }: ModernKP
   
   return (
     <div className="space-y-6">
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl p-6 shadow-xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <SectionIcon className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
-              {description && (
-                <p className="text-slate-600 mt-1">{description}</p>
-              )}
-            </div>
+      <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
+            <SectionIcon className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+            {description && (
+              <p className="text-gray-700 mt-1">{description}</p>
+            )}
           </div>
         </div>
       </div>

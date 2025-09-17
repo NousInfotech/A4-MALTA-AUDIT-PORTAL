@@ -159,10 +159,10 @@ export const DocumentRequestsTab = ({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Send Document Request</CardTitle>
-          <CardDescription>Request specific documents from the client</CardDescription>
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="text-xl font-bold text-gray-900">Send Document Request</CardTitle>
+          <CardDescription className="text-gray-700">Request specific documents from the client</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -216,12 +216,16 @@ export const DocumentRequestsTab = ({
             <Button 
               variant="outline" 
               onClick={() => setKycModalOpen(true)}
-              className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+              className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
             >
               <Shield className="h-4 w-4 mr-2" />
               Setup KYC
             </Button>
-            <Button onClick={handleSendDocumentRequest} disabled={!canSend}>
+            <Button 
+              onClick={handleSendDocumentRequest} 
+              disabled={!canSend}
+              className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            >
               <Send className="h-4 w-4 mr-2" />
               Send Request
             </Button>
@@ -229,17 +233,17 @@ export const DocumentRequestsTab = ({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Document Requests History</CardTitle>
-          <CardDescription>Recent requests and uploaded documents</CardDescription>
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="text-xl font-bold text-gray-900">Document Requests History</CardTitle>
+          <CardDescription className="text-gray-700">Recent requests and uploaded documents</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {requests.map((request) => (
               <div
                 key={request._id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300"
               >
                 <div className="space-y-1 min-w-0">
                   <div className="font-medium truncate">{request.description}</div>
@@ -267,7 +271,7 @@ export const DocumentRequestsTab = ({
                               href={doc.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-all duration-300 shadow-lg hover:shadow-xl"
                               title={doc.name}
                             >
                               <FileText className="h-3.5 w-3.5" />

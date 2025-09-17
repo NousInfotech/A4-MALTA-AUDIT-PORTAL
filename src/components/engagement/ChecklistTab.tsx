@@ -279,15 +279,15 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
   return (
     <motion.div className="space-y-6" variants={containerVariants} initial="initial" animate="animate">
       <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader>
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
             <div className="flex items-center justify-between w-full">
               <div>
-                <CardTitle>Audit Procedures Checklist</CardTitle>
-                <CardDescription>Complete audit checklist to track progress through all phases</CardDescription>
+                <CardTitle className="text-xl font-bold text-gray-900">Audit Procedures Checklist</CardTitle>
+                <CardDescription className="text-gray-700">Complete audit checklist to track progress through all phases</CardDescription>
               </div>
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: "spring" }}>
-                <Badge variant="outline" className="text-lg px-4 py-2">
+                <Badge variant="outline" className="text-lg px-4 py-2 bg-gray-800 text-white border-gray-800 rounded-xl">
                   {done}/{total} ({pct}%)
                 </Badge>
               </motion.div>
@@ -305,7 +305,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                   transition={{ delay: categoryIndex * 0.1 }}
                 >
                   <motion.div
-                    className="bg-primary text-primary-foreground p-3 font-semibold rounded"
+                    className="bg-gray-800 text-white p-3 font-semibold rounded-xl shadow-lg"
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
@@ -318,7 +318,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                       variants={itemVariants}
                       transition={{ delay: categoryIndex * 0.1 + subcatIndex * 0.05 }}
                     >
-                      <div className="font-medium text-foreground border-b pb-2">{subcat}</div>
+                      <div className="font-medium text-gray-900 border-b border-gray-200 pb-2">{subcat}</div>
                       <div className="space-y-4 ml-4">
                         {items.map((item, itemIndex) => (
                           <motion.div
@@ -339,8 +339,11 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
               ))}
             </AnimatePresence>
             {Object.keys(groupedChecklist).length === 0 && (
-              <motion.div className="text-center py-12 text-muted-foreground" variants={itemVariants}>
-                <p>No checklist items found.</p>
+              <motion.div className="text-center py-12 text-gray-600" variants={itemVariants}>
+                <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-gray-600" />
+                </div>
+                <p className="text-lg font-medium">No checklist items found.</p>
               </motion.div>
             )}
           </CardContent>

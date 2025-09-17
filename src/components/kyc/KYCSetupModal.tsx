@@ -400,10 +400,12 @@ export function KYCSetupModal({
   const renderSetupStep = () => (
     <div className="space-y-6">
       {/* Client Information */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-800">
-            <Building2 className="h-5 w-5" />
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="flex items-center gap-2 text-gray-900">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+              <Building2 className="h-4 w-4 text-white" />
+            </div>
             Client Information
           </CardTitle>
         </CardHeader>
@@ -467,10 +469,12 @@ export function KYCSetupModal({
       </Card>
 
       {/* Document Requirements */}
-      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-green-800">
-            <Shield className="h-5 w-5" />
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="flex items-center gap-2 text-gray-900">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+              <Shield className="h-4 w-4 text-white" />
+            </div>
             KYC Document Requirements
           </CardTitle>
         </CardHeader>
@@ -478,7 +482,7 @@ export function KYCSetupModal({
           {/* Existing Documents */}
           <div className="space-y-3">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
+              <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
                 <div className="flex items-center gap-3">
                   <Checkbox
                     checked={doc.type === 'required'}
@@ -501,20 +505,21 @@ export function KYCSetupModal({
                 </div>
                 <div className="flex items-center gap-2">
                   {doc.isTemplate && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadTemplate(doc.templateUrl!, doc.name)}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Template
-                    </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDownloadTemplate(doc.templateUrl!, doc.name)}
+                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Template
+                  </Button>
                   )}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleRemoveDocument(doc.id)}
-                    className="text-red-600 hover:text-red-700"
+                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -558,7 +563,7 @@ export function KYCSetupModal({
                 />
                 <Label className="text-sm">Provide template</Label>
               </div>
-              <Button onClick={handleAddDocument} className="w-full">
+              <Button onClick={handleAddDocument} className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Document
               </Button>
@@ -568,10 +573,12 @@ export function KYCSetupModal({
       </Card>
 
       {/* Instructions */}
-      <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-800">
-            <FileText className="h-5 w-5" />
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="flex items-center gap-2 text-gray-900">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+              <FileText className="h-4 w-4 text-white" />
+            </div>
             Additional Instructions
           </CardTitle>
         </CardHeader>
@@ -591,16 +598,16 @@ export function KYCSetupModal({
   const renderPreviewStep = () => (
     <div className="space-y-6">
       <div className="text-center">
-        <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
           <Eye className="h-8 w-8 text-white" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">KYC Setup Preview</h3>
         <p className="text-gray-600">Review the KYC requirements before sending to client</p>
       </div>
 
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="text-blue-800">Client Information</CardTitle>
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="text-gray-900">Client Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -628,15 +635,17 @@ export function KYCSetupModal({
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-        <CardHeader>
-          <CardTitle className="text-green-800">Required Documents ({documents.filter(d => d.type === 'required').length})</CardTitle>
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="text-gray-900">Required Documents ({documents.filter(d => d.type === 'required').length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {documents.filter(d => d.type === 'required').map((doc) => (
-              <div key={doc.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                <CheckCircle className="h-5 w-5 text-green-600" />
+              <div key={doc.id} className="flex items-center gap-3 p-3 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
+                <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
                 <div>
                   <span className="font-medium text-gray-900">{doc.name}</span>
                   {doc.isTemplate && (
@@ -653,15 +662,17 @@ export function KYCSetupModal({
       </Card>
 
       {documents.filter(d => d.type === 'optional').length > 0 && (
-        <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200">
-          <CardHeader>
-            <CardTitle className="text-yellow-800">Optional Documents ({documents.filter(d => d.type === 'optional').length})</CardTitle>
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+            <CardTitle className="text-gray-900">Optional Documents ({documents.filter(d => d.type === 'optional').length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {documents.filter(d => d.type === 'optional').map((doc) => (
-                <div key={doc.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+                <div key={doc.id} className="flex items-center gap-3 p-3 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
+                  <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="h-4 w-4 text-white" />
+                  </div>
                   <div>
                     <span className="font-medium text-gray-900">{doc.name}</span>
                     {doc.isTemplate && (
@@ -679,9 +690,9 @@ export function KYCSetupModal({
       )}
 
       {kycData.instructions && (
-        <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
-          <CardHeader>
-            <CardTitle className="text-purple-800">Additional Instructions</CardTitle>
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+            <CardTitle className="text-gray-900">Additional Instructions</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-gray-700 whitespace-pre-wrap">{kycData.instructions}</p>
@@ -693,7 +704,7 @@ export function KYCSetupModal({
 
   const renderCompleteStep = () => (
     <div className="text-center space-y-6">
-      <div className="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto">
+      <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto shadow-lg">
         <CheckCircle className="h-10 w-10 text-white" />
       </div>
       <div>
@@ -702,8 +713,8 @@ export function KYCSetupModal({
           The KYC requirements have been configured and will be sent to the client.
         </p>
       </div>
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-lg border border-green-200">
-        <h4 className="font-semibold text-green-800 mb-2">What happens next?</h4>
+      <div className="bg-white/60 backdrop-blur-md border border-white/30 p-6 rounded-2xl shadow-lg shadow-gray-300/30">
+        <h4 className="font-semibold text-gray-900 mb-2">What happens next?</h4>
         <ul className="text-left text-sm text-gray-700 space-y-1">
           <li>• Client will receive an email with KYC requirements</li>
           <li>• Client can upload documents through the portal</li>
@@ -718,8 +729,10 @@ export function KYCSetupModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <Shield className="h-6 w-6 text-blue-600" />
+          <DialogTitle className="flex items-center gap-2 text-2xl text-gray-900">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+              <Shield className="h-4 w-4 text-white" />
+            </div>
             KYC Setup - {selectedEngagement?.title}
           </DialogTitle>
         </DialogHeader>
@@ -733,22 +746,22 @@ export function KYCSetupModal({
         <DialogFooter className="flex justify-between">
           <div className="flex gap-2">
             {currentStep === 'preview' && (
-              <Button variant="outline" onClick={() => setCurrentStep('setup')}>
+              <Button variant="outline" onClick={() => setCurrentStep('setup')} className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300">
                 Back to Edit
               </Button>
             )}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300">
               Cancel
             </Button>
           </div>
           <div>
             {currentStep === 'setup' && (
-              <Button onClick={handleProceedToPreview} className="bg-gradient-to-r from-blue-600 to-indigo-600">
+              <Button onClick={handleProceedToPreview} className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 Preview KYC Setup
               </Button>
             )}
             {currentStep === 'preview' && (
-              <Button onClick={handleCompleteKYC} className="bg-gradient-to-r from-green-600 to-emerald-600">
+              <Button onClick={handleCompleteKYC} className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 Complete KYC Setup
               </Button>
             )}

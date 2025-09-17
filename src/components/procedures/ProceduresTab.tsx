@@ -112,31 +112,45 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+      <div className="flex items-center justify-between mb-6 p-6 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
         <div className="flex items-center gap-3">
-          <h2 className="font-heading text-2xl text-foreground">Audit Procedures</h2>
-          <div className="flex items-center gap-2">
-            {getProcedureStatusBadge()}
-            {getProcedureTypeBadge()}
+          <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <FileText className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Audit Procedures</h2>
+            <div className="flex items-center gap-2 mt-1">
+              {getProcedureStatusBadge()}
+              {getProcedureTypeBadge()}
+            </div>
           </div>
         </div>
         {
           (selectedProcedureType)&&(
-            <Button variant="outline" onClick={handleRegenerate} className="flex items-center gap-2 bg-transparent">
-            <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
-          </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleRegenerate} 
+              className="flex items-center gap-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
+            </Button>
           )
         }
-          
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="generate" className="flex items-center gap-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 px-6">
+        <TabsList className="grid w-full grid-cols-2 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 p-1 rounded-xl">
+          <TabsTrigger 
+            value="generate" 
+            className="flex items-center gap-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
+          >
             <Sparkles className="h-4 w-4" /> Generate Procedures
           </TabsTrigger>
-          <TabsTrigger value="view" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="view" 
+            className="flex items-center gap-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
+          >
             <Eye className="h-4 w-4" /> View Procedures
           </TabsTrigger>
         </TabsList>
@@ -160,9 +174,11 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           ) : (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-body-semibold text-lg text-foreground mb-2">Coming Soon</h3>
-                <p className="text-muted-foreground font-body">Completion procedures will be available soon.</p>
+                <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                  <FileText className="h-8 w-8 text-gray-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Coming Soon</h3>
+                <p className="text-gray-600">Completion procedures will be available soon.</p>
               </div>
             </div>
           )}
@@ -172,11 +188,11 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           {!selectedProcedureType ? (
               <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
-            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-gray-600 text-center py-8">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (
             fieldworkProcedure && fieldworkProcedure.status === "completed"
               ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
-              : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+              : <div className="text-gray-600 text-center py-8">No Fieldwork procedures found.</div>
           ) : null}
         </TabsContent>
       </Tabs>
