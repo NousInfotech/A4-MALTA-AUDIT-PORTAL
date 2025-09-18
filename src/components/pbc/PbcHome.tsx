@@ -34,15 +34,15 @@ function PbcHome({ selectedEngagement }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-amber-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white/60 backdrop-blur-md border-b border-white/30 shadow-lg shadow-gray-300/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <FileCheck className="h-8 w-8 text-blue-600" />
+              <FileCheck className="h-8 w-8 text-gray-800" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">PBC Manager</h1>
+                <h1 className="text-xl font-semibold text-gray-900">PBC Manager</h1>
                 <p className="text-sm text-gray-600">
                   Prepared By Client Workflow
                 </p>

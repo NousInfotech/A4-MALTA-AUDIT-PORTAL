@@ -17,11 +17,11 @@ import { toast } from "sonner";
 import { CreatePBCDialog } from "./CreatePBCDialog";
 
 const statusColors = {
-  "document-collection": "bg-blue-500",
-  "qna-preparation": "bg-yellow-500",
-  "client-responses": "bg-orange-500",
-  "doubt-resolution": "bg-red-500",
-  submitted: "bg-green-500",
+  "document-collection": "bg-gray-800",
+  "qna-preparation": "bg-gray-700",
+  "client-responses": "bg-gray-600",
+  "doubt-resolution": "bg-gray-500",
+  submitted: "bg-gray-900",
 };
 
 const statusIcons = {
@@ -200,7 +200,7 @@ export function PBCDashboard({
         {(userRole === "employee" || userRole === "admin") && (
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
+            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
             disabled={!selectedEngagement} // Disable if no engagement or no document requests
           >
             <Plus className="h-4 w-4" />
@@ -221,10 +221,10 @@ export function PBCDashboard({
               setStatusFilter("");
               setEngagementFilter(false);
             }}
-            className={`transition-all duration-300 ${
+            className={`transition-all duration-300 rounded-xl ${
               statusFilter === "" && !engagementFilter
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
-                : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+                ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             }`}
           >
             All
@@ -236,10 +236,10 @@ export function PBCDashboard({
               setEngagementFilter(!engagementFilter);
               setStatusFilter(""); // Reset status filter when toggling engagement filter
             }}
-            className={`transition-all duration-300 ${
+            className={`transition-all duration-300 rounded-xl ${
               engagementFilter
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
-                : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+                ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             }`}
           >
             Engagement
@@ -253,10 +253,10 @@ export function PBCDashboard({
                 setStatusFilter(status);
                 setEngagementFilter(false); // Reset engagement filter when toggling status filter
               }}
-              className={`transition-all duration-300 ${
+              className={`transition-all duration-300 rounded-xl ${
                 statusFilter === status
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg"
-                  : "border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800"
+                  ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                  : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
               }`}
             >
               {getStatusLabel(status)}
@@ -289,8 +289,7 @@ export function PBCDashboard({
             return (
               <Card
                 key={workflow._id}
-                // className="cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden cursor-pointer"
+                className="group bg-white/60 backdrop-blur-md border border-white/30 hover:border-gray-300/50 rounded-2xl shadow-lg shadow-gray-300/30 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden cursor-pointer"
                 onClick={() => onSelectWorkflow(workflow)}
               >
                 <CardHeader>
@@ -367,7 +366,7 @@ export function PBCDashboard({
             (userRole === "employee" || userRole === "admin") && (
               <Button
                 onClick={() => setShowCreateDialog(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-800 text-white border-0 shadow-lg"
+                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                 disabled={!selectedEngagement}
               >
                 <Plus className="h-4 w-4" />

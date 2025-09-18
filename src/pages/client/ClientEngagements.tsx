@@ -7,19 +7,35 @@ import { useToast } from '@/hooks/use-toast';
 import { engagementApi, documentRequestApi } from '@/services/api';
 import { Briefcase, Calendar, FileText, Clock, Loader2, User, ArrowLeft } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import PbcDialog from '@/components/pbc/PbcDialog';
 
 export const ClientEngagements = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [clientEngagements, setClientEngagements] = useState([]);
   const [engagementRequests, setEngagementRequests] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
 
+  // Get the active tab from URL parameters
+  const activeTab = searchParams.get('tab') || 'all';
+
+  // Filter engagements based on active tab
+  const filteredEngagements = clientEngagements.filter(engagement => {
+    switch (activeTab) {
+      case 'active':
+        return engagement.status === 'active';
+      case 'completed':
+        return engagement.status === 'completed';
+      case 'all':
+      default:
+        return true;
+    }
+  });
 
   const handleOpenPBC = (engagement) => {
     setSelectedEngagement(engagement)
@@ -91,139 +107,129 @@ export const ClientEngagements = () => {
     console.log("clientEngagements", clientEngagements)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-green-600/10 to-emerald-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <Briefcase className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent leading-tight">
-                      My Engagements
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    View all your audit engagements and their current status
-                  </p>
-                </div>
-              </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">My Engagements</h1>
+              <p className="text-gray-700 animate-fade-in-delay">View all your audit engagements and their current status</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                asChild
-                variant="outline"
-                className="border-green-200 hover:bg-green-50/50 text-green-700 hover:text-green-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-              >
-                <Link to="/client">
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </Button>
-            </div>
+            <Button
+              asChild
+              variant="outline"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl"
+            >
+              <Link to="/client">
+                <ArrowLeft className="h-5 w-5 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
         </div>
-      </div>
 
       {/* Engagements Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {clientEngagements.map((engagement) => {
+        {filteredEngagements.map((engagement) => {
           const requests = engagementRequests[engagement._id] || [];
           const pendingRequests = requests.filter(r => r.status === 'pending').length;
           const completedRequests = requests.filter(r => r.status === 'completed').length;
           
           return (
-            <Card key={engagement._id} className="group bg-white/80 backdrop-blur-sm border border-green-100/50 hover:border-green-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <CardHeader className="relative pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                      <Briefcase className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg font-bold text-slate-800 truncate group-hover:text-green-700 transition-colors duration-300">
-                        {engagement.title}
-                      </CardTitle>
-                      <p className="text-sm text-slate-600">
-                        Created: {new Date(engagement.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
+            <div key={engagement._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <Briefcase className="h-6 w-6 text-white" />
                   </div>
-                  <Badge variant="outline" className={getStatusColor(engagement.status)}>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                      {engagement.title}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Created: {new Date(engagement.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex-shrink-0 ml-3">
+                  <Badge variant="outline" className={
+                    engagement.status === 'active' ? 'bg-gray-800 text-white border-gray-800' :
+                    engagement.status === 'completed' ? 'bg-gray-700 text-white border-gray-700' :
+                    'bg-gray-600 text-white border-gray-600'
+                  }>
                     {engagement.status}
                   </Badge>
                 </div>
-              </CardHeader>
+              </div>
               
-              <CardContent className="relative space-y-4">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar className="h-4 w-4" />
                   <span>Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}</span>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div className="text-center p-3 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border border-slate-100/50">
-                    <div className="font-bold text-slate-800 text-lg">{requests.length}</div>
-                    <div className="text-slate-600 text-xs">Total Requests</div>
+                  <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="font-bold text-gray-900 text-lg">{requests.length}</div>
+                    <div className="text-gray-600 text-xs">Total Requests</div>
                   </div>
-                  <div className="text-center p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50">
-                    <div className="font-bold text-yellow-700 text-lg">{pendingRequests}</div>
-                    <div className="text-slate-600 text-xs">Pending</div>
+                  <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="font-bold text-gray-900 text-lg">{pendingRequests}</div>
+                    <div className="text-gray-600 text-xs">Pending</div>
                   </div>
-                  <div className="text-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50">
-                    <div className="font-bold text-green-700 text-lg">{completedRequests}</div>
-                    <div className="text-slate-600 text-xs">Completed</div>
+                  <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="font-bold text-gray-900 text-lg">{completedRequests}</div>
+                    <div className="text-gray-600 text-xs">Completed</div>
                   </div>
                 </div>
                 
                 {engagement.trialBalanceUrl ? (
-                  <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-                    <FileText className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-700 font-medium">Trial Balance: Uploaded</span>
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <FileText className="h-4 w-4 text-gray-800" />
+                    <span className="text-sm text-gray-700 font-medium">Trial Balance: Uploaded</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50">
-                    <FileText className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-700 font-medium">Trial Balance: Not Uploaded</span>
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <FileText className="h-4 w-4 text-gray-800" />
+                    <span className="text-sm text-gray-700 font-medium">Trial Balance: Not Uploaded</span>
                   </div>
                 )}
 
                 <div>
-                  <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gradient-to-br from-indigo-500 via-violet-500 to-blue-500 hover:brightness-105 rounded-full w-full text-white'>PBC WorkFlow</button>
+                  <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gray-800 hover:bg-gray-900 rounded-xl w-full text-white transition-all duration-300'>PBC WorkFlow</button>
                 </div>
                 
                 {pendingRequests > 0 && (
-                  <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50">
-                    <Clock className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm text-yellow-700 font-medium">
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <Clock className="h-4 w-4 text-gray-800" />
+                    <span className="text-sm text-gray-700 font-medium">
                       {pendingRequests} document request{pendingRequests === 1 ? '' : 's'} pending
                     </span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {clientEngagements.length === 0 && (
-        <Card className="bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl shadow-xl overflow-hidden">
-          <CardContent className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <Briefcase className="h-10 w-10 text-green-600" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-3">
-              No engagements yet
-            </h3>
-            <p className="text-slate-600">
-              Your audit engagements will appear here once they are created by your auditor.
-            </p>
-          </CardContent>
-        </Card>
+      {filteredEngagements.length === 0 && (
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg shadow-gray-300/30">
+          <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Briefcase className="h-10 w-10 text-gray-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-3">
+            {activeTab === 'active' ? 'No Active Engagements' : 
+             activeTab === 'completed' ? 'No Completed Engagements' : 
+             'No Engagements Yet'}
+          </h3>
+          <p className="text-gray-600">
+            {activeTab === 'active' ? 'You have no active audit engagements at the moment.' :
+             activeTab === 'completed' ? 'You have no completed audit engagements yet.' :
+             'Your audit engagements will appear here once they are created by your auditor.'}
+          </p>
+        </div>
       )}
 
 
@@ -235,6 +241,7 @@ export const ClientEngagements = () => {
           onClosePBC={handleClosePBC}
         />
       )}
+      </div>
     </div>
   );
 };

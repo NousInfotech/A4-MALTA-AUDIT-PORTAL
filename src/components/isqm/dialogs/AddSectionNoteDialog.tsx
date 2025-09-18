@@ -54,3 +54,4 @@ export const AddSectionNoteDialog: React.FC<AddSectionNoteDialogProps> = ({
     </Dialog>
   );
 };
+

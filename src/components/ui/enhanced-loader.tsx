@@ -29,7 +29,7 @@ export function EnhancedLoader({ size = "md", text, className, variant = "defaul
         {[0, 1, 2].map((i) => (
           <motion.div
             key={i}
-            className={cn("bg-primary rounded-full", {
+            className={cn("bg-gray-600 rounded-full", {
               "w-2 h-2": size === "sm",
               "w-3 h-3": size === "md",
               "w-4 h-4": size === "lg",
@@ -67,7 +67,7 @@ export function EnhancedLoader({ size = "md", text, className, variant = "defaul
         exit={{ opacity: 0, scale: 0.8 }}
       >
         <motion.div
-          className={cn("bg-primary/20 rounded-full flex items-center justify-center", {
+          className={cn("bg-gray-200 rounded-full flex items-center justify-center", {
             "w-16 h-16": size === "sm",
             "w-20 h-20": size === "md",
             "w-24 h-24": size === "lg",
@@ -82,7 +82,7 @@ export function EnhancedLoader({ size = "md", text, className, variant = "defaul
             ease: "easeInOut",
           }}
         >
-          <Loader2 className={cn(sizeClasses[size], "animate-spin text-primary")} />
+          <Loader2 className={cn(sizeClasses[size], "animate-spin text-gray-600")} />
         </motion.div>
         {text && (
           <motion.p
@@ -108,7 +108,7 @@ export function EnhancedLoader({ size = "md", text, className, variant = "defaul
         animate={{ rotate: 360 }}
         transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
       >
-        <Loader2 className={cn(sizeClasses[size], "text-primary")} />
+        <Loader2 className={cn(sizeClasses[size], "text-gray-600")} />
       </motion.div>
       {text && (
         <motion.span

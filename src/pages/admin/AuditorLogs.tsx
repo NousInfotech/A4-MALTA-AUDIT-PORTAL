@@ -127,14 +127,14 @@ export const AuditorLogs = () => {
   const getStatusBadge = (status?: string) => {
     if (status === "SUCCESS") {
       return (
-        <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+        <Badge variant="default" className="bg-gray-100 text-gray-800 border-gray-200">
           <CheckCircle className="h-3 w-3 mr-1" />
           Success
         </Badge>
       );
     } else if (status === "FAIL") {
       return (
-        <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200">
+        <Badge variant="destructive" className="bg-gray-100 text-gray-800 border-gray-200">
           <AlertCircle className="h-3 w-3 mr-1" />
           Failed
         </Badge>
@@ -197,171 +197,168 @@ export const AuditorLogs = () => {
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20 space-y-8">
+    <div className="min-h-screen bg-amber-50 p-6">
       {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                    Auditor Logs
-                  </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Monitor and track all auditor activities and system access
-                  </p>
-                </div>
+      <div className="mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+                <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900">
+                  Auditor Logs
+                </h1>
+                <p className="text-gray-700 mt-1 text-lg">
+                  Monitor and track all auditor activities and system access
+                </p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                onClick={handleExportLogs}
-                disabled={exportLoading}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto disabled:opacity-50"
-              >
-                {exportLoading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-5 w-5 mr-2" />
-                    Export CSV
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-                onClick={handleRefresh}
-                disabled={loading}
-              >
-                <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
-              >
-                <Link to="/admin">
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Back to Dashboard
-                </Link>
-              </Button>
-            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={handleExportLogs}
+              disabled={exportLoading}
+              className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto disabled:opacity-50"
+            >
+              {exportLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="h-5 w-5 mr-2" />
+                  Export CSV
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+            >
+              <Link to="/admin">
+                <ArrowLeft className="h-5 w-5 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Stats Cards - Horizontal Layout */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardContent className="p-6">
+      <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 mb-8">
+        <div className="p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Logs */}
-            <div className="group flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-100/50 hover:border-blue-300/50 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+            <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <FileText className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-gray-800">
                   {statistics?.summary?.totalLogs || logs.length}
                 </div>
-                <div className="text-sm text-slate-600 font-medium">Total Logs</div>
-                <div className="text-xs text-slate-500">All time activities</div>
+                <div className="text-sm text-gray-600 font-medium">Total Logs</div>
+                <div className="text-xs text-gray-500">All time activities</div>
               </div>
             </div>
 
             {/* Active Auditors */}
-            <div className="group flex items-center gap-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-100/50 hover:border-green-300/50 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+            <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <User className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-gray-800">
                   {statistics?.topEmployees?.length || new Set(logs.map(log => log.employeeId)).size}
                 </div>
-                <div className="text-sm text-slate-600 font-medium">Active Auditors</div>
-                <div className="text-xs text-slate-500">Unique auditors</div>
+                <div className="text-sm text-gray-600 font-medium">Active Auditors</div>
+                <div className="text-xs text-gray-500">Unique auditors</div>
               </div>
             </div>
 
             {/* Success Rate */}
-            <div className="group flex items-center gap-4 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-2xl border border-yellow-100/50 hover:border-yellow-300/50 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+            <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <CheckCircle className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-yellow-600">
+                <div className="text-2xl font-bold text-gray-800">
                   {statistics?.summary?.successRate || 
                    (logs.length > 0 ? Math.round((logs.filter(log => log.status === "SUCCESS").length / logs.length) * 100) : 0)}%
                 </div>
-                <div className="text-sm text-slate-600 font-medium">Success Rate</div>
-                <div className="text-xs text-slate-500">Successful actions</div>
+                <div className="text-sm text-gray-600 font-medium">Success Rate</div>
+                <div className="text-xs text-gray-500">Successful actions</div>
               </div>
             </div>
 
             {/* Today's Activity */}
-            <div className="group flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-100/50 hover:border-purple-300/50 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+            <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <Activity className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold text-gray-800">
                   {logs.filter(log => {
                     const today = new Date();
                     const logDate = new Date(log.timestamp);
                     return logDate.toDateString() === today.toDateString();
                   }).length}
                 </div>
-                <div className="text-sm text-slate-600 font-medium">Today's Activity</div>
-                <div className="text-xs text-slate-500">Actions today</div>
+                <div className="text-sm text-gray-600 font-medium">Today's Activity</div>
+                <div className="text-xs text-gray-500">Actions today</div>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Filters and Search */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
+      <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 mb-8">
+        <div className="bg-gray-50 border-b border-gray-200 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Filter className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-slate-800">Filters & Search</CardTitle>
-                <CardDescription className="text-slate-600">Filter and search through auditor activity logs</CardDescription>
+                <h3 className="text-xl font-bold text-gray-900">Filters & Search</h3>
+                <p className="text-gray-600">Filter and search through auditor activity logs</p>
               </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
+        </div>
+        <div className="p-6">
           <div className="space-y-4">
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
               <Input
                 placeholder="Search by auditor name, email, action, or details..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full border-purple-200 focus:border-purple-400 rounded-2xl h-12 text-base"
+                className="pl-10 w-full border-gray-200 focus:border-gray-400 rounded-xl h-12 text-base"
               />
             </div>
             
             {/* Filter Row */}
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">Action Type</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Action Type</label>
                 <Select value={actionFilter} onValueChange={setActionFilter}>
-                  <SelectTrigger className="w-full rounded-2xl border-purple-200 focus:border-purple-400 h-12">
+                  <SelectTrigger className="w-full rounded-xl border-gray-200 focus:border-gray-400 h-12">
                     <SelectValue placeholder="Filter by action" />
                   </SelectTrigger>
                   <SelectContent>
@@ -374,9 +371,9 @@ export const AuditorLogs = () => {
               </div>
               
               <div className="flex-1">
-                <label className="text-sm font-medium text-slate-700 mb-2 block">Status</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full rounded-2xl border-purple-200 focus:border-purple-400 h-12">
+                  <SelectTrigger className="w-full rounded-xl border-gray-200 focus:border-gray-400 h-12">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -396,7 +393,7 @@ export const AuditorLogs = () => {
                     setStatusFilter("all");
                     setCurrentPage(1);
                   }}
-                  className="rounded-2xl border-purple-200 hover:bg-purple-50 text-purple-700 h-12 px-6"
+                  className="rounded-xl border-gray-300 hover:bg-gray-100 text-gray-700 h-12 px-6"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Clear Filters
@@ -406,69 +403,69 @@ export const AuditorLogs = () => {
             
             {/* Active Filters Display */}
             {(searchTerm || actionFilter !== "all" || statusFilter !== "all") && (
-              <div className="flex flex-wrap gap-2 p-3 bg-purple-50 rounded-2xl border border-purple-100">
-                <span className="text-sm font-medium text-purple-700">Active filters:</span>
+              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <span className="text-sm font-medium text-gray-700">Active filters:</span>
                 {searchTerm && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                     Search: "{searchTerm}"
                   </Badge>
                 )}
                 {actionFilter !== "all" && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                     Action: {actionFilter}
                   </Badge>
                 )}
                 {statusFilter !== "all" && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                     Status: {statusFilter}
                   </Badge>
                 )}
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Logs Table */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
+      <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+        <div className="bg-gray-50 border-b border-gray-200 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
                 <FileText className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-slate-800">
+                <h3 className="text-xl font-bold text-gray-900">
                   Activity Logs ({filteredLogs.length} results)
-                  <span className="text-sm font-normal text-slate-500 ml-2">
+                  <span className="text-sm font-normal text-gray-500 ml-2">
                     Showing {startIndex + 1}-{Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length}
                   </span>
-                </CardTitle>
-                <CardDescription className="text-slate-600">Detailed view of all auditor activities and system interactions</CardDescription>
+                </h3>
+                <p className="text-gray-600">Detailed view of all auditor activities and system interactions</p>
               </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
+        </div>
+        <div className="p-6">
           <div className="overflow-x-auto">
             <Table className="min-w-[800px]">
               <TableHeader>
-                <TableRow className="border-purple-100/50">
-                  <TableHead className="text-slate-700 font-semibold">Auditor</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Action</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Details</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Location</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Timestamp</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Status</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Actions</TableHead>
+                <TableRow className="border-gray-200">
+                  <TableHead className="text-gray-700 font-semibold">Auditor</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Action</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Details</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Location</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Timestamp</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Status</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-slate-600">
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <FileText className="h-8 w-8 text-purple-600" />
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-600">
+                      <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                        <FileText className="h-8 w-8 text-gray-600" />
                       </div>
                       <p className="font-medium">
                         {searchTerm || actionFilter !== "all" || statusFilter !== "all"
@@ -479,42 +476,42 @@ export const AuditorLogs = () => {
                   </TableRow>
                 ) : (
                   paginatedLogs.map((log) => (
-                    <TableRow key={log._id} className="border-purple-100/50 hover:bg-purple-50/30 transition-colors duration-200 group">
+                    <TableRow key={log._id} className="border-gray-200 hover:bg-gray-50 transition-colors duration-200 group">
                       <TableCell className="py-4">
                         <div className="space-y-1">
-                          <div className="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">
+                          <div className="font-semibold text-gray-800 group-hover:text-gray-700 transition-colors">
                             {log.employeeName}
                           </div>
-                          <div className="text-sm text-slate-500">{log.employeeEmail}</div>
+                          <div className="text-sm text-gray-500">{log.employeeEmail}</div>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-lg flex items-center justify-center">
+                          <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                             {getActionIcon(log.action)}
                           </div>
-                          <span className="font-medium text-slate-700">{log.action}</span>
+                          <span className="font-medium text-gray-700">{log.action}</span>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
                         <div className="max-w-xs">
-                          <div className="text-slate-600 text-sm line-clamp-2" title={log.details}>
+                          <div className="text-gray-600 text-sm line-clamp-2" title={log.details}>
                             {log.details}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
-                        <div className="flex items-center gap-1 text-slate-500">
+                        <div className="flex items-center gap-1 text-gray-500">
                           <MapPin className="h-3 w-3" />
                           <span className="text-sm">{log.location}</span>
                         </div>
                       </TableCell>
                       <TableCell className="py-4">
                         <div className="space-y-1">
-                          <div className="text-sm font-medium text-slate-700">
+                          <div className="text-sm font-medium text-gray-700">
                             {format(new Date(log.timestamp), "MMM dd, yyyy")}
                           </div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-gray-500">
                             {format(new Date(log.timestamp), "HH:mm:ss")}
                           </div>
                         </div>
@@ -528,7 +525,7 @@ export const AuditorLogs = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-xl border-purple-200 hover:bg-purple-50 text-purple-700 hover:text-purple-800 transition-all duration-200 hover:shadow-md"
+                              className="rounded-xl border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-800 transition-all duration-200 hover:shadow-md"
                               onClick={() => setSelectedLog(log)}
                             >
                               <Eye className="h-4 w-4 mr-1" />
@@ -549,36 +546,36 @@ export const AuditorLogs = () => {
                             <div className="space-y-6">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">Auditor</label>
-                                  <div className="text-lg font-semibold text-slate-800">{selectedLog.employeeName}</div>
-                                  <div className="text-sm text-slate-600">{selectedLog.employeeEmail}</div>
+                                  <label className="text-sm font-medium text-gray-600">Auditor</label>
+                                  <div className="text-lg font-semibold text-gray-800">{selectedLog.employeeName}</div>
+                                  <div className="text-sm text-gray-600">{selectedLog.employeeEmail}</div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">Action</label>
+                                  <label className="text-sm font-medium text-gray-600">Action</label>
                                   <div className="flex items-center gap-2">
                                     {getActionIcon(selectedLog.action)}
-                                    <span className="text-lg font-semibold text-slate-800">{selectedLog.action}</span>
+                                    <span className="text-lg font-semibold text-gray-800">{selectedLog.action}</span>
                                   </div>
                                 </div>
                               </div>
                               
                               <div>
-                                <label className="text-sm font-medium text-slate-600">Details</label>
-                                <div className="text-slate-800 bg-slate-50 p-3 rounded-lg">
+                                <label className="text-sm font-medium text-gray-600">Details</label>
+                                <div className="text-gray-800 bg-gray-50 p-3 rounded-lg">
                                   {selectedLog.details}
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">Timestamp</label>
-                                  <div className="flex items-center gap-1 text-slate-800">
+                                  <label className="text-sm font-medium text-gray-600">Timestamp</label>
+                                  <div className="flex items-center gap-1 text-gray-800">
                                     <Clock className="h-4 w-4" />
                                     <span>{format(new Date(selectedLog.timestamp), "MMM dd, yyyy 'at' HH:mm:ss")}</span>
                                   </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">Status</label>
+                                  <label className="text-sm font-medium text-gray-600">Status</label>
                                   <div className="mt-1">
                                     {getStatusBadge(selectedLog.status)}
                                   </div>
@@ -587,14 +584,14 @@ export const AuditorLogs = () => {
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">IP Address</label>
-                                  <div className="text-slate-800 font-mono text-sm bg-slate-50 p-2 rounded">
+                                  <label className="text-sm font-medium text-gray-600">IP Address</label>
+                                  <div className="text-gray-800 font-mono text-sm bg-gray-50 p-2 rounded">
                                     {selectedLog.ipAddress || "N/A"}
                                   </div>
                                 </div>
                                 <div>
-                                  <label className="text-sm font-medium text-slate-600">Location</label>
-                                  <div className="flex items-center gap-1 text-slate-800">
+                                  <label className="text-sm font-medium text-gray-600">Location</label>
+                                  <div className="flex items-center gap-1 text-gray-800">
                                     <MapPin className="h-4 w-4" />
                                     <span>{selectedLog.location || "N/A"}</span>
                                   </div>
@@ -602,8 +599,8 @@ export const AuditorLogs = () => {
                               </div>
 
                               <div>
-                                <label className="text-sm font-medium text-slate-600">Device Information</label>
-                                <div className="flex items-center gap-1 text-slate-800 bg-slate-50 p-3 rounded-lg">
+                                <label className="text-sm font-medium text-gray-600">Device Information</label>
+                                <div className="flex items-center gap-1 text-gray-800 bg-gray-50 p-3 rounded-lg">
                                   <Monitor className="h-4 w-4" />
                                   <span className="text-sm">{selectedLog.deviceInfo || "N/A"}</span>
                                 </div>
@@ -622,8 +619,8 @@ export const AuditorLogs = () => {
           
           {/* Pagination Controls */}
           {filteredLogs.length > itemsPerPage && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-purple-100/50 bg-gradient-to-r from-purple-50/30 to-indigo-50/30">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
                 <span>Rows per page:</span>
                 <span className="font-medium">{itemsPerPage}</span>
               </div>
@@ -634,7 +631,7 @@ export const AuditorLogs = () => {
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="rounded-xl border-purple-200 hover:bg-purple-50 text-purple-700 disabled:opacity-50"
+                  className="rounded-xl border-gray-300 hover:bg-gray-100 text-gray-700 disabled:opacity-50"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
@@ -661,8 +658,8 @@ export const AuditorLogs = () => {
                         onClick={() => setCurrentPage(pageNum)}
                         className={`rounded-xl ${
                           currentPage === pageNum
-                            ? "bg-purple-600 text-white hover:bg-purple-700"
-                            : "border-purple-200 hover:bg-purple-50 text-purple-700"
+                            ? "bg-gray-800 text-white hover:bg-gray-900"
+                            : "border-gray-300 hover:bg-gray-100 text-gray-700"
                         }`}
                       >
                         {pageNum}
@@ -672,12 +669,12 @@ export const AuditorLogs = () => {
                   
                   {totalPages > 5 && currentPage < totalPages - 2 && (
                     <>
-                      <MoreHorizontal className="h-4 w-4 text-slate-400" />
+                      <MoreHorizontal className="h-4 w-4 text-gray-400" />
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(totalPages)}
-                        className="rounded-xl border-purple-200 hover:bg-purple-50 text-purple-700"
+                        className="rounded-xl border-gray-300 hover:bg-gray-100 text-gray-700"
                       >
                         {totalPages}
                       </Button>
@@ -690,7 +687,7 @@ export const AuditorLogs = () => {
                   size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="rounded-xl border-purple-200 hover:bg-purple-50 text-purple-700 disabled:opacity-50"
+                  className="rounded-xl border-gray-300 hover:bg-gray-100 text-gray-700 disabled:opacity-50"
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />
@@ -698,8 +695,8 @@ export const AuditorLogs = () => {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
