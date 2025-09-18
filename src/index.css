@@ -5,12 +5,12 @@
 @import '@fontsource/great-vibes/latin.css'; // Or just latin subset
 */
 
+/* Import custom animations */
+@import './styles/animations.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import custom animations */
-@import './styles/animations.css';
 
 /* Professional Legal Audit Portal Design System */
 
