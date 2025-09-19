@@ -65,7 +65,7 @@ const ReviewHistory: React.FC<ReviewHistoryProps> = ({ isOpen, onClose, workflow
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent className="min-w-[70vw] min-h-[70vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Review History</DialogTitle>
           <DialogDescription>
