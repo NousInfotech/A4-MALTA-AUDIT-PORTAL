@@ -52,7 +52,7 @@ interface ReviewWorkflowsDashboardProps {
 const ReviewWorkflowsDashboard: React.FC<
   ReviewWorkflowsDashboardProps
 > = () => {
-  const [workflows, setWorkflows] = useState<ReviewWorkflow[]>([]);
+  const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ReviewWorkflowFilters>({
@@ -72,6 +72,7 @@ const ReviewWorkflowsDashboard: React.FC<
       const response = await getAllReviewWorkflows(filters);
       if (response.success && response.workflows) {
         setWorkflows(response.workflows);
+        console.log("review workflows", response.workflows)
         setPagination(response.pagination || null);
       } else {
         setError(response.message || "Failed to fetch workflows.");
@@ -111,7 +112,7 @@ const ReviewWorkflowsDashboard: React.FC<
     try {
       const response = await GetEngagements();
       console.log("engagements",response)
-      if (response) { // Assuming response has a 'engagements' array
+      if (response) { 
         setEngagements(response);
       } else {
         console.error("Failed to fetch engagements:", response.message);
@@ -244,8 +245,8 @@ const ReviewWorkflowsDashboard: React.FC<
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Reviewers</SelectItem>
-            {reviewers.map((reviewer) => (
-              <SelectItem key={reviewer._id} value={reviewer._id}>
+            {reviewers.map((reviewer, index) => (
+              <SelectItem key={index} value={reviewer._id}>
                 {reviewer.name}
               </SelectItem>
             ))}
