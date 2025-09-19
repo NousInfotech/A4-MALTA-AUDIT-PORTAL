@@ -900,16 +900,7 @@
 
 // export default ReviewDetailsPage;
 
-
-
-
-
-
-
 // ###############################################################################################################
-
-
-
 
 import React, {
   useState,
@@ -945,7 +936,7 @@ import {
   fetchAuditItemDetails, // Import the new API function
 } from "@/lib/api/review-api";
 import { io, Socket } from "socket.io-client";
-import { Button } from "@/components/ui/button"; // Assuming you have a Button component
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -966,6 +957,7 @@ import {
 import { Textarea } from "../ui/textarea";
 import axiosInstance from "@/lib/axiosInstance";
 import { cn } from "@/lib/utils";
+import { ArrowLeft } from "lucide-react";
 
 // Add the fetchAuditItemId function
 export const fetchAuditItemId = async (
@@ -974,23 +966,27 @@ export const fetchAuditItemId = async (
 ): Promise<string | null> => {
   try {
     const apiEndpoints: Record<string, string> = {
-      "procedure": "/api/procedures",
+      procedure: "/api/procedures",
       "planning-procedure": "/api/planning-procedures",
       "document-request": "/api/document-requests",
       "checklist-item": "/api/checklist",
-      "pbc": "/api/pbc",
-      "kyc": "/api/kyc",
+      pbc: "/api/pbc",
+      kyc: "/api/kyc",
       "isqm-document": "/api/isqm",
-      "working-paper": "/api/working-paper"
+      "working-paper": "/api/working-paper",
     };
 
     const apiUrl = apiEndpoints[itemType];
 
     if (apiUrl) {
-      const response = await axiosInstance.get(`${apiUrl}?engagementId=${engagementId}`);
-      
-      const id = response.data?.filter((item:any) => item.engagement._id === engagementId)[0]._id
-      console.log("responseId", id)
+      const response = await axiosInstance.get(
+        `${apiUrl}?engagementId=${engagementId}`
+      );
+
+      const id = response.data?.filter(
+        (item: any) => item.engagement._id === engagementId
+      )[0]._id;
+      console.log("responseId", id);
       return id;
     }
 
@@ -1035,7 +1031,7 @@ const fetchItemsByType = async (itemType: AuditItemType) => {
         throw new Error(`Unhandled item type: ${itemType}`);
     }
 
-    const response = await axiosInstance.get(endpoint,);
+    const response = await axiosInstance.get(endpoint);
     return Array.isArray(response.data) ? response.data : [response.data];
   } catch (error) {
     console.error(`Error fetching items for type ${itemType}:`, error);
@@ -1145,7 +1141,7 @@ const fetchReviewWorkflowsApi = async (
     let response: any;
     if (engagementId) {
       response = await GetReviewworkflowByEngagementId(engagementId);
-      console.log("work flow response", response)
+      console.log("work flow response", response);
     } else {
       response = await getAllReviewWorkflows();
     }
@@ -1247,7 +1243,7 @@ const ReviewDetailsPage: React.FC = () => {
   const [newItemId, setNewItemId] = useState<string>("");
   const [newItemComments, setNewItemComments] = useState<string>("");
   const [isSubmittingNewWorkflow, setIsSubmittingNewWorkflow] = useState(false);
-  
+
   // New state for available items based on selected type
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -1281,24 +1277,29 @@ const ReviewDetailsPage: React.FC = () => {
   };
 
   // Function to get display text for an item based on its type
-  const getItemDisplayText = useCallback((item: any, itemType: AuditItemType | "") => {
-    switch (itemType) {
-      case "procedure":
-      case "planning-procedure":
-      case "pbc":
-      case "working-paper":
-        return item.name || item.title || `Item ${item._id}`;
-      case "document-request":
-        return item.requestTitle || `Request ${item._id}`;
-      case "checklist-item":
-      case "isqm-document":
-        return item.title || `Item ${item._id}`;
-      case "kyc":
-        return item.clientName ? `KYC for ${item.clientName}` : `KYC ${item._id}`;
-      default:
-        return item.name || item.title || `Item ${item._id}`;
-    }
-  }, []);
+  const getItemDisplayText = useCallback(
+    (item: any, itemType: AuditItemType | "") => {
+      switch (itemType) {
+        case "procedure":
+        case "planning-procedure":
+        case "pbc":
+        case "working-paper":
+          return item.name || item.title || `Item ${item._id}`;
+        case "document-request":
+          return item.requestTitle || `Request ${item._id}`;
+        case "checklist-item":
+        case "isqm-document":
+          return item.title || `Item ${item._id}`;
+        case "kyc":
+          return item.clientName
+            ? `KYC for ${item.clientName}`
+            : `KYC ${item._id}`;
+        default:
+          return item.name || item.title || `Item ${item._id}`;
+      }
+    },
+    []
+  );
 
   // This function now centralizes fetching logic and updates local state
   const fetchAndSetReviewWorkflows = useCallback(
@@ -1360,7 +1361,7 @@ const ReviewDetailsPage: React.FC = () => {
       try {
         setCurrentUser(authUser);
         const revs = await GetAllReviewers();
-        console.log("revs",revs)
+        console.log("revs", revs);
         if (revs.success) {
           setAvailableReviewers(revs.users);
         } else {
@@ -1792,17 +1793,26 @@ const ReviewDetailsPage: React.FC = () => {
   }
 
   return (
-    <div className="review-details-page p-6 bg-gray-50 min-h-screen">
+    <div className="container mx-auto p-2">
+    <div className="review-details-page bg-gray-50 min-h-screen rounded-lg p-6">
       <h1 className="text-3xl font-bold text-gray-500 mb-6">{displayTitle}</h1>
 
       <div className="flex justify-between items-center mb-6">
         <div className="flex space-x-2">
-          
+          <Button
+            onClick={() => navigate("/employee/engagements")}
+            
+            className="flex items-center gap-2 bg-white border border-gray-500 text-blue-500"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Go Back
+          </Button>
+
+
           {urlEngagementId && (
             <Button
               onClick={() => setSelectedFilter("engagement")}
               variant={selectedFilter === "engagement" ? "default" : "outline"}
-              
             >
               Show Current Engagement Workflows
             </Button>
@@ -1842,106 +1852,103 @@ const ReviewDetailsPage: React.FC = () => {
 
       {/* Create New Review Workflow Modal */}
       <Dialog
-      open={showCreateWorkflowModal}
-      onOpenChange={(open) => {
-        setShowCreateWorkflowModal(open);
-        if (!open) {
-          // Reset form when modal is closed
-          setNewItemType("");
-          setNewItemId("");
-          setNewItemComments("");
-          setAvailableItems([]);
-        }
-      }}
-    >
-      <DialogContent className="min-w-[50vw]">
-        <DialogHeader>
-          <DialogTitle>Create New Review Workflow</DialogTitle>
-          <DialogDescription>
-            Submit an item from engagement &quot;{urlEngagementId}&quot; for
-            review.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          {/* Item Type Field */}
-          <div className="grid gap-2">
-            <Label htmlFor="itemType" className="text-left">
-              Item Type
-            </Label>
-            <Select
-              value={newItemType}
-              onValueChange={handleItemTypeChange}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an item type" />
-              </SelectTrigger>
-              <SelectContent>
-                {auditItemTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type
-                      .replace(/-/g, " ")
-                      .replace(/\b\w/g, (l) => l.toUpperCase())}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        open={showCreateWorkflowModal}
+        onOpenChange={(open) => {
+          setShowCreateWorkflowModal(open);
+          if (!open) {
+            // Reset form when modal is closed
+            setNewItemType("");
+            setNewItemId("");
+            setNewItemComments("");
+            setAvailableItems([]);
+          }
+        }}
+      >
+        <DialogContent className="min-w-[50vw]">
+          <DialogHeader>
+            <DialogTitle>Create New Review Workflow</DialogTitle>
+            <DialogDescription>
+              Submit an item from engagement &quot;{urlEngagementId}&quot; for
+              review.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Item Type Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="itemType" className="text-left">
+                Item Type
+              </Label>
+              <Select value={newItemType} onValueChange={handleItemTypeChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select an item type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {auditItemTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Item ID Field - Using an input field now */}
-          <div className="grid gap-2">
-            <Label htmlFor="itemId" className="text-left">
-              ItemID
-            </Label>
-            {loadingItems && (
-              <div className="flex items-center justify-center p-4 border rounded">
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-                Loading items...
-              </div>
-            )}  
-            {newItemType && newItemId && (
-               
-              <Input
-                id="itemId"
-                value={newItemId}
-                onChange={(e) => setNewItemId(e.target.value)}
+            {/* Item ID Field - Using an input field now */}
+            <div className="grid gap-2">
+              <Label htmlFor="itemId" className="text-left">
+                ItemID
+              </Label>
+              {loadingItems && (
+                <div className="flex items-center justify-center p-4 border rounded">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                  Loading items...
+                </div>
+              )}
+              {newItemType && newItemId && (
+                <Input
+                  id="itemId"
+                  value={newItemId}
+                  onChange={(e) => setNewItemId(e.target.value)}
+                  className="w-full"
+                  placeholder="Select an item type first"
+                  disabled
+                />
+              )}
+            </div>
+
+            {/* Comments Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="comments" className="text-left">
+                Comments (Optional)
+              </Label>
+              <Textarea
+                id="comments"
+                value={newItemComments}
+                onChange={(e) => setNewItemComments(e.target.value)}
                 className="w-full"
-                placeholder="Select an item type first"
-                disabled
+                placeholder="Initial comments for review"
+                rows={4}
               />
-            )}
+            </div>
           </div>
-
-          {/* Comments Field */}
-          <div className="grid gap-2">
-            <Label htmlFor="comments" className="text-left">
-              Comments (Optional)
-            </Label>
-            <Textarea
-              id="comments"
-              value={newItemComments}
-              onChange={(e) => setNewItemComments(e.target.value)}
-              className="w-full"
-              placeholder="Initial comments for review"
-              rows={4}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setShowCreateWorkflowModal(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmitNewWorkflow}
-            disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
-          >
-            {isSubmittingNewWorkflow ? "Submitting..." : "Submit for Review"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateWorkflowModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitNewWorkflow}
+              disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
+            >
+              {isSubmittingNewWorkflow ? "Submitting..." : "Submit for Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
     </div>
   );
 };

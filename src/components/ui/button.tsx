@@ -10,11 +10,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-sidebar-foreground text-primary-foreground hover:bg-sidebar-foreground hover:brightness-110 ease-in-out duration-500",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90", // Changed to default Shadcn
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:
-          "border border-input bg-background hover:bg-sidebar-foreground hover:text-accent-foreground",
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground", // Changed to default Shadcn
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
