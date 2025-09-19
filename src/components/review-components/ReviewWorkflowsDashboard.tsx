@@ -196,7 +196,7 @@ const ReviewWorkflowsDashboard: React.FC<
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-300 rounded-lg">
       <h1 className="text-3xl font-bold mb-6">Review Workflows</h1>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
