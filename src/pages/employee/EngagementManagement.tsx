@@ -40,7 +40,7 @@ export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "All" | "draft" | "active" | "completed"
-  >("active");
+  >("All");
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
 
