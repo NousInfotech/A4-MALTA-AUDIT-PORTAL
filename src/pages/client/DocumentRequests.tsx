@@ -11,15 +11,19 @@ import { useToast } from '@/hooks/use-toast';
 import { engagementApi, documentRequestApi } from '@/services/api';
 import { Upload, FileText, Clock, CheckCircle, Download, Calendar, Loader2, User, ArrowLeft } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [clientEngagements, setClientEngagements] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFiles, setUploadingFiles] = useState({});
+
+  // Get the active tab from URL parameters
+  const activeTab = searchParams.get('tab') || 'pending';
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -159,32 +163,19 @@ export const DocumentRequests = () => {
     }
     console.log("allRequests", allRequests)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-emerald-50/20 p-6 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-green-600/10 to-emerald-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <Upload className="h-6 w-6 text-white" />
-                </div>
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
                 <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent leading-tight">
-                      Document Requests
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    View and respond to document requests from your auditors
-                  </p>
-                </div>
-              </div>
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">Document Requests</h1>
+              <p className="text-gray-700 animate-fade-in-delay">View and respond to document requests from your auditors</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 asChild
                 variant="outline"
-                className="border-green-200 hover:bg-green-50/50 text-green-700 hover:text-green-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl"
               >
                 <Link to="/client">
                   <ArrowLeft className="h-5 w-5 mr-2" />
@@ -193,128 +184,87 @@ export const DocumentRequests = () => {
               </Button>
             </div>
           </div>
+
+      {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <Clock className="h-6 w-6 text-gray-800" />
+              </div>
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">{pendingRequests.length}</p>
+              <p className="text-sm text-gray-700">Pending Requests</p>
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-yellow-100/50 hover:border-yellow-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-yellow-600" />
-                Pending Requests
-              </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Clock className="h-5 w-5 text-white" />
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <CheckCircle className="h-6 w-6 text-gray-800" />
+              </div>
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">{completedRequests.length}</p>
+              <p className="text-sm text-gray-700">Completed</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-yellow-600 mb-2">{pendingRequests.length}</div>
-            <p className="text-sm text-slate-600">
-              Action required
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card className="group bg-white/80 backdrop-blur-sm border border-green-100/50 hover:border-green-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                Completed
-              </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <CheckCircle className="h-5 w-5 text-white" />
+          
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <FileText className="h-6 w-6 text-gray-800" />
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-green-600 mb-2">{completedRequests.length}</div>
-            <p className="text-sm text-slate-600">
-              Documents submitted
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card className="group bg-white/80 backdrop-blur-sm border border-blue-100/50 hover:border-blue-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                Total Files
-              </CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">
               {completedRequests.reduce((acc, req) => acc + (req.documents?.length || 0), 0)}
+              </p>
+              <p className="text-sm text-gray-700">Files Uploaded</p>
+              </div>
             </div>
-            <p className="text-sm text-slate-600">
-              Files uploaded
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
-      <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList className="bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-2xl p-1">
-          <TabsTrigger value="pending" className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-500 data-[state=active]:to-amber-600 data-[state=active]:text-white">
+      <Tabs value={activeTab} className="space-y-6">
+          <TabsList className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-1">
+            <TabsTrigger value="pending" className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white">
             Pending ({pendingRequests.length})
           </TabsTrigger>
-          <TabsTrigger value="completed" className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-600 data-[state=active]:text-white">
+            <TabsTrigger value="completed" className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white">
             Completed ({completedRequests.length})
           </TabsTrigger>
-          {/* New PBC Tab Trigger */}
-          <TabsTrigger value="pbc" className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white">
+            <TabsTrigger value="pbc" className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white">
             PBC ({pbcRequests.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-6">
           {pendingRequests.length === 0 ? (
-            <Card className="bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl shadow-xl overflow-hidden">
-              <CardContent className="text-center py-16">
-                <div className="w-20 h-20 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle className="h-10 w-10 text-green-600" />
+              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg shadow-gray-300/30">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle className="h-10 w-10 text-gray-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   All caught up!
                 </h3>
-                <p className="text-slate-600">
+                <p className="text-gray-600">
                   You have no pending document requests at the moment.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
           ) : (
             <div className="space-y-6">
               {pendingRequests.map((request) => (
-                <Card key={request._id} className="bg-white/80 backdrop-blur-sm border border-yellow-100/50 rounded-3xl shadow-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-yellow-100/50">
-                    <div className="flex items-start justify-between">
+                  <div key={request._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
+                    <div className="flex items-start justify-between mb-4">
                       <div>
-                        <CardTitle className="text-lg font-bold text-slate-800">{request.description}</CardTitle>
-                        <CardDescription className="mt-1 text-slate-600">
+                        <h3 className="text-lg font-semibold text-gray-900">{request.description}</h3>
+                        <p className="text-sm text-gray-600 mt-1">
                           Engagement: {getEngagementTitle(request.engagement)}
-                        </CardDescription>
+                        </p>
                       </div>
-                      <Badge variant="outline" className="text-yellow-600 border-yellow-600 bg-yellow-50">
+                      <Badge variant="outline" className="bg-gray-800 text-white border-gray-800">
                         Pending
                       </Badge>
                     </div>
-                  </CardHeader>
-                  
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                           {request.category}
                         </Badge>
                       </div>
@@ -324,18 +274,18 @@ export const DocumentRequests = () => {
                       </div>
                     </div>
                     
-                    <div className="border-2 border-dashed border-yellow-200 rounded-2xl p-6 bg-gradient-to-r from-yellow-50/50 to-amber-50/50">
+                      <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50">
                       <div className="text-center">
-                        <Upload className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                          <Upload className="h-8 w-8 text-gray-800 mx-auto mb-2" />
                         <Label htmlFor={`file-${request._id}`} className="cursor-pointer">
-                          <span className="text-sm font-medium text-slate-800">
+                            <span className="text-sm font-medium text-gray-900">
                             Click to upload files
                           </span>
-                          <span className="text-sm text-slate-600 block">
+                            <span className="text-sm text-gray-600 block">
                             or drag and drop
                           </span>
                         </Label>
-                        <div className="mt-2 text-xs text-slate-500">
+                          <div className="mt-2 text-xs text-gray-500">
                           <p>Max 10 files, 50MB each</p>
                           <p>Supported: PDF, Images, Office docs, ZIP</p>
                         </div>
@@ -351,13 +301,13 @@ export const DocumentRequests = () => {
                       
                       {uploadingFiles[request._id] && (
                         <div className="mt-4 flex items-center justify-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />
-                          <span className="text-sm text-slate-600">Uploading files...</span>
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
+                            <span className="text-sm text-gray-600">Uploading files...</span>
                         </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                    </div>
+                  </div>
               ))}
             </div>
           )}
@@ -365,41 +315,36 @@ export const DocumentRequests = () => {
 
         <TabsContent value="completed" className="space-y-6">
           {completedRequests.length === 0 ? (
-            <Card className="bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl shadow-xl overflow-hidden">
-              <CardContent className="text-center py-16">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                  <FileText className="h-10 w-10 text-blue-600" />
+              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg shadow-gray-300/30">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FileText className="h-10 w-10 text-gray-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   No completed requests yet
                 </h3>
-                <p className="text-slate-600">
+                <p className="text-gray-600">
                   Your completed document submissions will appear here.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
           ) : (
             <div className="space-y-6">
               {completedRequests.map((request) => (
-                <Card key={request._id} className="bg-white/80 backdrop-blur-sm border border-green-100/50 rounded-3xl shadow-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100/50">
-                    <div className="flex items-start justify-between">
+                  <div key={request._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
+                    <div className="flex items-start justify-between mb-4">
                       <div>
-                        <CardTitle className="text-lg font-bold text-slate-800">{request.description}</CardTitle>
-                        <CardDescription className="mt-1 text-slate-600">
+                        <h3 className="text-lg font-semibold text-gray-900">{request.description}</h3>
+                        <p className="text-sm text-gray-600 mt-1">
                           Engagement: {getEngagementTitle(request.engagement)}
-                        </CardDescription>
+                        </p>
                       </div>
-                      <Badge variant="outline" className="text-green-600 border-green-600 bg-green-50">
+                      <Badge variant="outline" className="bg-gray-700 text-white border-gray-700">
                         Completed
                       </Badge>
                     </div>
-                  </CardHeader>
-                  
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                           {request.category}
                         </Badge>
                       </div>
@@ -411,15 +356,15 @@ export const DocumentRequests = () => {
                     
                     {request.documents && request.documents.length > 0 && (
                       <div>
-                        <h4 className="font-medium mb-3 text-slate-800">Uploaded Documents:</h4>
+                          <h4 className="font-medium mb-3 text-gray-900">Uploaded Documents:</h4>
                         <div className="space-y-3">
                           {request.documents.map((doc, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-100/50 rounded-2xl hover:border-slate-300/50 transition-all duration-300 hover:shadow-lg">
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
                               <div className="flex items-center gap-3">
-                                <FileText className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-medium text-slate-800">{doc.name}</span>
+                                  <FileText className="h-4 w-4 text-gray-800" />
+                                  <span className="text-sm font-medium text-gray-900">{doc.name}</span>
                               </div>
-                              <Button size="sm" variant="outline" className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-xl">
+                                <Button size="sm" variant="outline" className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl">
                                 <Download className="h-4 w-4" />
                               </Button>
                             </div>
@@ -427,8 +372,8 @@ export const DocumentRequests = () => {
                         </div>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  </div>
               ))}
             </div>
           )}
@@ -437,41 +382,37 @@ export const DocumentRequests = () => {
         {/* New PBC Tab Content */}
         <TabsContent value="pbc" className="space-y-6">
           {pbcRequests.length === 0 ? (
-            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-              <CardContent className="text-center py-16">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                  <FileText className="h-10 w-10 text-blue-600" />
+              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg shadow-gray-300/30">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <FileText className="h-10 w-10 text-gray-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-3">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
                   No PBC requests found
                 </h3>
-                <p className="text-slate-600">
+                <p className="text-gray-600">
                   There are no document requests categorized as 'PBC' at the moment.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
           ) : (
             <div className="space-y-6">
               {pbcRequests.map((request) => (
-                <Card key={request._id} className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
-                    <div className="flex items-start justify-between">
+                  <div key={request._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
+                    <div className="flex items-start justify-between mb-4">
                       <div>
-                        <CardTitle className="text-lg font-bold text-slate-800">{request.description}</CardTitle>
-                        <CardDescription className="mt-1 text-slate-600">
+                        <h3 className="text-lg font-semibold text-gray-900">{request.description}</h3>
+                        <p className="text-sm text-gray-600 mt-1">
                           Engagement: {getEngagementTitle(request.engagement)}
-                        </CardDescription>
+                        </p>
                       </div>
-                      <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50">
+                      <Badge variant="outline" className="bg-gray-800 text-white border-gray-800">
                         PBC
                       </Badge>
                     </div>
-                  </CardHeader>
                   
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                           {request.category}
                         </Badge>
                       </div>
@@ -483,18 +424,18 @@ export const DocumentRequests = () => {
 
                     {/* Conditional rendering for upload functionality based on status */}
                     {request.status === 'pending' ? (
-                      <div className="border-2 border-dashed border-blue-200 rounded-2xl p-6 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
+                        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50">
                         <div className="text-center">
-                          <Upload className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                            <Upload className="h-8 w-8 text-gray-800 mx-auto mb-2" />
                           <Label htmlFor={`pbc-file-${request._id}`} className="cursor-pointer">
-                            <span className="text-sm font-medium text-slate-800">
+                              <span className="text-sm font-medium text-gray-900">
                               Click to upload files
                             </span>
-                            <span className="text-sm text-slate-600 block">
+                              <span className="text-sm text-gray-600 block">
                               or drag and drop
                             </span>
                           </Label>
-                          <div className="mt-2 text-xs text-slate-500">
+                            <div className="mt-2 text-xs text-gray-500">
                             <p>Max 10 files, 50MB each</p>
                             <p>Supported: PDF, Images, Office docs, ZIP</p>
                           </div>
@@ -510,23 +451,23 @@ export const DocumentRequests = () => {
                         
                         {uploadingFiles[request._id] && (
                           <div className="mt-4 flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                            <span className="text-sm text-slate-600">Uploading files...</span>
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
+                              <span className="text-sm text-gray-600">Uploading files...</span>
                           </div>
                         )}
                       </div>
                     ) : (
                       request.documents && request.documents.length > 0 && (
                         <div>
-                          <h4 className="font-medium mb-3 text-slate-800">Uploaded Documents:</h4>
+                            <h4 className="font-medium mb-3 text-gray-900">Uploaded Documents:</h4>
                           <div className="space-y-3">
                             {request.documents.map((doc, index) => (
-                              <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-100/50 rounded-2xl hover:border-slate-300/50 transition-all duration-300 hover:shadow-lg">
+                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
                                 <div className="flex items-center gap-3">
-                                  <FileText className="h-4 w-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-slate-800">{doc.name}</span>
+                                    <FileText className="h-4 w-4 text-gray-800" />
+                                    <span className="text-sm font-medium text-gray-900">{doc.name}</span>
                                 </div>
-                                <Button size="sm" variant="outline" className="border-blue-200 hover:bg-blue-50/50 text-blue-700 hover:text-blue-800 rounded-xl">
+                                  <Button size="sm" variant="outline" className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl">
                                   <Download className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -535,13 +476,14 @@ export const DocumentRequests = () => {
                         </div>
                       )
                     )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  </div>
               ))}
             </div>
           )}
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };

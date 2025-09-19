@@ -1,6 +1,7 @@
 // @ts-nocheck
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -55,13 +56,26 @@ export const UserManagement = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null); // delete
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   console.log("UserManagement component rendering");
+
+  // Get filter from URL parameters
+  const statusFilter = searchParams.get('filter') || 'all';
+  const roleFilter = searchParams.get('role') || 'all';
 
   // Fetch users from Supabase profiles table only
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') params.set('filter', statusFilter);
+    if (roleFilter !== 'all') params.set('role', roleFilter);
+    setSearchParams(params);
+  }, [statusFilter, roleFilter, setSearchParams]);
 
   const fetchUsers = async () => {
     try {
@@ -165,12 +179,21 @@ export const UserManagement = () => {
     }
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
+  const filteredUsers = users.filter((user) => {
+    // Text search filter
+    const matchesSearch = 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.companyName &&
-        user.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+        user.companyName.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Status filter from URL
+    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    
+    // Role filter from URL
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    
+    return matchesSearch && matchesStatus && matchesRole;
+  });
 
   const handleApprove = async (userId: string) => {
     try {
@@ -343,30 +366,18 @@ export const UserManagement = () => {
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20 space-y-8">
-      {/* Header Section */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-indigo-600/10 rounded-3xl blur-3xl"></div>
-        <div className="relative bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl p-8 shadow-xl">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                  <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
+    <div className="min-h-screen bg-amber-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">User Management</h1>
+          <p className="text-gray-700 animate-fade-in-delay">Manage user registrations, approvals, and account status</p>
                 </div>
-                <div>
-                                      <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent leading-tight">
-                      User Management
-                    </h1>
-                  <p className="text-slate-600 mt-1 text-lg">
-                    Manage user registrations, approvals, and account status
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <Button 
-                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto" 
+            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3 h-auto" 
                 onClick={fetchUsers}
               >
                 <RefreshCw className="h-5 w-5 mr-2" />
@@ -375,7 +386,7 @@ export const UserManagement = () => {
               <Button
                 asChild
                 variant="outline"
-                className="border-purple-200 hover:bg-purple-50/50 text-purple-700 hover:text-purple-800 transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+            className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
               >
                 <Link to="/admin">
                   <ArrowLeft className="h-5 w-5 mr-2" />
@@ -383,112 +394,118 @@ export const UserManagement = () => {
                 </Link>
               </Button>
             </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <Users className="h-6 w-6 text-gray-800" />
           </div>
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">{pendingCount}</p>
+              <p className="text-sm text-gray-700">Pending Approvals</p>
+              <p className="text-xs text-gray-600">Users awaiting approval</p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="group bg-white/80 backdrop-blur-sm border border-yellow-100/50 hover:border-yellow-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Pending Approvals</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Users className="h-5 w-5 text-white" />
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <UserCheck className="h-6 w-6 text-gray-800" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">{approvedCount}</p>
+              <p className="text-sm text-gray-700">Active Users</p>
+              <p className="text-xs text-gray-600">Approved and active</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-yellow-600 mb-2">
-              {pendingCount}
-            </div>
-            <p className="text-sm text-slate-600">
-              Users awaiting approval
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card className="group bg-white/80 backdrop-blur-sm border border-green-100/50 hover:border-green-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Active Users</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <UserCheck className="h-5 w-5 text-white" />
+          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div className="flex items-center justify-between mb-4">
+              <Shield className="h-6 w-6 text-gray-800" />
+              </div>
+            <div className="space-y-1">
+              <p className="text-2xl font-semibold text-gray-900">{users.length}</p>
+              <p className="text-sm text-gray-700">Total Registrations</p>
+              <p className="text-xs text-gray-600">All time registrations</p>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-green-600 mb-2">
-              {approvedCount}
-            </div>
-            <p className="text-sm text-slate-600">
-              Approved and active
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="group bg-white/80 backdrop-blur-sm border border-purple-100/50 hover:border-purple-300/50 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <CardHeader className="relative pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-slate-800">Total Registrations</CardTitle>
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="relative">
-            <div className="text-3xl font-bold text-slate-800 mb-2">
-              {users.length}
-            </div>
-            <p className="text-sm text-slate-600">
-              All time registrations
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* User Table */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-purple-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Users className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-slate-800">All Users</CardTitle>
-                <CardDescription className="text-slate-600">Manage user accounts and approval status</CardDescription>
+                  <h3 className="text-lg font-semibold text-gray-900">All Users</h3>
+                  <p className="text-sm text-gray-600">Manage user accounts and approval status</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
               <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 h-4 w-4" />
                 <Input
                   placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full border-purple-200 focus:border-purple-400 rounded-2xl"
+                    className="pl-10 w-full border-gray-200 focus:border-gray-400 rounded-xl"
                 />
+              </div>
+              
+              {/* Filter Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSearchParams({})}
+                  className="rounded-xl"
+                >
+                  All Users
+                </Button>
+                <Button
+                  variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSearchParams({ filter: 'pending' })}
+                  className="rounded-xl"
+                >
+                  Pending
+                </Button>
+                <Button
+                  variant={statusFilter === 'approved' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSearchParams({ filter: 'approved' })}
+                  className="rounded-xl"
+                >
+                  Approved
+                </Button>
+                <Button
+                  variant={statusFilter === 'rejected' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSearchParams({ filter: 'rejected' })}
+                  className="rounded-xl"
+                >
+                  Rejected
+                </Button>
               </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
+          </div>
+          <div className="p-6">
           {/* Keep desktop table intact; enable horizontal scroll on small screens */}
           <div className="overflow-x-auto">
             <Table className="min-w-[720px]">
               <TableHeader>
-                <TableRow className="border-purple-100/50">
-                  <TableHead className="text-slate-700 font-semibold">Name</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">User ID</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Role</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Company</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Status</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Registered</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Actions</TableHead>
+                  <TableRow className="border-gray-200">
+                    <TableHead className="text-gray-700 font-semibold">Name</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">User ID</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">Role</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">Company</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">Status</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">Registered</TableHead>
+                    <TableHead className="text-gray-700 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -496,10 +513,10 @@ export const UserManagement = () => {
                   <TableRow>
                     <TableCell
                       colSpan={7}
-                      className="text-center py-12 text-slate-600"
+                        className="text-center py-12 text-gray-600"
                     >
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <Users className="h-8 w-8 text-purple-600" />
+                        <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <Users className="h-8 w-8 text-gray-600" />
                       </div>
                       <p className="font-medium">
                         {searchTerm
@@ -510,23 +527,23 @@ export const UserManagement = () => {
                   </TableRow>
                 ) : (
                   filteredUsers.map((user) => (
-                    <TableRow key={user.id} className="border-purple-100/50 hover:bg-purple-50/30 transition-colors duration-200">
-                      <TableCell className="font-medium max-w-[220px] truncate text-slate-800">
+                      <TableRow key={user.id} className="border-gray-200 hover:bg-gray-50 transition-colors duration-200">
+                        <TableCell className="font-medium max-w-[220px] truncate text-gray-900">
                         {user.name}
                       </TableCell>
-                      <TableCell className="font-mono text-sm whitespace-nowrap text-slate-600">
+                        <TableCell className="font-mono text-sm whitespace-nowrap text-gray-600">
                         {user.id.slice(0, 8)}...
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="capitalize bg-purple-100 text-purple-700 border-purple-200">
+                          <Badge variant="secondary" className="capitalize bg-gray-100 text-gray-700 border-gray-200">
                           {user.role}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[240px] truncate text-slate-600">
+                        <TableCell className="max-w-[240px] truncate text-gray-600">
                         {user.companyName || "-"}
                       </TableCell>
                       <TableCell>{getStatusBadge(user.status)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-slate-600">
+                        <TableCell className="whitespace-nowrap text-gray-600">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -538,7 +555,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white bg-transparent rounded-xl"
+                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -568,7 +585,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleApprove(user.id)}
-                                      className="bg-green-600 text-white hover:bg-green-700"
+                                        className="bg-gray-800 text-white hover:bg-gray-900"
                                     >
                                       Approve
                                     </AlertDialogAction>
@@ -581,7 +598,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-xl"
+                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -611,7 +628,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleReject(user.id)}
-                                      className="bg-red-600 text-white hover:bg-red-700"
+                                        className="bg-gray-800 text-white hover:bg-gray-900"
                                     >
                                       Reject
                                     </AlertDialogAction>
@@ -627,7 +644,7 @@ export const UserManagement = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 border-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-xl"
+                                  className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
                                 disabled={
                                   deletingId === user.id ||
                                   actionLoading === user.id
@@ -654,7 +671,7 @@ export const UserManagement = () => {
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleDelete(user.id)}
-                                  className="bg-red-600 text-white hover:bg-red-700"
+                                    className="bg-gray-800 text-white hover:bg-gray-900"
                                 >
                                   Delete
                                 </AlertDialogAction>
@@ -669,8 +686,9 @@ export const UserManagement = () => {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

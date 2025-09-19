@@ -327,9 +327,9 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
 
   return (
-    <div className="h-[800px] flex flex-col bg-gray-50 rounded-lg border">
+    <div className="h-[800px] flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
       {/* Windows-style toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 rounded-t-lg">
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 rounded-t-2xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1 text-sm text-gray-600">
@@ -368,11 +368,11 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar - Folder tree */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
           {/* Status cards */}
           <div className="p-4 space-y-3 border-b border-gray-100">
             <div className="grid grid-cols-2 gap-2">
-              <Card className="p-3">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border border-white/30 rounded-xl">
                 <div className="text-xs text-gray-500">Trial Balance</div>
                 <div
                   className={`text-sm font-medium ${engagement.trialBalanceUrl ? "text-green-600" : "text-gray-400"}`}
@@ -380,7 +380,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   {engagement.trialBalanceUrl ? "✓ Uploaded" : "Pending"}
                 </div>
               </Card>
-              <Card className="p-3">
+              <Card className="p-3 bg-white/80 backdrop-blur-sm border border-white/30 rounded-xl">
                 <div className="text-xs text-gray-500">Status</div>
                 <div className="text-sm font-medium">{engagement.status}</div>
               </Card>
@@ -421,7 +421,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm">
           {/* Search and upload bar */}
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center space-x-4">
@@ -602,7 +602,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
           </div>
 
           {/* Status bar */}
-          <div className="border-t border-gray-200 px-4 py-2 bg-gray-50">
+          <div className="border-t border-gray-200 px-4 py-2 bg-gray-50/80 backdrop-blur-sm">
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>
                 {filteredFiles.length} items in {selectedFolder}

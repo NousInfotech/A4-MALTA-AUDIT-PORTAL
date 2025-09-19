@@ -294,54 +294,62 @@ export const ISQMAnalytics: React.FC<ISQMAnalyticsProps> = ({ parentId }) => {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-blue-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-600 font-medium">Question Completion</p>
-                <p className="text-2xl font-bold text-blue-800">{analytics.overall.completionRate.toFixed(1)}%</p>
-                <p className="text-xs text-blue-600">{analytics.overall.answeredQuestions} of {analytics.overall.totalQuestions} questions</p>
+                <p className="text-sm text-gray-700 font-medium">Question Completion</p>
+                <p className="text-2xl font-bold text-gray-900">{analytics.overall.completionRate.toFixed(1)}%</p>
+                <p className="text-xs text-gray-600">{analytics.overall.answeredQuestions} of {analytics.overall.totalQuestions} questions</p>
               </div>
-              <Target className="w-8 h-8 text-blue-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <Target className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-green-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-600 font-medium">Document Approval</p>
-                <p className="text-2xl font-bold text-green-800">{analytics.overall.documentCompletionRate.toFixed(1)}%</p>
-                <p className="text-xs text-green-600">{analytics.overall.approvedDocuments} of {analytics.overall.totalDocuments} documents</p>
+                <p className="text-sm text-gray-700 font-medium">Document Approval</p>
+                <p className="text-2xl font-bold text-gray-900">{analytics.overall.documentCompletionRate.toFixed(1)}%</p>
+                <p className="text-xs text-gray-600">{analytics.overall.approvedDocuments} of {analytics.overall.totalDocuments} documents</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-purple-50 to-purple-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-purple-600 font-medium">Questionnaires</p>
-                <p className="text-2xl font-bold text-purple-800">{questionnaires.length}</p>
-                <p className="text-xs text-purple-600">Active questionnaires</p>
+                <p className="text-sm text-gray-700 font-medium">Questionnaires</p>
+                <p className="text-2xl font-bold text-gray-900">{questionnaires.length}</p>
+                <p className="text-xs text-gray-600">Active questionnaires</p>
               </div>
-              <FileText className="w-8 h-8 text-purple-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-orange-50 to-orange-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-orange-600 font-medium">Sections</p>
-                <p className="text-2xl font-bold text-orange-800">{analytics.bySection.length}</p>
-                <p className="text-xs text-orange-600">Total sections</p>
+                <p className="text-sm text-gray-700 font-medium">Sections</p>
+                <p className="text-2xl font-bold text-gray-900">{analytics.bySection.length}</p>
+                <p className="text-xs text-gray-600">Total sections</p>
               </div>
-              <BarChart3 className="w-8 h-8 text-orange-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>

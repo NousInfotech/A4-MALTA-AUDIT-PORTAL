@@ -997,21 +997,21 @@ ${procedureStepsBySection}
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-gray-900">
               ISQM Policy Generator
             </h1>
-            <p className="text-gray-600 text-lg">
+            <p className="text-gray-700 text-lg">
               Generate comprehensive policies and procedures from questionnaire responses
             </p>
           </div>
           <div className="flex gap-3">
             <button 
-              className="px-4 py-2 rounded-xl bg-gray-500 hover:bg-gray-600 text-white transition-colors duration-300" 
+              className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-colors duration-300 shadow-lg hover:shadow-xl" 
               onClick={refreshDocuments}
             >
               <RefreshCw className="w-4 h-4 mr-2 inline" />
@@ -1021,76 +1021,76 @@ ${procedureStepsBySection}
         </header>
 
         {/* Permission Status */}
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 p-6">
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className={`p-2 rounded-xl ${canGenerateDocuments ? 'bg-green-100' : 'bg-red-100'}`}>
-              <AlertCircle className={`w-5 h-5 ${canGenerateDocuments ? 'text-green-600' : 'text-red-600'}`} />
+            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800">Permission Status</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Permission Status</h3>
           </div>
           <div className="flex items-center gap-4">
-            <div className={`px-4 py-2 rounded-lg ${canGenerateDocuments ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            <div className="px-4 py-2 rounded-lg bg-gray-50 text-gray-700">
               <span className="font-medium">Role: {userRole}</span>
             </div>
-            <div className={`px-4 py-2 rounded-lg ${canGenerateDocuments ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            <div className="px-4 py-2 rounded-lg bg-gray-50 text-gray-700">
               <span className="font-medium">
                 {canGenerateDocuments ? '✅ Can Generate Documents' : '❌ Cannot Generate Documents'}
               </span>
             </div>
           </div>
           {!canGenerateDocuments && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm">
+            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <p className="text-gray-700 text-sm">
                 You need 'employee' or 'admin' role to generate documents. Current role: {userRole}
               </p>
             </div>
           )}
         </div>
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 p-6">
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-100 rounded-xl">
-              <FileText className="w-5 h-5 text-green-600" />
+            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <FileText className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800">Document Generation Summary</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Document Generation Summary</h3>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="text-center p-4 bg-blue-50 rounded-xl">
-              <div className="text-2xl font-bold text-blue-600">
+            <div className="text-center p-4 bg-gray-50/80 backdrop-blur-sm rounded-xl">
+              <div className="text-2xl font-bold text-gray-900">
                 {processedQuestionnaires.reduce((sum, q) => sum + (q.policyUrls?.length || 0), 0)}
               </div>
-              <div className="text-sm text-blue-700">Policy Documents</div>
+              <div className="text-sm text-gray-700">Policy Documents</div>
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-xl">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="text-center p-4 bg-gray-50/80 backdrop-blur-sm rounded-xl">
+              <div className="text-2xl font-bold text-gray-900">
                 {processedQuestionnaires.reduce((sum, q) => sum + (q.procedureUrls?.length || 0), 0)}
               </div>
-              <div className="text-sm text-green-700">Procedure Documents</div>
+              <div className="text-sm text-gray-700">Procedure Documents</div>
             </div>
-            <div className="text-center p-4 bg-purple-50 rounded-xl">
-              <div className="text-2xl font-bold text-purple-600">
+            <div className="text-center p-4 bg-gray-50/80 backdrop-blur-sm rounded-xl">
+              <div className="text-2xl font-bold text-gray-900">
                 {processedQuestionnaires.length}
               </div>
-              <div className="text-sm text-purple-700">Questionnaires</div>
+              <div className="text-sm text-gray-700">Questionnaires</div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 p-6">
+        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-xl">
-              <FileText className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <FileText className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800">Generation Options</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Generation Options</h3>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-colors duration-300 cursor-pointer group">
+            <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-gray-400 transition-colors duration-300 cursor-pointer group">
               <input 
                 type="checkbox" 
                 checked={options.useAnswersInPolicy} 
                 onChange={e => setOptions(o => ({...o, useAnswersInPolicy: e.target.checked}))}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-gray-600 rounded focus:ring-gray-500"
               />
               <div>
-                <div className="font-medium text-gray-800 group-hover:text-blue-600">Include Answers</div>
+                <div className="font-medium text-gray-900 group-hover:text-gray-700">Include Answers</div>
                 <div className="text-xs text-gray-500">Use auditor answers in policies</div>
               </div>
             </label>
@@ -1099,10 +1099,10 @@ ${procedureStepsBySection}
                 type="checkbox" 
                 checked={options.includeUnanswered} 
                 onChange={e => setOptions(o => ({...o, includeUnanswered: e.target.checked}))}
-                className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                className="w-4 h-4 text-gray-600 rounded focus:ring-gray-500"
               />
               <div>
-                <div className="font-medium text-gray-800 group-hover:text-green-600">Include Unanswered</div>
+                <div className="font-medium text-gray-900 group-hover:text-gray-700">Include Unanswered</div>
                 <div className="text-xs text-gray-500">Show unanswered questions</div>
               </div>
             </label>
@@ -1160,12 +1160,12 @@ ${procedureStepsBySection}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <FileText className={`w-4 h-4 ${doc.type === 'policy' ? 'text-blue-600' : 'text-green-600'}`} />
-                        <span className={`text-sm font-medium ${doc.type === 'policy' ? 'text-blue-700' : 'text-green-700'}`}>
+                        <FileText className="w-4 h-4 text-gray-800" />
+                        <span className="text-sm font-medium text-gray-700">
                           {doc.type === 'policy' ? 'Policy' : 'Procedure'}
                         </span>
                         {doc.isUploaded && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -1181,14 +1181,14 @@ ${procedureStepsBySection}
                         <div className="flex gap-2">
                           {/* <button
                             onClick={() => setActiveDoc(doc)}
-                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-300"
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors duration-300"
                             title="Preview Document"
                           >
                             <Eye className="w-4 h-4" />
                           </button> */}
                           <button
                             onClick={() => downloadDocument(doc.content, `${doc.name}.pdf`)}
-                            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-300"
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors duration-300"
                             title="Download PDF"
                           >
                             <Download className="w-4 h-4" />
@@ -1205,7 +1205,7 @@ ${procedureStepsBySection}
             <section key={questionnaire._id} className="space-y-6">
               <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                     {questionnaire.key.charAt(questionnaire.key.length - 1)}
                 </div>
                 <div>
@@ -1217,7 +1217,7 @@ ${procedureStepsBySection}
                 </div>
                 <div className="flex gap-3">
                   <button 
-                    className="px-6 py-3 rounded-2xl shadow-lg bg-gradient-to-r from-green-500 to-teal-500 text-white hover:from-green-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    className="px-6 py-3 rounded-xl shadow-lg bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" 
                     onClick={() => generateAllDocuments(questionnaire)}
                     disabled={generating === `all-${questionnaire._id}` || !canGenerateDocuments}
                   >
@@ -1228,7 +1228,7 @@ ${procedureStepsBySection}
                       </>
                     ) : uploadingToStorage.has(`${questionnaire._id}-comprehensive`) ? (
                       <>
-                        <Loader2 className="w-5 h-5 mr-2 inline animate-spin text-green-500" />
+                        <Loader2 className="w-5 h-5 mr-2 inline animate-spin text-gray-500" />
                         Uploading to Supabase...
                       </>
                     ) : (
@@ -1246,7 +1246,7 @@ ${procedureStepsBySection}
                   <div key={sectionIdx} className="bg-white rounded-3xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 group">
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-800 text-lg mb-2 group-hover:text-blue-600 transition-colors duration-300">
+                        <h3 className="font-semibold text-gray-900 text-lg mb-2 group-hover:text-gray-700 transition-colors duration-300">
                           {section.heading}
                         </h3>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1264,12 +1264,12 @@ ${procedureStepsBySection}
                       {section.qna.slice(0, 2).map((q, i) => (
                         <div key={i} className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                           <div className="flex items-start gap-2">
-                            <span className="font-medium text-blue-600 text-sm">Q{i + 1}:</span>
+                            <span className="font-medium text-gray-800 text-sm">Q{i + 1}:</span>
                             <p className="text-sm text-gray-700 flex-1">{q.question}</p>
                           </div>
                           <div className="mt-2 flex items-center gap-2">
                               <span className={`inline-flex items-center gap-1 text-xs rounded-full px-2 py-1 ${
-                                q.state ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                q.state ? "bg-gray-100 text-gray-700" : "bg-gray-100 text-gray-700"
                               }`}>
                                 {q.state ? "✓ Implemented" : "✗ Not implemented"}
                               </span>
@@ -1291,7 +1291,7 @@ ${procedureStepsBySection}
                     {/* Action Buttons */}
                     <div className="flex gap-3">
                       <button
-                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => generateDocument(questionnaire, sectionIdx, 'procedure')}
                         disabled={generating === `${questionnaire._id}-${sectionIdx}-procedures` || !canGenerateDocuments}
                         title={!canGenerateDocuments ? "Insufficient permissions" : "Generate Procedures"}
@@ -1307,7 +1307,7 @@ ${procedureStepsBySection}
                         )}
                       </button>
                       <button
-                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => generateDocument(questionnaire, sectionIdx, 'policy')}
                         disabled={generating === `${questionnaire._id}-${sectionIdx}-policy` || !canGenerateDocuments}
                         title={!canGenerateDocuments ? "Insufficient permissions" : "Generate Policy"}
@@ -1330,11 +1330,11 @@ ${procedureStepsBySection}
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Generated Documents:</h4>
                         <div className="space-y-2">
                           {(questionnaire.policyUrls || []).map((docUrl, idx) => (
-                            <div key={`policy-${idx}`} className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+                            <div key={`policy-${idx}`} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                               <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-blue-600" />
-                                <span className="text-sm text-blue-700">{docUrl.name}</span>
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <FileText className="w-4 h-4 text-gray-800" />
+                                <span className="text-sm text-gray-700">{docUrl.name}</span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
@@ -1344,14 +1344,14 @@ ${procedureStepsBySection}
                                 <div className="flex gap-1">
                                   {/* <button
                                     onClick={() => window.open(docUrl.url, '_blank')}
-                                    className="p-1 text-blue-600 hover:text-blue-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="View Document"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button> */}
                                   <button
                                     onClick={() => window.open(docUrl.url, '_blank')}
-                                    className="p-1 text-blue-600 hover:text-blue-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="Open Document"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1360,7 +1360,7 @@ ${procedureStepsBySection}
                                   </button>
                                   <button
                                     onClick={() => downloadDocument(`Policy Document ${idx + 1}`, `policy-${idx + 1}.pdf`)}
-                                    className="p-1 text-blue-600 hover:text-blue-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="Download PDF"
                                   >
                                     <Download className="w-4 h-4" />
@@ -1369,11 +1369,11 @@ ${procedureStepsBySection}
                             </div>
                           ))}
                           {(questionnaire.procedureUrls || []).map((docUrl, idx) => (
-                            <div key={`procedure-${idx}`} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                            <div key={`procedure-${idx}`} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                               <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-green-600" />
-                                <span className="text-sm text-green-700">{docUrl.name}</span>
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <FileText className="w-4 h-4 text-gray-800" />
+                                <span className="text-sm text-gray-700">{docUrl.name}</span>
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
@@ -1383,14 +1383,14 @@ ${procedureStepsBySection}
                                 <div className="flex gap-1">
                                   {/* <button
                                     onClick={() => window.open(docUrl.url, '_blank')}
-                                    className="p-1 text-green-600 hover:text-green-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="View Document"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button> */}
                                   <button
                                     onClick={() => window.open(docUrl.url, '_blank')}
-                                    className="p-1 text-green-600 hover:text-green-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="Open Document"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1399,7 +1399,7 @@ ${procedureStepsBySection}
                                   </button>
                                   <button
                                     onClick={() => downloadDocument(`Procedure Document ${idx + 1}`, `procedure-${idx + 1}.pdf`)}
-                                    className="p-1 text-green-600 hover:text-green-800 rounded"
+                                    className="p-1 text-gray-600 hover:text-gray-800 rounded"
                                     title="Download PDF"
                                   >
                                     <Download className="w-4 h-4" />
@@ -1421,7 +1421,7 @@ ${procedureStepsBySection}
         {activeDoc && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl border-0 overflow-hidden animate-in slide-in-from-bottom duration-300">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-white">
+              <div className="bg-gray-800 p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/20 rounded-xl">
@@ -1429,7 +1429,7 @@ ${procedureStepsBySection}
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold">PDF Document Generated Successfully!</h3>
-                      <p className="text-blue-100 text-sm">{activeDoc.name}</p>
+                      <p className="text-gray-200 text-sm">{activeDoc.name}</p>
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -1440,7 +1440,7 @@ ${procedureStepsBySection}
                       Close
                     </button>
                     <button 
-                      className="px-6 py-2 rounded-xl bg-white text-blue-600 hover:bg-blue-50 shadow-lg transition-all duration-300 font-medium" 
+                      className="px-6 py-2 rounded-xl bg-white text-gray-800 hover:bg-gray-50 shadow-lg transition-all duration-300 font-medium" 
                       onClick={() => downloadDocument(activeDoc.content, `${activeDoc.name}.pdf`)}
                     >
                       <Download className="w-4 h-4 mr-2 inline" />
@@ -1450,12 +1450,12 @@ ${procedureStepsBySection}
                 </div>
               </div>
               <div className="p-6">
-                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-green-700 font-medium">Document ready for download</span>
+                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                    <span className="text-gray-700 font-medium">Document ready for download</span>
                   </div>
-                  <p className="text-green-600 text-sm mt-1">
+                  <p className="text-gray-600 text-sm mt-1">
                     Your {activeDoc.type} document has been generated successfully. Click the download button above to save it as a PDF file.
                   </p>
                 </div>

@@ -81,13 +81,15 @@ export default function QNAGeneratorDemo() {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="flex items-center gap-2 text-gray-900">
+            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
             QNA to Policy/Procedure Generator
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-700">
             Generate policy and procedure documents from a QNA array with category name
           </CardDescription>
         </CardHeader>
@@ -141,22 +143,23 @@ export default function QNAGeneratorDemo() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>Questions & Answers</Label>
-              <Button onClick={addQNA} size="sm" variant="outline">
+              <Button onClick={addQNA} size="sm" variant="outline" className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Question
               </Button>
             </div>
 
             {qnaArray.map((qna, index) => (
-              <Card key={index} className="p-4">
+              <Card key={index} className="p-4 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label>Question {index + 1}</Label>
+                    <Label className="text-sm font-medium text-gray-700">Question {index + 1}</Label>
                     {qnaArray.length > 1 && (
                       <Button
                         onClick={() => removeQNA(index)}
                         size="sm"
-                        variant="destructive"
+                        variant="outline"
+                        className="rounded-xl border-red-200 hover:bg-red-50 text-red-600 shadow-lg hover:shadow-xl transition-all duration-300"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -168,6 +171,7 @@ export default function QNAGeneratorDemo() {
                     onChange={(e) => updateQNA(index, 'question', e.target.value)}
                     placeholder="Enter your question here..."
                     rows={2}
+                    className="border-gray-200 focus:border-gray-400 rounded-xl"
                   />
 
                   <Textarea
@@ -175,6 +179,7 @@ export default function QNAGeneratorDemo() {
                     onChange={(e) => updateQNA(index, 'answer', e.target.value)}
                     placeholder="Enter your answer here..."
                     rows={3}
+                    className="border-gray-200 focus:border-gray-400 rounded-xl"
                   />
 
                   <div className="flex items-center space-x-2">
@@ -183,9 +188,9 @@ export default function QNAGeneratorDemo() {
                       id={`state-${index}`}
                       checked={qna.state}
                       onChange={(e) => updateQNA(index, 'state', e.target.checked)}
-                      className="rounded"
+                      className="rounded border-gray-200 focus:border-gray-400"
                     />
-                    <Label htmlFor={`state-${index}`}>Implementation Status: Implemented</Label>
+                    <Label htmlFor={`state-${index}`} className="text-sm text-gray-700">Implementation Status: Implemented</Label>
                   </div>
                 </div>
               </Card>
@@ -196,7 +201,7 @@ export default function QNAGeneratorDemo() {
           <Button
             onClick={handleGenerate}
             disabled={isGenerating || !categoryName.trim()}
-            className="w-full"
+            className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
             size="lg"
           >
             {isGenerating ? (
@@ -214,26 +219,26 @@ export default function QNAGeneratorDemo() {
 
           {/* Generated Documents */}
           {generatedDocuments && (
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-green-800">Documents Generated Successfully!</CardTitle>
-                <CardDescription className="text-green-700">
+            <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+              <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+                <CardTitle className="text-gray-900">Documents Generated Successfully!</CardTitle>
+                <CardDescription className="text-gray-700">
                   Generated documents for: {generatedDocuments.categoryName}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Policy Document */}
-                  <Card className="border-blue-200 bg-blue-50">
+                  <Card className="bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
                     <CardContent className="p-4">
-                      <h4 className="font-semibold text-blue-800 mb-2">Policy Document</h4>
-                      <p className="text-sm text-blue-700 mb-3">
+                      <h4 className="font-semibold text-gray-900 mb-2">Policy Document</h4>
+                      <p className="text-sm text-gray-700 mb-3">
                         {generatedDocuments.documents.policy.pdfFilename}
                       </p>
                       <Button
                         onClick={() => handleDownload(generatedDocuments.documents.policy.pdfFilename)}
                         size="sm"
-                        className="w-full"
+                        className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Policy PDF
@@ -242,16 +247,16 @@ export default function QNAGeneratorDemo() {
                   </Card>
 
                   {/* Procedure Document */}
-                  <Card className="border-purple-200 bg-purple-50">
+                  <Card className="bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
                     <CardContent className="p-4">
-                      <h4 className="font-semibold text-purple-800 mb-2">Procedure Document</h4>
-                      <p className="text-sm text-purple-700 mb-3">
+                      <h4 className="font-semibold text-gray-900 mb-2">Procedure Document</h4>
+                      <p className="text-sm text-gray-700 mb-3">
                         {generatedDocuments.documents.procedure.pdfFilename}
                       </p>
                       <Button
                         onClick={() => handleDownload(generatedDocuments.documents.procedure.pdfFilename)}
                         size="sm"
-                        className="w-full"
+                        className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Procedure PDF

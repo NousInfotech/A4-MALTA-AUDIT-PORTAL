@@ -162,16 +162,16 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
       <div className="flex-1">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
           {/* Fixed tabs container outside of any table constraints */}
-          <div className="flex-shrink-0 border-b bg-white">
+          <div className="flex-shrink-0 border-b bg-gray-50/80 backdrop-blur-sm">
             <div className="px-4 py-2">
-              <TabsList className="grid w-full grid-cols-3 bg-gray-100 p-1 rounded-lg">
+              <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm border border-white/30 p-1 rounded-xl">
                 <TabsTrigger 
                   value="upload" 
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
                 >
                   <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Upload TB</span>
@@ -180,7 +180,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                 <TabsTrigger
                   value="etb"
                   disabled={!trialBalanceData}
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm disabled:opacity-50"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg disabled:opacity-50 rounded-lg"
                 >
                   <Calculator className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Extended TB</span>
@@ -188,7 +188,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                 </TabsTrigger>
                 <TabsTrigger 
                   value="sections" 
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
                 >
                   <FolderOpen className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Sections</span>
@@ -217,7 +217,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
           <TabsContent value="sections" className="flex-1 overflow-hidden">
             <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
-              <div className="w-full md:w-80 border-r bg-gray-50 flex-shrink-0">
+              <div className="w-full md:w-80 border-r bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
                 <div className="p-4 border-b">
                   <h3 className="font-semibold">Sections</h3>
                   <p className="text-sm text-gray-600 mt-1">Quick views and classifications</p>
@@ -227,7 +227,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                     {etbCount > 0 && (
                       <Button
                         variant={selectedClassification === "ETB" ? "default" : "outline"}
-                        className="w-full justify-between h-auto p-3"
+                        className="w-full justify-between h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("ETB")}
                       >
                         <span className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                     {adjustmentsCount > 0 && (
                       <Button
                         variant={selectedClassification === "Adjustments" ? "default" : "outline"}
-                        className="w-full justify-between h-auto p-3"
+                        className="w-full justify-between h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("Adjustments")}
                       >
                         <span className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
                         {key !== "Adjustments" && (
                           <Button
                             variant={selectedClassification === key ? "default" : "outline"}
-                            className="w-full justify-start text-left h-auto p-3"
+                            className="w-full justify-start text-left h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                             onClick={() => setSelectedClassification(key)}
                           >
                             <div className="flex flex-col items-start">

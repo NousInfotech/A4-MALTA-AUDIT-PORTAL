@@ -189,22 +189,22 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle className="text-xl font-bold text-slate-800">KYC Workflows</CardTitle>
-                <CardDescription className="text-slate-600">Manage Know Your Client workflows and discussions</CardDescription>
+                <CardTitle className="text-xl font-bold text-gray-900">KYC Workflows</CardTitle>
+                <CardDescription className="text-gray-700">Manage Know Your Client workflows and discussions</CardDescription>
               </div>
             </div>
             <Button
               variant="outline"
               onClick={fetchKYCWorkflows}
-              className="rounded-2xl border-blue-200 hover:bg-blue-50 text-blue-700"
+              className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
@@ -215,17 +215,17 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 h-4 w-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
                 <Input
                   placeholder="Search by engagement title, client ID, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full border-blue-200 focus:border-blue-400 rounded-2xl"
+                  className="pl-10 w-full border-gray-200 focus:border-gray-400 rounded-xl"
                 />
               </div>
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full lg:w-48 rounded-2xl border-blue-200 focus:border-blue-400">
+              <SelectTrigger className="w-full lg:w-48 rounded-xl border-gray-200 focus:border-gray-400">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -240,9 +240,9 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
       </Card>
 
       {/* KYC Workflows Table */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-3xl shadow-xl overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50">
-          <CardTitle className="text-xl font-bold text-slate-800">
+      <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+          <CardTitle className="text-xl font-bold text-gray-900">
             KYC Workflows ({filteredWorkflows.length} results)
           </CardTitle>
         </CardHeader>
@@ -250,22 +250,22 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
           <div className="overflow-x-auto">
             <Table className="min-w-[800px]">
               <TableHeader>
-                <TableRow className="border-blue-100/50">
-                  <TableHead className="text-slate-700 font-semibold">Engagement</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Client</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Documents</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Discussions</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Status</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Created</TableHead>
-                  <TableHead className="text-slate-700 font-semibold">Actions</TableHead>
+                <TableRow className="border-gray-200/50">
+                  <TableHead className="text-gray-700 font-semibold">Engagement</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Client</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Documents</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Discussions</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Status</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Created</TableHead>
+                  <TableHead className="text-gray-700 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredWorkflows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-slate-600">
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <Shield className="h-8 w-8 text-blue-600" />
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-600">
+                      <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                        <Shield className="h-8 w-8 text-gray-600" />
                       </div>
                       <p className="font-medium">
                         {searchTerm || statusFilter !== "all"
@@ -276,41 +276,41 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
                   </TableRow>
                 ) : (
                   filteredWorkflows.map((workflow) => (
-                    <TableRow key={workflow._id} className="border-blue-100/50 hover:bg-blue-50/30 transition-colors duration-200">
+                    <TableRow key={workflow._id} className="border-gray-200/50 hover:bg-gray-50/30 transition-colors duration-200">
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="font-medium text-slate-800">{workflow.engagement.title}</div>
-                          <div className="text-sm text-slate-600">
+                          <div className="font-medium text-gray-900">{workflow.engagement.title}</div>
+                          <div className="text-sm text-gray-600">
                             Year End: {format(new Date(workflow.engagement.yearEndDate), "MMM dd, yyyy")}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-slate-500" />
-                          <span className="text-sm text-slate-600">{workflow.clientId}</span>
+                          <User className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">{workflow.clientId}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="text-sm font-medium text-slate-700">
+                          <div className="text-sm font-medium text-gray-700">
                             {workflow.documentRequests?.category || 'No category'}
                           </div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-gray-500">
                             {workflow.documentRequests?.documents?.length || 0} documents
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <MessageSquare className="h-4 w-4 text-slate-500" />
-                          <span className="text-sm text-slate-600">{workflow.discussions.length}</span>
+                          <MessageSquare className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">{workflow.discussions.length}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(workflow.status)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-slate-600">
+                      <TableCell className="whitespace-nowrap text-gray-600">
                         {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
                       </TableCell>
                       <TableCell>
@@ -320,7 +320,7 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-xl border-blue-200 hover:bg-blue-50 text-blue-700"
+                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
                                 onClick={() => setSelectedKYC(workflow)}
                               >
                                 <Eye className="h-4 w-4 mr-1" />

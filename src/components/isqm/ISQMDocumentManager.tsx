@@ -254,21 +254,21 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'uploaded': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'reviewed': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'approved': return 'bg-green-100 text-green-700 border-green-200';
-      case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
+      case 'pending': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'uploaded': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'reviewed': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'approved': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'rejected': return 'bg-gray-100 text-gray-700 border-gray-200';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-700 border-red-200';
-      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-700 border-green-200';
+      case 'critical': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'high': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'medium': return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'low': return 'bg-gray-100 text-gray-700 border-gray-200';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -283,7 +283,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
         </div>
         <Button 
           onClick={() => setIsCreatingDocument(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white"
+          className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
         >
           <Plus className="w-4 h-4 mr-2" />
           Request Document
@@ -292,50 +292,58 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-blue-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-600 font-medium">Total Documents</p>
-                <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
+                <p className="text-sm text-gray-700 font-medium">Total Documents</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
-              <FileText className="w-8 h-8 text-blue-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-green-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-600 font-medium">Approved</p>
-                <p className="text-2xl font-bold text-green-800">{stats.approved}</p>
+                <p className="text-sm text-gray-700 font-medium">Approved</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.approved}</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-yellow-50 to-yellow-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-yellow-600 font-medium">Pending</p>
-                <p className="text-2xl font-bold text-yellow-800">{stats.pending}</p>
+                <p className="text-sm text-gray-700 font-medium">Pending</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
               </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-purple-50 to-purple-100">
+        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-purple-600 font-medium">Completion Rate</p>
-                <p className="text-2xl font-bold text-purple-800">{stats.completionRate.toFixed(1)}%</p>
+                <p className="text-sm text-gray-700 font-medium">Completion Rate</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.completionRate.toFixed(1)}%</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-purple-600" />
+              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -388,8 +396,8 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-xl">
-                  <Plus className="w-5 h-5 text-green-600" />
+                <div className="p-2 bg-gray-100 rounded-xl">
+                  <Plus className="w-5 h-5 text-gray-800" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">Request Supporting Document</h3>
@@ -485,7 +493,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
             <div className="flex gap-3">
               <Button 
                 onClick={handleCreateDocument}
-                className="bg-green-500 hover:bg-green-600 text-white"
+                className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 disabled={!newDocument.category || !newDocument.title}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -512,15 +520,15 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
           <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm">
             <CardContent className="p-12 text-center">
               <div className="flex flex-col items-center gap-4">
-                <div className="p-4 bg-blue-100 rounded-full">
-                  <FileText className="w-8 h-8 text-blue-600" />
+                <div className="p-4 bg-gray-100 rounded-full">
+                  <FileText className="w-8 h-8 text-gray-800" />
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-800 mb-2">No Documents Found</h3>
                   <p className="text-gray-600 mb-4">Create your first document request to get started.</p>
                   <Button 
                     onClick={() => setIsCreatingDocument(true)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                    className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Request Document
@@ -601,7 +609,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
                         className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${
                           isUploading === document._id
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
                         {isUploading === document._id ? (
@@ -619,7 +627,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
                         <Button
                           size="sm"
                           onClick={() => handleReviewDocument(document._id, 'approved')}
-                          className="bg-green-500 hover:bg-green-600 text-white text-xs"
+                          className="bg-gray-800 hover:bg-gray-900 text-white text-xs rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                         >
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Approve
@@ -653,7 +661,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
                       size="sm"
                       variant="outline"
                       onClick={() => handleEditDocument(document)}
-                      className="text-xs hover:bg-blue-50"
+                      className="text-xs hover:bg-gray-50 rounded-xl"
                     >
                       <Edit className="w-3 h-3 mr-1" />
                       Edit
@@ -677,7 +685,7 @@ export const ISQMDocumentManager: React.FC<ISQMDocumentManagerProps> = ({ parent
                       size="sm"
                       variant="outline"
                       onClick={() => handleAddNote(document._id)}
-                      className="text-xs hover:bg-green-50"
+                      className="text-xs hover:bg-gray-50 rounded-xl"
                     >
                       <FileText className="w-3 h-3 mr-1" />
                       Note

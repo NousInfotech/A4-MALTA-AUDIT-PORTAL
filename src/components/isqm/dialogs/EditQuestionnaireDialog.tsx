@@ -36,6 +36,7 @@ export const EditQuestionnaireDialog: React.FC<EditQuestionnaireDialogProps> = (
                 ...editingQuestionnaire,
                 heading: e.target.value
               })}
+              className="bg-white/80 backdrop-blur-sm border-gray-200 focus:border-gray-400 rounded-xl"
             />
           </div>
           <div>
@@ -46,6 +47,7 @@ export const EditQuestionnaireDialog: React.FC<EditQuestionnaireDialogProps> = (
                 ...editingQuestionnaire,
                 description: e.target.value
               })}
+              className="bg-white/80 backdrop-blur-sm border-gray-200 focus:border-gray-400 rounded-xl"
             />
           </div>
         </CardContent>
@@ -66,3 +68,4 @@ export const EditQuestionnaireDialog: React.FC<EditQuestionnaireDialogProps> = (
     </div>
   );
 };
+
