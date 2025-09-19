@@ -1,16 +1,15 @@
-/* Import Great Vibes from Fontsource */
-@import '@fontsource/great-vibes';
+@import '@fontsource/great-vibes'; /* Import Great Vibes from Fontsource */
 /* If you need specific weights/styles, you can import those:
 @import '@fontsource/great-vibes/400.css'; // Regular 400 weight
 @import '@fontsource/great-vibes/latin.css'; // Or just latin subset
 */
+@import './styles/animations.css';  /* Import custom animations */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import custom animations */
-@import './styles/animations.css';
+
 
 /* Professional Legal Audit Portal Design System */
 
