@@ -246,7 +246,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
           <TabsContent
             value="sections"
-            className="flex-1 overflow-hidden border border-red-800"
+            className="flex-1 overflow-hidden"
           >
             <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
@@ -354,7 +354,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
               </div>
 
               {/* Content Panel */}
-              <div className="flex-1 min-w-0 border border-green-800">
+              <div className="flex-1 min-w-0">
                 {selectedClassification ? (
                   <ClassificationSection
                     engagement={engagement}

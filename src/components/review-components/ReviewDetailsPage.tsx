@@ -99,7 +99,7 @@ const fetchAuditItemId = async (
           return responseData._id;
         }
       }
-      console.warn(`No matching engagement ID found for item type ${itemType}`);
+      toast.error(`No matching engagement ID found for item type ${itemType}`);
       return null;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -654,7 +654,7 @@ const ReviewDetailsPage: React.FC = () => {
       AuditItemType.Kyc,
       AuditItemType.IsqmDocument,
       AuditItemType.WorkingPaper,
-      AuditItemType.ClassificationSection,
+      // AuditItemType.ClassificationSection,
     ],
     []
   );

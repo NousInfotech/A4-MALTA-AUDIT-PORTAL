@@ -152,7 +152,10 @@ const SOCKET_SERVER_URL: string =
   import.meta.env.VITE_APIURL || "http://localhost:8000";
 
 // --- The ReviewDetailsPage Component ---
-const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassification }: any) => {
+const ClassificationReviewPanel: React.FC = ({
+  engagementId,
+  reviewClassification,
+}: any) => {
   // All hooks must be called unconditionally at the top level
   const { user: authUser, isLoading: authLoading } = useAuth();
   //   const { engagementId: urlEngagementId } = useParams<{
@@ -191,16 +194,18 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
     engagementId: string
   ): Promise<string | null> => {
     try {
-      const apiEndpoints: Record<AuditItemType, string> = {
-        [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
-        [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
-        [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
-        [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
-        [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
-        [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
-        [AuditItemType.IsqmDocument]: "/api/isqm",
-        [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${encodeURIComponent(reviewClassification)}/working-papers/db`,
-        [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(reviewClassification)}`,
+      const apiEndpoints: Record<string, string> = {
+        // [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
+        // [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
+        // [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
+        // [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
+        // [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
+        // [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
+        // [AuditItemType.IsqmDocument]: "/api/isqm",
+        // [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${encodeURIComponent(reviewClassification)}/working-papers/db`,
+        [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(
+          reviewClassification
+        )}`,
       };
 
       const apiUrl = apiEndpoints[itemType];
@@ -212,6 +217,7 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
 
       const response = await axiosInstance.get(apiUrl);
       const responseData = response.data;
+      console.log("responseData", responseData);
 
       if (Array.isArray(responseData)) {
         const id = responseData.find(
@@ -224,12 +230,15 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
           return id;
         }
       } else if (typeof responseData === "object" && responseData !== null) {
-        if (responseData._id && responseData.engagement?._id === engagementId) {
-          console.log("responseId (single object)", responseData._id);
-          return responseData._id;
+        if (responseData && !responseData.section) {
+          toast.error("no classification item found");
+          return;
+        } 
+        if(responseData && responseData.section && responseData.section._id){
+          return responseData.section._id
         }
       }
-      console.warn(`No matching engagement ID found for item type ${itemType}`);
+      toast.error(`No matching engagement ID found for item type ${itemType}`);
       return null;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -291,9 +300,12 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
       setError(null);
       try {
         const fetchedWorkflows = await fetchReviewWorkflowsApi();
+        const classificationWorkflows = fetchedWorkflows.filter(
+          (item: any) => item.itemType === "classification-section"
+        );
 
-        setReviewItems(fetchedWorkflows);
-        return fetchedWorkflows;
+        setReviewItems(classificationWorkflows);
+        return classificationWorkflows;
       } catch (err: any) {
         setError(err.message || "Failed to load review workflows.");
         console.error("Review workflows loading error:", err);
@@ -707,14 +719,14 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
   // List of all possible AuditItemType values for the dropdown
   const auditItemTypes: AuditItemType[] = useMemo(
     () => [
-      AuditItemType.Procedure,
-      AuditItemType.PlanningProcedure,
-      AuditItemType.DocumentRequest,
-      AuditItemType.ChecklistItem,
-      AuditItemType.Pbc,
-      AuditItemType.Kyc,
-      AuditItemType.IsqmDocument,
-      AuditItemType.WorkingPaper,
+      // AuditItemType.Procedure,
+      // AuditItemType.PlanningProcedure,
+      // AuditItemType.DocumentRequest,
+      // AuditItemType.ChecklistItem,
+      // AuditItemType.Pbc,
+      // AuditItemType.Kyc,
+      // AuditItemType.IsqmDocument,
+      // AuditItemType.WorkingPaper,
       AuditItemType.ClassificationSection,
     ],
     []
@@ -743,7 +755,7 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
       </div>
     );
   }
-  console.log(reviewClassification)
+  console.log(reviewClassification);
   return (
     <div className="p-4 space-y-8">
       {/* Create New Review Workflow Card */}
