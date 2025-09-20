@@ -1300,7 +1300,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               {sectionData.length}{" "}
               {sectionData.length === 1 ? "account" : "accounts"}
             </Badge>
-            <Button onClick={() => {
+            <Button className="rounded-full mx-2 py-0" size="sm" onClick={() => {
               setIsReviewOpen(true)
               setReviewClassification(classification)
             }}>
@@ -2179,10 +2179,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // Inline (normal) vs fullscreen (portal)
   if (!isFullscreen) {
+    console.log("reviewClassification", reviewClassification)
     return <div className="h-full flex flex-col">{content}</div>;
   }
-
+  console.log("reviewClassification", reviewClassification)
   return (
+    
     <FullscreenOverlay onExit={() => setIsFullscreen(false)}>
       <div className="absolute right-4 top-4 z-10">
         {/* Exit button handled by FullscreenOverlay */}

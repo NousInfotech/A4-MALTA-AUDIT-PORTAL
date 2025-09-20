@@ -199,8 +199,8 @@ const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassificatio
         [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
         [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
         [AuditItemType.IsqmDocument]: "/api/isqm",
-        [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${reviewClassification}/working-papers/db`,
-        [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${reviewClassification}`,
+        [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${encodeURIComponent(reviewClassification)}/working-papers/db`,
+        [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(reviewClassification)}`,
       };
 
       const apiUrl = apiEndpoints[itemType];
