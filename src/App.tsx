@@ -43,8 +43,11 @@ import { ClientDetail } from "./pages/employee/ClientDetail";
 import RoleBasedAccountDataTab from "./components/accounts-integration/RoleBasedAccountDataTab";
 
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
-import PbcHome from "./components/pbc/PbcHome";
-import { ClientPBCDashBoard } from "./components/clientPanel/clientpanel-pbc/clientPBCDashBoard";
+import ReviewDetailsPage from "./components/review-components/ReviewDetailsPage";
+import ReviewPage from "./pages/ReviewPage";
+
+
+
 
 const queryClient = new QueryClient();
 
@@ -102,6 +105,8 @@ const App = () => (
                 <Route path="kyc" element={<KYCManagement />} />
                 <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
+                <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
+                <Route path="review/" element={<ReviewPage />} />
               </Route>
 
                 {/* Client Routes */}
@@ -117,7 +122,7 @@ const App = () => (
                   <Route path="engagements" element={<ClientEngagements />} />
                   <Route path="requests" element={<DocumentRequests />} />
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
-                  {/* <Route path="pbc" element={<ClientPBCDashBoard />} /> */}
+                  
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

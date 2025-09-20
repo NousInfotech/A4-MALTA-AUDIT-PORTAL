@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -31,6 +31,7 @@ import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal"
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
 
 export const EngagementManagement = () => {
+  const navigate = useNavigate();
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
@@ -39,7 +40,7 @@ export const EngagementManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "All" | "draft" | "active" | "completed"
-  >("active");
+  >("All");
   const { engagements, loading } = useEngagements();
   const { toast } = useToast();
 
@@ -352,7 +353,12 @@ export const EngagementManagement = () => {
                     </div>
                   </div>
                   
+
+                  <div>
+                    <Button size="sm" className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl  shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate(`/employee/review/${engagement._id}`)}>Review Manager</Button>
+                  </div>
                   <div className="flex gap-3">
+                    
                     <Button
                       className="flex-1 bg-gray-800 hover:bg-gray-900 text-white rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
                       variant="default"
