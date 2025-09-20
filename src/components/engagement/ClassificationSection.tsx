@@ -4,9 +4,17 @@
 import type React from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   RefreshCw,
   ExternalLink,
@@ -34,6 +42,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -46,6 +55,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedLoader } from "../ui/enhanced-loader";
+import { Label } from "../ui/label";
+import { AuditItemType } from "@/types/reviews_module";
+import { Textarea } from "../ui/textarea";
+import { getAllReviewWorkflows, submitForReview } from "@/lib/api/review-api";
+import { Input } from "../ui/input";
+import { format } from "date-fns";
+import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
 
 interface ClassificationSectionProps {
   engagement: any;
@@ -251,6 +267,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   onClose,
   onClassificationJump,
 }) => {
+  
+  const [reviewClassification, setReviewClassification] = useState("");
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [loading, setLoading] = useState(true); // global loader (ETB / lead-sheet)
   const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
   const [sectionData, setSectionData] = useState<ETBRow[]>([]);
@@ -291,6 +310,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers">(
     () => getTabFromSearch()
   );
+
   useEffect(() => setTabInSearch(activeTab), [activeTab]);
 
   const { toast } = useToast();
@@ -571,35 +591,41 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   };
   // Save Working Paper (DB)
   // Add optional override param
-const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
-  const onWpTab = activeTab === "working-papers";
-  if (onWpTab) setWpHydrating(true); // or dbBusy('save') if you added it
-  else setLoading(true);
+  const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
+    const onWpTab = activeTab === "working-papers";
+    if (onWpTab) setWpHydrating(true); // or dbBusy('save') if you added it
+    else setLoading(true);
 
-  try {
-    const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
+    try {
+      const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
 
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/db`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: payload }),
-      }
-    );
-    if (!response.ok) throw new Error("Failed to save Working Paper to DB");
-    toast({ title: "Saved", description: "Working Paper saved to database." });
-  } catch (error: any) {
-    console.error("Save WP to DB error:", error);
-    toast({ title: "Save failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (onWpTab) setWpHydrating(false);
-    else if (mountedRef.current) setLoading(false);
-  }
-};
-
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(classification)}/working-papers/db`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: payload }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to save Working Paper to DB");
+      toast({
+        title: "Saved",
+        description: "Working Paper saved to database.",
+      });
+    } catch (error: any) {
+      console.error("Save WP to DB error:", error);
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (onWpTab) setWpHydrating(false);
+      else if (mountedRef.current) setLoading(false);
+    }
+  };
 
   // Load Working Paper (DB) — returns boolean
   const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
@@ -766,44 +792,50 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     }
   };
 
- const selectRowFromSheets = async () => {
-  if (!selectedRow || !selectedRowForFetch) return;
-  if (activeTab === "working-papers") setWpHydrating(true);
+  const selectRowFromSheets = async () => {
+    if (!selectedRow || !selectedRowForFetch) return;
+    if (activeTab === "working-papers") setWpHydrating(true);
 
-  try {
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/select-row`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowId: selectedRowForFetch.id, selectedRow }),
-      }
-    );
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/select-row`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rowId: selectedRowForFetch.id, selectedRow }),
+        }
+      );
 
-    if (!response.ok) throw new Error("Failed to select row");
-    const result = await response.json();
-    if (!mountedRef.current) return;
+      if (!response.ok) throw new Error("Failed to select row");
+      const result = await response.json();
+      if (!mountedRef.current) return;
 
-    setSectionData(result.rows);
-    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
-    await loadWorkingPaperFromDB(true);          // optional silent reload
+      setSectionData(result.rows);
+      await saveWorkingPaperToDB(result.rows); // <-- pass fresh rows
+      await loadWorkingPaperFromDB(true); // optional silent reload
 
-    setFetchRowsDialog(false);
-    setSelectedRow(null);
-    setSelectedRowForFetch(null);
-    toast({ title: "Success", description: "Row selected and data updated" });
-  } catch (error: any) {
-    console.error("Select row error:", error);
-    toast({ title: "Select failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (mountedRef.current) {
-      setWpHydrating(false);
       setFetchRowsDialog(false);
+      setSelectedRow(null);
+      setSelectedRowForFetch(null);
+      toast({ title: "Success", description: "Row selected and data updated" });
+    } catch (error: any) {
+      console.error("Select row error:", error);
+      toast({
+        title: "Select failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) {
+        setWpHydrating(false);
+        setFetchRowsDialog(false);
+      }
     }
-  }
-};
+  };
 
   // ⬇️ NEW: Fetch list of worksheet tabs (excluding Sheet1)
   const fetchTabsForRow = async (row: ETBRow) => {
@@ -836,46 +868,55 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
     }
   };
 
- const selectTabForRow = async () => {
-  if (!selectedTab || !selectedRowForFetch) return;
-  if (activeTab === "working-papers") setWpHydrating(true);
-  try {
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(
-        classification
-      )}/working-papers/select-tab`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowId: selectedRowForFetch.id, sheetName: selectedTab }),
-      }
-    );
-    if (!response.ok) throw new Error("Failed to select sheet");
-    const result = await response.json();
-    if (!mountedRef.current) return;
+  const selectTabForRow = async () => {
+    if (!selectedTab || !selectedRowForFetch) return;
+    if (activeTab === "working-papers") setWpHydrating(true);
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/sections/${encodeURIComponent(
+          classification
+        )}/working-papers/select-tab`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rowId: selectedRowForFetch.id,
+            sheetName: selectedTab,
+          }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to select sheet");
+      const result = await response.json();
+      if (!mountedRef.current) return;
 
-    // Update UI and save the exact rows you just got back
-    setSectionData(result.rows);
-    await saveWorkingPaperToDB(result.rows);     // <-- pass fresh rows
-    await loadWorkingPaperFromDB(true);          // optional silent reload to hydrate referenceData
+      // Update UI and save the exact rows you just got back
+      setSectionData(result.rows);
+      await saveWorkingPaperToDB(result.rows); // <-- pass fresh rows
+      await loadWorkingPaperFromDB(true); // optional silent reload to hydrate referenceData
 
-    setFetchTabsDialog(false);
-    setSelectedTab(null);
-    setSelectedRowForFetch(null);
-    toast({ title: "Success", description: "Sheet selected. Reference updated." });
-  } catch (error: any) {
-    console.error("Select tab error:", error);
-    toast({ title: "Select failed", description: error.message, variant: "destructive" });
-  } finally {
-    if (mountedRef.current) {
-      setWpHydrating(false);
       setFetchTabsDialog(false);
+      setSelectedTab(null);
+      setSelectedRowForFetch(null);
+      toast({
+        title: "Success",
+        description: "Sheet selected. Reference updated.",
+      });
+    } catch (error: any) {
+      console.error("Select tab error:", error);
+      toast({
+        title: "Select failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) {
+        setWpHydrating(false);
+        setFetchTabsDialog(false);
+      }
     }
-  }
-};
-
-
-
+  };
 
   const viewSelectedRow = async (row: ETBRow) => {
     // Prefer DB-hydrated referenceData (no network roundtrip)
@@ -1259,6 +1300,12 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
               {sectionData.length}{" "}
               {sectionData.length === 1 ? "account" : "accounts"}
             </Badge>
+            <Button onClick={() => {
+              setIsReviewOpen(true)
+              setReviewClassification(classification)
+            }}>
+              Review Manager
+            </Button>
           </div>
           {headerActions}
         </div>
@@ -1586,6 +1633,34 @@ const saveWorkingPaperToDB = async (rowsOverride?: ETBRow[]) => {
           </DialogContent>
         </Dialog>
       </CardContent>
+
+      {/* ReviewDialog */}
+
+      {/* //############################################################################################################### */}
+      {/* Create New Review Workflow Modal */}
+      <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
+        <DialogContent className="max-h-[90vh] min-w-[90vw] overflow-y-auto">
+          {/* Dialog Header */}
+          <DialogHeader>
+            <DialogTitle>Review Engagement: {engagement.id}</DialogTitle>
+            <DialogDescription>
+              Review the classification details and make necessary changes.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Content */}
+          <div className="flex-grow">
+            <ClassificationReviewPanel engagementId={engagement.id} reviewClassification={reviewClassification} />
+          </div>
+
+          {/* Dialog Footer */}
+          <DialogFooter className="mt-4">
+            <Button onClick={() => setIsReviewOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ReviewDialog */}
     </Card>
   );
 

@@ -28,6 +28,8 @@ export enum AuditItemType {
   Kyc = 'kyc',
   IsqmDocument = 'isqm-document',
   WorkingPaper = 'working-paper',
+  ClassificationSection ='classification-section',
+  
 }
 
 // ReviewPriority enum based on ReviewWorkflowSchema's 'priority' field

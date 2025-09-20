@@ -214,7 +214,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
             <TrialBalanceUpload engagement={engagement} onUploadSuccess={handleUploadSuccess} />
           </TabsContent>
 
-          <TabsContent value="sections" className="flex-1 overflow-hidden">
+          <TabsContent value="sections" className="flex-1 overflow-hidden border border-red-800">
             <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
               <div className="w-full md:w-80 border-r bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
@@ -289,7 +289,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({ engagement, se
               </div>
 
               {/* Content Panel */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 border border-green-800">
                 {selectedClassification ? (
                   <ClassificationSection
                     engagement={engagement}

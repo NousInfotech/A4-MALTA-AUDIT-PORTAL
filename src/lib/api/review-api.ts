@@ -7,6 +7,7 @@ import {
   ReviewHistoryEntry,
   AuditItem,
   ReviewWorkflowFilters,
+  AuditItemType,
 } from "@/types/reviews_module";
 
 // The base path for your review-specific API endpoints
@@ -45,9 +46,7 @@ const handleApiError = (error: any): ApiResponse<any> => {
 
 export const GetEngagements = async () => {
   try {
-    const response = await axiosInstance.get(
-      `/api/engagements`
-    );
+    const response = await axiosInstance.get(`/api/engagements`);
     return response.data;
   } catch (error) {
     console.log(error);
@@ -57,17 +56,13 @@ export const GetEngagements = async () => {
 
 export const GetAllReviewers = async () => {
   try {
-    const response = await axiosInstance.get(
-      `/api/users`
-    );
+    const response = await axiosInstance.get(`/api/users`);
     return response.data;
   } catch (error) {
     console.log(error);
     return handleApiError(error);
   }
 };
-
-
 
 export const getAllReviewWorkflows = async (
   filters: ReviewWorkflowFilters = {}
@@ -229,87 +224,60 @@ export const getReviewStats = async (params?: { engagementId?: string }) => {
   }
 };
 
-export type AuditItemType =
-  | "procedure"
-  | "planning-procedure"
-  | "document-request"
-  | "checklist-item"
-  | "pbc"
-  | "kyc"
-  | "isqm-document"
-  | "working-paper";
-
 export const fetchAuditItemDetails = async (
   itemType: AuditItemType,
-  itemId: string
-) => {
+  engagementId: string
+): Promise<string | null> => {
   try {
-    if (itemType === "procedure") {
-      const response = await axiosInstance.get("/api/procedures", {
-        params: { itemId },
-      });
-      return response.data;
+    const apiEndpoints: Record<AuditItemType, string> = {
+      [AuditItemType.Procedure]: "/api/procedures",
+      [AuditItemType.PlanningProcedure]: "/api/planning-procedures",
+      [AuditItemType.DocumentRequest]: "/api/document-requests",
+      [AuditItemType.ChecklistItem]: "/api/checklist",
+      [AuditItemType.Pbc]: "/api/pbc",
+      [AuditItemType.Kyc]: "/api/kyc",
+      [AuditItemType.IsqmDocument]: "/api/isqm",
+      [AuditItemType.WorkingPaper]: "/api/working-paper",
+      [AuditItemType.ClassificationSection]:
+        "/id/sections/classification/working-papers/db",
+    };
+
+    const apiUrl = apiEndpoints[itemType];
+
+    if (!apiUrl) {
+      console.warn(`Unhandled item type: ${itemType}`);
+      return null;
     }
 
-    if (itemType === "planning-procedure") {
-      const response = await axiosInstance.get(
-        "/api/planning-procedures",
-        {
-          params: { itemId },
-        }
-      );
-      return response.data;
+    const response = await axiosInstance.get(
+      `${apiUrl}?engagementId=${engagementId}`
+    );
+
+    // Safely handle response and ensure that response.data is an array of objects with engagement._id
+    const data = response.data?.find(
+      (item: { engagement: { _id: string } }) =>
+        item.engagement._id === engagementId
+    );
+
+    if (data) {
+      console.log("responseId", data);
+      return data;
     }
 
-    if (itemType === "document-request") {
-      const response = await axiosInstance.get(
-        "/api/document-requests",
-        {
-          params: { itemId },
-        }
-      );
-      return response.data;
-    }
-
-    if (itemType === "checklist-item") {
-      const response = await axiosInstance.get("/api/checklist", {
-        params: { itemId },
-      });
-      return response.data;
-    }
-
-    if (itemType === "pbc") {
-      const response = await axiosInstance.get("/api/pbc", {
-        params: { itemId },
-      });
-      return response.data;
-    }
-
-    if (itemType === "kyc") {
-      const response = await axiosInstance.get("/api/kyc", {
-        params: { itemId },
-      });
-      return response.data;
-    }
-
-    if (itemType === "isqm-document") {
-      const response = await axiosInstance.get("/api/isqm", {
-        params: { itemId },
-      });
-      return response.data;
-    }
-
-    if (itemType === "working-paper") {
-      const response = await axiosInstance.get("/api/working-paper", {
-        params: { itemId },
-      });
-      return response.data;
-    }
-
-    console.warn(`Unhandled item type: ${itemType}`);
+    // If no matching ID is found
+    console.warn(`No matching engagement ID found for item type ${itemType}`);
     return null;
   } catch (error) {
-    console.error(error);
+    if (axios.isAxiosError(error)) {
+      // More specific error logging for Axios
+      console.error(
+        "Axios error fetching audit item:",
+        error.response?.data || error.message
+      );
+    } else {
+      // General error logging
+      console.error("Error fetching audit item:", error);
+    }
     return null;
   }
 };

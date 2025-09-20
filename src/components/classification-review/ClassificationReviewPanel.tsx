@@ -5,9 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import EngagementAuditItems, {
-  UpdateReviewWorkflowFunction,
-} from "@/components/review-components/EngagementAuditItems";
+
 import {
   CurrentUser,
   AuditItemType,
@@ -29,7 +27,6 @@ import {
   performReview,
   signOff,
   reopenItem,
-  fetchAuditItemDetails, // Import the new API function
 } from "@/lib/api/review-api";
 import { io, Socket } from "socket.io-client";
 import { Button } from "@/components/ui/button";
@@ -54,65 +51,73 @@ import { Textarea } from "../ui/textarea";
 import axiosInstance from "@/lib/axiosInstance";
 import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { format } from "date-fns";
+import ClassificationReviewItems, {
+  UpdateReviewWorkflowFunction,
+} from "./ClassificationReviewItems";
 
+// export const fetchAuditItemId = async (
+//   itemType: AuditItemType,
+//   engagementId: string
+// ): Promise<string | null> => {
+//   try {
+//     const apiEndpoints: Record<AuditItemType, string> = {
+//       [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
+//       [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
+//       [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
+//       [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
+//       [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
+//       [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
+//       [AuditItemType.IsqmDocument]: "/api/isqm",
+//       [AuditItemType.WorkingPaper]: `/${engagementId}/sections/:classification/working-papers/db`,
+//       [AuditItemType.ClassificationSection]: `/${engagementId}/etb/:classification/classification`,
+//     };
 
-const fetchAuditItemId = async (
-    itemType: AuditItemType,
-    engagementId: string
-  ): Promise<string | null> => {
-    try {
-      const apiEndpoints: Record<AuditItemType, string> = {
-        [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
-        [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
-        [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
-        [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
-        [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
-        [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
-        [AuditItemType.IsqmDocument]: '/api/isqm',
-        [AuditItemType.WorkingPaper]: `/${engagementId}/sections/:classification/working-papers/db`,
-        [AuditItemType.ClassificationSection]: `/${engagementId}/etb/:classification/classification`,
-      };
+//     const apiUrl = apiEndpoints[itemType];
 
-      const apiUrl = apiEndpoints[itemType];
+//     if (!apiUrl) {
+//       console.warn(`Unhandled item type: ${itemType}`);
+//       return null;
+//     }
 
-      if (!apiUrl) {
-        console.warn(`Unhandled item type: ${itemType}`);
-        return null;
-      }
+//     const response = await axiosInstance.get(apiUrl);
 
-      const response = await axiosInstance.get(apiUrl);
-      const responseData = response.data;
+//     // Safely handle response and ensure that response.data is an array of objects with engagement._id
+//     const id = response.data?.find(
+//       (item: { engagement: { _id: string } }) =>
+//         item.engagement._id === engagementId
+//     )?._id;
 
-      if (Array.isArray(responseData)) {
-        const id = responseData.find(
-          (item: { engagement?: { _id: string }; _id?: string }) =>
-            item.engagement?._id === engagementId
-        )?._id;
+//     if (id) {
+//       console.log("responseId", id);
+//       return id;
+//     }
 
-        if (id) {
-          console.log('responseId', id);
-          return id;
-        }
-      } else if (typeof responseData === 'object' && responseData !== null) {
-        if (responseData._id && responseData.engagement?._id === engagementId) {
-          console.log('responseId (single object)', responseData._id);
-          return responseData._id;
-        }
-      }
-      console.warn(`No matching engagement ID found for item type ${itemType}`);
-      return null;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error(
-          'Axios error fetching audit item:',
-          error.response?.data || error.message
-        );
-      } else {
-        console.error('Error fetching audit item:', error);
-      }
-      return null;
-    }
-  };
+//     // If no matching ID is found
+//     console.warn(`No matching engagement ID found for item type ${itemType}`);
+//     return null;
+//   } catch (error) {
+//     if (axios.isAxiosError(error)) {
+//       // More specific error logging for Axios
+//       console.error(
+//         "Axios error fetching audit item:",
+//         error.response?.data || error.message
+//       );
+//     } else {
+//       // General error logging
+//       console.error("Error fetching audit item:", error);
+//     }
+//     return null;
+//   }
+// };
 
 // --- API Calls to fetch ReviewWorkflows (Moved and Refactored) ---
 // This function now encapsulates both getAllReviewWorkflows and GetReviewworkflowByEngagementId
@@ -143,18 +148,16 @@ const fetchReviewWorkflowsApi = async (engagementId?: string) => {
   }
 };
 
-// const SOCKET_SERVER_URL = "http://localhost:8000";
 const SOCKET_SERVER_URL: string =
   import.meta.env.VITE_APIURL || "http://localhost:8000";
 
 // --- The ReviewDetailsPage Component ---
-const ReviewDetailsPage: React.FC = () => {
-  const navigate = useNavigate();
+const ClassificationReviewPanel: React.FC = ({ engagementId, reviewClassification }: any) => {
   // All hooks must be called unconditionally at the top level
   const { user: authUser, isLoading: authLoading } = useAuth();
-  const { engagementId: urlEngagementId } = useParams<{
-    engagementId: string;
-  }>();
+  //   const { engagementId: urlEngagementId } = useParams<{
+  //     engagementId: string;
+  //   }>();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [availableReviewers, setAvailableReviewers] = useState<
     { id: string; name: string; role: string }[]
@@ -165,7 +168,7 @@ const ReviewDetailsPage: React.FC = () => {
 
   const [reviewItems, setReviewItems] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState<"all" | "engagement">(
-    urlEngagementId ? "engagement" : "all"
+    engagementId ? "engagement" : "all"
   );
 
   // State for creating a new workflow
@@ -178,19 +181,78 @@ const ReviewDetailsPage: React.FC = () => {
   // New state for available items based on selected type
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchAuditItemId = async (
+    itemType: AuditItemType,
+    engagementId: string
+  ): Promise<string | null> => {
+    try {
+      const apiEndpoints: Record<AuditItemType, string> = {
+        [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
+        [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
+        [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
+        [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
+        [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
+        [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
+        [AuditItemType.IsqmDocument]: "/api/isqm",
+        [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${reviewClassification}/working-papers/db`,
+        [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${reviewClassification}`,
+      };
+
+      const apiUrl = apiEndpoints[itemType];
+
+      if (!apiUrl) {
+        console.warn(`Unhandled item type: ${itemType}`);
+        return null;
+      }
+
+      const response = await axiosInstance.get(apiUrl);
+      const responseData = response.data;
+
+      if (Array.isArray(responseData)) {
+        const id = responseData.find(
+          (item: { engagement?: { _id: string }; _id?: string }) =>
+            item.engagement?._id === engagementId
+        )?._id;
+
+        if (id) {
+          console.log("responseId", id);
+          return id;
+        }
+      } else if (typeof responseData === "object" && responseData !== null) {
+        if (responseData._id && responseData.engagement?._id === engagementId) {
+          console.log("responseId (single object)", responseData._id);
+          return responseData._id;
+        }
+      }
+      console.warn(`No matching engagement ID found for item type ${itemType}`);
+      return null;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error(
+          "Axios error fetching audit item:",
+          error.response?.data || error.message
+        );
+      } else {
+        console.error("Error fetching audit item:", error);
+      }
+      return null;
+    }
+  };
 
   // Determine the title based on the selected filter - MOVED UP
   const displayTitle = useMemo(() => {
     if (selectedFilter === "all") {
       return "All Review Workflows";
-    } else if (urlEngagementId) {
-      return `Review Workflows for Engagement ID: ${urlEngagementId}`;
+    } else if (engagementId) {
+      return `Review Workflows for Engagement ID: ${engagementId}`;
     }
     return "Review Workflows";
-  }, [selectedFilter, urlEngagementId]);
+  }, [selectedFilter, engagementId]);
 
   // Function to handle item type selection and fetch available items
   const handleItemTypeChange = async (itemType: AuditItemType) => {
@@ -199,8 +261,8 @@ const ReviewDetailsPage: React.FC = () => {
     setAvailableItems([]); // Clear available items (to be populated when item type changes)
 
     // Fetch the item ID based on the selected item type
-    if (itemType && urlEngagementId) {
-      const fetchedItemId = await fetchAuditItemId(itemType, urlEngagementId);
+    if (itemType && engagementId) {
+      const fetchedItemId = await fetchAuditItemId(itemType, engagementId);
       if (fetchedItemId) {
         setNewItemId(fetchedItemId);
       }
@@ -210,8 +272,7 @@ const ReviewDetailsPage: React.FC = () => {
   // This function now centralizes fetching logic and updates local state
   const fetchAndSetReviewWorkflows = useCallback(
     async (filterType: "all" | "engagement") => {
-      const idToFetch =
-        filterType === "engagement" ? urlEngagementId : undefined;
+      const idToFetch = filterType === "engagement" ? engagementId : undefined;
 
       // Only proceed if an engagementId is needed but not available
       if (filterType === "engagement" && !idToFetch) {
@@ -229,7 +290,7 @@ const ReviewDetailsPage: React.FC = () => {
       setLoadingReviewWorkflows(true);
       setError(null);
       try {
-        const fetchedWorkflows = await fetchReviewWorkflowsApi(idToFetch);
+        const fetchedWorkflows = await fetchReviewWorkflowsApi();
 
         setReviewItems(fetchedWorkflows);
         return fetchedWorkflows;
@@ -242,7 +303,7 @@ const ReviewDetailsPage: React.FC = () => {
         setLoadingReviewWorkflows(false);
       }
     },
-    [urlEngagementId] // Only depends on urlEngagementId
+    [engagementId] // Only depends on urlEngagementId
   );
 
   // Effect to load initial user data and reviewers
@@ -293,7 +354,7 @@ const ReviewDetailsPage: React.FC = () => {
       timestamp: string;
     }) => {
       const currentEngagementFilter =
-        selectedFilter === "engagement" ? urlEngagementId : undefined;
+        selectedFilter === "engagement" ? engagementId : undefined;
 
       // Only process events relevant to the currently applied filter
       if (
@@ -341,8 +402,8 @@ const ReviewDetailsPage: React.FC = () => {
         const isEventRelevantToCurrentView =
           selectedFilter === "all" ||
           (selectedFilter === "engagement" &&
-            urlEngagementId &&
-            data.engagementId === urlEngagementId);
+            engagementId &&
+            data.engagementId === engagementId);
 
         if (!itemUpdated && isEventRelevantToCurrentView) {
           console.log(
@@ -361,7 +422,7 @@ const ReviewDetailsPage: React.FC = () => {
         return updatedItems;
       });
     },
-    [urlEngagementId, selectedFilter, fetchAndSetReviewWorkflows]
+    [engagementId, selectedFilter, fetchAndSetReviewWorkflows]
   );
 
   // Effect to initialize and manage the Socket.IO connection in the parent
@@ -371,8 +432,8 @@ const ReviewDetailsPage: React.FC = () => {
     // For simplicity, we'll only join an engagement-specific room if 'engagement' filter is active
     // and urlEngagementId is present.
     const roomToJoin =
-      selectedFilter === "engagement" && urlEngagementId
-        ? urlEngagementId
+      selectedFilter === "engagement" && engagementId
+        ? engagementId
         : undefined;
 
     if (!currentUser || authLoading) {
@@ -483,7 +544,7 @@ const ReviewDetailsPage: React.FC = () => {
     // Cleanup function
     return () => {
       console.log(
-        `Cleaning up Socket.IO for engagement (filter: ${selectedFilter}, id: ${urlEngagementId})`
+        `Cleaning up Socket.IO for engagement (filter: ${selectedFilter}, id: ${engagementId})`
       );
       if (socketRef.current) {
         const currentSocketEngagementId = (socketRef.current as any)
@@ -505,7 +566,7 @@ const ReviewDetailsPage: React.FC = () => {
       }
     };
   }, [
-    urlEngagementId,
+    engagementId,
     selectedFilter,
     currentUser,
     authLoading,
@@ -609,7 +670,7 @@ const ReviewDetailsPage: React.FC = () => {
 
   // Handle new workflow submission
   const handleSubmitNewWorkflow = async () => {
-    if (!newItemType || !newItemId || !urlEngagementId) {
+    if (!newItemType || !newItemId || !engagementId) {
       // New workflows MUST be tied to an engagement
       toast.error(
         "Item type, item ID, and current engagement ID are required to submit a new workflow."
@@ -621,7 +682,7 @@ const ReviewDetailsPage: React.FC = () => {
       const response = await submitForReview(
         newItemType,
         newItemId,
-        urlEngagementId, // Use the URL's engagementId for new submissions
+        engagementId, // Use the URL's engagementId for new submissions
         newItemComments
       );
       if (response.success) {
@@ -682,184 +743,209 @@ const ReviewDetailsPage: React.FC = () => {
       </div>
     );
   }
-
+  console.log(reviewClassification)
   return (
-    <div className="container mx-auto p-2">
-      <div className="review-details-page bg-gray-50 min-h-screen rounded-lg p-6">
-        <h1 className="text-3xl font-bold text-gray-500 mb-6">
-          {displayTitle}
-        </h1>
-
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex space-x-2">
-            <Button
-              onClick={() => navigate("/employee/engagements")}
-              className="flex items-center gap-2 bg-white border border-gray-500 text-blue-500"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Go Back
-            </Button>
-
-            {urlEngagementId && (
-              <Button
-                onClick={() => setSelectedFilter("engagement")}
-                variant={
-                  selectedFilter === "engagement" ? "default" : "outline"
-                }
-              >
-                Show Current Engagement Workflows
-              </Button>
-            )}
-            {/* <Button
-            onClick={() => setSelectedFilter("all")}
-            variant={selectedFilter === "all" ? "default" : "outline"}
-          >
-            Show All Workflows
-          </Button> */}
-            <Button
-              onClick={() => navigate("/employee/review")}
-              variant="link"
-              className="bg-white text-blue-500 border border-gray-500 rounded-lg"
-            >
-              Show All Workflows
-            </Button>
+    <div className="p-4 space-y-8">
+      {/* Create New Review Workflow Card */}
+      <Card className="w-full max-w-xl mx-auto">
+        <CardHeader>
+          <CardTitle>Create New Review Workflow</CardTitle>
+          <CardDescription>
+            Submit an item from engagement &quot;{engagementId}&quot; for
+            review.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 py-4">
+          {/* Item Type Field */}
+          <div className="grid gap-2">
+            <Label htmlFor="itemType" className="text-left">
+              Item Type
+            </Label>
+            <Select value={newItemType} onValueChange={handleItemTypeChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select an item type" />
+              </SelectTrigger>
+              <SelectContent>
+                {auditItemTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type
+                      .replace(/-/g, " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {urlEngagementId && (
-            <Button onClick={() => setShowCreateWorkflowModal(true)}>
-              Create New Review Workflow
-            </Button>
-          )}
-        </div>
 
-        <EngagementAuditItems
-          engagementId={
-            selectedFilter === "engagement" ? urlEngagementId : undefined
-          } // Pass engagementId based on filter
-          currentUser={currentUser}
-          availableReviewers={availableReviewers}
-          reviewItems={reviewItems}
-          setReviewItems={setReviewItems}
-          refreshReviewItems={() => fetchAndSetReviewWorkflows(selectedFilter)} // Refresh current filtered view
-          updateReviewWorkflow={updateReviewWorkflow}
-        />
-
-        {/* Create New Review Workflow Modal */}
-        <Dialog
-          open={showCreateWorkflowModal}
-          onOpenChange={(open) => {
-            setShowCreateWorkflowModal(open);
-            if (!open) {
-              // Reset form when modal is closed
-              setNewItemType("");
-              setNewItemId("");
-              setNewItemComments("");
-              setAvailableItems([]);
-            }
-          }}
-        >
-          <DialogContent className="min-w-[50vw]">
-            <DialogHeader>
-              <DialogTitle>Create New Review Workflow</DialogTitle>
-              <DialogDescription>
-                Submit an item from engagement &quot;{urlEngagementId}&quot; for
-                review.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {/* Item Type Field */}
-              <div className="grid gap-2">
-                <Label htmlFor="itemType" className="text-left">
-                  Item Type
-                </Label>
-                <Select
-                  value={newItemType}
-                  onValueChange={handleItemTypeChange}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select an item type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {auditItemTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type
-                          .replace(/-/g, " ")
-                          .replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Item ID Field */}
+          <div className="grid gap-2">
+            <Label htmlFor="itemId" className="text-left">
+              ItemID
+            </Label>
+            {loadingItems && (
+              <div className="flex items-center justify-center p-4 border rounded">
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                Loading items...
               </div>
+            )}
+            {!newItemType && !newItemId && (
+              <Input
+                id="itemId"
+                value={newItemId}
+                onChange={(e) => setNewItemId(e.target.value)}
+                className="w-full"
+                placeholder="Select an item type first"
+              />
+            )}
+            {newItemType && newItemId && (
+              <Input
+                id="itemId"
+                value={newItemId}
+                onChange={(e) => setNewItemId(e.target.value)}
+                className="w-full"
+                placeholder="Select an item type first"
+                // disabled // Uncomment to disable if ID is auto-fetched
+              />
+            )}
+          </div>
 
-              {/* Item ID Field - Using an input field now */}
-              <div className="grid gap-2">
-                <Label htmlFor="itemId" className="text-left">
-                  ItemID
-                </Label>
-                {loadingItems && (
-                  <div className="flex items-center justify-center p-4 border rounded">
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-                    Loading items...
-                  </div>
-                )}
+          {/* Comments Field */}
+          <div className="grid gap-2">
+            <Label htmlFor="comments" className="text-left">
+              Comments (Optional)
+            </Label>
+            <Textarea
+              id="comments"
+              value={newItemComments}
+              onChange={(e) => setNewItemComments(e.target.value)}
+              className="w-full"
+              placeholder="Initial comments for review"
+              rows={4}
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button
+            onClick={handleSubmitNewWorkflow}
+            disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
+          >
+            {isSubmittingNewWorkflow ? "Submitting..." : "Submit for Review"}
+          </Button>
+        </CardFooter>
+      </Card>
 
-                {!newItemType && !newItemId && (
-                  <Input
-                    id="itemId"
-                    value={newItemId}
-                    onChange={(e) => setNewItemId(e.target.value)}
-                    className="w-full"
-                    placeholder="Select an item type first"
-                  />
-                )}
+      {/* Review Workflows Section */}
+      {/* <div className="w-full mx-auto p-6 bg-white rounded-lg">
+        <h3 className="text-lg font-semibold mb-4">
+          Existing Review Workflows
+        </h3>
+        {loadingWorkflows ? (
+          <div className="flex items-center justify-center p-4 border rounded">
+            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+            Loading review workflows...
+          </div>
+        ) : reviewItems.length === 0 ? (
+          <p className="text-center text-gray-500">
+            No review workflows found for this engagement.sssss
+          </p>
+        ) : (
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {reviewItems.map((workflow) => (
+              <Card key={workflow.id}>
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {workflow.itemType
+                      .replace(/-/g, " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase())}{" "}
+                    - {workflow.itemId}
+                  </CardTitle>
+                  <CardDescription>
+                    Engagement: {workflow.engagement.title} (ID:{" "}
+                    {workflow.engagement.id})
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <p>
+                    <strong>Status:</strong>{" "}
+                    <span
+                      className={`font-semibold ${
+                        workflow.status === "under-review"
+                          ? "text-blue-600"
+                          : workflow.status === "ready-for-review"
+                          ? "text-yellow-600"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {workflow.status
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </span>
+                  </p>
+                  <p>
+                    <strong>Priority:</strong>{" "}
+                    <span
+                      className={`font-semibold ${
+                        workflow.priority === "high"
+                          ? "text-red-600"
+                          : workflow.priority === "medium"
+                          ? "text-orange-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {workflow.priority.replace(/\b\w/g, (l) =>
+                        l.toUpperCase()
+                      )}
+                    </span>
+                  </p>
+                  <p>
+                    <strong>Submitted:</strong>{" "}
+                    {format(
+                      new Date(workflow.submittedForReviewAt),
+                      "MMM dd, yyyy HH:mm"
+                    )}
+                  </p>
+                  {workflow.assignedReviewer && (
+                    <p>
+                      <strong>Assigned To:</strong> {workflow.assignedReviewer}{" "}
+                      (at{" "}
+                      {format(
+                        new Date(workflow.assignedAt),
+                        "MMM dd, yyyy HH:mm"
+                      )}
+                      )
+                    </p>
+                  )}
+                  {workflow.notes && workflow.notes.length > 0 && (
+                    <p>
+                      <strong>Latest Note:</strong>{" "}
+                      {workflow.notes[workflow.notes.length - 1].comment}
+                    </p>
+                  )}
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                  <Button variant="outline" size="sm">
+                    View Details
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div> */}
 
-                {newItemType && newItemId && (
-                  <Input
-                    id="itemId"
-                    value={newItemId}
-                    onChange={(e) => setNewItemId(e.target.value)}
-                    className="w-full"
-                    placeholder="Select an item type first"
-                    disabled
-                  />
-                )}
-              </div>
-
-              {/* Comments Field */}
-              <div className="grid gap-2">
-                <Label htmlFor="comments" className="text-left">
-                  Comments (Optional)
-                </Label>
-                <Textarea
-                  id="comments"
-                  value={newItemComments}
-                  onChange={(e) => setNewItemComments(e.target.value)}
-                  className="w-full"
-                  placeholder="Initial comments for review"
-                  rows={4}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowCreateWorkflowModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmitNewWorkflow}
-                disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
-              >
-                {isSubmittingNewWorkflow
-                  ? "Submitting..."
-                  : "Submit for Review"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <ClassificationReviewItems
+        engagementId={
+          selectedFilter === "engagement" ? engagementId : undefined
+        } // Pass engagementId based on filter
+        currentUser={currentUser}
+        availableReviewers={availableReviewers}
+        reviewItems={reviewItems}
+        setReviewItems={setReviewItems}
+        refreshReviewItems={() => fetchAndSetReviewWorkflows(selectedFilter)} // Refresh current filtered view
+        updateReviewWorkflow={updateReviewWorkflow}
+      />
     </div>
   );
 };
 
-export default ReviewDetailsPage;
+export default ClassificationReviewPanel;

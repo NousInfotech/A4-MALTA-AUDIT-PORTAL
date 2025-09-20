@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import AuditItemCard from "./AuditItemCard";
-import ReviewModal from "./ReviewModal";
-import ReviewHistory from "./ReviewHistory";
-import ReviewQueue from "./ReviewQueue";
+import ReviewItemCard from "./ReviewItemCard";
+import ReviewModal from "../review-components/ReviewModal";
+import ReviewHistory from "../review-components/ReviewHistory";
+import ReviewQueue from "../review-components/ReviewQueue";
 import { AuditItem, UserRole, CurrentUser } from "@/types/reviews_module";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ export type UpdateReviewWorkflowFunction = (
   payload: any
 ) => Promise<any>;
 
-interface EngagementAuditItemsProps {
+interface ClassificationReviewItemsProps {
   engagementId: string | undefined;
   currentUser: CurrentUser;
   availableReviewers: { id: string; name: string }[];
@@ -27,7 +27,7 @@ interface EngagementAuditItemsProps {
   updateReviewWorkflow: UpdateReviewWorkflowFunction;
 }
 
-const EngagementAuditItems: React.FC<EngagementAuditItemsProps> = ({
+const ClassificationReviewItems: React.FC<ClassificationReviewItemsProps> = ({
   engagementId,
   currentUser,
   availableReviewers,
@@ -112,7 +112,7 @@ const EngagementAuditItems: React.FC<EngagementAuditItemsProps> = ({
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {reviewItems.map((item: any) => (
-                <AuditItemCard
+                <ReviewItemCard
                   key={item._id || `${item.itemType}-${item._id}`}
                   item={item}
                   userRole={currentUser.role}
@@ -155,4 +155,4 @@ const EngagementAuditItems: React.FC<EngagementAuditItemsProps> = ({
   );
 };
 
-export default EngagementAuditItems;
+export default ClassificationReviewItems;
