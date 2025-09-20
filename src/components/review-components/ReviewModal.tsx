@@ -161,7 +161,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
         engagement:
           typeof updatedWorkflow.engagement === "string"
             ? updatedWorkflow.engagement
-            : updatedWorkflow.engagement._id,
+            : updatedWorkflow.engagement?._id,
         title: item.title, // Preserve original item title
         description: item.description, // Preserve original item description
         reviewStatus: updatedWorkflow.status,

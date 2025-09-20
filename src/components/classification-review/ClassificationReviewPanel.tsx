@@ -155,6 +155,7 @@ const SOCKET_SERVER_URL: string =
 const ClassificationReviewPanel: React.FC = ({
   engagementId,
   reviewClassification,
+  reviewFormRender,
 }: any) => {
   // All hooks must be called unconditionally at the top level
   const { user: authUser, isLoading: authLoading } = useAuth();
@@ -171,7 +172,7 @@ const ClassificationReviewPanel: React.FC = ({
 
   const [reviewItems, setReviewItems] = useState([]);
   const [selectedFilter, setSelectedFilter] = useState<"all" | "engagement">(
-    engagementId ? "engagement" : "all"
+    "all"
   );
 
   // State for creating a new workflow
@@ -195,13 +196,6 @@ const ClassificationReviewPanel: React.FC = ({
   ): Promise<string | null> => {
     try {
       const apiEndpoints: Record<string, string> = {
-        // [AuditItemType.Procedure]: `/api/procedures/${engagementId}`,
-        // [AuditItemType.PlanningProcedure]: `/api/planning-procedures/${engagementId}`,
-        // [AuditItemType.DocumentRequest]: `/api/document-requests/engagement/${engagementId}`,
-        // [AuditItemType.ChecklistItem]: `/api/checklist/engagement/${engagementId}`,
-        // [AuditItemType.Pbc]: `/api/pbc?engagementId=${engagementId}`,
-        // [AuditItemType.Kyc]: `/api/kyc?engagementId=${engagementId}`,
-        // [AuditItemType.IsqmDocument]: "/api/isqm",
         // [AuditItemType.WorkingPaper]: `/api/engagements/${engagementId}/sections/${encodeURIComponent(reviewClassification)}/working-papers/db`,
         [AuditItemType.ClassificationSection]: `/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(
           reviewClassification
@@ -214,42 +208,118 @@ const ClassificationReviewPanel: React.FC = ({
         console.warn(`Unhandled item type: ${itemType}`);
         return null;
       }
-
+      setLoadingItems(true);
       const response = await axiosInstance.get(apiUrl);
       const responseData = response.data;
-      console.log("responseData", responseData);
+      console.log("API Response Data:", responseData);
 
+      // --- Handle Array Response (e.g., list of items) ---
       if (Array.isArray(responseData)) {
-        const id = responseData.find(
-          (item: { engagement?: { _id: string }; _id?: string }) =>
-            item.engagement?._id === engagementId
-        )?._id;
+        const matchingItem = responseData.find(
+          (item: any) => item.engagement?._id === engagementId
+        );
 
-        if (id) {
-          console.log("responseId", id);
-          return id;
-        }
-      } else if (typeof responseData === "object" && responseData !== null) {
-        if (responseData && !responseData.section) {
-          toast.error("no classification item found");
-          return;
-        } 
-        if(responseData && responseData.section && responseData.section._id){
-          return responseData.section._id
+        if (matchingItem?._id) {
+          console.log("Found ID in array:", matchingItem._id);
+          return matchingItem._id;
+        } else {
+          toast.error(
+            `No matching item found in array for engagement ${engagementId} and type ${itemType}.`
+          );
+          return null;
         }
       }
-      toast.error(`No matching engagement ID found for item type ${itemType}`);
+
+      // --- Handle Object Response (e.g., single item or section wrapper) ---
+      if (typeof responseData === "object" && responseData !== null) {
+        // Case 1: Response already contains the section ID
+        if (responseData.section?._id) {
+          console.log(
+            "Found ID in object (existing section):",
+            responseData.section._id
+          );
+          return responseData.section._id;
+        }
+
+        // Case 2: No section found, need to initialize
+        if (
+          !responseData.section &&
+          itemType === AuditItemType.ClassificationSection
+        ) {
+          toast.error("No section found, attempting to initialize...");
+          // This is a specific initialization path for ClassificationSection.
+          // Consider if other types also need initialization.
+
+          try {
+            const initRes = await axiosInstance.post(
+              `/api/engagements/${engagementId}/etb/excel/init`
+            );
+            if (initRes.data?.section?._id) {
+              setLoadingItems(false);
+              console.log(
+                "Successfully initialized new section:",
+                initRes.data.section._id
+              );
+              toast.success("classification section initialized!");
+              return initRes.data.section._id;
+            } else {
+              toast.error(
+                "Initialization successful, but no section ID returned."
+              );
+              return null;
+            }
+          } catch (initError) {
+            if (axios.isAxiosError(initError)) {
+              console.error(
+                "Axios error during initialization:",
+                initError.response?.data || initError.message
+              );
+              toast.error(
+                `Failed to initialize classification section: ${
+                  initError.response?.data?.message || initError.message
+                }`
+              );
+            } else {
+              console.error("Error during initialization:", initError);
+              toast.error(
+                "An unexpected error occurred during initialization."
+              );
+            }
+            return null;
+          }
+        }
+
+        // If it's an object but doesn't fit the above patterns
+        toast.error(
+          `API response for ${itemType} was an object, but no valid section ID or initialization path found.`
+        );
+        return null;
+      }
+
+      // If response is neither array nor object, or unexpected
+      toast.error(`Unexpected API response format for item type ${itemType}.`);
       return null;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error(
           "Axios error fetching audit item:",
-          error.response?.data || error.message
+          error.response?.data || error.message,
+          error.config?.url // Log the URL that failed
+        );
+        toast.error(
+          `Failed to fetch audit item ${itemType}: ${
+            error.response?.data?.message || error.message
+          }`
         );
       } else {
         console.error("Error fetching audit item:", error);
+        toast.error(
+          `An unexpected error occurred while fetching audit item ${itemType}.`
+        );
       }
       return null;
+    } finally {
+      setLoadingItems(false); // Ensure loading state is reset
     }
   };
 
@@ -269,12 +339,17 @@ const ClassificationReviewPanel: React.FC = ({
     setNewItemId(""); // Reset item ID when item type changes
     setAvailableItems([]); // Clear available items (to be populated when item type changes)
 
-    // Fetch the item ID based on the selected item type
-    if (itemType && engagementId) {
-      const fetchedItemId = await fetchAuditItemId(itemType, engagementId);
-      if (fetchedItemId) {
-        setNewItemId(fetchedItemId);
+    try {
+      // Fetch the item ID based on the selected item type
+      if (itemType && engagementId) {
+        const fetchedItemId = await fetchAuditItemId(itemType, engagementId);
+        if (fetchedItemId) {
+          setNewItemId(fetchedItemId);
+        }
       }
+    } catch (error) {
+      console.log(error);
+      toast.error(error);
     }
   };
 
@@ -759,92 +834,87 @@ const ClassificationReviewPanel: React.FC = ({
   return (
     <div className="p-4 space-y-8">
       {/* Create New Review Workflow Card */}
-      <Card className="w-full max-w-xl mx-auto">
-        <CardHeader>
-          <CardTitle>Create New Review Workflow</CardTitle>
-          <CardDescription>
-            Submit an item from engagement &quot;{engagementId}&quot; for
-            review.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 py-4">
-          {/* Item Type Field */}
-          <div className="grid gap-2">
-            <Label htmlFor="itemType" className="text-left">
-              Item Type
-            </Label>
-            <Select value={newItemType} onValueChange={handleItemTypeChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an item type" />
-              </SelectTrigger>
-              <SelectContent>
-                {auditItemTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type
-                      .replace(/-/g, " ")
-                      .replace(/\b\w/g, (l) => l.toUpperCase())}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {reviewFormRender === true && (
+        <Card className="w-full max-w-xl mx-auto">
+          <CardHeader>
+            <CardTitle>Create New Review Workflow</CardTitle>
+            <CardDescription>
+              Submit an item from engagement &quot;{engagementId}&quot; for
+              review.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 py-4">
+            {/* Item Type Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="itemType" className="text-left">
+                Item Type
+              </Label>
+              <Select value={newItemType} onValueChange={handleItemTypeChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select an item type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {auditItemTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Item ID Field */}
-          <div className="grid gap-2">
-            <Label htmlFor="itemId" className="text-left">
-              ItemID
-            </Label>
-            {loadingItems && (
-              <div className="flex items-center justify-center p-4 border rounded">
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-                Loading items...
-              </div>
-            )}
-            {!newItemType && !newItemId && (
-              <Input
-                id="itemId"
-                value={newItemId}
-                onChange={(e) => setNewItemId(e.target.value)}
-                className="w-full"
-                placeholder="Select an item type first"
-              />
-            )}
-            {newItemType && newItemId && (
-              <Input
-                id="itemId"
-                value={newItemId}
-                onChange={(e) => setNewItemId(e.target.value)}
-                className="w-full"
-                placeholder="Select an item type first"
-                // disabled // Uncomment to disable if ID is auto-fetched
-              />
-            )}
-          </div>
+            {/* Item ID Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="itemId" className="text-left">
+                ItemID
+              </Label>
+              {loadingItems ? (
+                <div className="flex items-center justify-center p-4 border rounded">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                  Finding Reference ID....
+                </div>
+              ) : (
+                <Input
+                  id="itemId"
+                  value={newItemId}
+                  onChange={(e) => setNewItemId(e.target.value)}
+                  className="w-full"
+                  placeholder={
+                    newItemType
+                      ? "Enter or select an item ID"
+                      : "Select an item type first"
+                  }
+                />
+              )}
+            </div>
 
-          {/* Comments Field */}
-          <div className="grid gap-2">
-            <Label htmlFor="comments" className="text-left">
-              Comments (Optional)
-            </Label>
-            <Textarea
-              id="comments"
-              value={newItemComments}
-              onChange={(e) => setNewItemComments(e.target.value)}
-              className="w-full"
-              placeholder="Initial comments for review"
-              rows={4}
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button
-            onClick={handleSubmitNewWorkflow}
-            disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
-          >
-            {isSubmittingNewWorkflow ? "Submitting..." : "Submit for Review"}
-          </Button>
-        </CardFooter>
-      </Card>
+            {/* Comments Field */}
+            <div className="grid gap-2">
+              <Label htmlFor="comments" className="text-left">
+                Comments (Optional)
+              </Label>
+              <Textarea
+                id="comments"
+                value={newItemComments}
+                onChange={(e) => setNewItemComments(e.target.value)}
+                className="w-full"
+                placeholder="Initial comments for review"
+                rows={4}
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button
+              onClick={handleSubmitNewWorkflow}
+              disabled={isSubmittingNewWorkflow || !newItemType || !newItemId}
+            >
+              {isSubmittingNewWorkflow ? "Submitting..." : "Submit for Review"}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
       {/* Review Workflows Section */}
       {/* <div className="w-full mx-auto p-6 bg-white rounded-lg">
