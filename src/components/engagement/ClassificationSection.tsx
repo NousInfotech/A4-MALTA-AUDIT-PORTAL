@@ -2536,9 +2536,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {selectedFile && getFileIcon(selectedFile.fileType)}
-                {selectedFile?.fileName}
+              <DialogTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {selectedFile && getFileIcon(selectedFile.fileType)}
+                  {selectedFile?.fileName}
+                </div>
+                <div className="text-sm text-gray-500 font-normal">
+                  Uploaded by: <span className="font-medium text-gray-700">{selectedFile?.uploadedBy}</span>
+                </div>
               </DialogTitle>
             </DialogHeader>
             
@@ -3624,9 +3629,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {selectedFile && getFileIcon(selectedFile.fileType)}
-                {selectedFile?.fileName}
+              <DialogTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {selectedFile && getFileIcon(selectedFile.fileType)}
+                  {selectedFile?.fileName}
+                </div>
+                <div className="text-sm text-gray-500 font-normal">
+                  Uploaded by: <span className="font-medium text-gray-700">{selectedFile?.uploadedBy}</span>
+                </div>
               </DialogTitle>
             </DialogHeader>
             
