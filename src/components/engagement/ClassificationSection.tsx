@@ -87,6 +87,7 @@ import { AuditItemType } from "@/types/reviews_module";
 import { getAllReviewWorkflows, submitForReview } from "@/lib/api/review-api";
 import { format } from "date-fns";
 import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
+import axiosInstance from "@/lib/axiosInstance";
 
 interface ClassificationSectionProps {
   engagement: any;
@@ -340,6 +341,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   
   const [reviewClassification, setReviewClassification] = useState("");
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [reviewFormRender, setReviewFormRender] = useState(true);
+  const [reviewLoading, setreviewLoading] = useState(false);
+
+
+
   const [loading, setLoading] = useState(true); // global loader (ETB / lead-sheet)
   const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
   const [sectionData, setSectionData] = useState<ETBRow[]>([]);
@@ -404,6 +410,67 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers" | "evidence">(
     () => getTabFromSearch()
   );
+
+
+  const checkClassificationReview = async () => {
+    setreviewLoading(true); // Start loading
+
+    // Early exit if prerequisites are not met
+    if (!classification || !engagement) {
+      console.warn("Classification or engagement is missing.");
+      setreviewLoading(false);
+      setIsReviewOpen(true); // Still opening, consider if this is desired behavior on missing data
+      return;
+    }
+
+    // Set classification state if necessary (reconsider if this is always needed here)
+    setReviewClassification(classification);
+
+    try {
+      // Fetch all review workflows
+      const reviews = await getAllReviewWorkflows();
+      const classificationReviewItems = reviews.workflows.filter(
+        (item) => item.itemType === "classification-section"
+      );
+
+      // Get the section ID for the current classification
+      const response = await axiosInstance.get(
+        `/api/engagements/${
+          engagement.id
+        }/etb/classification/${encodeURIComponent(classification)}`
+      );
+      const sectionId = response.data.section._id;
+
+      // Check if the section ID already exists in the review items
+      const existedInReviews = classificationReviewItems.find(
+        (item) => item.itemId === sectionId
+      );
+
+      // Update form render state based on existence
+      if (existedInReviews) {
+        setReviewFormRender(false);
+      } else {
+        // If it doesn't exist, you might want to explicitly set it to true
+        // or ensure its default state is true for rendering
+        setReviewFormRender(true); // Example: assuming you want to show the form if it doesn't exist
+      }
+    } catch (error) {
+      console.error("Error checking classification review:", error);
+      // Optionally display an error message to the user
+    } finally {
+      setreviewLoading(false); // Stop loading
+      setIsReviewOpen(true); // Always open the review modal, reconsider if conditional
+    }
+  };
+
+  
+
+
+
+
+
+
+
 
   useEffect(() => setTabInSearch(activeTab), [activeTab]);
 
@@ -1831,7 +1898,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           {/* Content */}
           <div className="flex-grow">
-            <ClassificationReviewPanel engagementId={engagement.id} reviewClassification={reviewClassification} />
+            <ClassificationReviewPanel
+              engagementId={engagement.id}
+              reviewClassification={reviewClassification}
+              reviewFormRender={reviewFormRender}
+            />
           </div>
 
           {/* Dialog Footer */}
