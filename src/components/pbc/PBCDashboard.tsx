@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { generateQnaAI, pbcApi } from "@/lib/api/pbc-workflow";
 import { toast } from "sonner";
 import { CreatePBCDialog } from "./CreatePBCDialog";
+import { getPBCStatusLabel } from "@/lib/statusLabels";
 
 const statusColors = {
   "document-collection": "bg-gray-800",
@@ -167,10 +168,7 @@ export function PBCDashboard({
   };
 
   const getStatusLabel = (status: string) => {
-    return status
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
+    return getPBCStatusLabel(status);
   };
 
   const handleGenerateQnaAi = async (

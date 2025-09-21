@@ -23,12 +23,7 @@ interface CreatePBCDialogProps {
 }
 
 interface FormData {
-  entityName: string;
   notes: string;
-  customFields: {
-    industry: string;
-    size: string;
-  };
 }
 
 export function CreatePBCDialog({
@@ -40,12 +35,7 @@ export function CreatePBCDialog({
 }: CreatePBCDialogProps) {
   const { user, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState<FormData>({
-    entityName: selectedEngagement?.title || "",
     notes: "",
-    customFields: {
-      industry: "",
-      size: "",
-    },
   });
 
   const [filesToUpload, setFilesToUpload] = useState<{
@@ -124,9 +114,12 @@ export function CreatePBCDialog({
         engagementId: selectedEngagement.id,
         clientId: selectedEngagement.clientId,
         auditorId: user.id,
-        entityName: formData.entityName,
+        entityName: selectedEngagement.title || selectedEngagement.entityName || "Unknown Entity",
         notes: formData.notes,
-        customFields: formData.customFields,
+        customFields: {
+          industry: selectedEngagement.industry || "",
+          size: selectedEngagement.size || "",
+        },
         documentRequests: formattedDocumentRequests,
       };
 
@@ -214,12 +207,7 @@ export function CreatePBCDialog({
 
           // Reset form data
           setFormData({
-            entityName: selectedEngagement?.title || "",
             notes: "",
-            customFields: {
-              industry: "",
-              size: "",
-            },
           });
           setFilesToUpload({});
         } else {
@@ -254,62 +242,39 @@ export function CreatePBCDialog({
           onSubmit={handleCreatePBCWorkflow}
           className="space-y-4 overflow-y-auto p-2"
         >
-          <div className="space-y-2">
-            <Label htmlFor="entityName">Entity Name</Label>
-            <Input
-              id="entityName"
-              value={formData.entityName}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, entityName: e.target.value }))
-              }
-              placeholder="Enter entity name"
-              required
-            />
+          {/* Engagement Information Summary */}
+          <div className="bg-gray-50 p-4 rounded-lg border">
+            <h3 className="text-lg font-semibold mb-3">Engagement Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-600">Entity Name:</span>
+                <p className="text-gray-900">{selectedEngagement?.title || selectedEngagement?.entityName || "Unknown Entity"}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-600">Industry:</span>
+                <p className="text-gray-900">{selectedEngagement?.industry || "Not specified"}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-600">Size:</span>
+                <p className="text-gray-900">{selectedEngagement?.size || "Not specified"}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-600">Year End:</span>
+                <p className="text-gray-900">{selectedEngagement?.yearEndDate ? new Date(selectedEngagement.yearEndDate).toLocaleDateString() : "Not specified"}</p>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">Workflow Notes</Label>
             <Textarea
               id="notes"
               value={formData.notes}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, notes: e.target.value }))
               }
-              placeholder="Add any relevant notes here"
+              placeholder="Add any relevant notes for this PBC workflow..."
               rows={4}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="industry">Industry</Label>
-            <Input
-              id="industry"
-              value={formData.customFields.industry}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  customFields: {
-                    ...prev.customFields,
-                    industry: e.target.value,
-                  },
-                }))
-              }
-              placeholder="e.g., Manufacturing"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="size">Size</Label>
-            <Input
-              id="size"
-              value={formData.customFields.size}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  customFields: { ...prev.customFields, size: e.target.value },
-                }))
-              }
-              placeholder="e.g., Mid-size"
             />
           </div>
 

@@ -10,6 +10,7 @@ import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import PbcDialog from '@/components/pbc/PbcDialog';
+import { getEngagementStatusLabel, getPBCStatusLabel } from '@/lib/statusLabels';
 
 export const ClientEngagements = () => {
   const { user } = useAuth();
@@ -158,7 +159,7 @@ export const ClientEngagements = () => {
                     engagement.status === 'completed' ? 'bg-gray-700 text-white border-gray-700' :
                     'bg-gray-600 text-white border-gray-600'
                   }>
-                    {engagement.status}
+                    {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                   </Badge>
                 </div>
               </div>

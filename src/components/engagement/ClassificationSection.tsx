@@ -1,5 +1,4 @@
 // @ts-nocheck
-// @ts-nocheck
 
 import type React from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -13,6 +12,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getUserContext } from "@/lib/user-context-service";
+import { getClassificationId } from "@/lib/classification-mapping";
+import { uploadFileToStorage, validateFile } from "@/lib/file-upload-service";
+import { 
+  createClassificationEvidence, 
+  getAllClassificationEvidence, 
+  addCommentToEvidence, 
+  deleteClassificationEvidence,
+  updateEvidenceUrl,
+  type ClassificationEvidence,
+  type EvidenceComment 
+} from "@/lib/api/classification-evidence-api";
+import { 
+  createClassificationReview, 
+  getReviewsByClassification, 
+  updateReviewStatus,
+  type ClassificationReview 
+} from "@/lib/api/classification-review-api";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -29,8 +49,15 @@ import {
   Eye,
   Save,
   TableOfContents, // ⬅️ NEW: icon for Fetch Tabs
+  FileText,
+  Image,
+  File,
+  MessageSquare,
+  X,
+  Edit2,
+  Trash2,
+  Check,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Tooltip,
@@ -57,9 +84,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import { Label } from "../ui/label";
 import { AuditItemType } from "@/types/reviews_module";
-import { Textarea } from "../ui/textarea";
 import { getAllReviewWorkflows, submitForReview } from "@/lib/api/review-api";
-import { Input } from "../ui/input";
 import { format } from "date-fns";
 import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
 
@@ -143,6 +168,49 @@ interface ViewSheetData {
     adjustments: number;
     finalBalance: number;
   };
+}
+
+// Evidence-related interfaces
+interface EvidenceComment {
+  commentor: {
+    userId: string;
+    name: string;
+    email: string;
+  };
+  comment: string;
+  timestamp: string;
+}
+
+interface EvidenceFile {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  comments: EvidenceComment[];
+}
+
+// Review-related interfaces
+interface ReviewRecord {
+  id: string;
+  classificationId: string;
+  userId: string;
+  userName: string;
+  timestamp: string;
+  comment?: string;
+  reviewed: boolean;
+  status: 'pending' | 'in-review' | 'signed-off';
+}
+
+interface ReviewWorkflow {
+  classificationId: string;
+  engagementId: string;
+  reviews: ReviewRecord[];
+  isSignedOff: boolean;
+  signedOffBy?: string;
+  signedOffAt?: string;
 }
 
 // 🔹 Auth fetch helper: attaches Supabase Bearer token
@@ -242,16 +310,18 @@ function FullscreenOverlay({
 }
 
 // 🧭 small helpers for tab persistence via ?tab=
-function getTabFromSearch(): "lead-sheet" | "working-papers" {
+function getTabFromSearch(): "lead-sheet" | "working-papers" | "evidence" {
   try {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
-    return t === "working-papers" ? "working-papers" : "lead-sheet";
+    if (t === "working-papers") return "working-papers";
+    if (t === "evidence") return "evidence";
+    return "lead-sheet";
   } catch {
     return "lead-sheet";
   }
 }
-function setTabInSearch(tab: "lead-sheet" | "working-papers") {
+function setTabInSearch(tab: "lead-sheet" | "working-papers" | "evidence") {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
@@ -294,6 +364,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewRowData, setViewRowData] = useState<ViewRowData | null>(null);
   const [viewRowLoading, setViewRowLoading] = useState(false);
 
+  // Evidence-related state
+  const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  
+  // File management state
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
+  const [editingFileName, setEditingFileName] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<EvidenceFile | null>(null);
+  const [isDeletingFile, setIsDeletingFile] = useState(false);
+
+  // Review-related state
+  const [reviewWorkflow, setReviewWorkflow] = useState<ReviewWorkflow | null>(null);
+  const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
+  const [confirmSignoffOpen, setConfirmSignoffOpen] = useState(false);
+  const [commentSignoffOpen, setCommentSignoffOpen] = useState(false);
+  const [signoffComment, setSignoffComment] = useState("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
+  const [userLoading, setUserLoading] = useState(true);
+
   // ⬇️ NEW: Fetch Tabs state
   const [fetchTabsDialog, setFetchTabsDialog] = useState(false);
   const [availableTabs, setAvailableTabs] = useState<string[]>([]);
@@ -307,13 +401,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewSheetLoading, setViewSheetLoading] = useState(false);
 
   // 🔖 keep the tab stable across refresh / navigation
-  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers">(
+  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers" | "evidence">(
     () => getTabFromSearch()
   );
 
   useEffect(() => setTabInSearch(activeTab), [activeTab]);
 
-  const { toast } = useToast();
 
   // 🔒 mounted ref to prevent setting state after unmount
   const mountedRef = useRef(true);
@@ -419,11 +512,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setSectionData(Array.isArray(data.rows) ? data.rows : []);
     } catch (error: any) {
       console.error("Load error:", error);
-      toast({
-        title: "Load failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Load failed: ${error.message}`);
     }
   };
 
@@ -432,10 +521,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     try {
       if (isAdjustments(classification) || isETB(classification)) {
         await loadSectionData();
-        toast({
-          title: "Success",
-          description: "Data reloaded from ETB successfully",
-        });
+        toast.success("Data reloaded from ETB successfully");
         return;
       }
 
@@ -455,17 +541,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const data = await response.json();
       if (mountedRef.current)
         setSectionData(Array.isArray(data.rows) ? data.rows : []);
-      toast({
-        title: "Success",
-        description: "Data reloaded from ETB successfully",
-      });
+      toast.success("Data reloaded from ETB successfully");
     } catch (error: any) {
       console.error("Reload error:", error);
-      toast({
-        title: "Reload failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Reload failed: ${error.message}`);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -503,14 +582,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const freshUrl = withVersion(result.viewUrl);
       if (mountedRef.current) setViewSpreadsheetUrl(freshUrl);
 
-      toast({ title: "Success", description: "Spreadsheet Saved in Library" });
+      toast.success("Spreadsheet Saved in Library");
     } catch (error: any) {
       console.error("Create view spreadsheet error:", error);
-      toast({
-        title: "Create failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Create failed: ${error.message}`);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -571,17 +646,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       window.open(result.url, "_blank", "noopener,noreferrer");
 
-      toast({
-        title: "Success",
-        description: "Working papers initialized with lead sheet data",
-      });
+      toast.success("Working papers initialized with lead sheet data");
     } catch (error: any) {
       console.error("Initialize working papers error:", error);
-      toast({
-        title: "Initialize failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Initialize failed: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         setLoading(false);
@@ -610,17 +678,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         }
       );
       if (!response.ok) throw new Error("Failed to save Working Paper to DB");
-      toast({
-        title: "Saved",
-        description: "Working Paper saved to database.",
-      });
+      toast.success("Working Paper saved to database.");
     } catch (error: any) {
       console.error("Save WP to DB error:", error);
-      toast({
-        title: "Save failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Save failed: ${error.message}`);
     } finally {
       if (onWpTab) setWpHydrating(false);
       else if (mountedRef.current) setLoading(false);
@@ -645,30 +706,19 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         if (!mountedRef.current) return false;
         setSectionData(Array.isArray(json.rows) ? json.rows : []);
         if (!silent) {
-          toast({
-            title: "Loaded",
-            description: "Working Paper loaded from database.",
-          });
+          toast.success("Working Paper loaded from database.");
         }
         return true;
       } else {
         if (!silent && response.status !== 404) {
-          toast({
-            title: "Load failed",
-            description: `(${response.status})`,
-            variant: "destructive",
-          });
+          toast.error(`Load failed (${response.status})`);
         }
         return false;
       }
     } catch (error: any) {
       if (!silent) {
         console.error("Load WP from DB error:", error);
-        toast({
-          title: "Load failed",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast.error(`Load failed: ${error.message}`);
       }
       return false;
     } finally {
@@ -694,17 +744,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       if (!response.ok) throw new Error("Failed to push to working papers");
 
-      toast({
-        title: "Success",
-        description: "Changes pushed to working papers successfully",
-      });
+      toast.success("Changes pushed to working papers successfully");
     } catch (error: any) {
       console.error("Push to working papers error:", error);
-      toast({
-        title: "Push failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Push failed: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         if (activeTab === "working-papers") setWpHydrating(false);
@@ -738,17 +781,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setSectionData(result.rows);
       setAvailableSheets(result.sheets || []);
 
-      toast({
-        title: "Success",
-        description: "Changes pulled from working papers successfully",
-      });
+      toast.success("Changes pulled from working papers successfully");
     } catch (error: any) {
       console.error("Pull from working papers error:", error);
-      toast({
-        title: "Pull failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Pull failed: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         if (mode === "wp") setWpHydrating(false);
@@ -782,11 +818,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setFetchRowsDialog(true);
     } catch (error: any) {
       console.error("Fetch rows error:", error);
-      toast({
-        title: "Fetch failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Fetch failed: ${error.message}`);
     } finally {
       if (mountedRef.current) setWpHydrating(false);
     }
@@ -821,14 +853,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setFetchRowsDialog(false);
       setSelectedRow(null);
       setSelectedRowForFetch(null);
-      toast({ title: "Success", description: "Row selected and data updated" });
+      toast.success("Row selected and data updated");
     } catch (error: any) {
       console.error("Select row error:", error);
-      toast({
-        title: "Select failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Select failed: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         setWpHydrating(false);
@@ -858,11 +886,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setFetchTabsDialog(true);
     } catch (error: any) {
       console.error("Fetch tabs error:", error);
-      toast({
-        title: "Fetch failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Fetch failed: ${error.message}`);
     } finally {
       if (mountedRef.current) setWpHydrating(false);
     }
@@ -899,17 +923,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setFetchTabsDialog(false);
       setSelectedTab(null);
       setSelectedRowForFetch(null);
-      toast({
-        title: "Success",
-        description: "Sheet selected. Reference updated.",
-      });
+      toast.success("Sheet selected. Reference updated.");
     } catch (error: any) {
       console.error("Select tab error:", error);
-      toast({
-        title: "Select failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`Select failed: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         setWpHydrating(false);
@@ -972,11 +989,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     // 3) Legacy fallback: no referenceData yet -> use existing endpoints (kept unchanged)
     if (!row.reference) {
-      toast({
-        title: "No reference",
-        description: "There is no reference set for this row.",
-        variant: "destructive",
-      });
+      toast.error("No reference set for this row.");
       return;
     }
 
@@ -1007,11 +1020,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setViewSheetDialog(true);
       } catch (error: any) {
         console.error("View sheet error:", error);
-        toast({
-          title: "View failed",
-          description: error.message,
-          variant: "destructive",
-        });
+        toast.error(`View failed: ${error.message}`);
       } finally {
         if (mountedRef.current) {
           setViewSheetLoading(false);
@@ -1044,11 +1053,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setViewRowDialog(true);
     } catch (error: any) {
       console.error("View row error:", error);
-      toast({
-        title: "View failed, Does the Row Exist?",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(`View failed, Does the Row Exist?: ${error.message}`);
     } finally {
       if (mountedRef.current) {
         setViewRowLoading(false);
@@ -1079,6 +1084,147 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         : {},
     [classification, sectionData]
   );
+
+  // Load current user from Supabase auth
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error('Error getting current user:', error);
+          return;
+        }
+        
+        if (user) {
+          // Get user profile data
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          
+          if (profileError) {
+            console.error('Error getting user profile:', profileError);
+            // Fallback to basic user data
+            setCurrentUser({
+              id: user.id,
+              name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+            });
+          } else {
+            setCurrentUser({
+              id: user.id,
+              name: profile.full_name || profile.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
+        // Fallback to a default user
+        setCurrentUser({
+          id: 'default-user',
+          name: 'Current User'
+        });
+      } finally {
+        setUserLoading(false);
+      }
+    };
+    
+    getCurrentUser();
+  }, []);
+
+
+  // Load evidence files when classification changes
+  useEffect(() => {
+    if (!engagement.id || !classification) {
+      setEvidenceFiles([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadEvidenceFiles = async () => {
+      try {
+        console.log('Starting to load evidence files...');
+        const classificationId = await getClassificationId(classification, engagement.id);
+        console.log(`Loading evidence for classification: ${classification} -> ${classificationId}`);
+        
+        const response = await getAllClassificationEvidence(engagement.id, classificationId);
+        
+        if (!isMounted) return; // Component unmounted, don't update state
+        
+        // Convert API response to EvidenceFile format
+        const evidenceFiles: EvidenceFile[] = response.evidence.map(evidence => ({
+          id: evidence._id,
+          fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
+          fileUrl: evidence.evidenceUrl,
+          fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
+          fileSize: 0, // Not provided by API
+          uploadedAt: evidence.createdAt,
+          uploadedBy: evidence.uploadedBy.name,
+          comments: evidence.evidenceComments.map(comment => ({
+            userId: comment.commentor.userId,
+            timestamp: comment.timestamp,
+            comment: comment.comment,
+            fileUrlId: evidence._id
+          }))
+        }));
+        
+        setEvidenceFiles(evidenceFiles);
+        console.log(`Loaded ${evidenceFiles.length} evidence files`);
+      } catch (error: any) {
+        console.error('Error loading evidence files:', error);
+        if (isMounted) {
+          toast(error.message || 'Failed to load evidence files', { variant: 'destructive' });
+          setEvidenceFiles([]);
+        }
+      }
+    };
+
+    loadEvidenceFiles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [engagement.id, classification]);
+
+  // Load review workflow when classification changes
+  useEffect(() => {
+    if (!classification) {
+      setReviewWorkflow({
+        classificationId: classification,
+        engagementId: engagement.id,
+        reviews: [],
+        isSignedOff: false
+      });
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadWorkflow = async () => {
+      try {
+        console.log('Starting to load review workflow...');
+        await loadReviewWorkflow();
+      } catch (error: any) {
+        console.error('Error loading review workflow:', error);
+        if (isMounted) {
+          toast(error.message || 'Failed to load review workflow', { variant: 'destructive' });
+          setReviewWorkflow({
+            classificationId: classification,
+            engagementId: engagement.id,
+            reviews: [],
+            isSignedOff: false
+          });
+        }
+      }
+    };
+
+    loadWorkflow();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [classification]);
 
   // NEW: when switching to the Working Papers tab for the FIRST time on a classification,
   // load rows from DB and show them.
@@ -1112,7 +1258,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
 
   const headerActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <TooltipProvider delayDuration={200}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1136,9 +1282,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button onClick={reloadDataFromETB} variant="outline" size="sm">
+            <Button onClick={reloadDataFromETB} variant="outline" size="sm" disabled={reviewWorkflow?.isSignedOff}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Reload Data
+              <span className="hidden sm:inline">Reload Data</span>
+              <span className="sm:hidden">Reload</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center">
@@ -1150,12 +1297,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <TooltipTrigger asChild>
             <Button
               onClick={createViewSpreadsheet}
-              disabled={sectionData.length === 0}
+              disabled={sectionData.length === 0 || reviewWorkflow?.isSignedOff}
               size="sm"
               variant="outline"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Save As Spreadsheet
+              <span className="hidden sm:inline">Save As Spreadsheet</span>
+              <span className="sm:hidden">Save</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center">
@@ -1290,7 +1438,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const content = (
     <Card className="flex-1">
+      {reviewWorkflow?.isSignedOff && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+              ✓
+            </div>
+            <div>
+              <div className="font-medium text-green-800">Classification Signed Off</div>
+              <div className="text-xs text-green-600">
+                By {reviewWorkflow.signedOffBy} on {new Date(reviewWorkflow.signedOffAt!).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <CardHeader>
+        <div className="space-y-4">
+          {/* Title and Account Count */}
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">
@@ -1300,14 +1466,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               {sectionData.length}{" "}
               {sectionData.length === 1 ? "account" : "accounts"}
             </Badge>
-            <Button className="rounded-full mx-2 py-0" size="sm" onClick={() => {
-              setIsReviewOpen(true)
-              setReviewClassification(classification)
-            }}>
-              Review Manager
-            </Button>
           </div>
+          </div>
+          
+          {/* Review Buttons Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {renderReviewButtons()}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
           {headerActions}
+            </div>
+          </div>
         </div>
       </CardHeader>
 
@@ -1318,9 +1488,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             onValueChange={(v) => setActiveTab(v as any)}
             className="flex-1 flex flex-col"
           >
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
               <TabsTrigger value="working-papers">Working Papers</TabsTrigger>
+              <TabsTrigger value="evidence">Evidence</TabsTrigger>
             </TabsList>
 
             <TabsContent value="lead-sheet" className="flex-1 flex flex-col">
@@ -1366,6 +1537,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               ) : (
                 renderWorkingPapersEmpty()
               )}
+            </TabsContent>
+
+            <TabsContent
+              value="evidence"
+              className="flex-1 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium">Evidence</h3>
+              </div>
+              {renderEvidenceContent()}
             </TabsContent>
           </Tabs>
         ) : // ETB / Adjustments live outside WP
@@ -1658,7 +1839,209 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <Button onClick={() => setIsReviewOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+
+        {/* Confirmation Dialog */}
+        <Dialog open={confirmSignoffOpen} onOpenChange={setConfirmSignoffOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirm Sign-off</DialogTitle>
+              <DialogDescription>
+                Are you sure you can't edit after signoff?
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Eye className="h-4 w-4" />
+                <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setConfirmSignoffOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmSignOff}
+                disabled={isSubmittingReview}
+                variant="default"
+              >
+                {isSubmittingReview ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Yes, Sign Off
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Comment Sign-off Dialog */}
+        <Dialog open={commentSignoffOpen} onOpenChange={setCommentSignoffOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sign-off Comment</DialogTitle>
+              <DialogDescription>
+                Add your comment before signing off
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="signoff-comment">
+                  Comment *
+                </Label>
+                <Textarea
+                  id="signoff-comment"
+                  placeholder="Enter your sign-off comment (required)..."
+                  value={signoffComment}
+                  onChange={(e) => setSignoffComment(e.target.value)}
+                  rows={4}
+                  className="border-orange-200 focus:border-orange-400"
+                />
+                <p className="text-sm text-orange-600 mt-1">
+                  * Comment is required for sign-off
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Eye className="h-4 w-4" />
+                <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setCommentSignoffOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={performSignOff}
+                disabled={isSubmittingReview || !signoffComment.trim()}
+                variant="default"
+              >
+                {isSubmittingReview ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Sign Off
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Review History Dialog */}
+        <Dialog open={reviewHistoryOpen} onOpenChange={setReviewHistoryOpen}>
+          <DialogContent className="min-w-[70vw] min-h-[70vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Review History</DialogTitle>
+              <DialogDescription>
+                Audit trail for: <span className="font-semibold">{formatClassificationForDisplay(classification)}</span>
+              </DialogDescription>
+            </DialogHeader>
+
+            {!reviewWorkflow?.reviews || reviewWorkflow.reviews.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">No review history found for this classification.</div>
+            ) : (
+              <ScrollArea className="flex-grow max-h-[60vh] pr-4 py-2">
+                <div className="relative pl-6">
+                  {/* Timeline vertical line */}
+                  <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+
+                  {reviewWorkflow.reviews.map((review, index) => (
+                    <div key={review.id} className="relative mb-6 pb-2">
+                      {/* Timeline marker */}
+                      <div className="absolute left-0 top-0 -ml-2.5 h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center text-white z-10">
+                        <span className="text-xs">
+                          {review.status === 'signed-off' ? '🔒' : 
+                           review.status === 'in-review' ? '👤' : '📝'}
+                        </span>
+                      </div>
+
+                      <div className="ml-6 flex flex-col">
+                        <div className="flex items-baseline justify-between mb-1">
+                          <span className="font-semibold text-sm capitalize">
+                            {review.status === 'signed-off' ? 'Signed Off' :
+                             review.status === 'in-review' ? 'In Review' : 'Review'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(review.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-gray-600">
+                          <strong className="text-gray-900">Performed by:</strong> {review.userName || 'N/A'}
+                        </p>
+
+                        {review.comment && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            <strong className="text-gray-900">Comments:</strong> {review.comment}
+                          </p>
+                        )}
+
+                        <div className="mt-2">
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              review.status === 'signed-off' ? 'bg-green-50 text-green-700 border-green-200' :
+                              review.status === 'in-review' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              'bg-gray-50 text-gray-700 border-gray-200'
+                            }`}
+                          >
+                            {review.status === 'signed-off' ? '✓ Signed Off' :
+                             review.status === 'in-review' ? '⏳ In Review' : '⏳ Pending'}
+                          </Badge>
+                        </div>
+                      </div>
+                      {index < reviewWorkflow.reviews.length - 1 && (
+                        <div className="ml-6 mt-4 border-t border-gray-100"></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+        </DialogContent>
+        </Dialog>
+
+        {/* Delete File Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete File</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{fileToDelete?.fileName}"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Trash2 className="h-4 w-4 text-red-500" />
+                <span>This will permanently remove the file and all its comments</span>
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={deleteFile}
+                disabled={isDeletingFile}
+                variant="destructive"
+              >
+                {isDeletingFile ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Delete File
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       {/* ReviewDialog */}
     </Card>
@@ -1763,6 +2146,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
 
   function renderWorkingPapersTable() {
+    const isSignedOff = reviewWorkflow?.isSignedOff;
+    
     return (
       <div className="flex-1 border rounded-lg overflow-hidden">
         <div className="overflow-x-auto max-h-96">
@@ -1780,7 +2165,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             </thead>
             <tbody>
               {sectionData.map((row) => (
-                <tr key={row.id} className="border-t hover:bg-gray-50">
+                <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
                   <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
                   <td className="px-4 py-2">{row.accountName}</td>
                   <td className="px-4 py-2 text-right">
@@ -1908,7 +2293,772 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       </div>
     );
   }
+
+  // Evidence content renderer
+  function renderEvidenceContent() {
+    return (
+      <div className="space-y-6">
+        {/* File Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload Evidence Files
+            </CardTitle>
+            <CardDescription>
+              Upload supporting documents, images, and other evidence files
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                multiple
+                accept="*/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="evidence-file-upload"
+                disabled={uploadingFiles}
+              />
+              <label
+                htmlFor="evidence-file-upload"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="h-8 w-8 text-gray-400" />
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium text-blue-600 hover:text-blue-500">
+                    Click to upload
+                  </span>{" "}
+                  or drag and drop
+                </div>
+                <div className="text-xs text-gray-500">
+                  All file types supported
+                </div>
+              </label>
+            </div>
+            {uploadingFiles && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading files...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Files List Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Evidence Files ({evidenceFiles.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {evidenceFiles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No evidence files uploaded yet</p>
+                <p className="text-sm">Upload files to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evidenceFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 min-w-0"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {getFileIcon(file.fileType)}
+                      <div className="flex-1 min-w-0">
+                        {editingFileId === file.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editingFileName}
+                              onChange={(e) => setEditingFileName(e.target.value)}
+                              className="text-sm h-7"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveRenameFile();
+                                if (e.key === 'Escape') cancelRenameFile();
+                              }}
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={saveRenameFile}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Check className="h-3 w-3 text-green-600" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancelRenameFile}
+                              className="h-7 w-7 p-0"
+                            >
+                              <X className="h-3 w-3 text-red-600" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div 
+                            className="font-medium text-sm truncate cursor-pointer" 
+                            title={file.fileName}
+                            onClick={() => openFilePreview(file)}
+                          >
+                            {file.fileName}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500">
+                          {formatFileSize(file.fileSize)} • {formatDate(file.uploadedAt)} • {file.comments.length} comments
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant="secondary" className="text-xs">
+                        {file.fileType.toUpperCase()}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openFilePreview(file)}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Eye className="h-3 w-3 text-gray-400" />
+                        </Button>
+                        {editingFileId !== file.id && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRenameFile(file);
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Edit2 className="h-3 w-3 text-blue-400" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDeleteFile(file);
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-400" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* File Preview Dialog */}
+        <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {selectedFile && getFileIcon(selectedFile.fileType)}
+                {selectedFile?.fileName}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="flex flex-col h-[75vh]">
+              {/* File Preview */}
+              <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
+                {selectedFile && renderFilePreview(selectedFile)}
+              </div>
+              
+              {/* Comments Section */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Comments ({selectedFile?.comments.length || 0})
+                </h4>
+                
+                {/* Comments List */}
+                <ScrollArea className="h-32 mb-4">
+                  <div className="space-y-3">
+                    {selectedFile?.comments.map((comment, index) => (
+                      <div key={index} className="flex gap-3 p-2 bg-gray-50 rounded">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                          {comment.userId.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">{comment.userId}</span>
+                            <span className="text-xs text-gray-500">{formatDate(comment.timestamp)}</span>
+                          </div>
+                          <p className="text-sm text-gray-700">{comment.comment}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedFile?.comments.length === 0 && (
+                      <p className="text-center text-gray-500 text-sm py-4">No comments yet</p>
+                    )}
+                  </div>
+                </ScrollArea>
+                
+                {/* Add Comment */}
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Add a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="flex-1"
+                    rows={2}
+                  />
+                  <Button
+                    onClick={addComment}
+                    disabled={!newComment.trim()}
+                    size="sm"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // Helper functions for Evidence
+  function getFileIcon(fileType: string) {
+    const type = fileType.toLowerCase();
+    if (type.includes('image')) return <Image className="h-5 w-5 text-green-500" />;
+    if (type.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
+    if (type.includes('word') || type.includes('doc')) return <FileText className="h-5 w-5 text-blue-500" />;
+    if (type.includes('excel') || type.includes('sheet')) return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    return <File className="h-5 w-5 text-gray-500" />;
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function formatDate(dateString: string) {
+    return new Date(dateString).toLocaleDateString();
+  }
+
+  function renderFilePreview(file: EvidenceFile) {
+    const type = file.fileType.toLowerCase();
+    
+    if (type.includes('image')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <img
+            src={file.fileUrl}
+            alt={file.fileName}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+            style={{ maxHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    if (type.includes('pdf')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={file.fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For text files, try to display content
+    if (type.includes('text') || type.includes('csv') || file.fileName.endsWith('.txt') || file.fileName.endsWith('.csv')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={file.fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For Office documents (Word, Excel, PowerPoint), try to preview
+    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') || 
+        type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.fileUrl)}`}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For other file types, show file info and preview attempt
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center p-8">
+          <div className="mb-4">
+            {getFileIcon(file.fileType)}
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{file.fileName}</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            {formatFileSize(file.fileSize)} • {file.fileType}
+          </p>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <p className="text-sm text-gray-500 mb-2">Preview not available for this file type</p>
+            <p className="text-xs text-gray-400">
+              File uploaded on {formatDate(file.uploadedAt)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    setUploadingFiles(true);
+    
+    try {
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Uploading files for classification: ${classification} -> ${classificationId}`);
+      
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Validate file
+        const validation = validateFile(file);
+        if (!validation.isValid) {
+          throw new Error(validation.error || 'Invalid file');
+        }
+        
+        // Upload file to storage
+        const uploadResult = await uploadFileToStorage(file);
+        
+        // Create evidence record via API
+        const evidenceData = {
+          engagementId: engagement.id,
+          classificationId: classificationId,
+          evidenceUrl: uploadResult.url
+        };
+        
+        const response = await createClassificationEvidence(evidenceData);
+        
+        // Convert API response to EvidenceFile format
+        return {
+          id: response.evidence._id,
+          fileName: uploadResult.fileName,
+          fileUrl: uploadResult.url,
+          fileType: uploadResult.fileType,
+          fileSize: uploadResult.fileSize,
+          uploadedAt: uploadResult.uploadedAt,
+          uploadedBy: response.evidence.uploadedBy.name,
+          comments: []
+        };
+      });
+      
+      const uploadedFiles = await Promise.all(uploadPromises);
+      setEvidenceFiles(prev => [...prev, ...uploadedFiles]);
+      
+      toast.success(`${files.length} file(s) uploaded successfully`);
+    } catch (error: any) {
+      console.error('Error uploading files:', error);
+      toast(error.message || 'Failed to upload files', { variant: 'destructive' });
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+  function openFilePreview(file: EvidenceFile) {
+    setSelectedFile(file);
+    setFilePreviewOpen(true);
+    setNewComment('');
+  }
+
+  async function addComment() {
+    if (!selectedFile || !newComment.trim()) return;
+    
+    try {
+      const response = await addCommentToEvidence(selectedFile.id, {
+        comment: newComment.trim()
+      });
+      
+      // Update the local state with the new comment
+      const newCommentObj: EvidenceComment = {
+        userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
+        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp,
+        comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
+        fileUrlId: selectedFile.id
+      };
+      
+      setEvidenceFiles(prev => prev.map(file => 
+        file.id === selectedFile.id 
+          ? { ...file, comments: [...file.comments, newCommentObj] }
+          : file
+      ));
+      
+      setSelectedFile(prev => prev ? {
+        ...prev,
+        comments: [...prev.comments, newCommentObj]
+      } : null);
+      
+      setNewComment('');
+      toast.success('Comment added successfully');
+    } catch (error: any) {
+      console.error('Error adding comment:', error);
+      toast(error.message || 'Failed to add comment', { variant: 'destructive' });
+    }
+  }
+
+  // File Management Functions
+  function startRenameFile(file: EvidenceFile) {
+    setEditingFileId(file.id);
+    setEditingFileName(file.fileName);
+  }
+
+  function cancelRenameFile() {
+    setEditingFileId(null);
+    setEditingFileName("");
+  }
+
+  async function saveRenameFile() {
+    if (!editingFileId || !editingFileName.trim()) return;
+    
+    try {
+      // Find the current file to get its URL
+      const currentFile = evidenceFiles.find(file => file.id === editingFileId);
+      if (!currentFile) {
+        toast.error('File not found');
+        return;
+      }
+
+      // Extract the file extension from the original filename
+      const fileExtension = currentFile.fileName.split('.').pop();
+      const newFileName = editingFileName.trim();
+      const newFileNameWithExt = newFileName.includes('.') ? newFileName : `${newFileName}.${fileExtension}`;
+      
+      // Create new URL by replacing the filename in the existing URL
+      const urlParts = currentFile.fileUrl.split('/');
+      urlParts[urlParts.length - 1] = newFileNameWithExt;
+      const newUrl = urlParts.join('/');
+      
+      // Call the backend API to update the evidence URL
+      await updateEvidenceUrl(editingFileId, { evidenceUrl: newUrl });
+      
+      // Update the local state with the new filename and URL
+      setEvidenceFiles(prev => prev.map(file => 
+        file.id === editingFileId 
+          ? { ...file, fileName: newFileNameWithExt, fileUrl: newUrl }
+          : file
+      ));
+      
+      // Update selected file if it's the one being renamed
+      if (selectedFile?.id === editingFileId) {
+        setSelectedFile(prev => prev ? { ...prev, fileName: newFileNameWithExt, fileUrl: newUrl } : null);
+      }
+      
+      setEditingFileId(null);
+      setEditingFileName("");
+      toast.success('File renamed successfully');
+    } catch (error: any) {
+      console.error('Error renaming file:', error);
+      toast.error(`Failed to rename file: ${error.message}`);
+    }
+  }
+
+  function confirmDeleteFile(file: EvidenceFile) {
+    setFileToDelete(file);
+    setDeleteConfirmOpen(true);
+  }
+
+  async function deleteFile() {
+    if (!fileToDelete) return;
+    
+    setIsDeletingFile(true);
+    try {
+      // Call the delete API
+      await deleteClassificationEvidence(fileToDelete.id);
+      
+      // Update local state
+      setEvidenceFiles(prev => prev.filter(file => file.id !== fileToDelete.id));
+      
+      // Close preview if the deleted file was being viewed
+      if (selectedFile?.id === fileToDelete.id) {
+        setFilePreviewOpen(false);
+        setSelectedFile(null);
+      }
+      
+      setDeleteConfirmOpen(false);
+      setFileToDelete(null);
+      toast.success('File deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting file:', error);
+      toast.error(`Failed to delete file: ${error.message}`);
+    } finally {
+      setIsDeletingFile(false);
+    }
+  }
+
+  // Review Workflow Functions - Using localStorage for now
+  async function loadReviewWorkflow() {
+    try {
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Loading reviews for classification: ${classification} -> ${classificationId}`);
+      
+      const response = await getReviewsByClassification(classificationId);
+      
+      // Convert API response to ReviewWorkflow format
+      const reviews: ReviewRecord[] = response.reviews.map(review => ({
+        id: review._id,
+        classificationId: classification,
+        userId: review.reviewedBy.userId,
+        userName: review.reviewedBy.name,
+        timestamp: review.reviewedOn,
+        comment: review.comment,
+        reviewed: review.status === 'signed-off',
+        status: review.status
+      }));
+      
+      const workflow: ReviewWorkflow = {
+        classificationId: classification,
+        engagementId: engagement.id,
+        reviews: reviews,
+        isSignedOff: reviews.some(r => r.status === 'signed-off'),
+        signedOffBy: reviews.find(r => r.status === 'signed-off')?.userName,
+        signedOffAt: reviews.find(r => r.status === 'signed-off')?.timestamp
+      };
+      
+      setReviewWorkflow(workflow);
+      console.log(`Loaded ${reviews.length} reviews`);
+    } catch (error: any) {
+      console.error('Error loading review workflow:', error);
+      toast(error.message || 'Failed to load review workflow', { variant: 'destructive' });
+      setReviewWorkflow({
+        classificationId: classification,
+        engagementId: engagement.id,
+        reviews: [],
+        isSignedOff: false
+      });
+    }
+  }
+
+
+  async function confirmSignOff() {
+    // Close confirmation dialog and open comment dialog
+    setConfirmSignoffOpen(false);
+    setCommentSignoffOpen(true);
+  }
+
+  async function performSignOff() {
+    // Validate that comment is required
+    if (!signoffComment.trim()) {
+      toast({
+        title: "Comment Required",
+        description: "Please add a comment before signing off",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmittingReview(true);
+    try {
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Signing off review for classification: ${classification} -> ${classificationId}`);
+      
+      // Get real user context
+      const userContext = await getUserContext();
+      
+      // Create a new review with sign-off status
+      const reviewData = {
+        engagementId: engagement.id,
+        classificationId: classificationId,
+        comment: signoffComment.trim(),
+        location: userContext.location,
+        ipAddress: userContext.ipAddress,
+        sessionId: userContext.sessionId,
+        systemVersion: userContext.systemVersion
+      };
+      
+      const response = await createClassificationReview(reviewData);
+      
+      // Update the status to signed-off
+      await updateReviewStatus(response.review._id, { status: 'signed-off' });
+      
+      // Reload the review workflow to get updated data
+      await loadReviewWorkflow();
+      
+      setCommentSignoffOpen(false);
+      setSignoffComment('');
+      toast.success('Classification signed off successfully');
+    } catch (error: any) {
+      console.error('Error signing off review:', error);
+      toast(error.message || 'Failed to sign off review', { variant: 'destructive' });
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  }
+
+  async function submitReview() {
+    if (!reviewWorkflow) return;
+    
+    // Show confirmation dialog instead of comment dialog
+    setConfirmSignoffOpen(true);
+  }
+
+  async function signOffReview() {
+    if (!reviewWorkflow) return;
+    
+    // Validate that comment is required for sign-off
+    if (!reviewComment.trim()) {
+      toast({
+        title: "Comment Required",
+        description: "Please add a comment before signing off",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmittingReview(true);
+    try {
+      // Add the comment as a review
+      let updatedReviews = [...reviewWorkflow.reviews];
+      
+      const commentReview: ReviewRecord = {
+        id: `comment-${Date.now()}`,
+        classificationId: classification,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        timestamp: new Date().toISOString(),
+        comment: reviewComment.trim(),
+        reviewed: false,
+        status: 'in-review'
+      };
+      updatedReviews.push(commentReview);
+      
+      // Then add the signoff
+      const signOffReview: ReviewRecord = {
+        id: `signoff-${Date.now()}`,
+        classificationId: classification,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        timestamp: new Date().toISOString(),
+        comment: reviewComment.trim(),
+        reviewed: true,
+        status: 'signed-off'
+      };
+      updatedReviews.push(signOffReview);
+
+      const updatedWorkflow = {
+        ...reviewWorkflow,
+        reviews: updatedReviews,
+        isSignedOff: true,
+        signedOffBy: currentUser.name,
+        signedOffAt: new Date().toISOString()
+      };
+      
+      setReviewWorkflow(updatedWorkflow);
+      setReviewComment('');
+      setReviewDialogOpen(false);
+      toast.success('Classification signed off successfully');
+    } catch (error) {
+      console.error('Error signing off review:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sign off review",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  }
+
+
+  function renderReviewButtons() {
+    // Find the latest review for the current user
+    const userReview = reviewWorkflow?.reviews.find(r => r.userId === currentUser.id);
+    const userStatus = userReview?.status || 'pending';
+    const isSignedOff = reviewWorkflow?.isSignedOff;
+    
+    const getButtonText = () => {
+      if (userStatus === 'pending') return 'Review';
+      if (userStatus === 'in-review') return 'Sign-off';
+      if (userStatus === 'signed-off') return 'Locked';
+      return 'Review';
+    };
+    
+    const getButtonIcon = () => {
+      if (userStatus === 'pending') return <Eye className="h-4 w-4 mr-2" />;
+      if (userStatus === 'in-review') return <Save className="h-4 w-4 mr-2" />;
+      if (userStatus === 'signed-off') return <X className="h-4 w-4 mr-2" />;
+      return <Eye className="h-4 w-4 mr-2" />;
+    };
+    
+    const isButtonDisabled = userStatus === 'signed-off' || !currentUser.id || userLoading;
+    
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setConfirmSignoffOpen(true)}
+          disabled={isButtonDisabled}
+          className="rounded-full"
+        >
+          {userLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            getButtonIcon()
+          )}
+          <span className="hidden sm:inline">
+            {userLoading ? 'Loading...' : getButtonText()}
+          </span>
+          <span className="sm:hidden">
+            {userLoading ? 'Loading' : getButtonText()}
+          </span>
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setReviewHistoryOpen(true)}
+          className="rounded-full"
+        >
+          <MessageSquare className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">Review History</span>
+          <span className="sm:hidden">History</span>
+        </Button>
+        
+        {isSignedOff && (
+          <Badge variant="secondary" className="ml-2">
+            ✓ Signed Off
+          </Badge>
+        )}
+      </div>
+    );
+  }
+
   function renderDataTable() {
+    const isSignedOff = reviewWorkflow?.isSignedOff;
+    
     if (isETB(classification)) {
       // ETB view
       return (
@@ -1928,7 +3078,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               </thead>
               <tbody>
                 {sectionData.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-gray-50">
+                  <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
                     <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
                     <td className="px-4 py-2">{row.accountName}</td>
                     <td className="px-4 py-2 text-right">
@@ -2024,7 +3174,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </thead>
                     <tbody>
                       {items.map((row) => (
-                        <tr key={row.id} className="border-t hover:bg-gray-50">
+                        <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
                           <td className="px-4 py-2 font-mono text-xs">
                             {row.code}
                           </td>
@@ -2123,7 +3273,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               </thead>
               <tbody>
                 {sectionData.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-gray-50">
+                  <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
                     <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
                     <td className="px-4 py-2">{row.accountName}</td>
                     <td className="px-4 py-2 text-right">
@@ -2174,6 +3324,441 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </div>
         </div>
       );
+    }
+  }
+
+  // Evidence content renderer
+  function renderEvidenceContent() {
+    return (
+      <div className="space-y-6">
+        {/* File Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload Evidence Files
+            </CardTitle>
+            <CardDescription>
+              Upload supporting documents, images, and other evidence files
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                multiple
+                accept="*/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="evidence-file-upload"
+                disabled={uploadingFiles}
+              />
+              <label
+                htmlFor="evidence-file-upload"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="h-8 w-8 text-gray-400" />
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium text-blue-600 hover:text-blue-500">
+                    Click to upload
+                  </span>{" "}
+                  or drag and drop
+                </div>
+                <div className="text-xs text-gray-500">
+                  All file types supported
+                </div>
+              </label>
+            </div>
+            {uploadingFiles && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading files...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Files List Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Evidence Files ({evidenceFiles.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {evidenceFiles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No evidence files uploaded yet</p>
+                <p className="text-sm">Upload files to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evidenceFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 min-w-0"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {getFileIcon(file.fileType)}
+                      <div className="flex-1 min-w-0">
+                        {editingFileId === file.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={editingFileName}
+                              onChange={(e) => setEditingFileName(e.target.value)}
+                              className="text-sm h-7"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveRenameFile();
+                                if (e.key === 'Escape') cancelRenameFile();
+                              }}
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={saveRenameFile}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Check className="h-3 w-3 text-green-600" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancelRenameFile}
+                              className="h-7 w-7 p-0"
+                            >
+                              <X className="h-3 w-3 text-red-600" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div 
+                            className="font-medium text-sm truncate cursor-pointer" 
+                            title={file.fileName}
+                            onClick={() => openFilePreview(file)}
+                          >
+                            {file.fileName}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500">
+                          {formatFileSize(file.fileSize)} • {formatDate(file.uploadedAt)} • {file.comments.length} comments
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant="secondary" className="text-xs">
+                        {file.fileType.toUpperCase()}
+                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openFilePreview(file)}
+                          className="h-7 w-7 p-0"
+                        >
+                          <Eye className="h-3 w-3 text-gray-400" />
+                        </Button>
+                        {editingFileId !== file.id && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRenameFile(file);
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Edit2 className="h-3 w-3 text-blue-400" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDeleteFile(file);
+                              }}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-400" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* File Preview Dialog */}
+        <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {selectedFile && getFileIcon(selectedFile.fileType)}
+                {selectedFile?.fileName}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="flex flex-col h-[75vh]">
+              {/* File Preview */}
+              <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
+                {selectedFile && renderFilePreview(selectedFile)}
+              </div>
+              
+              {/* Comments Section */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Comments ({selectedFile?.comments.length || 0})
+                </h4>
+                
+                {/* Comments List */}
+                <ScrollArea className="h-32 mb-4">
+                  <div className="space-y-3">
+                    {selectedFile?.comments.map((comment, index) => (
+                      <div key={index} className="flex gap-3 p-2 bg-gray-50 rounded">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                          {comment.userId.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">{comment.userId}</span>
+                            <span className="text-xs text-gray-500">{formatDate(comment.timestamp)}</span>
+                          </div>
+                          <p className="text-sm text-gray-700">{comment.comment}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedFile?.comments.length === 0 && (
+                      <p className="text-center text-gray-500 text-sm py-4">No comments yet</p>
+                    )}
+                  </div>
+                </ScrollArea>
+                
+                {/* Add Comment */}
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Add a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    className="flex-1"
+                    rows={2}
+                  />
+                  <Button
+                    onClick={addComment}
+                    disabled={!newComment.trim()}
+                    size="sm"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // Helper functions for Evidence
+  function getFileIcon(fileType: string) {
+    const type = fileType.toLowerCase();
+    if (type.includes('image')) return <Image className="h-5 w-5 text-green-500" />;
+    if (type.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
+    if (type.includes('word') || type.includes('doc')) return <FileText className="h-5 w-5 text-blue-500" />;
+    if (type.includes('excel') || type.includes('sheet')) return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    return <File className="h-5 w-5 text-gray-500" />;
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function formatDate(dateString: string) {
+    return new Date(dateString).toLocaleDateString();
+  }
+
+  function renderFilePreview(file: EvidenceFile) {
+    const type = file.fileType.toLowerCase();
+    
+    if (type.includes('image')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <img
+            src={file.fileUrl}
+            alt={file.fileName}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+            style={{ maxHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    if (type.includes('pdf')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={file.fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For text files, try to display content
+    if (type.includes('text') || type.includes('csv') || file.fileName.endsWith('.txt') || file.fileName.endsWith('.csv')) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={file.fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For Office documents (Word, Excel, PowerPoint), try to preview
+    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') || 
+        type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.fileUrl)}`}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={file.fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+    
+    // For other file types, show file info and preview attempt
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center p-8">
+          <div className="mb-4">
+            {getFileIcon(file.fileType)}
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{file.fileName}</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            {formatFileSize(file.fileSize)} • {file.fileType}
+          </p>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <p className="text-sm text-gray-500 mb-2">Preview not available for this file type</p>
+            <p className="text-xs text-gray-400">
+              File uploaded on {formatDate(file.uploadedAt)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    setUploadingFiles(true);
+    
+    try {
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Uploading files for classification: ${classification} -> ${classificationId}`);
+      
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Validate file
+        const validation = validateFile(file);
+        if (!validation.isValid) {
+          throw new Error(validation.error || 'Invalid file');
+        }
+        
+        // Upload file to storage
+        const uploadResult = await uploadFileToStorage(file);
+        
+        // Create evidence record via API
+        const evidenceData = {
+          engagementId: engagement.id,
+          classificationId: classificationId,
+          evidenceUrl: uploadResult.url
+        };
+        
+        const response = await createClassificationEvidence(evidenceData);
+        
+        // Convert API response to EvidenceFile format
+        return {
+          id: response.evidence._id,
+          fileName: uploadResult.fileName,
+          fileUrl: uploadResult.url,
+          fileType: uploadResult.fileType,
+          fileSize: uploadResult.fileSize,
+          uploadedAt: uploadResult.uploadedAt,
+          uploadedBy: response.evidence.uploadedBy.name,
+          comments: []
+        };
+      });
+      
+      const uploadedFiles = await Promise.all(uploadPromises);
+      setEvidenceFiles(prev => [...prev, ...uploadedFiles]);
+      
+      toast.success(`${files.length} file(s) uploaded successfully`);
+    } catch (error: any) {
+      console.error('Error uploading files:', error);
+      toast(error.message || 'Failed to upload files', { variant: 'destructive' });
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+  function openFilePreview(file: EvidenceFile) {
+    setSelectedFile(file);
+    setFilePreviewOpen(true);
+    setNewComment('');
+  }
+
+  async function addComment() {
+    if (!selectedFile || !newComment.trim()) return;
+    
+    try {
+      const response = await addCommentToEvidence(selectedFile.id, {
+        comment: newComment.trim()
+      });
+      
+      // Update the local state with the new comment
+      const newCommentObj: EvidenceComment = {
+        userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
+        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp,
+        comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
+        fileUrlId: selectedFile.id
+      };
+      
+      setEvidenceFiles(prev => prev.map(file => 
+        file.id === selectedFile.id 
+          ? { ...file, comments: [...file.comments, newCommentObj] }
+          : file
+      ));
+      
+      setSelectedFile(prev => prev ? {
+        ...prev,
+        comments: [...prev.comments, newCommentObj]
+      } : null);
+      
+      setNewComment('');
+      toast.success('Comment added successfully');
+    } catch (error: any) {
+      console.error('Error adding comment:', error);
+      toast(error.message || 'Failed to add comment', { variant: 'destructive' });
     }
   }
 

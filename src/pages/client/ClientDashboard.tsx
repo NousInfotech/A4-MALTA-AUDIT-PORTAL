@@ -10,6 +10,7 @@ import { Briefcase, FileText, Clock, CheckCircle, Upload, Eye, User, Calendar, A
 import { useEffect, useState } from 'react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { ClientComprehensiveNavigation } from '@/components/ui/client-comprehensive-navigation';
+import { getEngagementStatusLabel, getPBCStatusLabel } from '@/lib/statusLabels';
 
 export const ClientDashboard = () => {
   const { user } = useAuth();
@@ -196,7 +197,7 @@ export const ClientDashboard = () => {
                         engagement.status === "completed" ? "bg-gray-700 text-white" :
                         "bg-gray-600 text-white"
                       }`}>
-                      {engagement.status}
+                      {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                       </span>
                   </div>
                 </div>

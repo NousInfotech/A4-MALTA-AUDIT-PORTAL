@@ -198,7 +198,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
               <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm border border-white/30 p-1 rounded-xl">
                 <TabsTrigger
                   value="upload"
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
                 >
                   <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Upload TB</span>
@@ -207,7 +207,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                 <TabsTrigger
                   value="etb"
                   disabled={!trialBalanceData}
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg disabled:opacity-50 rounded-lg"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg disabled:opacity-50 rounded-lg"
                 >
                   <Calculator className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Extended TB</span>
@@ -215,7 +215,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                 </TabsTrigger>
                 <TabsTrigger
                   value="sections"
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-lg"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
                 >
                   <FolderOpen className="h-4 w-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Sections</span>
@@ -266,7 +266,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             ? "default"
                             : "outline"
                         }
-                        className="w-full justify-between h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                        className="w-full justify-between h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("ETB")}
                       >
                         <span className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             ? "default"
                             : "outline"
                         }
-                        className="w-full justify-between h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                        className="w-full justify-between h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("Adjustments")}
                       >
                         <span className="flex items-center gap-2">
@@ -315,7 +315,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                   ? "default"
                                   : "outline"
                               }
-                              className="w-full justify-start text-left h-auto p-3 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                              className="w-full justify-start text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                               onClick={() => setSelectedClassification(key)}
                             >
                               <div className="flex flex-col items-start">

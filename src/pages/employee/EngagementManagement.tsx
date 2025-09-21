@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useEngagements } from "@/hooks/useEngagements";
+import { getEngagementStatusLabel, getPBCStatusLabel } from "@/lib/statusLabels";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -334,7 +335,7 @@ export const EngagementManagement = () => {
                       engagement.status === 'completed' ? 'bg-gray-700 text-white border-gray-700' :
                       'bg-gray-600 text-white border-gray-600'
                     }`}>
-                      {engagement.status}
+                      {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                     </Badge>
                   </div>
                   

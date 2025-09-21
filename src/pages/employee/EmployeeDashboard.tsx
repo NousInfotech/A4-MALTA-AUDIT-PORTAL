@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEngagements } from "@/hooks/useEngagements";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
+import { getEngagementStatusLabel, getPBCStatusLabel } from "@/lib/statusLabels";
 import {
   Building2,
   Briefcase,
@@ -427,7 +428,7 @@ export const EmployeeDashboard = () => {
                           engagement.status === "completed" ? "bg-gray-700 text-white" :
                           "bg-gray-600 text-white"
                         }`}>
-                          {engagement.status}
+                          {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                         </span>
                     </div>
                   </div>
