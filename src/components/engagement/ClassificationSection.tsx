@@ -2039,9 +2039,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 )}
                 Delete File
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ReviewDialog */}
     </Card>
@@ -2818,7 +2818,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   }
 
-  // Review Workflow Functions - Using localStorage for now
+  // Review Workflow Functions - Using localStorage for persistence
   async function loadReviewWorkflow() {
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
@@ -2847,17 +2847,47 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         signedOffAt: reviews.find(r => r.status === 'signed-off')?.timestamp
       };
       
+      // Check localStorage for any cached signed-off status
+      const cacheKey = `review-workflow-${engagement.id}-${classification}`;
+      const cachedWorkflow = localStorage.getItem(cacheKey);
+      
+      if (cachedWorkflow) {
+        const cached = JSON.parse(cachedWorkflow);
+        // If cached workflow is signed off, preserve that status
+        if (cached.isSignedOff) {
+          workflow.isSignedOff = true;
+          workflow.signedOffBy = cached.signedOffBy || workflow.signedOffBy;
+          workflow.signedOffAt = cached.signedOffAt || workflow.signedOffAt;
+          console.log('Preserved signed-off status from cache');
+        }
+      }
+      
       setReviewWorkflow(workflow);
-      console.log(`Loaded ${reviews.length} reviews`);
+      
+      // Cache the workflow state
+      localStorage.setItem(cacheKey, JSON.stringify(workflow));
+      
+      console.log(`Loaded ${reviews.length} reviews, signed-off: ${workflow.isSignedOff}`);
     } catch (error: any) {
       console.error('Error loading review workflow:', error);
       toast(error.message || 'Failed to load review workflow', { variant: 'destructive' });
-      setReviewWorkflow({
-        classificationId: classification,
-        engagementId: engagement.id,
-        reviews: [],
-        isSignedOff: false
-      });
+      
+      // Try to load from cache if API fails
+      const cacheKey = `review-workflow-${engagement.id}-${classification}`;
+      const cachedWorkflow = localStorage.getItem(cacheKey);
+      
+      if (cachedWorkflow) {
+        const cached = JSON.parse(cachedWorkflow);
+        setReviewWorkflow(cached);
+        console.log('Loaded review workflow from cache due to API error');
+      } else {
+        setReviewWorkflow({
+          classificationId: classification,
+          engagementId: engagement.id,
+          reviews: [],
+          isSignedOff: false
+        });
+      }
     }
   }
 
@@ -2903,8 +2933,33 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       // Update the status to signed-off
       await updateReviewStatus(response.review._id, { status: 'signed-off' });
       
-      // Reload the review workflow to get updated data
-      await loadReviewWorkflow();
+      // Immediately update the local state to show signed-off status
+      const updatedWorkflow: ReviewWorkflow = {
+        classificationId: classification,
+        engagementId: engagement.id,
+        reviews: [
+          ...(reviewWorkflow?.reviews || []),
+          {
+            id: response.review._id,
+            classificationId: classification,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            timestamp: new Date().toISOString(),
+            comment: signoffComment.trim(),
+            reviewed: true,
+            status: 'signed-off'
+          }
+        ],
+        isSignedOff: true,
+        signedOffBy: currentUser.name,
+        signedOffAt: new Date().toISOString()
+      };
+      
+      setReviewWorkflow(updatedWorkflow);
+      
+      // Cache the signed-off status immediately
+      const cacheKey = `review-workflow-${engagement.id}-${classification}`;
+      localStorage.setItem(cacheKey, JSON.stringify(updatedWorkflow));
       
       setCommentSignoffOpen(false);
       setSignoffComment('');
