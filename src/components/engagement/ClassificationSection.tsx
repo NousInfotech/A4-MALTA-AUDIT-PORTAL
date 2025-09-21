@@ -1229,10 +1229,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           uploadedAt: evidence.createdAt,
           uploadedBy: evidence.uploadedBy.name,
           comments: evidence.evidenceComments.map(comment => ({
-            userId: comment.commentor.userId,
-            timestamp: comment.timestamp,
+            commentor: {
+              userId: comment.commentor.userId,
+              name: comment.commentor.name,
+              email: comment.commentor.email
+            },
             comment: comment.comment,
-            fileUrlId: evidence._id
+            timestamp: comment.timestamp
           }))
         }));
         
@@ -2566,11 +2569,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     {selectedFile?.comments.map((comment, index) => (
                       <div key={index} className="flex gap-3 p-2 bg-gray-50 rounded">
                         <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                          {comment.userId.charAt(0).toUpperCase()}
+                          {comment.commentor.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{comment.userId}</span>
+                            <span className="font-medium text-sm">{comment.commentor.name}</span>
                             <span className="text-xs text-gray-500">{formatDate(comment.timestamp)}</span>
                           </div>
                           <p className="text-sm text-gray-700">{comment.comment}</p>
@@ -2780,10 +2783,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       
       // Update the local state with the new comment
       const newCommentObj: EvidenceComment = {
-        userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
-        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp,
+        commentor: {
+          userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
+          name: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.name,
+          email: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.email
+        },
         comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
-        fileUrlId: selectedFile.id
+        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp
       };
       
       setEvidenceFiles(prev => prev.map(file => 
@@ -3659,11 +3665,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     {selectedFile?.comments.map((comment, index) => (
                       <div key={index} className="flex gap-3 p-2 bg-gray-50 rounded">
                         <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                          {comment.userId.charAt(0).toUpperCase()}
+                          {comment.commentor.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{comment.userId}</span>
+                            <span className="font-medium text-sm">{comment.commentor.name}</span>
                             <span className="text-xs text-gray-500">{formatDate(comment.timestamp)}</span>
                           </div>
                           <p className="text-sm text-gray-700">{comment.comment}</p>
@@ -3873,10 +3879,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       
       // Update the local state with the new comment
       const newCommentObj: EvidenceComment = {
-        userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
-        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp,
+        commentor: {
+          userId: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.userId,
+          name: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.name,
+          email: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].commentor.email
+        },
         comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
-        fileUrlId: selectedFile.id
+        timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp
       };
       
       setEvidenceFiles(prev => prev.map(file => 
