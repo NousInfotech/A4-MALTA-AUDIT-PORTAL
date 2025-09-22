@@ -343,6 +343,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewFormRender, setReviewFormRender] = useState(true);
   const [reviewLoading, setreviewLoading] = useState(false);
+  
+  // Review Points/Comments state
+  const [reviewPointsOpen, setReviewPointsOpen] = useState(false);
+  const [reviewComment, setReviewComment] = useState("");
 
 
 
@@ -388,8 +392,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [reviewWorkflow, setReviewWorkflow] = useState<ReviewWorkflow | null>(null);
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
   const [confirmSignoffOpen, setConfirmSignoffOpen] = useState(false);
-  const [commentSignoffOpen, setCommentSignoffOpen] = useState(false);
-  const [signoffComment, setSignoffComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
   const [userLoading, setUserLoading] = useState(true);
@@ -1921,14 +1923,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <DialogHeader>
               <DialogTitle>Confirm Sign-off</DialogTitle>
               <DialogDescription>
-                Are you sure you can't edit after signoff?
+                Are you sure you want to sign off this classification? This action cannot be undone and will lock the section for editing.
               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Eye className="h-4 w-4" />
-                <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
+                <Save className="h-4 w-4" />
+                <span>Signing off as: {currentUser.name || 'Loading...'}</span>
               </div>
             </div>
             
@@ -1937,7 +1939,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 Cancel
               </Button>
               <Button
-                onClick={confirmSignOff}
+                onClick={performSignOff}
                 disabled={isSubmittingReview}
                 variant="default"
               >
@@ -1952,59 +1954,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </DialogContent>
         </Dialog>
 
-        {/* Comment Sign-off Dialog */}
-        <Dialog open={commentSignoffOpen} onOpenChange={setCommentSignoffOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Sign-off Comment</DialogTitle>
-              <DialogDescription>
-                Add your comment before signing off
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="signoff-comment">
-                  Comment *
-                </Label>
-                <Textarea
-                  id="signoff-comment"
-                  placeholder="Enter your sign-off comment (required)..."
-                  value={signoffComment}
-                  onChange={(e) => setSignoffComment(e.target.value)}
-                  rows={4}
-                  className="border-orange-200 focus:border-orange-400"
-                />
-                <p className="text-sm text-orange-600 mt-1">
-                  * Comment is required for sign-off
-                </p>
-              </div>
-              
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Eye className="h-4 w-4" />
-                <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
-              </div>
-            </div>
-            
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setCommentSignoffOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={performSignOff}
-                disabled={isSubmittingReview || !signoffComment.trim()}
-                variant="default"
-              >
-                {isSubmittingReview ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Sign Off
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Review History Dialog */}
         <Dialog open={reviewHistoryOpen} onOpenChange={setReviewHistoryOpen}>
@@ -2113,6 +2062,60 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 )}
                 Delete File
               </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Points/Comments Dialog */}
+      <Dialog open={reviewPointsOpen} onOpenChange={setReviewPointsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Points & Comments</DialogTitle>
+            <DialogDescription>
+              Add your review comments for: <span className="font-semibold">{formatClassificationForDisplay(classification)}</span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Eye className="h-4 w-4" />
+              <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
+            </div>
+            
+            <div>
+              <Label htmlFor="review-comment">
+                Review Comments *
+              </Label>
+              <Textarea
+                id="review-comment"
+                placeholder="Enter your review comments, observations, or points to address..."
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows={6}
+                className="mt-1"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                * Comments are required for review submission
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setReviewPointsOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitReviewComment}
+              disabled={!reviewComment.trim() || isSubmittingReview}
+              variant="default"
+            >
+              {isSubmittingReview ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4 mr-2" />
+              )}
+              Save Review
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2975,22 +2978,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
   async function confirmSignOff() {
-    // Close confirmation dialog and open comment dialog
-    setConfirmSignoffOpen(false);
-    setCommentSignoffOpen(true);
+    // Directly perform sign-off without requiring comments
+    await performSignOff();
   }
 
   async function performSignOff() {
-    // Validate that comment is required
-    if (!signoffComment.trim()) {
-      toast({
-        title: "Comment Required",
-        description: "Please add a comment before signing off",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setIsSubmittingReview(true);
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
@@ -2999,11 +2991,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       // Get real user context
       const userContext = await getUserContext();
       
-      // Create a new review with sign-off status
+      // Create a new review with sign-off status (no comment required)
       const reviewData = {
         engagementId: engagement.id,
         classificationId: classificationId,
-        comment: signoffComment.trim(),
+        comment: 'Classification signed off',
         location: userContext.location,
         ipAddress: userContext.ipAddress,
         sessionId: userContext.sessionId,
@@ -3027,7 +3019,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             userId: currentUser.id,
             userName: currentUser.name,
             timestamp: new Date().toISOString(),
-            comment: signoffComment.trim(),
+            comment: 'Classification signed off',
             reviewed: true,
             status: 'signed-off'
           }
@@ -3043,8 +3035,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const cacheKey = `review-workflow-${engagement.id}-${classification}`;
       localStorage.setItem(cacheKey, JSON.stringify(updatedWorkflow));
       
-      setCommentSignoffOpen(false);
-      setSignoffComment('');
+      setConfirmSignoffOpen(false);
       toast.success('Classification signed off successfully');
     } catch (error: any) {
       console.error('Error signing off review:', error);
@@ -3061,14 +3052,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setConfirmSignoffOpen(true);
   }
 
-  async function signOffReview() {
-    if (!reviewWorkflow) return;
-    
-    // Validate that comment is required for sign-off
+  async function submitReviewComment() {
     if (!reviewComment.trim()) {
       toast({
         title: "Comment Required",
-        description: "Please add a comment before signing off",
+        description: "Please add review comments before submitting",
         variant: "destructive",
       });
       return;
@@ -3076,57 +3064,65 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     
     setIsSubmittingReview(true);
     try {
-      // Add the comment as a review
-      let updatedReviews = [...reviewWorkflow.reviews];
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Submitting review comment for classification: ${classification} -> ${classificationId}`);
       
-      const commentReview: ReviewRecord = {
-        id: `comment-${Date.now()}`,
-        classificationId: classification,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        timestamp: new Date().toISOString(),
-        comment: reviewComment.trim(),
-        reviewed: false,
-        status: 'in-review'
-      };
-      updatedReviews.push(commentReview);
+      // Get real user context
+      const userContext = await getUserContext();
       
-      // Then add the signoff
-      const signOffReview: ReviewRecord = {
-        id: `signoff-${Date.now()}`,
-        classificationId: classification,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        timestamp: new Date().toISOString(),
+      // Create a new review with 'in-review' status
+      const reviewData = {
+        engagementId: engagement.id,
+        classificationId: classificationId,
         comment: reviewComment.trim(),
-        reviewed: true,
-        status: 'signed-off'
+        location: userContext.location,
+        ipAddress: userContext.ipAddress,
+        sessionId: userContext.sessionId,
+        systemVersion: userContext.systemVersion
       };
-      updatedReviews.push(signOffReview);
-
-      const updatedWorkflow = {
-        ...reviewWorkflow,
-        reviews: updatedReviews,
-        isSignedOff: true,
-        signedOffBy: currentUser.name,
-        signedOffAt: new Date().toISOString()
+      
+      const response = await createClassificationReview(reviewData);
+      
+      // Update the status to 'in-review'
+      await updateReviewStatus(response.review._id, { status: 'in-review' });
+      
+      // Update the local state
+      const updatedWorkflow: ReviewWorkflow = {
+        classificationId: classification,
+        engagementId: engagement.id,
+        reviews: [
+          ...(reviewWorkflow?.reviews || []),
+          {
+            id: response.review._id,
+            classificationId: classification,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            timestamp: new Date().toISOString(),
+            comment: reviewComment.trim(),
+            reviewed: false,
+            status: 'in-review'
+          }
+        ],
+        isSignedOff: false // Review doesn't sign off
       };
       
       setReviewWorkflow(updatedWorkflow);
+      
+      // Cache the workflow state
+      const cacheKey = `review-workflow-${engagement.id}-${classification}`;
+      localStorage.setItem(cacheKey, JSON.stringify(updatedWorkflow));
+      
+      setReviewPointsOpen(false);
       setReviewComment('');
-      setReviewDialogOpen(false);
-      toast.success('Classification signed off successfully');
-    } catch (error) {
-      console.error('Error signing off review:', error);
-      toast({
-        title: "Error",
-        description: "Failed to sign off review",
-        variant: "destructive",
-      });
+      toast.success('Review comments saved successfully');
+    } catch (error: any) {
+      console.error('Error submitting review comment:', error);
+      toast(error.message || 'Failed to save review comments', { variant: 'destructive' });
     } finally {
       setIsSubmittingReview(false);
     }
   }
+
 
 
   function renderReviewButtons() {
@@ -3135,44 +3131,46 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     const userStatus = userReview?.status || 'pending';
     const isSignedOff = reviewWorkflow?.isSignedOff;
     
-    const getButtonText = () => {
-      if (userStatus === 'pending') return 'Review';
-      if (userStatus === 'in-review') return 'Sign-off';
-      if (userStatus === 'signed-off') return 'Locked';
-      return 'Review';
-    };
-    
-    const getButtonIcon = () => {
-      if (userStatus === 'pending') return <Eye className="h-4 w-4 mr-2" />;
-      if (userStatus === 'in-review') return <Save className="h-4 w-4 mr-2" />;
-      if (userStatus === 'signed-off') return <X className="h-4 w-4 mr-2" />;
-      return <Eye className="h-4 w-4 mr-2" />;
-    };
-    
-    const isButtonDisabled = userStatus === 'signed-off' || !currentUser.id || userLoading;
+    const isReviewDisabled = isSignedOff || !currentUser.id || userLoading;
+    const isSignOffDisabled = isSignedOff || userStatus === 'signed-off' || !currentUser.id || userLoading;
     
     return (
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Review Button - Opens Review Points/Comments */}
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setConfirmSignoffOpen(true)}
-          disabled={isButtonDisabled}
+          onClick={() => setReviewPointsOpen(true)}
+          disabled={isReviewDisabled}
           className="rounded-full"
         >
           {userLoading ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           ) : (
-            getButtonIcon()
+            <Eye className="h-4 w-4 mr-2" />
           )}
           <span className="hidden sm:inline">
-            {userLoading ? 'Loading...' : getButtonText()}
+            {userLoading ? 'Loading...' : 'Review'}
           </span>
           <span className="sm:hidden">
-            {userLoading ? 'Loading' : getButtonText()}
+            {userLoading ? 'Loading' : 'Review'}
           </span>
         </Button>
         
+        {/* Sign-off Button - Separate from Review */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setConfirmSignoffOpen(true)}
+          disabled={isSignOffDisabled}
+          className="rounded-full"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">Sign-off</span>
+          <span className="sm:hidden">Sign-off</span>
+        </Button>
+        
+        {/* Review History Button */}
         <Button
           variant="outline"
           size="sm"
