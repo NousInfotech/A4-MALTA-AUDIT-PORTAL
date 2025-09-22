@@ -322,19 +322,6 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                 <div className="font-medium">
                                   {formatClassificationForDisplay(key)}
                                 </div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {classificationList.map((classification) => (
-                                    <Badge
-                                      key={classification}
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {getClassificationDisplayName(
-                                        classification
-                                      )}
-                                    </Badge>
-                                  ))}
-                                </div>
                               </div>
                             </Button>
                           )}
