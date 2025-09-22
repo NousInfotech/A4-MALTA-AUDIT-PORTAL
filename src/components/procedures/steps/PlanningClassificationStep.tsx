@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, ArrowRight, ArrowLeft, DollarSign, Filter, AlertCircle } from "lucide-react"
+import { CheckCircle, ArrowRight, ArrowLeft, Filter, AlertCircle, Euro } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
@@ -216,7 +216,7 @@ export const PlanningClassificationStep: React.FC<PlanningClassificationStepProp
             </div>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-accent/10 rounded-lg">
-                <DollarSign className="h-5 w-5 text-accent" />
+                <Euro className="h-5 w-5 text-accent" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground font-body">Total Amount</p>

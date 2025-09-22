@@ -9,6 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
+// NEW: floating notes + notebook
+import FloatingNotesButton from "./FloatingNotesButton"
+import NotebookInterface from "./NotebookInterface"
+
 // -------- helpers ----------
 const uid = () => Math.random().toString(36).slice(2, 9)
 const withUids = (procedures: any[]) =>
@@ -264,6 +268,11 @@ export const PlanningProcedureView: React.FC<{
     initialWithUids.procedures = withUids(initialWithUids.procedures || [])
     return initialWithUids
   })
+
+  // NEW: notes state + modal flag
+  const [isNotesOpen, setIsNotesOpen] = useState(false)
+  const [recommendations, setRecommendations] = useState<string>(proc?.recommendations || "")
+
   const fileInput = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const base = import.meta.env.VITE_APIURL
@@ -341,41 +350,106 @@ export const PlanningProcedureView: React.FC<{
     })
   }
 
-  const save = async (asCompleted = false) => {
-    try {
-      const form = new FormData()
-      // robust normalize before mapping
-      const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
-        ...sec,
-        fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
-      }))
-      const payload = {
-        ...proc,
-        procedures: cleanedProcedures,
-        status: asCompleted ? "completed" : proc.status || "in-progress",
-        procedureType: "planning",
-      }
-      form.append("data", JSON.stringify(payload))
-      if (fileInput.current?.files?.length) {
-        Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
-      }
-      const engagementId = proc.engagement || engagement?._id
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
-        method: "POST",
-        body: form,
-      })
-      if (!res.ok) throw new Error("Save failed")
-      const saved = await res.json()
-      setProc({
-        ...saved,
-        procedures: withUids(saved?.procedures || []),
-      })
-      toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
-      setEditMode(false)
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e.message, variant: "destructive" })
+  // NEW: handle save of notebook notes
+  // NEW: handle save of notebook notes
+const handleSaveRecommendations = async (content: string) => {
+  try {
+    // Update local state first
+    setRecommendations(content)
+    setProc((p: any) => ({ ...p, recommendations: content }))
+    
+    // Save to database
+    const form = new FormData()
+    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+    }))
+    
+    const payload = {
+      ...proc,
+      procedures: cleanedProcedures,
+      recommendations: content, // Use the new content
+      status: proc.status || "in-progress",
+      procedureType: "planning",
     }
+    
+    form.append("data", JSON.stringify(payload))
+    
+    const engagementId = proc.engagement || engagement?._id
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+      method: "POST",
+      body: form,
+    })
+    
+    if (!res.ok) throw new Error("Save failed")
+    const saved = await res.json()
+    
+    // Update state with server response
+    setProc({
+      ...saved,
+      procedures: withUids(saved?.procedures || []),
+    })
+    setRecommendations(saved?.recommendations || "")
+    
+    toast({ 
+      title: "Notes Saved", 
+      description: "Your audit recommendations have been updated and saved to the database." 
+    })
+  } catch (e: any) {
+    toast({ 
+      title: "Save failed", 
+      description: e.message, 
+      variant: "destructive" 
+    })
+    // Revert local state if save fails
+    setRecommendations(proc?.recommendations || "")
   }
+}
+  const save = async (asCompleted = false) => {
+  try {
+    const form = new FormData()
+    // robust normalize before mapping
+    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+    }))
+    
+    // Create the payload with updated recommendations
+    const payload = {
+      ...proc,
+      procedures: cleanedProcedures,
+      // Ensure recommendations are included in the payload
+      recommendations: recommendations, // This line is crucial
+      status: asCompleted ? "completed" : proc.status || "in-progress",
+      procedureType: "planning",
+    }
+    
+    form.append("data", JSON.stringify(payload))
+    if (fileInput.current?.files?.length) {
+      Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
+    }
+    
+    const engagementId = proc.engagement || engagement?._id
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+      method: "POST",
+      body: form,
+    })
+    
+    if (!res.ok) throw new Error("Save failed")
+    const saved = await res.json()
+    
+    setProc({
+      ...saved,
+      procedures: withUids(saved?.procedures || []),
+    })
+    // keep local recs aligned with server
+    setRecommendations(saved?.recommendations || "")
+    toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
+    setEditMode(false)
+  } catch (e: any) {
+    toast({ title: "Save failed", description: e.message, variant: "destructive" })
+  }
+}
 
   // answers map for visibleIf
   const makeAnswers = (sec: any) =>
@@ -417,6 +491,7 @@ export const PlanningProcedureView: React.FC<{
                 </Button>
               </>
             )}
+       
           </div>
 
           <div className="space-y-2">
@@ -452,183 +527,185 @@ export const PlanningProcedureView: React.FC<{
                       const isTable = t === "table"
                       // respect visibleIf in view/edit
                       if (!isFieldVisible(f, answers)) return null
-                    if(f.key!=="documentation_reminder")
-                      return (
-                        <div key={f.__uid} className="border rounded p-3 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium">{f.label || f.key}</div>
+                      if (f.key !== "documentation_reminder")
+                        return (
+                          <div key={f.__uid} className="border rounded p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium">{f.label || f.key}</div>
+                              {editMode && (
+                                <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Question metadata (editable in editMode) */}
                             {editMode && (
-                              <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Question metadata (editable in editMode) */}
-                          {editMode && (
-                            <div className="grid md:grid-cols-2 gap-3">
-                              <div className="space-y-2">
-                                <SmallLabel>Key</SmallLabel>
-                                <Input value={f.key} onChange={(e) => changeKey(sIdx, f.__uid, e.target.value)} />
-                                <SmallLabel>Label</SmallLabel>
-                                <Input value={f.label ?? ""} onChange={(e) => setField(sIdx, f.__uid, { label: e.target.value })} />
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Checkbox checked={!!f.required} onCheckedChange={(ck) => setField(sIdx, f.__uid, { required: !!ck })} />
-                                  <SmallLabel>Required</SmallLabel>
+                              <div className="grid md:grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                  <SmallLabel>Key</SmallLabel>
+                                  <Input value={f.key} onChange={(e) => changeKey(sIdx, f.__uid, e.target.value)} />
+                                  <SmallLabel>Label</SmallLabel>
+                                  <Input value={f.label ?? ""} onChange={(e) => setField(sIdx, f.__uid, { label: e.target.value })} />
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Checkbox checked={!!f.required} onCheckedChange={(ck) => setField(sIdx, f.__uid, { required: !!ck })} />
+                                    <SmallLabel>Required</SmallLabel>
+                                  </div>
+                                  <SmallLabel className="mt-2">Help</SmallLabel>
+                                  <Textarea value={f.help ?? ""} onChange={(e) => setField(sIdx, f.__uid, { help: e.target.value })} />
                                 </div>
-                                <SmallLabel className="mt-2">Help</SmallLabel>
-                                <Textarea value={f.help ?? ""} onChange={(e) => setField(sIdx, f.__uid, { help: e.target.value })} />
+
+                                <div className="space-y-2">
+                                  <SmallLabel>Type</SmallLabel>
+                                  <select
+                                    className="w-full border rounded px-3 py-2 bg-background"
+                                    value={f.type}
+                                    onChange={(e) => setField(sIdx, f.__uid, { type: e.target.value })}
+                                  >
+                                    {[
+                                      "text",
+                                      "textarea",
+                                      "checkbox",
+                                      "number",
+                                      "currency",
+                                      "select",
+                                      "multiselect",
+                                      "table",
+                                      "group",
+                                      "textfield",
+                                      "selection",
+                                    ].map((t) => (
+                                      <option key={t} value={t}>
+                                        {t}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  {(t === "select" || t === "multiselect") && (
+                                    <>
+                                      <SmallLabel>Options (comma-separated)</SmallLabel>
+                                      <Input
+                                        value={(f.options || []).join(", ")}
+                                        onChange={(e) =>
+                                          setField(sIdx, f.__uid, {
+                                            options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                                          })
+                                        }
+                                        placeholder="Option A, Option B"
+                                      />
+                                    </>
+                                  )}
+
+                                  {isTable && (
+                                    <>
+                                      <SmallLabel>Columns (comma-separated)</SmallLabel>
+                                      <Input
+                                        value={(f.columns || []).join(", ")}
+                                        onChange={(e) =>
+                                          setField(sIdx, f.__uid, {
+                                            columns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                                          })
+                                        }
+                                        placeholder="Col1, Col2"
+                                      />
+                                    </>
+                                  )}
+                                </div>
                               </div>
+                            )}
 
-                              <div className="space-y-2">
-                                <SmallLabel>Type</SmallLabel>
-                                <select
-                                  className="w-full border rounded px-3 py-2 bg-background"
-                                  value={f.type}
-                                  onChange={(e) => setField(sIdx, f.__uid, { type: e.target.value })}
-                                >
-                                  {[
-                                    "text",
-                                    "textarea",
-                                    "checkbox",
-                                    "number",
-                                    "currency",
-                                    "select",
-                                    "multiselect",
-                                    "table",
-                                    "group",
-                                    "textfield",
-                                    "selection",
-                                  ].map((t) => (
-                                    <option key={t} value={t}>
-                                      {t}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                {(t === "select" || t === "multiselect") && (
-                                  <>
-                                    <SmallLabel>Options (comma-separated)</SmallLabel>
-                                    <Input
-                                      value={(f.options || []).join(", ")}
-                                      onChange={(e) =>
-                                        setField(sIdx, f.__uid, {
-                                          options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                                        })
-                                      }
-                                      placeholder="Option A, Option B"
-                                    />
-                                  </>
+                            {/* Answer viewer/editor */}
+                            {!editMode ? (
+                              <>
+                                {t === "multiselect" && (
+                                  <div className="mt-1 text-sm">
+                                    {(Array.isArray(f.answer) ? f.answer : []).join(", ") || "—"}
+                                  </div>
                                 )}
 
                                 {isTable && (
-                                  <>
-                                    <SmallLabel>Columns (comma-separated)</SmallLabel>
-                                    <Input
-                                      value={(f.columns || []).join(", ")}
-                                      onChange={(e) =>
-                                        setField(sIdx, f.__uid, {
-                                          columns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                                        })
-                                      }
-                                      placeholder="Col1, Col2"
-                                    />
-                                  </>
+                                  <TableDisplay columns={f.columns} rows={Array.isArray(f.answer) ? f.answer : []} />
                                 )}
-                              </div>
-                            </div>
-                          )}
 
-                          {/* Answer viewer/editor */}
-                          {!editMode ? (
-                            <>
-                              {t === "multiselect" && (
-                                <div className="mt-1 text-sm">
-                                  {(Array.isArray(f.answer) ? f.answer : []).join(", ") || "—"}
-                                </div>
-                              )}
+                                {t === "group" && !isTable && (
+                                  <div className="mt-1 text-sm">
+                                    {(() => {
+                                      const val = f.answer && typeof f.answer === "object" ? f.answer : {}
+                                      const keys = Object.keys(val).filter((k) => !!val[k])
+                                      if (!keys.length) return "—"
+                                      // prefer child labels if available
+                                      const labels =
+                                        (f.fields || [])
+                                          .filter((ff: any) => keys.includes(ff.key))
+                                          .map((ff: any) => ff.label || ff.key)
+                                      return labels.length ? labels.join(", ") : keys.join(", ")
+                                    })()}
+                                  </div>
+                                )}
 
-                              {isTable && (
-                                <TableDisplay columns={f.columns} rows={Array.isArray(f.answer) ? f.answer : []} />
-                              )}
+                                {!isTable && t !== "multiselect" && t !== "group" && (
+                                  <div className="mt-1 text-sm">{String(f.answer ?? "—")}</div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                  <SmallLabel className="mt-2">Answer</SmallLabel>
 
-                              {t === "group" && !isTable && (
-                                <div className="mt-1 text-sm">
-                                  {(() => {
-                                    const val = f.answer && typeof f.answer === "object" ? f.answer : {}
-                                    const keys = Object.keys(val).filter((k) => !!val[k])
-                                    if (!keys.length) return "—"
-                                    // prefer child labels if available
-                                    const labels =
-                                      (f.fields || [])
-                                        .filter((ff: any) => keys.includes(ff.key))
-                                        .map((ff: any) => ff.label || ff.key)
-                                    return labels.length ? labels.join(", ") : keys.join(", ")
-                                  })()}
-                                </div>
-                              )}
-
-                              {!isTable && t !== "multiselect" && t !== "group" && (
-                                <div className="mt-1 text-sm">{String(f.answer ?? "—")}</div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {t === "textarea" ? (
-                                <Textarea value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                              ) : t === "text" ? (
-                                <Input value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                              ) : t === "number" || t === "currency" ? (
-                                <Input
-                                  type="number"
-                                  value={f.answer ?? ""}
-                                  onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value === "" ? "" : e.target.valueAsNumber })}
-                                />
-                              ) : t === "checkbox" ? (
-                                <div className="flex items-center gap-2">
-                                  <Checkbox checked={!!f.answer} onCheckedChange={(ck) => setField(sIdx, f.__uid, { answer: !!ck })} />
-                                  <span className="text-sm">Yes</span>
-                                </div>
-                              ) : t === "select" ? (
-                                <SelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
-                              ) : t === "multiselect" ? (
-                                <MultiSelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
-                              ) : isTable ? (
-                                <TableEditor
-                                  columns={f.columns}
-                                  value={Array.isArray(f.answer) ? f.answer : []}
-                                  onChange={(rows) => setField(sIdx, f.__uid, { answer: rows })}
-                                />
-                              ) : t === "group" ? (
-                                // Compact editor: toggle true/false with checkboxes for group children
-                                <div className="flex flex-col gap-2">
-                                  {(f.fields || []).map((child: any) => {
-                                    const val = (f.answer && typeof f.answer === "object" ? f.answer : {}) as any
-                                    const checked = !!val[child.key]
-                                    return (
-                                      <label key={child.key} className="flex items-center gap-2">
-                                        <Checkbox
-                                          checked={checked}
-                                          onCheckedChange={(ck) => {
-                                            const next = { ...(val || {}) }
-                                            next[child.key] = !!ck
-                                            setField(sIdx, f.__uid, { answer: next })
-                                          }}
-                                        />
-                                        <span className="text-sm">{child.label || child.key}</span>
-                                      </label>
-                                    )
-                                  })}
-                                </div>
-                              ): t==="file"?(
-                                <Input value={"scajsnasj"} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                              ) : (
-                                <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )
+                                {t === "textarea" ? (
+                                  <Textarea value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
+                                ) : t === "text" ? (
+                                  <Input value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
+                                ) : t === "number" || t === "currency" ? (
+                                  <Input
+                                    type="number"
+                                    value={f.answer ?? ""}
+                                    onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value === "" ? "" : e.target.valueAsNumber })}
+                                  />
+                                ) : t === "checkbox" ? (
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox checked={!!f.answer} onCheckedChange={(ck) => setField(sIdx, f.__uid, { answer: !!ck })} />
+                                    <span className="text-sm">Yes</span>
+                                  </div>
+                                ) : t === "select" ? (
+                                  <SelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
+                                ) : t === "multiselect" ? (
+                                  <MultiSelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
+                                ) : isTable ? (
+                                  <TableEditor
+                                    columns={f.columns}
+                                    value={Array.isArray(f.answer) ? f.answer : []}
+                                    onChange={(rows) => setField(sIdx, f.__uid, { answer: rows })}
+                                  />
+                                ) : t === "group" ? (
+                                  // Compact editor: toggle true/false with checkboxes for group children
+                                  <div className="flex flex-col gap-2">
+                                    {(f.fields || []).map((child: any) => {
+                                      const val = (f.answer && typeof f.answer === "object" ? f.answer : {}) as any
+                                      const checked = !!val[child.key]
+                                      return (
+                                        <label key={child.key} className="flex items-center gap-2">
+                                          <Checkbox
+                                            checked={checked}
+                                            onCheckedChange={(ck) => {
+                                              const next = { ...(val || {}) }
+                                              next[child.key] = !!ck
+                                              setField(sIdx, f.__uid, { answer: next })
+                                            }}
+                                          />
+                                          <span className="text-sm">{child.label || child.key}</span>
+                                        </label>
+                                      )
+                                    })}
+                                  </div>
+                                ) : t === "file" ? (
+                                  <Input value={"scajsnasj"} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
+                                ) : (
+                                  <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )
                     })}
                   </div>
 
@@ -646,20 +723,7 @@ export const PlanningProcedureView: React.FC<{
           ) : (
             <div className="text-muted-foreground">No sections.</div>
           )}
-
-          <div className="rounded-lg border p-4 space-y-2">
-            <div className="font-heading text-lg">Recommendations</div>
-            {!editMode ? (
-              <pre className="whitespace-pre-wrap text-sm">{proc.recommendations || "—"}</pre>
-            ) : (
-              <Textarea
-                value={proc.recommendations ?? ""}
-                onChange={(e) => setProc((p: any) => ({ ...p, recommendations: e.target.value }))}
-                placeholder="Bullet points are encouraged…"
-              />
-            )}
-          </div>
-
+{/* 
           {Array.isArray(proc.files) && proc.files.length > 0 && (
             <div className="rounded-lg border p-4">
               <div className="font-heading text-lg mb-2">Files</div>
@@ -673,9 +737,22 @@ export const PlanningProcedureView: React.FC<{
                 ))}
               </ul>
             </div>
-          )}
+          )} */}
         </CardContent>
       </Card>
+
+      {/* Floating Notes Button (same feel as ProcedureView) */}
+      <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
+
+      {/* Notebook Interface (re-usable component) */}
+      <NotebookInterface
+        isOpen={isNotesOpen}
+        isEditable={true}
+        onClose={() => setIsNotesOpen(false)}
+        recommendations={recommendations}
+        onSave={handleSaveRecommendations}
+        isPlanning={true}
+      />
     </div>
   )
 }

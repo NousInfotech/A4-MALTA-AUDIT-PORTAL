@@ -55,8 +55,8 @@ export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ 
   return (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Select Procedure Type</h3>
-        <p className="text-gray-700">{title}</p>
+        <h3 className="font-heading text-2xl text-foreground mb-2">Select Procedure Type</h3>
+        <p className="text-muted-foreground font-body">{title}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -65,33 +65,33 @@ export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ 
           return (
             <Card
               key={type.id}
-              className={`relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-105 bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 group ${
-                type.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/70"
+              className={`relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 hover:border-primary/20 ${
+                type.disabled ? "opacity-50 cursor-not-allowed" : ""
               }`}
               onClick={() => !type.disabled && onTypeSelect(type.id)}
             >
-              <CardHeader className="pb-4 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className={`p-3 rounded-lg ${type.color} text-white`}>
+                    <Icon className="h-6 w-6" />
                   </div>
                   {!type.disabled && (
-                    <ArrowRight className="h-5 w-5 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   )}
                 </div>
-                <CardTitle className="text-xl font-bold text-gray-900">{type.title}</CardTitle>
-                <p className="text-gray-700 text-sm">{type.description}</p>
+                <CardTitle className="font-heading text-xl text-foreground">{type.title}</CardTitle>
+                <p className="text-muted-foreground font-body text-sm">{type.description}</p>
                 {type.disabled && (
                   <div className="absolute top-4 right-4">
-                    <span className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-xl font-medium">Coming Soon</span>
+                    <span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded">Coming Soon</span>
                   </div>
                 )}
               </CardHeader>
-              <CardContent className="p-6">
-                <ul className="space-y-3">
+              <CardContent>
+                <ul className="space-y-2">
                   {type.features.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-3 text-sm text-gray-700">
-                      <div className="h-2 w-2 rounded-full bg-gray-800 flex-shrink-0" />
+                    <li key={index} className="flex items-center gap-2 text-sm font-body">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                       {feature}
                     </li>
                   ))}

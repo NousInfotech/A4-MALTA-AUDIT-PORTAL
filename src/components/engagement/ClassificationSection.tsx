@@ -2,6 +2,8 @@
 
 import type React from "react";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 import { createPortal } from "react-dom";
 import {
   Card,
@@ -15,20 +17,20 @@ import { Button } from "@/components/ui/button";
 import { getUserContext } from "@/lib/user-context-service";
 import { getClassificationId } from "@/lib/classification-mapping";
 import { uploadFileToStorage, validateFile } from "@/lib/file-upload-service";
-import { 
-  createClassificationEvidence, 
-  getAllClassificationEvidence, 
-  addCommentToEvidence, 
+import {
+  createClassificationEvidence,
+  getAllClassificationEvidence,
+  addCommentToEvidence,
   deleteClassificationEvidence,
   updateEvidenceUrl,
   type ClassificationEvidence,
-  type EvidenceComment 
+  type EvidenceComment
 } from "@/lib/api/classification-evidence-api";
-import { 
-  createClassificationReview, 
-  getReviewsByClassification, 
+import {
+  createClassificationReview,
+  getReviewsByClassification,
   updateReviewStatus,
-  type ClassificationReview 
+  type ClassificationReview
 } from "@/lib/api/classification-review-api";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,6 +90,7 @@ import { getAllReviewWorkflows, submitForReview } from "@/lib/api/review-api";
 import { format } from "date-fns";
 import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
 import axiosInstance from "@/lib/axiosInstance";
+import ProcedureView from "../procedures/ProcedureView";
 
 interface ClassificationSectionProps {
   engagement: any;
@@ -311,18 +314,19 @@ function FullscreenOverlay({
 }
 
 // 🧭 small helpers for tab persistence via ?tab=
-function getTabFromSearch(): "lead-sheet" | "working-papers" | "evidence" {
+function getTabFromSearch(): "lead-sheet" | "working-papers" | "evidence" | "procedures" {
   try {
     const sp = new URLSearchParams(window.location.search);
     const t = sp.get("tab");
     if (t === "working-papers") return "working-papers";
     if (t === "evidence") return "evidence";
+    if (t === "procedures") return "procedures";
     return "lead-sheet";
   } catch {
     return "lead-sheet";
   }
 }
-function setTabInSearch(tab: "lead-sheet" | "working-papers" | "evidence") {
+function setTabInSearch(tab: "lead-sheet" | "working-papers" | "evidence" | "procedures") {
   try {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
@@ -331,24 +335,57 @@ function setTabInSearch(tab: "lead-sheet" | "working-papers" | "evidence") {
     // ignore
   }
 }
+// Helper functions for procedure answers
+function normalize(items?: any[]) {
+  if (!Array.isArray(items)) return [];
+  return items.map((q, i) => {
+    const __uid = q.__uid || q.id || q._id || `q_${Math.random().toString(36).slice(2, 10)}_${i}`;
+    const id = q.id ?? __uid;
+    const key = q.key || q.aiKey || `q${i + 1}`;
+    return { ...q, __uid, id, key };
+  });
+}
 
+function mergeAiAnswers(questions: any[], aiAnswers: any[]) {
+  const map = new Map<string, string>();
+  (aiAnswers || []).forEach((a) => {
+    const k = String(a?.key || "").trim().toLowerCase();
+    if (k) map.set(k, a?.answer || "");
+  });
+
+  return questions.map((q, i) => {
+    const k = String(q.key || `q${i + 1}`).trim().toLowerCase();
+    const answer = map.has(k) ? map.get(k) || "" : q.answer || "";
+    return { ...q, answer };
+  });
+}
+
+function replaceClassificationQuestions(all: any[], classification: string, updated: any[]) {
+  const others = all.filter((q) => q.classification !== classification);
+  return [...others, ...normalize(updated)];
+}
 export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   engagement,
   classification,
   onClose,
   onClassificationJump,
 }) => {
-  
+
+
+  const { toast } = useToast();
+
   const [reviewClassification, setReviewClassification] = useState("");
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewFormRender, setReviewFormRender] = useState(true);
   const [reviewLoading, setreviewLoading] = useState(false);
-  
+
   // Review Points/Comments state
   const [reviewPointsOpen, setReviewPointsOpen] = useState(false);
   const [reviewComment, setReviewComment] = useState("");
+  const [generatingAnswers, setGeneratingAnswers] = useState(false);
 
-
+  const [procedure, setProcedure] = useState<any | null>(null);
+  const [procedureLoading, setProcedureLoading] = useState(false);
 
   const [loading, setLoading] = useState(true); // global loader (ETB / lead-sheet)
   const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
@@ -380,7 +417,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [newComment, setNewComment] = useState("");
-  
+
   // File management state
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
   const [editingFileName, setEditingFileName] = useState("");
@@ -409,7 +446,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [viewSheetLoading, setViewSheetLoading] = useState(false);
 
   // 🔖 keep the tab stable across refresh / navigation
-  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers" | "evidence">(
+  const [activeTab, setActiveTab] = useState<"lead-sheet" | "working-papers" | "evidence" | "procedures">(
     () => getTabFromSearch()
   );
 
@@ -437,8 +474,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Get the section ID for the current classification
       const response = await axiosInstance.get(
-        `/api/engagements/${
-          engagement.id
+        `/api/engagements/${engagement.id
         }/etb/classification/${encodeURIComponent(classification)}`
       );
       const sectionId = response.data.section._id;
@@ -465,7 +501,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   };
 
-  
+
 
 
 
@@ -548,6 +584,116 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classification]);
 
+  useEffect(() => {
+    const fetchProcedureIfNeeded = async () => {
+      if (activeTab !== "procedures") return;
+      if (procedure || !engagement?._id) return;
+
+      setProcedureLoading(true);
+      try {
+        const res = await authFetch(
+          `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}`
+        );
+        const json = await res.json();
+        setProcedure(json?.procedure ?? json ?? null);
+      } catch (err: any) {
+        console.error(err);
+        setProcedure(null);
+        // Gentle toast; it's okay to open the tab even if there's no data yet
+        toast({
+          title: "Could not load procedures",
+          description: err?.message || "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setProcedureLoading(false);
+      }
+    };
+    fetchProcedureIfNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, engagement?._id]);
+  const generateAnswersForClassification = async () => {
+    if (!procedure || !engagement?._id) return;
+
+    setGeneratingAnswers(true);
+    try {
+      // Filter questions by classification and remove answers
+      const classificationQuestions = procedure.questions
+        ?.filter((q: any) => q.classification === classification)
+        .map(({ answer, ...rest }) => rest) || []; // This removes the answer property
+
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/procedures/ai/classification-answers/separate`,
+        {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            engagementId: engagement._id,
+            questions: classificationQuestions,
+            classification: classification,
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to generate answers");
+
+      const data = await res.json();
+
+      let updatedProcedure = { ...procedure };
+
+      if (Array.isArray(data?.aiAnswers)) {
+        // Merge just the answers for this classification
+        const updatedClassificationQs = mergeAiAnswers(classificationQuestions, data.aiAnswers);
+        updatedProcedure.questions = replaceClassificationQuestions(
+          procedure.questions,
+          classification,
+          updatedClassificationQs
+        );
+      } else if (Array.isArray(data?.questions)) {
+        // Some backends return full question payloads
+        updatedProcedure.questions = replaceClassificationQuestions(
+          procedure.questions,
+          classification,
+          data.questions
+        );
+      }
+
+      // Update recommendations if provided
+      if (data.recommendations) {
+        updatedProcedure.recommendations = data.recommendations;
+      }
+
+      setProcedure(updatedProcedure);
+
+      toast({
+        title: "Answers Generated",
+        description: `Answers for ${formatClassificationForDisplay(classification)} have been generated.`,
+      });
+    } catch (error: any) {
+      console.error("Generate answers error:", error);
+      toast({
+        title: "Generation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingAnswers(false);
+    }
+  };
+
+  // ✅ NEW: Check if answers exist for current classification
+  const hasAnswersForClassification = useMemo(() => {
+    if (!procedure?.questions) return false;
+    return procedure.questions.some(
+      (q: any) =>
+        q.classification === classification &&
+        q.answer &&
+        q.answer.trim() !== ""
+    );
+  }, [procedure, classification]);
+
   const loadSectionData = async () => {
     try {
       if (isAdjustments(classification) || isETB(classification)) {
@@ -567,12 +713,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
 
       const endpoint = isTopCategory(classification)
-        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/category/${encodeURIComponent(classification)}`
-        : `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/classification/${encodeURIComponent(classification)}`;
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
+        }/etb/category/${encodeURIComponent(classification)}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
+        }/etb/classification/${encodeURIComponent(classification)}`;
 
       const response = await authFetch(endpoint);
       if (!response.ok) throw new Error("Failed to load section data");
@@ -595,12 +739,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
 
       const endpoint = isTopCategory(classification)
-        ? `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/category/${encodeURIComponent(classification)}`
-        : `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
-          }/etb/classification/${encodeURIComponent(classification)}/reload`;
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
+        }/etb/category/${encodeURIComponent(classification)}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
+        }/etb/classification/${encodeURIComponent(classification)}/reload`;
 
       const response = await authFetch(endpoint, {
         method: isTopCategory(classification) ? "GET" : "POST",
@@ -636,8 +778,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/view-spreadsheet`,
         {
           method: "POST",
@@ -664,8 +805,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const checkWorkingPapersStatus = async () => {
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/working-papers/status`
       );
       if (response.ok) {
@@ -692,8 +832,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/working-papers/init`,
         {
           method: "POST",
@@ -737,8 +876,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const payload = Array.isArray(rowsOverride) ? rowsOverride : sectionData;
 
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/working-papers/db`,
         {
           method: "POST",
@@ -765,8 +903,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/working-papers/db`
       );
 
@@ -801,8 +938,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     else setLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(classification)}/working-papers/push`,
         {
           method: "POST",
@@ -837,8 +973,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(clas)}/working-papers/pull`,
         { method: "POST" }
       );
@@ -867,8 +1002,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(
           classification
         )}/working-papers/fetch-rows`,
@@ -899,8 +1033,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(
           classification
         )}/working-papers/select-row`,
@@ -940,8 +1073,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(
           classification
         )}/working-papers/fetch-tabs`,
@@ -966,8 +1098,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (activeTab === "working-papers") setWpHydrating(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(
           classification
         )}/working-papers/select-tab`,
@@ -1071,8 +1202,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setViewSheetLoading(true);
       try {
         const response = await authFetch(
-          `${import.meta.env.VITE_APIURL}/api/engagements/${
-            engagement._id
+          `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
           }/sections/${encodeURIComponent(
             classification
           )}/working-papers/view-reference`,
@@ -1104,8 +1234,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setViewRowLoading(true);
     try {
       const response = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${
-          engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
         }/sections/${encodeURIComponent(
           classification
         )}/working-papers/view-row`,
@@ -1163,7 +1292,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           console.error('Error getting current user:', error);
           return;
         }
-        
+
         if (user) {
           // Get user profile data
           const { data: profile, error: profileError } = await supabase
@@ -1171,7 +1300,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             .select('*')
             .eq('id', user.id)
             .single();
-          
+
           if (profileError) {
             console.error('Error getting user profile:', profileError);
             // Fallback to basic user data
@@ -1197,7 +1326,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setUserLoading(false);
       }
     };
-    
+
     getCurrentUser();
   }, []);
 
@@ -1216,11 +1345,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         console.log('Starting to load evidence files...');
         const classificationId = await getClassificationId(classification, engagement.id);
         console.log(`Loading evidence for classification: ${classification} -> ${classificationId}`);
-        
+
         const response = await getAllClassificationEvidence(engagement.id, classificationId);
-        
+
         if (!isMounted) return; // Component unmounted, don't update state
-        
+
         // Convert API response to EvidenceFile format
         const evidenceFiles: EvidenceFile[] = response.evidence.map(evidence => ({
           id: evidence._id,
@@ -1240,7 +1369,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             timestamp: comment.timestamp
           }))
         }));
-        
+
         setEvidenceFiles(evidenceFiles);
         console.log(`Loaded ${evidenceFiles.length} evidence files`);
       } catch (error: any) {
@@ -1525,29 +1654,29 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </div>
         </div>
       )}
-      
+
       <CardHeader>
         <div className="space-y-4">
           {/* Title and Account Count */}
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">
-              {formatClassificationForDisplay(classification)}
-            </CardTitle>
-            <Badge variant="outline" className="mt-1">
-              {sectionData.length}{" "}
-              {sectionData.length === 1 ? "account" : "accounts"}
-            </Badge>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">
+                {formatClassificationForDisplay(classification)}
+              </CardTitle>
+              <Badge variant="outline" className="mt-1">
+                {sectionData.length}{" "}
+                {sectionData.length === 1 ? "account" : "accounts"}
+              </Badge>
+            </div>
           </div>
-          </div>
-          
+
           {/* Review Buttons Row */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
               {renderReviewButtons()}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-          {headerActions}
+              {headerActions}
             </div>
           </div>
         </div>
@@ -1560,10 +1689,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             onValueChange={(v) => setActiveTab(v as any)}
             className="flex-1 flex flex-col"
           >
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
               <TabsTrigger value="working-papers">Working Papers</TabsTrigger>
               <TabsTrigger value="evidence">Evidence</TabsTrigger>
+              <TabsTrigger value="procedures">Procedures</TabsTrigger>
+
             </TabsList>
 
             <TabsContent value="lead-sheet" className="flex-1 flex flex-col">
@@ -1599,8 +1730,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       dbBusy === "save"
                         ? "Saving Working Papers to database..."
                         : dbBusy === "load"
-                        ? "Loading Working Papers from database..."
-                        : "Syncing Working Papers..."
+                          ? "Loading Working Papers from database..."
+                          : "Syncing Working Papers..."
                     }
                   />
                 </div>
@@ -1620,15 +1751,51 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               </div>
               {renderEvidenceContent()}
             </TabsContent>
+
+            {/* ✅ NEW: Procedures Tab renders only THIS classification */}
+            <TabsContent value="procedures" className="flex-1 flex flex-col">
+              {procedureLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <EnhancedLoader variant="pulse" size="lg" text="Loading Procedures..." />
+                </div>
+              ) : (
+                <>
+                  {/* ✅ NEW: Generate Answers button for current classification */}
+
+                  <ProcedureView
+                    procedure={procedure}
+                    engagement={engagement}
+                    currentClassification={classification}
+                    onProcedureUpdate={setProcedure} // Pass your state setter here
+                  />
+                  {procedure && procedure.questions && procedure.questions.some((q: any) => q.classification === classification) && (
+                    <div className="my-4 flex justify-end">
+                      <Button
+                        onClick={generateAnswersForClassification}
+                        disabled={generatingAnswers}
+                        className="flex items-center gap-2"
+                      >
+                        {generatingAnswers ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
+                        {hasAnswersForClassification ? 'Regenerate Answers' : 'Generate Answers'}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
           </Tabs>
         ) : // ETB / Adjustments live outside WP
-        loading ? (
-          <div className="flex items-center justify-center h-64">
-            <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
-          </div>
-        ) : (
-          renderLeadSheetContent()
-        )}
+          loading ? (
+            <div className="flex items-center justify-center h-64">
+              <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+            </div>
+          ) : (
+            renderLeadSheetContent()
+          )}
 
         {/* Fetch Rows Dialog (existing) */}
         <Dialog open={fetchRowsDialog} onOpenChange={setFetchRowsDialog}>
@@ -1915,153 +2082,152 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <Button onClick={() => setIsReviewOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
-        </Dialog>
+      </Dialog>
 
-        {/* Confirmation Dialog */}
-        <Dialog open={confirmSignoffOpen} onOpenChange={setConfirmSignoffOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Confirm Sign-off</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to sign off this classification? This action cannot be undone and will lock the section for editing.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Save className="h-4 w-4" />
-                <span>Signing off as: {currentUser.name || 'Loading...'}</span>
-              </div>
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmSignoffOpen} onOpenChange={setConfirmSignoffOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Sign-off</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to sign off this classification? This action cannot be undone and will lock the section for editing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Save className="h-4 w-4" />
+              <span>Signing off as: {currentUser.name || 'Loading...'}</span>
             </div>
-            
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setConfirmSignoffOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={performSignOff}
-                disabled={isSubmittingReview}
-                variant="default"
-              >
-                {isSubmittingReview ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Yes, Sign Off
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmSignoffOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={performSignOff}
+              disabled={isSubmittingReview}
+              variant="default"
+            >
+              {isSubmittingReview ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Yes, Sign Off
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
 
-        {/* Review History Dialog */}
-        <Dialog open={reviewHistoryOpen} onOpenChange={setReviewHistoryOpen}>
-          <DialogContent className="min-w-[70vw] min-h-[70vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Review History</DialogTitle>
-              <DialogDescription>
-                Audit trail for: <span className="font-semibold">{formatClassificationForDisplay(classification)}</span>
-              </DialogDescription>
-            </DialogHeader>
+      {/* Review History Dialog */}
+      <Dialog open={reviewHistoryOpen} onOpenChange={setReviewHistoryOpen}>
+        <DialogContent className="min-w-[70vw] min-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Review History</DialogTitle>
+            <DialogDescription>
+              Audit trail for: <span className="font-semibold">{formatClassificationForDisplay(classification)}</span>
+            </DialogDescription>
+          </DialogHeader>
 
-            {!reviewWorkflow?.reviews || reviewWorkflow.reviews.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">No review history found for this classification.</div>
-            ) : (
-              <ScrollArea className="flex-grow max-h-[60vh] pr-4 py-2">
-                <div className="relative pl-6">
-                  {/* Timeline vertical line */}
-                  <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+          {!reviewWorkflow?.reviews || reviewWorkflow.reviews.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">No review history found for this classification.</div>
+          ) : (
+            <ScrollArea className="flex-grow max-h-[60vh] pr-4 py-2">
+              <div className="relative pl-6">
+                {/* Timeline vertical line */}
+                <div className="absolute left-1 top-0 bottom-0 w-0.5 bg-gray-200"></div>
 
-                  {reviewWorkflow.reviews.map((review, index) => (
-                    <div key={review.id} className="relative mb-6 pb-2">
-                      {/* Timeline marker */}
-                      <div className="absolute left-0 top-0 -ml-2.5 h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center text-white z-10">
-                        <span className="text-xs">
-                          {review.status === 'signed-off' ? '🔒' : 
-                           review.status === 'in-review' ? '👤' : '📝'}
+                {reviewWorkflow.reviews.map((review, index) => (
+                  <div key={review.id} className="relative mb-6 pb-2">
+                    {/* Timeline marker */}
+                    <div className="absolute left-0 top-0 -ml-2.5 h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center text-white z-10">
+                      <span className="text-xs">
+                        {review.status === 'signed-off' ? '🔒' :
+                          review.status === 'in-review' ? '👤' : '📝'}
+                      </span>
+                    </div>
+
+                    <div className="ml-6 flex flex-col">
+                      <div className="flex items-baseline justify-between mb-1">
+                        <span className="font-semibold text-sm capitalize">
+                          {review.status === 'signed-off' ? 'Signed Off' :
+                            review.status === 'in-review' ? 'In Review' : 'Review'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(review.timestamp).toLocaleString()}
                         </span>
                       </div>
 
-                      <div className="ml-6 flex flex-col">
-                        <div className="flex items-baseline justify-between mb-1">
-                          <span className="font-semibold text-sm capitalize">
-                            {review.status === 'signed-off' ? 'Signed Off' :
-                             review.status === 'in-review' ? 'In Review' : 'Review'}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(review.timestamp).toLocaleString()}
-                          </span>
-                        </div>
+                      <p className="text-sm text-gray-600">
+                        <strong className="text-gray-900">Performed by:</strong> {review.userName || 'N/A'}
+                      </p>
 
-                        <p className="text-sm text-gray-600">
-                          <strong className="text-gray-900">Performed by:</strong> {review.userName || 'N/A'}
+                      {review.comment && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          <strong className="text-gray-900">Comments:</strong> {review.comment}
                         </p>
+                      )}
 
-                        {review.comment && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            <strong className="text-gray-900">Comments:</strong> {review.comment}
-                          </p>
-                        )}
-
-                        <div className="mt-2">
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              review.status === 'signed-off' ? 'bg-green-50 text-green-700 border-green-200' :
-                              review.status === 'in-review' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      <div className="mt-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${review.status === 'signed-off' ? 'bg-green-50 text-green-700 border-green-200' :
+                            review.status === 'in-review' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                               'bg-gray-50 text-gray-700 border-gray-200'
                             }`}
-                          >
-                            {review.status === 'signed-off' ? '✓ Signed Off' :
-                             review.status === 'in-review' ? '⏳ In Review' : '⏳ Pending'}
-                          </Badge>
-                        </div>
+                        >
+                          {review.status === 'signed-off' ? '✓ Signed Off' :
+                            review.status === 'in-review' ? '⏳ In Review' : '⏳ Pending'}
+                        </Badge>
                       </div>
-                      {index < reviewWorkflow.reviews.length - 1 && (
-                        <div className="ml-6 mt-4 border-t border-gray-100"></div>
-                      )}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-        </DialogContent>
-        </Dialog>
-
-        {/* Delete File Confirmation Dialog */}
-        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Delete File</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete "{fileToDelete?.fileName}"? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Trash2 className="h-4 w-4 text-red-500" />
-                <span>This will permanently remove the file and all its comments</span>
+                    {index < reviewWorkflow.reviews.length - 1 && (
+                      <div className="ml-6 mt-4 border-t border-gray-100"></div>
+                    )}
+                  </div>
+                ))}
               </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete File Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete File</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{fileToDelete?.fileName}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Trash2 className="h-4 w-4 text-red-500" />
+              <span>This will permanently remove the file and all its comments</span>
             </div>
-            
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={deleteFile}
-                disabled={isDeletingFile}
-                variant="destructive"
-              >
-                {isDeletingFile ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-2" />
-                )}
-                Delete File
-              </Button>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={deleteFile}
+              disabled={isDeletingFile}
+              variant="destructive"
+            >
+              {isDeletingFile ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete File
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2075,13 +2241,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               Add your review comments for: <span className="font-semibold">{formatClassificationForDisplay(classification)}</span>
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Eye className="h-4 w-4" />
               <span>Reviewing as: {currentUser.name || 'Loading...'}</span>
             </div>
-            
+
             <div>
               <Label htmlFor="review-comment">
                 Review Comments *
@@ -2099,7 +2265,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               </p>
             </div>
           </div>
-          
+
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setReviewPointsOpen(false)}>
               Cancel
@@ -2224,7 +2390,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   function renderWorkingPapersTable() {
     const isSignedOff = reviewWorkflow?.isSignedOff;
-    
+
     return (
       <div className="flex-1 border rounded-lg overflow-hidden">
         <div className="overflow-x-auto max-h-96">
@@ -2477,8 +2643,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             </Button>
                           </div>
                         ) : (
-                          <div 
-                            className="font-medium text-sm truncate cursor-pointer" 
+                          <div
+                            className="font-medium text-sm truncate cursor-pointer"
                             title={file.fileName}
                             onClick={() => openFilePreview(file)}
                           >
@@ -2552,20 +2718,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 </div>
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="flex flex-col h-[75vh]">
               {/* File Preview */}
               <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
                 {selectedFile && renderFilePreview(selectedFile)}
               </div>
-              
+
               {/* Comments Section */}
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Comments ({selectedFile?.comments.length || 0})
                 </h4>
-                
+
                 {/* Comments List */}
                 <ScrollArea className="h-32 mb-4">
                   <div className="space-y-3">
@@ -2588,7 +2754,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     )}
                   </div>
                 </ScrollArea>
-                
+
                 {/* Add Comment */}
                 <div className="flex gap-2">
                   <Textarea
@@ -2638,7 +2804,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   function renderFilePreview(file: EvidenceFile) {
     const type = file.fileType.toLowerCase();
-    
+
     if (type.includes('image')) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
@@ -2651,7 +2817,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     if (type.includes('pdf')) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
@@ -2664,7 +2830,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For text files, try to display content
     if (type.includes('text') || type.includes('csv') || file.fileName.endsWith('.txt') || file.fileName.endsWith('.csv')) {
       return (
@@ -2678,10 +2844,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For Office documents (Word, Excel, PowerPoint), try to preview
-    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') || 
-        type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') ||
+      type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
           <iframe
@@ -2693,7 +2859,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For other file types, show file info and preview attempt
     return (
       <div className="flex items-center justify-center h-full bg-gray-50">
@@ -2719,32 +2885,32 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    
+
     setUploadingFiles(true);
-    
+
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
       console.log(`Uploading files for classification: ${classification} -> ${classificationId}`);
-      
+
       const uploadPromises = Array.from(files).map(async (file) => {
         // Validate file
         const validation = validateFile(file);
         if (!validation.isValid) {
           throw new Error(validation.error || 'Invalid file');
         }
-        
+
         // Upload file to storage
         const uploadResult = await uploadFileToStorage(file);
-        
+
         // Create evidence record via API
         const evidenceData = {
           engagementId: engagement.id,
           classificationId: classificationId,
           evidenceUrl: uploadResult.url
         };
-        
+
         const response = await createClassificationEvidence(evidenceData);
-        
+
         // Convert API response to EvidenceFile format
         return {
           id: response.evidence._id,
@@ -2757,10 +2923,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           comments: []
         };
       });
-      
+
       const uploadedFiles = await Promise.all(uploadPromises);
       setEvidenceFiles(prev => [...prev, ...uploadedFiles]);
-      
+
       toast.success(`${files.length} file(s) uploaded successfully`);
     } catch (error: any) {
       console.error('Error uploading files:', error);
@@ -2778,12 +2944,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   async function addComment() {
     if (!selectedFile || !newComment.trim()) return;
-    
+
     try {
       const response = await addCommentToEvidence(selectedFile.id, {
         comment: newComment.trim()
       });
-      
+
       // Update the local state with the new comment
       const newCommentObj: EvidenceComment = {
         commentor: {
@@ -2794,18 +2960,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
         timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp
       };
-      
-      setEvidenceFiles(prev => prev.map(file => 
-        file.id === selectedFile.id 
+
+      setEvidenceFiles(prev => prev.map(file =>
+        file.id === selectedFile.id
           ? { ...file, comments: [...file.comments, newCommentObj] }
           : file
       ));
-      
+
       setSelectedFile(prev => prev ? {
         ...prev,
         comments: [...prev.comments, newCommentObj]
       } : null);
-      
+
       setNewComment('');
       toast.success('Comment added successfully');
     } catch (error: any) {
@@ -2827,7 +2993,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   async function saveRenameFile() {
     if (!editingFileId || !editingFileName.trim()) return;
-    
+
     try {
       // Find the current file to get its URL
       const currentFile = evidenceFiles.find(file => file.id === editingFileId);
@@ -2840,27 +3006,27 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const fileExtension = currentFile.fileName.split('.').pop();
       const newFileName = editingFileName.trim();
       const newFileNameWithExt = newFileName.includes('.') ? newFileName : `${newFileName}.${fileExtension}`;
-      
+
       // Create new URL by replacing the filename in the existing URL
       const urlParts = currentFile.fileUrl.split('/');
       urlParts[urlParts.length - 1] = newFileNameWithExt;
       const newUrl = urlParts.join('/');
-      
+
       // Call the backend API to update the evidence URL
       await updateEvidenceUrl(editingFileId, { evidenceUrl: newUrl });
-      
+
       // Update the local state with the new filename and URL
-      setEvidenceFiles(prev => prev.map(file => 
-        file.id === editingFileId 
+      setEvidenceFiles(prev => prev.map(file =>
+        file.id === editingFileId
           ? { ...file, fileName: newFileNameWithExt, fileUrl: newUrl }
           : file
       ));
-      
+
       // Update selected file if it's the one being renamed
       if (selectedFile?.id === editingFileId) {
         setSelectedFile(prev => prev ? { ...prev, fileName: newFileNameWithExt, fileUrl: newUrl } : null);
       }
-      
+
       setEditingFileId(null);
       setEditingFileName("");
       toast.success('File renamed successfully');
@@ -2877,21 +3043,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   async function deleteFile() {
     if (!fileToDelete) return;
-    
+
     setIsDeletingFile(true);
     try {
       // Call the delete API
       await deleteClassificationEvidence(fileToDelete.id);
-      
+
       // Update local state
       setEvidenceFiles(prev => prev.filter(file => file.id !== fileToDelete.id));
-      
+
       // Close preview if the deleted file was being viewed
       if (selectedFile?.id === fileToDelete.id) {
         setFilePreviewOpen(false);
         setSelectedFile(null);
       }
-      
+
       setDeleteConfirmOpen(false);
       setFileToDelete(null);
       toast.success('File deleted successfully');
@@ -2908,9 +3074,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
       console.log(`Loading reviews for classification: ${classification} -> ${classificationId}`);
-      
+
       const response = await getReviewsByClassification(classificationId);
-      
+
       // Convert API response to ReviewWorkflow format
       const reviews: ReviewRecord[] = response.reviews.map(review => ({
         id: review._id,
@@ -2922,7 +3088,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         reviewed: review.status === 'signed-off',
         status: review.status
       }));
-      
+
       const workflow: ReviewWorkflow = {
         classificationId: classification,
         engagementId: engagement.id,
@@ -2931,11 +3097,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         signedOffBy: reviews.find(r => r.status === 'signed-off')?.userName,
         signedOffAt: reviews.find(r => r.status === 'signed-off')?.timestamp
       };
-      
+
       // Check localStorage for any cached signed-off status
       const cacheKey = `review-workflow-${engagement.id}-${classification}`;
       const cachedWorkflow = localStorage.getItem(cacheKey);
-      
+
       if (cachedWorkflow) {
         const cached = JSON.parse(cachedWorkflow);
         // If cached workflow is signed off, preserve that status
@@ -2946,21 +3112,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           console.log('Preserved signed-off status from cache');
         }
       }
-      
+
       setReviewWorkflow(workflow);
-      
+
       // Cache the workflow state
       localStorage.setItem(cacheKey, JSON.stringify(workflow));
-      
+
       console.log(`Loaded ${reviews.length} reviews, signed-off: ${workflow.isSignedOff}`);
     } catch (error: any) {
       console.error('Error loading review workflow:', error);
       toast(error.message || 'Failed to load review workflow', { variant: 'destructive' });
-      
+
       // Try to load from cache if API fails
       const cacheKey = `review-workflow-${engagement.id}-${classification}`;
       const cachedWorkflow = localStorage.getItem(cacheKey);
-      
+
       if (cachedWorkflow) {
         const cached = JSON.parse(cachedWorkflow);
         setReviewWorkflow(cached);
@@ -2987,10 +3153,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
       console.log(`Signing off review for classification: ${classification} -> ${classificationId}`);
-      
+
       // Get real user context
       const userContext = await getUserContext();
-      
+
       // Create a new review with sign-off status (no comment required)
       const reviewData = {
         engagementId: engagement.id,
@@ -3001,12 +3167,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         sessionId: userContext.sessionId,
         systemVersion: userContext.systemVersion
       };
-      
+
       const response = await createClassificationReview(reviewData);
-      
+
       // Update the status to signed-off
       await updateReviewStatus(response.review._id, { status: 'signed-off' });
-      
+
       // Immediately update the local state to show signed-off status
       const updatedWorkflow: ReviewWorkflow = {
         classificationId: classification,
@@ -3028,13 +3194,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         signedOffBy: currentUser.name,
         signedOffAt: new Date().toISOString()
       };
-      
+
       setReviewWorkflow(updatedWorkflow);
-      
+
       // Cache the signed-off status immediately
       const cacheKey = `review-workflow-${engagement.id}-${classification}`;
       localStorage.setItem(cacheKey, JSON.stringify(updatedWorkflow));
-      
+
       setConfirmSignoffOpen(false);
       toast.success('Classification signed off successfully');
     } catch (error: any) {
@@ -3047,7 +3213,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   async function submitReview() {
     if (!reviewWorkflow) return;
-    
+
     // Show confirmation dialog instead of comment dialog
     setConfirmSignoffOpen(true);
   }
@@ -3061,15 +3227,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       });
       return;
     }
-    
+
     setIsSubmittingReview(true);
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
       console.log(`Submitting review comment for classification: ${classification} -> ${classificationId}`);
-      
+
       // Get real user context
       const userContext = await getUserContext();
-      
+
       // Create a new review with 'in-review' status
       const reviewData = {
         engagementId: engagement.id,
@@ -3080,12 +3246,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         sessionId: userContext.sessionId,
         systemVersion: userContext.systemVersion
       };
-      
+
       const response = await createClassificationReview(reviewData);
-      
+
       // Update the status to 'in-review'
       await updateReviewStatus(response.review._id, { status: 'in-review' });
-      
+
       // Update the local state
       const updatedWorkflow: ReviewWorkflow = {
         classificationId: classification,
@@ -3105,13 +3271,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         ],
         isSignedOff: false // Review doesn't sign off
       };
-      
+
       setReviewWorkflow(updatedWorkflow);
-      
+
       // Cache the workflow state
       const cacheKey = `review-workflow-${engagement.id}-${classification}`;
       localStorage.setItem(cacheKey, JSON.stringify(updatedWorkflow));
-      
+
       setReviewPointsOpen(false);
       setReviewComment('');
       toast.success('Review comments saved successfully');
@@ -3130,10 +3296,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     const userReview = reviewWorkflow?.reviews.find(r => r.userId === currentUser.id);
     const userStatus = userReview?.status || 'pending';
     const isSignedOff = reviewWorkflow?.isSignedOff;
-    
+
     const isReviewDisabled = isSignedOff || !currentUser.id || userLoading;
     const isSignOffDisabled = isSignedOff || userStatus === 'signed-off' || !currentUser.id || userLoading;
-    
+
     return (
       <div className="flex items-center gap-2 flex-wrap">
         {/* Review Button - Opens Review Points/Comments */}
@@ -3156,7 +3322,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             {userLoading ? 'Loading' : 'Review'}
           </span>
         </Button>
-        
+
         {/* Sign-off Button - Separate from Review */}
         <Button
           variant="outline"
@@ -3169,7 +3335,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <span className="hidden sm:inline">Sign-off</span>
           <span className="sm:hidden">Sign-off</span>
         </Button>
-        
+
         {/* Review History Button */}
         <Button
           variant="outline"
@@ -3181,7 +3347,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <span className="hidden sm:inline">Review History</span>
           <span className="sm:hidden">History</span>
         </Button>
-        
+
         {isSignedOff && (
           <Badge variant="secondary" className="ml-2">
             ✓ Signed Off
@@ -3193,7 +3359,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   function renderDataTable() {
     const isSignedOff = reviewWorkflow?.isSignedOff;
-    
+
     if (isETB(classification)) {
       // ETB view
       return (
@@ -3568,8 +3734,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             </Button>
                           </div>
                         ) : (
-                          <div 
-                            className="font-medium text-sm truncate cursor-pointer" 
+                          <div
+                            className="font-medium text-sm truncate cursor-pointer"
                             title={file.fileName}
                             onClick={() => openFilePreview(file)}
                           >
@@ -3643,20 +3809,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 </div>
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="flex flex-col h-[75vh]">
               {/* File Preview */}
               <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
                 {selectedFile && renderFilePreview(selectedFile)}
               </div>
-              
+
               {/* Comments Section */}
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-3 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
                   Comments ({selectedFile?.comments.length || 0})
                 </h4>
-                
+
                 {/* Comments List */}
                 <ScrollArea className="h-32 mb-4">
                   <div className="space-y-3">
@@ -3679,7 +3845,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     )}
                   </div>
                 </ScrollArea>
-                
+
                 {/* Add Comment */}
                 <div className="flex gap-2">
                   <Textarea
@@ -3729,7 +3895,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   function renderFilePreview(file: EvidenceFile) {
     const type = file.fileType.toLowerCase();
-    
+
     if (type.includes('image')) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
@@ -3742,7 +3908,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     if (type.includes('pdf')) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
@@ -3755,7 +3921,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For text files, try to display content
     if (type.includes('text') || type.includes('csv') || file.fileName.endsWith('.txt') || file.fileName.endsWith('.csv')) {
       return (
@@ -3769,10 +3935,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For Office documents (Word, Excel, PowerPoint), try to preview
-    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') || 
-        type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+    if (type.includes('word') || type.includes('excel') || type.includes('powerpoint') ||
+      type.includes('officedocument') || file.fileName.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50">
           <iframe
@@ -3784,7 +3950,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         </div>
       );
     }
-    
+
     // For other file types, show file info and preview attempt
     return (
       <div className="flex items-center justify-center h-full bg-gray-50">
@@ -3810,32 +3976,32 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    
+
     setUploadingFiles(true);
-    
+
     try {
       const classificationId = await getClassificationId(classification, engagement.id);
       console.log(`Uploading files for classification: ${classification} -> ${classificationId}`);
-      
+
       const uploadPromises = Array.from(files).map(async (file) => {
         // Validate file
         const validation = validateFile(file);
         if (!validation.isValid) {
           throw new Error(validation.error || 'Invalid file');
         }
-        
+
         // Upload file to storage
         const uploadResult = await uploadFileToStorage(file);
-        
+
         // Create evidence record via API
         const evidenceData = {
           engagementId: engagement.id,
           classificationId: classificationId,
           evidenceUrl: uploadResult.url
         };
-        
+
         const response = await createClassificationEvidence(evidenceData);
-        
+
         // Convert API response to EvidenceFile format
         return {
           id: response.evidence._id,
@@ -3848,10 +4014,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           comments: []
         };
       });
-      
+
       const uploadedFiles = await Promise.all(uploadPromises);
       setEvidenceFiles(prev => [...prev, ...uploadedFiles]);
-      
+
       toast.success(`${files.length} file(s) uploaded successfully`);
     } catch (error: any) {
       console.error('Error uploading files:', error);
@@ -3869,12 +4035,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   async function addComment() {
     if (!selectedFile || !newComment.trim()) return;
-    
+
     try {
       const response = await addCommentToEvidence(selectedFile.id, {
         comment: newComment.trim()
       });
-      
+
       // Update the local state with the new comment
       const newCommentObj: EvidenceComment = {
         commentor: {
@@ -3885,18 +4051,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         comment: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].comment,
         timestamp: response.evidence.evidenceComments[response.evidence.evidenceComments.length - 1].timestamp
       };
-      
-      setEvidenceFiles(prev => prev.map(file => 
-        file.id === selectedFile.id 
+
+      setEvidenceFiles(prev => prev.map(file =>
+        file.id === selectedFile.id
           ? { ...file, comments: [...file.comments, newCommentObj] }
           : file
       ));
-      
+
       setSelectedFile(prev => prev ? {
         ...prev,
         comments: [...prev.comments, newCommentObj]
       } : null);
-      
+
       setNewComment('');
       toast.success('Comment added successfully');
     } catch (error: any) {
@@ -3912,7 +4078,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
   console.log("reviewClassification", reviewClassification)
   return (
-    
+
     <FullscreenOverlay onExit={() => setIsFullscreen(false)}>
       <div className="absolute right-4 top-4 z-10">
         {/* Exit button handled by FullscreenOverlay */}

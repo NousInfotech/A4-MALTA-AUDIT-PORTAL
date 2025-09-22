@@ -35,11 +35,13 @@ export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => 
 
         {/* Search bar */}
         <div className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input 
-            placeholder="Search anything..." 
-            className="pl-10 w-80 bg-gray-700/50 border-gray-600 focus:border-gray-500 focus:ring-gray-500/20 transition-colors rounded-2xl text-white placeholder-gray-400" 
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-300 h-4 w-4" />
+          <Input
+            placeholder="Search anything..."
+            className="pl-10 w-80 placeholder:text-white/90 placeholder:opacity-100 bg-gray-700/50 border-gray-600 focus:border-gray-500 focus:ring-gray-500/20 transition-colors rounded-2xl text-white"
           />
+
+
         </div>
 
         {/* Quick actions */}

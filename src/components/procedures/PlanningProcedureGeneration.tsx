@@ -8,7 +8,7 @@ import { PlanningProceduresStep } from "./steps/PlanningProceduresStep"
 import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
 import { AIPlanningQuestionsStep } from "./steps/AIPlanningQuestionsStep"
-import { AIPlanningAnswersStep } from "./steps/AIPlanningAnswersStep"
+import AIPlanningAnswersStep from "./steps/AIPlanningAnswersStep"
 import { PlanningRecommendationsStep } from "./steps/PlanningRecommendationsStep"
 import { HybridPlanningProceduresStep } from "./steps/HybridPlanningProceduresStep"
 interface PlanningProcedureGenerationProps {
@@ -112,21 +112,49 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     setStepData({})
   }
 
-  const handleStepComplete = (data: any) => {
-    setStepData((prev) => ({ ...prev, ...data }))
-    if (currentStep < steps.length - 1) {
-      setCurrentStep((prev) => prev + 1)
-    } else {
-      // Final step completed
-      onComplete({
-        mode: selectedMode,
-        procedureType: "planning",
-        ...stepData,
-        ...data,
-        status: "completed",
-      })
-    }
+ // In PlanningProcedureGeneration.tsx
+// In PlanningProcedureGeneration.tsx
+const handleStepComplete = (data: any) => {
+  // Format section recommendations with section titles
+  let combinedRecommendations = "";
+  
+  if (data.sectionRecommendations) {
+    // Get the section titles from the PLANNING_SECTIONS array
+    const sectionTitles = {
+      "engagement_setup_acceptance_independence": "Engagement Setup, Acceptance & Independence",
+      "understanding_entity_environment": "Understanding the Entity & Its Environment",
+      "materiality_risk_summary": "Materiality & Risk Summary",
+      "risk_response_planning": "Risk Register & Audit Response Planning",
+      "fraud_gc_planning": "Fraud Risk & Going Concern Planning",
+      "compliance_laws_regulations": "Compliance with Laws & Regulations (ISA 250)"
+    };
+    
+    // Add each section with its title and recommendations
+    Object.entries(data.sectionRecommendations).forEach(([sectionId, recommendations]) => {
+      const sectionTitle = sectionTitles[sectionId] || sectionId;
+      combinedRecommendations += `### Section: ${sectionTitle}\n${recommendations}\n\n`;
+    });
   }
+  
+  setStepData((prev) => ({ 
+    ...prev, 
+    ...data,
+    recommendations: combinedRecommendations 
+  }));
+  
+  if (currentStep < steps.length - 1) {
+    setCurrentStep((prev) => prev + 1)
+  } else {
+    onComplete({
+      mode: selectedMode,
+      procedureType: "planning",
+      ...stepData,
+      ...data,
+      recommendations: combinedRecommendations,
+      status: "completed",
+    })
+  }
+}
 
   const handleStepBack = () => {
     if (currentStep > 0) {

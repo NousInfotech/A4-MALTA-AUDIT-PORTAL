@@ -6,6 +6,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { EnhancedLoader } from "@/components/ui/enhanced-loader"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
 
 // --- helpers ---
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -87,6 +91,16 @@ function ColumnsEditor({ value, onChange }: { value?: string[]; onChange: (v: st
   )
 }
 
+// Define the 6 standard planning sections
+const PLANNING_SECTIONS = [
+  { sectionId: "engagement_setup_acceptance_independence", title: "Engagement Setup, Acceptance & Independence" },
+  { sectionId: "understanding_entity_environment", title: "Understanding the Entity & Its Environment" },
+  { sectionId: "materiality_risk_summary", title: "Materiality & Risk Summary" },
+  { sectionId: "risk_response_planning", title: "Risk Register & Audit Response Planning" },
+  { sectionId: "fraud_gc_planning", title: "Fraud Risk & Going Concern Planning" },
+  { sectionId: "compliance_laws_regulations", title: "Compliance with Laws & Regulations (ISA 250)" }
+];
+
 export const AIPlanningQuestionsStep: React.FC<{
   engagement: any
   mode: "ai" | "hybrid"
@@ -95,31 +109,60 @@ export const AIPlanningQuestionsStep: React.FC<{
   onBack: () => void
 }> = ({ engagement, mode, stepData, onComplete, onBack }) => {
   const [loading, setLoading] = useState(false)
-  const [procedures, setProcedures] = useState<any[]>(withUids(stepData.procedures || []))
+  const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
+  const [procedures, setProcedures] = useState<any[]>(() => {
+    // Initialize with empty sections if none exist
+    const existingProcedures = withUids(stepData.procedures || []);
+    if (existingProcedures.length > 0) return existingProcedures;
+    
+    // Create empty sections for each planning section
+    return PLANNING_SECTIONS.map(section => ({
+      id: section.sectionId,
+      sectionId: section.sectionId,
+      title: section.title,
+      fields: []
+    }));
+  })
   const { toast } = useToast()
 
-  const handleGenerate = async () => {
-    setLoading(true)
-    try {
-      const base = import.meta.env.VITE_APIURL
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/questions`, {
-        method: "POST",
-        body: JSON.stringify({
-          mode,
-          materiality: stepData.materiality || 0,
-          selectedSections: stepData.selectedSections || []
-        }),
-      })
-      if (!res.ok) throw new Error("Failed to generate planning questions")
-      const data = await res.json()
-      setProcedures(withUids(data.procedures || []))
-      toast({ title: "Questions Generated", description: "Review/edit, then continue to Step-4." })
-    } catch (e: any) {
-      toast({ title: "Generation failed", description: e.message, variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
+ const handleGenerateSectionQuestions = async (sectionId: string) => {
+  setLoading(true)
+  setGeneratingSections(prev => {
+    const newSet = new Set(prev)
+    newSet.add(sectionId)
+    return newSet
+  })
+  
+  try {
+    const base = import.meta.env.VITE_APIURL
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-questions`, {
+      method: "POST",
+      body: JSON.stringify({ sectionId }),
+    })
+    if (!res.ok) throw new Error("Failed to generate questions for section")
+    const data = await res.json()
+    
+    // Update only the selected section with the generated questions
+    setProcedures(prev => {
+      const updated = prev.map(section => 
+        section.sectionId === sectionId ? { ...section, fields: data.fields } : section
+      )
+      return updated
+    })
+
+    toast({ title: "Questions Generated", description: `Questions for section generated successfully.` })
+  } catch (e: any) {
+    toast({ title: "Generation failed", description: e.message, variant: "destructive" })
+  } finally {
+    setLoading(false)
+    setGeneratingSections(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(sectionId)
+      return newSet
+    })
   }
+}
+
 
   const handleSaveDraft = async () => {
     try {
@@ -243,13 +286,81 @@ export const AIPlanningQuestionsStep: React.FC<{
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
-        Step-1: Generate <b>only</b> questions & help for selected planning sections.
-        You can freely <b>edit / add / remove</b> questions here before moving to Step-4.
+        Step-1: Generate questions for each planning section separately. You can freely <b>edit / add / remove</b> questions here before moving to Step-4.
       </div>
+
+      <div className="space-y-4">
+        {PLANNING_SECTIONS.map((section) => {
+          const sectionData = procedures.find(s => s.sectionId === section.sectionId);
+          const hasQuestions = sectionData?.fields?.length > 0;
+          
+          return (
+            <Card key={section.sectionId} className="border rounded-md p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-heading text-lg">{section.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => handleGenerateSectionQuestions(section.sectionId)}
+                  disabled={loading || generatingSections.has(section.sectionId)}
+                  className="flex items-center justify-center"
+                >
+                  {generatingSections.has(section.sectionId) ? (
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />                    
+                  ) : null}
+                  {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
+                </Button>
+              </div>
+
+              {hasQuestions ? (
+                <div className="space-y-3">
+                  {(sectionData.fields || []).map((f: any) => (
+                    <div key={f.__uid} className="border rounded p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">Question</div>
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                          if (secIdx >= 0) removeQuestion(secIdx, f.__uid);
+                        }}>Remove</Button>
+                      </div>
+                      {editorForField(
+                        procedures.findIndex(s => s.sectionId === section.sectionId), 
+                        f
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        <code>type:</code> {normalizeType(f.type)}
+                        {Array.isArray(f.options) && f.options.length ? <> · <code>options:</code> {f.options.join(", ")}</> : null}
+                        {Array.isArray(f.columns) && f.columns.length ? <> · <code>columns:</code> {f.columns.join(", ")}</> : null}
+                      </div>
+                    </div>
+                  ))}
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                      if (secIdx >= 0) addQuestion(secIdx);
+                    }}
+                  >
+                    + Add Question
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-muted-foreground py-4 text-center">
+                  No questions generated yet. Click "Generate Questions" to create questions for this section.
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
       <div className="flex gap-2">
-        <Button disabled={loading} onClick={handleGenerate}>Generate Questions</Button>
         <Button
-          disabled={!procedures?.length}
+          disabled={!procedures?.length || procedures.every(p => !p.fields?.length)}
           onClick={() => {
             // strip __uid before passing to next step
             const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields||[]).map(({__uid, ...rest}) => rest) }))
@@ -260,54 +371,6 @@ export const AIPlanningQuestionsStep: React.FC<{
         </Button>
         <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
         <Button variant="ghost" onClick={onBack}>Back</Button>
-      </div>
-
-      {procedures?.length ? (
-        <div className="space-y-4">
-          {procedures.map((sec: any, sIdx: number) => (
-            <div key={sec.id || sIdx} className="border rounded-md p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-heading">{sec.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {sec.standards?.length ? `Standards: ${sec.standards.join(", ")}` : ""}
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>+ Add Question</Button>
-              </div>
-
-              {(sec.fields || []).map((f: any) => (
-                <div key={f.__uid} className="border rounded p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Question</div>
-                    <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>Remove</Button>
-                  </div>
-                  {editorForField(sIdx, f)}
-                  <div className="text-xs text-muted-foreground">
-                    <code>type:</code> {normalizeType(f.type)}
-                    {Array.isArray(f.options) && f.options.length ? <> · <code>options:</code> {f.options.join(", ")}</> : null}
-                    {Array.isArray(f.columns) && f.columns.length ? <> · <code>columns:</code> {f.columns.join(", ")}</> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-muted-foreground">No questions yet. Click “Generate Questions”.</div>
-      )}
-
-      <div className="flex justify-end">
-        <Button
-          disabled={!procedures?.length}
-          onClick={() => {
-            // strip __uid before passing to next step
-            const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields||[]).map(({__uid, ...rest}) => rest) }))
-            onComplete({ procedures: clean })
-          }}
-        >
-          Continue to Step-4 (Answers)
-        </Button>
       </div>
     </div>
   )

@@ -10,6 +10,8 @@ import { Lightbulb, Save, Loader2, Sparkles, FileText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import ReactMarkdown from "react-markdown"
+import FloatingNotesButton from "../FloatingNotesButton"
+import NotebookInterface from "../NotebookInterface"
 
 /**
  * SAME CIRCULAR ENTRY ANIMATION AS PROCEDURE GENERATION
@@ -138,7 +140,7 @@ const CircularEntryOverlay: React.FC<{ progress: number }> = ({ progress }) => {
     >
       <div className="flex items-center gap-3 mb-4">
         <div className="relative">
-          {/* subtle pulsing halo behind the circle to match “alive” feel */}
+          {/* subtle pulsing halo behind the circle to match "alive" feel */}
           <div className="size-6 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 opacity-70 blur-[1px]" />
           <div className="absolute inset-0 m-auto size-6 rounded-full bg-white/50 mix-blend-overlay animate-ping" />
         </div>
@@ -166,6 +168,7 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
   const [loading, setLoading] = useState(false) // legacy compatibility
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [isNotesOpen, setIsNotesOpen] = useState(false)
   const { toast } = useToast()
 
   /** Entry animation control */
@@ -186,13 +189,15 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
 
   const startedRef = useRef(false)
 
-  useEffect(() => {
-    // only “generate” (assign prefetched) if nothing existed
-    if ((mode === "ai" || mode === "hybrid") && !stepData.recommendations) {
-      generateAIRecommendations()
-    }
-  }, [mode, stepData.questions])
-
+// In PlanningRecommendationsStep.tsx
+// Update the useEffect to use the passed recommendations
+useEffect(() => {
+  if (stepData.recommendations) {
+    setRecommendations(stepData.recommendations);
+  } else if ((mode === "ai" || mode === "hybrid") && !stepData.recommendations) {
+    generateAIRecommendations();
+  }
+}, [mode, stepData.recommendations, stepData.questions]);
   useEffect(() => {
     if (!shouldAnimate || startedRef.current) return
     startedRef.current = true
@@ -217,27 +222,44 @@ export const PlanningRecommendationsStep: React.FC<PlanningRecommendationsStepPr
     return () => cancelAnimationFrame(raf)
   }, [shouldAnimate, durationMs])
 
-  const generateAIRecommendations = async () => {
-    setLoading(true)
-    try {
-      // we DO NOT refetch; we just adopt already prepared content
-      // (kept your original mapping for parity; not used for fetch)
+// Update the generateAIRecommendations function
+const generateAIRecommendations = async () => {
+  setLoading(true)
+  try {
+    const base = import.meta.env.VITE_APIURL
+    
+    // For hybrid mode, we need to call the recommendations endpoint
+    if (mode === "hybrid") {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          procedures: stepData.procedures,
+          materiality: stepData.materiality || 0,
+        }),
+      })
+      
+      if (!res.ok) throw new Error("Failed to generate recommendations")
+      const data = await res.json()
+      setRecommendations(data.recommendations || "")
+    } else {
+      // Existing AI mode logic
       const _ = stepData.questions
         ?.map((q: any) => `${q.question}: ${q.answer || "No answer provided"}`)
         .join("\n")
 
       setRecommendations(stepData.recommendations)
-    } catch (error) {
-      console.error("Error generating AI recommendations:", error)
-      toast({
-        title: "Generation Failed",
-        description: "Failed to generate AI recommendations. You can enter them manually.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
     }
+  } catch (error) {
+    console.error("Error generating AI recommendations:", error)
+    toast({
+      title: "Generation Failed",
+      description: "Failed to generate AI recommendations. You can enter them manually.",
+      variant: "destructive",
+    })
+  } finally {
+    setLoading(false)
   }
+}
 
 const handleSaveProcedures = async () => {
   setSaving(true);
@@ -342,22 +364,27 @@ const handleSaveProcedures = async () => {
 
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Audit Recommendations</CardTitle>
-          <Dialog open={showPreview} onOpenChange={setShowPreview}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={entryAnimating}>
-                <FileText className="h-4 w-4 mr-2" />
+          <div className="flex gap-2">
+            <Dialog open={showPreview} onOpenChange={setShowPreview}>
+             
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Audit Recommendations Preview</DialogTitle>
+                </DialogHeader>
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown>{recommendations || "No recommendations provided."}</ReactMarkdown>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsNotesOpen(true)} 
+              disabled={entryAnimating}
+            >
                 Preview Report
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Audit Recommendations Preview</DialogTitle>
-              </DialogHeader>
-              <div className="prose prose-sm max-w-none">
-                <ReactMarkdown>{recommendations || "No recommendations provided."}</ReactMarkdown>
-              </div>
-            </DialogContent>
-          </Dialog>
+            </Button>
+          </div>
         </CardHeader>
 
         {/* Fade in once the animation completes */}
@@ -394,7 +421,15 @@ const handleSaveProcedures = async () => {
           )}
         </Button>
       </div>
+      {/* Notebook Interface */}
+      <NotebookInterface
+        isOpen={isNotesOpen}
+        isEditable={true}
+        onClose={() => setIsNotesOpen(false)}
+        recommendations={recommendations}
+        onSave={(content) => setRecommendations(content)}
+        isPlanning={true}
+      />
     </div>
   )
 }
-
