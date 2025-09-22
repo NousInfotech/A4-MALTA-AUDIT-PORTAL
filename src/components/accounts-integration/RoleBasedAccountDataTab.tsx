@@ -1,24 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, CreditCard, Shield, Zap, Eye, Lock } from "lucide-react";
+import { FileText, CreditCard, Shield, Zap, Eye } from "lucide-react";
 import ApideckIntegrationCard from "../apideck/ApideckIntegrationCard";
 import ApideckHomePage from "../apideck/ApideckHomePage";
 import BankData from "../saltedge/BankData";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 
 interface RoleBasedAccountDataTabProps {}
 
 const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isClient = user?.role === 'client';
   const isEmployee = user?.role === 'employee';
 
-  // Get the active tab from URL parameters
-  const activeTab = searchParams.get('tab') || 'saltedge';
+  // Get the active tab from URL parameters, default to 'apideck'
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'apideck');
+
+  // Handle tab changes and update URL
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Update URL parameters
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tab', value);
+    navigate(`${location.pathname}?${newSearchParams.toString()}`, { replace: true });
+    console.log("Tab changed to:", value);
+  };
+
+  // Sync with URL parameters on mount
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && (tabFromUrl === 'apideck' || tabFromUrl === 'saltedge')) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  // Debug effect to track active tab changes
+  useEffect(() => {
+    console.log("Active tab is now:", activeTab);
+  }, [activeTab]);
 
   // Example of how you might handle a successful integration
   const handleApideckSubmit = (integration: any) => {
@@ -115,18 +140,28 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
 
       {/* Integration Tabs */}
       <Card className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-3xl shadow-xl overflow-hidden">
-        <Tabs.Root value={activeTab} className="w-full">
+        <Tabs.Root value={activeTab} onValueChange={handleTabChange} className="w-full">
           <Tabs.List className="flex border-b border-gray-200 bg-gradient-to-r from-gray-50/50 to-gray-100/50">
             <Tabs.Trigger
-              className="flex-1 px-6 py-4 text-sm font-medium text-gray-600 hover:text-gray-800 focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 data-[state=active]:text-gray-800 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:border-b-2 data-[state=active]:border-gray-800 transition-all duration-300 ease-in-out flex items-center justify-center gap-2"
+              className={`flex-1 px-6 py-4 text-sm font-medium cursor-pointer focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 ${
+                activeTab === "apideck" 
+                  ? "text-gray-800 bg-white shadow-lg border-b-2 border-gray-800" 
+                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+              }`}
               value="apideck"
+              onClick={() => handleTabChange("apideck")}
             >
               <Zap className="h-4 w-4" />
               Apideck Integration
             </Tabs.Trigger>
             <Tabs.Trigger
-              className="flex-1 px-6 py-4 text-sm font-medium text-gray-600 hover:text-gray-800 focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 data-[state=active]:text-gray-800 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:border-b-2 data-[state=active]:border-gray-800 transition-all duration-300 ease-in-out flex items-center justify-center gap-2"
+              className={`flex-1 px-6 py-4 text-sm font-medium cursor-pointer focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 ${
+                activeTab === "saltedge" 
+                  ? "text-gray-800 bg-white shadow-lg border-b-2 border-gray-800" 
+                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+              }`}
               value="saltedge"
+              onClick={() => handleTabChange("saltedge")}
             >
               <CreditCard className="h-4 w-4" />
               Salt Edge Banking
