@@ -11,12 +11,13 @@ import { useToast } from '@/hooks/use-toast';
 import { engagementApi, documentRequestApi } from '@/services/api';
 import { Upload, FileText, Clock, CheckCircle, Download, Calendar, Loader2, User, ArrowLeft } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'; // Import useNavigate
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams(); // Get setSearchParams
+  const navigate = useNavigate(); // Initialize useNavigate
   const [clientEngagements, setClientEngagements] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +52,6 @@ export const DocumentRequests = () => {
 
   const pendingRequests = allRequests.filter(r => r.status === 'pending');
   const completedRequests = allRequests.filter(r => r.status === 'completed');
-  // New: Filter requests specifically for the 'pbc' category
   const pbcRequests = allRequests.filter(r => r.category === 'pbc');
 
   const handleFileUpload = async (requestId, files) => {
@@ -154,6 +154,11 @@ export const DocumentRequests = () => {
   const getEngagementTitle = id =>
     clientEngagements.find(e => e._id === id)?.title || 'Unknown Engagement';
 
+  // Function to handle tab changes and update URL
+  const handleTabChange = (newTabValue: string) => {
+    setSearchParams({ tab: newTabValue });
+  };
+
   if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -220,7 +225,7 @@ export const DocumentRequests = () => {
             </div>
       </div>
 
-      <Tabs value={activeTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6"> {/* Add onValueChange */}
           <TabsList className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-1">
             <TabsTrigger value="pending" className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white">
             Pending ({pendingRequests.length})
