@@ -17,7 +17,7 @@ export interface Engagement {
 
 export const useEngagements = () => {
   const [engagements, setEngagements] = useState<Engagement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed to false for faster initial render
   const { toast } = useToast();
 
   const fetchEngagements = async () => {

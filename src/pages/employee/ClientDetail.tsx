@@ -125,7 +125,7 @@ export const ClientDetail: React.FC = () => {
   if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+          <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
     }
@@ -153,8 +153,8 @@ export const ClientDetail: React.FC = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">{client.companyName}</h1>
-                <p className="text-gray-700 animate-fade-in-delay">Client Details</p>
+                <h1 className="text-3xl font-semibold text-gray-900">{client.companyName}</h1>
+                <p className="text-gray-700">Client Details</p>
               </div>
             </div>
           </div>
@@ -163,7 +163,7 @@ export const ClientDetail: React.FC = () => {
         {/* Details Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Contact Information */}
-          <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+          <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
             <div className="bg-gray-50 border-b border-gray-200 p-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
@@ -210,7 +210,7 @@ export const ClientDetail: React.FC = () => {
         </div>
 
         {/* Company Information */}
-        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+        <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
@@ -288,7 +288,7 @@ export const ClientDetail: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filtered.map(engagement => {
               return (
-                <div key={engagement._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 hover:bg-white/70 transition-all duration-300 overflow-hidden">
+                <div key={engagement._id} className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 hover:bg-white/70 overflow-hidden">
                   <div className="p-6">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
                       <div className="flex items-center gap-4 w-full">
@@ -328,7 +328,7 @@ export const ClientDetail: React.FC = () => {
                       </span>
                     </div>
                     <Button 
-                      className="w-full bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl py-3 h-auto"  
+                      className="w-full bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"  
                       size="sm" 
                       variant="default" 
                       asChild

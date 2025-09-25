@@ -276,7 +276,7 @@ export function KYCManagement() {
       </div>
 
       {filteredKYCs.length === 0 ? (
-        <Card className="text-center py-12 border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+        <Card className="text-center py-12 border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
           <CardContent>
             <div className="p-4 bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
               <Shield className="h-8 w-8 text-gray-800" />
@@ -293,7 +293,7 @@ export function KYCManagement() {
       ) : (
         <div className="grid gap-6">
           {filteredKYCs.map((kyc) => (
-            <Card key={kyc._id} className="hover:shadow-xl transition-all duration-300 bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
+            <Card key={kyc._id} className="hover:shadow-xl transition-all duration-300 bg-white/80 border border-white/50 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ export function KYCManagement() {
               
               <div className="space-y-6">
                 {/* Status Management */}
-                <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+                <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
                   <CardHeader>
                     <CardTitle className="text-gray-900">Status Management</CardTitle>
                   </CardHeader>
@@ -439,7 +439,7 @@ export function KYCManagement() {
                 </Card>
 
                 {/* Documents */}
-                <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+                <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
                   <CardHeader>
                     <CardTitle className="text-gray-900">Uploaded Documents</CardTitle>
                   </CardHeader>
@@ -480,7 +480,7 @@ export function KYCManagement() {
                 </Card>
 
                 {/* Discussions */}
-                <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+                <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl hover:bg-white/70 shadow-lg shadow-gray-300/30">
                   <CardHeader>
                     <CardTitle className="text-gray-900">Discussions</CardTitle>
                   </CardHeader>

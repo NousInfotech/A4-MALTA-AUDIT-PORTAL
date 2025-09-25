@@ -205,7 +205,7 @@ export const EngagementManagement = () => {
   if (loading || isLoadingClients) {
     return (
       <div className="flex items-center justify-center h-64 sm:h-[40vh]">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        <EnhancedLoader size="lg" text="Loading..." />
       </div>
     );
   }
@@ -222,8 +222,8 @@ export const EngagementManagement = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">Engagement Management</h1>
-          <p className="text-gray-700 animate-fade-in-delay">
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Engagement Management</h1>
+          <p className="text-gray-700">
             Manage and track all your audit engagements
           </p>
         </div>
@@ -231,7 +231,7 @@ export const EngagementManagement = () => {
         {/* Action Button */}
         <div className="mb-8">
           <Button 
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl transition-all duration-300" 
+            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
             asChild
           >
             <Link to="/employee/engagements/new">
@@ -251,7 +251,7 @@ export const EngagementManagement = () => {
           ].map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+              <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                 <div className="flex items-center justify-between mb-4">
                   <Icon className="h-6 w-6 text-gray-800" />
                 </div>
@@ -315,7 +315,7 @@ export const EngagementManagement = () => {
           {filteredEngagements.map((engagement: any) => {
             const client = clients.find((c) => c.id === engagement.clientId);
             return (
-              <div key={engagement._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <div key={engagement._id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">

@@ -191,7 +191,7 @@ export const AuditorLogs = () => {
   if (loading && logs.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 sm:h-[40vh]">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading auditor logs..." />
+        <EnhancedLoader size="lg" text="Loading auditor logs..." />
       </div>
     );
   }
@@ -220,7 +220,7 @@ export const AuditorLogs = () => {
             <Button
               onClick={handleExportLogs}
               disabled={exportLoading}
-              className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto disabled:opacity-50"
+              className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 h-auto disabled:opacity-50"
             >
               {exportLoading ? (
                 <>
@@ -236,7 +236,7 @@ export const AuditorLogs = () => {
             </Button>
             <Button
               variant="outline"
-              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
               onClick={handleRefresh}
               disabled={loading}
             >
@@ -246,7 +246,7 @@ export const AuditorLogs = () => {
             <Button
               asChild
               variant="outline"
-              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
             >
               <Link to="/admin">
                 <ArrowLeft className="h-5 w-5 mr-2" />

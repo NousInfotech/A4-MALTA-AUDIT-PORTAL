@@ -143,7 +143,7 @@ export const EmployeeDashboard = () => {
   if (loading) {
       return (
         <div className="flex items-center justify-center h-64 bg-gray-900">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+          <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
     }
@@ -246,8 +246,8 @@ export const EmployeeDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">{getGreetingMessage()}</h1>
-          <p className="text-gray-700 animate-fade-in-delay">{getGreetingDescription()}</p>
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">{getGreetingMessage()}</h1>
+          <p className="text-gray-700">{getGreetingDescription()}</p>
       </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -258,7 +258,7 @@ export const EmployeeDashboard = () => {
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+                  <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
                     </div>
@@ -276,7 +276,7 @@ export const EmployeeDashboard = () => {
               {performanceStats.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right" style={{ animationDelay: `${index * 0.2}s` }}>
+                  <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
                     </div>
@@ -292,7 +292,7 @@ export const EmployeeDashboard = () => {
 
 
             {/* Engagement Analytics Chart */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30 animate-fade-in">
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Engagement Analytics</h3>
               
               {/* Circular Progress Charts */}
@@ -330,7 +330,7 @@ export const EmployeeDashboard = () => {
                             fill="none"
                             strokeDasharray={strokeDasharray}
                             strokeDashoffset={strokeDashoffset}
-                            className={`transition-all duration-1000 ease-out ${item.color}`}
+                            className={item.color}
                             strokeLinecap="round"
                           />
                         </svg>
@@ -358,7 +358,7 @@ export const EmployeeDashboard = () => {
                       <div className="w-16 text-sm text-gray-700">{item.status}</div>
                       <div className="flex-1 bg-gray-200 rounded-full h-2">
                         <div 
-                          className={`h-2 rounded-full ${item.color} transition-all duration-1000 ease-out`}
+                          className={`h-2 rounded-full ${item.color}`}
                           style={{ width: `${item.percentage}%` }}
                         ></div>
                 </div>
@@ -390,13 +390,13 @@ export const EmployeeDashboard = () => {
             </div> */}
 
             {/* Recent Engagements */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h3>
               <div className="space-y-3">
               {recentEngagements.map((engagement) => {
                   const client = clients.find((c) => c.id === engagement.clientId);
                 return (
-                    <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                    <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <Briefcase className="h-5 w-5 text-gray-600 flex-shrink-0" />
@@ -451,24 +451,24 @@ export const EmployeeDashboard = () => {
               </p>
               <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
                 <div 
-                  className="bg-white h-2 rounded-full transition-all duration-1000 ease-out" 
+                  className="bg-white h-2 rounded-full" 
                   style={{ width: `${totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0}%` }}
                 ></div>
               </div>
               <p className="text-gray-300 text-sm mb-4">
                 {completedEngagements} of {totalEngagements} engagements completed
               </p>
-              <button className="w-full bg-white text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-gray-100 transition-colors duration-200">
+              <button className="w-full bg-white text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-gray-100">
                 View all engagements
               </button>
             </div>
 
             {/* Recent Clients */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Clients</h3>
               <div className="space-y-3">
               {recentClients.map((client) => (
-                  <div key={client.id} className="flex items-center justify-between p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                  <div key={client.id} className="flex items-center justify-between p-3 hover:bg-gray-100/50 rounded-xl">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <Building2 className="h-5 w-5 text-gray-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -504,7 +504,7 @@ export const EmployeeDashboard = () => {
             </div>
 
             {/* To-Do List */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Your to-Do list</h3>
               <div className="space-y-4">
                 {[
@@ -515,7 +515,7 @@ export const EmployeeDashboard = () => {
                 ].map((item, index) => {
                   const Icon = item.icon;
                   return (
-                    <div key={index} className="flex items-center space-x-3 p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                    <div key={index} className="flex items-center space-x-3 p-3 hover:bg-gray-100/50 rounded-xl">
                       <Icon className="h-4 w-4 text-gray-700" />
                       <div className="flex-1 min-w-0">
                         <p className="text-gray-900 font-medium text-sm">{item.task}</p>

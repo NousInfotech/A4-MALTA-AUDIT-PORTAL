@@ -109,7 +109,7 @@ export const EngagementDetails = () => {
   if (loading || !engagement) {
     return (
       <div className="flex items-center justify-center h-64 sm:h-[40vh]">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        <EnhancedLoader size="lg" text="Loading..." />
       </div>
     );
   }
@@ -224,8 +224,8 @@ export const EngagementDetails = () => {
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">{engagement.title}</h1>
-                <p className="text-gray-700 animate-fade-in-delay">Engagement Details</p>
+                <h1 className="text-3xl font-semibold text-gray-900">{engagement.title}</h1>
+                <p className="text-gray-700">Engagement Details</p>
               </div>
             </div>
           </div>

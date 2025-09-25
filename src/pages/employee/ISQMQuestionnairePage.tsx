@@ -2924,7 +2924,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
       <div className="flex items-center justify-center h-64 sm:h-[40vh]">
 
-        <EnhancedLoader variant="pulse" size="lg" text="Loading ISQM packs..." />
+        <EnhancedLoader size="lg" text="Loading ISQM packs..." />
 
       </div>
 
@@ -2977,13 +2977,13 @@ const ISQMQuestionnairePage: React.FC = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
-          <TabsList className="grid w-full grid-cols-4 bg-white/60 backdrop-blur-md border border-white/30 shadow-lg shadow-gray-300/30 rounded-2xl p-1">
+          <TabsList className="grid w-full grid-cols-4 bg-white/80 border border-white/50 rounded-2xl p-1">
 
             <TabsTrigger 
 
               value="questionnaire" 
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3001,7 +3001,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="policy-generator"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3019,7 +3019,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="documents"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3037,7 +3037,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="analytics"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md transition-all duration-300 hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3089,7 +3089,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
             <div className="space-y-6">
 
-              <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl">
+              <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl">
 
                 <CardHeader>
 
@@ -3159,7 +3159,7 @@ const ISQMQuestionnairePage: React.FC = () => {
               
               
 
-              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+              <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
 
                 {currentParent && questionnaires.length > 0 ? (
 
@@ -3257,7 +3257,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
             {!selectedParent ? (
 
-              <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl">
+              <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl">
 
                 <CardContent className="p-12 text-center">
 
@@ -3311,7 +3311,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
             {!selectedParent ? (
 
-              <Card className="border-0 shadow-lg bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl">
+              <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl">
 
                 <CardContent className="p-12 text-center">
 
