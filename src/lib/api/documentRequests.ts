@@ -9,3 +9,11 @@ export async function getAllDocumentRequestsbyEngagementId(engagementId: string)
   return response.data;
 }
 
+
+export async function deleteDocumentRequestsbyId(requestId: string) {
+  const response = await axiosInstance.delete(
+    `${API_BASE}/${requestId}`
+  );
+  return response.data;
+}
+
