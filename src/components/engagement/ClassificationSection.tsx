@@ -172,6 +172,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 
 import { Label } from "../ui/label";
+import { Checkbox } from "../ui/checkbox";
 
 import { AuditItemType } from "@/types/reviews_module";
 
@@ -415,6 +416,8 @@ interface ReviewRecord {
   reviewed: boolean;
 
   status: 'pending' | 'in-review' | 'signed-off';
+
+  isDone?: boolean; // New field to track if review is marked as done
 
 }
 
@@ -870,6 +873,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
 
   const [userLoading, setUserLoading] = useState(true);
+  const [isReviewDone, setIsReviewDone] = useState(false);
 
 
 
@@ -4386,6 +4390,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                       )}
 
+                      {review.isDone && (
+
+                        <div className="flex items-center gap-2 mt-2">
+
+                          <Check className="h-4 w-4 text-green-600" />
+
+                          <span className="text-sm text-green-600 font-medium">
+
+                            Review marked as completed
+
+                          </span>
+
+                        </div>
+
+                      )}
+
 
 
                       <div className="mt-2">
@@ -4396,7 +4416,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           className={`text-xs ${review.status === 'signed-off' ? 'bg-green-50 text-green-700 border-green-200' :
 
-                            review.status === 'in-review' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            review.status === 'in-review' ? (review.isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200') :
 
                               'bg-gray-50 text-gray-700 border-gray-200'
 
@@ -4406,7 +4426,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           {review.status === 'signed-off' ? '✓ Signed Off' :
 
-                            review.status === 'in-review' ? '⏳ In Review' : '⏳ Pending'}
+                            review.status === 'in-review' ? (review.isDone ? '✅ Review Complete' : '⏳ In Review') : '⏳ Pending'}
 
                         </Badge>
 
@@ -4570,6 +4590,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 * Comments are required for review submission
 
               </p>
+
+            </div>
+
+            <div className="flex items-center space-x-2">
+
+              <Checkbox
+
+                id="review-done"
+
+                checked={isReviewDone}
+
+                onCheckedChange={(checked) => setIsReviewDone(checked === true)}
+
+              />
+
+              <Label htmlFor="review-done" className="text-sm font-medium">
+
+                Mark this review as completed
+
+              </Label>
 
             </div>
 
@@ -6610,7 +6650,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         sessionId: userContext.sessionId,
 
-        systemVersion: userContext.systemVersion
+        systemVersion: userContext.systemVersion,
+
+        isDone: isReviewDone
 
       };
 
@@ -6654,7 +6696,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             reviewed: false,
 
-            status: 'in-review'
+            status: 'in-review',
+
+            isDone: response.review.isDone || false
 
           }
 
@@ -6681,6 +6725,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setReviewPointsOpen(false);
 
       setReviewComment('');
+
+      setIsReviewDone(false);
 
       toast.success('Review comments saved successfully');
 
@@ -6766,7 +6812,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         </Button>
 
-
+        {/* Show when user's review is marked as done */}
+        {userReview?.isDone && (
+          <div className="flex items-center gap-1 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+            <Check className="h-3 w-3 text-emerald-600" />
+            <span className="text-xs font-medium text-emerald-700">Review Done</span>
+          </div>
+        )}
 
         {/* Sign-off Button - Separate from Review */}
 
@@ -6840,11 +6892,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 {isReversingSignoff ? 'Reversing' : 'Reverse'}
               </span>
             </Button>
-          <Badge variant="secondary" className="ml-2">
-
-            ✓ Signed Off
-
-          </Badge>
+          <div className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full shadow-sm">
+            <div className="flex items-center justify-center w-5 h-5 bg-green-500 rounded-full">
+              <Check className="h-3 w-3 text-white" />
+            </div>
+            <span className="text-sm font-semibold text-green-700">
+              ✓ Signed Off
+            </span>
+          </div>
 
           </>
         )}
