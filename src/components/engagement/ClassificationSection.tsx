@@ -1120,46 +1120,34 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
       try {
+  // Always show fresh ETB/lead-sheet data first
+  await loadSectionData();
 
-        await loadSectionData();
+  if (shouldHaveWorkingPapers(classification)) {
+    // Get WP status so buttons/links are correct
+    await checkWorkingPapersStatus();
 
-        await loadWorkingPaperFromDB(true);
+    // Only hydrate from the Working Papers DB if the user is actually on the WP tab.
+    if (activeTab === "working-papers") {
+      await loadWorkingPaperFromDB(false); // not silent -> show toast; change to true if you prefer silent
+    }
+  } else {
+    if (!cancelled && mountedRef.current) {
+      setWorkingPapersInitialized(false);
+      setWorkingPapersUrl("");
+      setWorkingPapersId("");
+      setAvailableSheets([]);
+    }
+  }
+} catch (e) {
+  // errors already toasted in helpers
+} finally {
+  if (!cancelled && mountedRef.current) {
+    setLoading(false);
+    setWpHydrating(false);
+  }
+}
 
-        if (shouldHaveWorkingPapers(classification)) {
-
-          await checkWorkingPapersStatus();
-
-        } else {
-
-          if (!cancelled && mountedRef.current) {
-
-            setWorkingPapersInitialized(false);
-
-            setWorkingPapersUrl("");
-
-            setWorkingPapersId("");
-
-            setAvailableSheets([]);
-
-          }
-
-        }
-
-      } catch (e) {
-
-        // errors already toasted in helpers
-
-      } finally {
-
-        if (!cancelled && mountedRef.current) {
-
-          setLoading(false);
-
-          setWpHydrating(false);
-
-        }
-
-      }
 
     };
 
@@ -1803,77 +1791,47 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // Load Working Paper (DB) — returns boolean
 
-  const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+ const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+  const onWpTab = activeTab === "working-papers";
+  if (onWpTab) setDbBusy("load");
+  else setLoading(true);
 
-    const onWpTab = activeTab === "working-papers";
+  try {
+    const response = await authFetch(
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
+    );
 
-    if (onWpTab) setDbBusy("load");
+    if (response.ok) {
+      const json = await response.json();
+      if (!mountedRef.current) return false;
 
-    else setLoading(true);
-
-
-
-    try {
-
-      const response = await authFetch(
-
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
-
-        }/sections/${encodeURIComponent(classification)}/working-papers/db`
-
-      );
-
-
-
-      if (response.ok) {
-
-        const json = await response.json();
-
-        if (!mountedRef.current) return false;
-
+      // ✅ Only replace sectionData if we're actually viewing Working Papers
+      if (onWpTab) {
         setSectionData(Array.isArray(json.rows) ? json.rows : []);
-
-        if (!silent) {
-
-          toast.success("Working Paper loaded from database.");
-
-        }
-
-        return true;
-
-      } else {
-
-        if (!silent && response.status !== 404) {
-
-          toast.error(`Load failed (${response.status})`);
-
-        }
-
-        return false;
-
       }
-
-    } catch (error: any) {
 
       if (!silent) {
-
-        console.error("Load WP from DB error:", error);
-
-        toast.error(`Load failed: ${error.message}`);
-
+        toast.success("Working Paper loaded from database.");
       }
-
+      return true;
+    } else {
+      if (!silent && response.status !== 404) {
+        toast.error(`Load failed (${response.status})`);
+      }
       return false;
-
-    } finally {
-
-      if (onWpTab) setDbBusy(null);
-
-      else if (mountedRef.current) setLoading(false);
-
     }
+  } catch (error: any) {
+    if (!silent) {
+      console.error("Load WP from DB error:", error);
+      toast.error(`Load failed: ${error.message}`);
+    }
+    return false;
+  } finally {
+    if (onWpTab) setDbBusy(null);
+    else if (mountedRef.current) setLoading(false);
+  }
+};
 
-  };
 
 
 
@@ -2877,8 +2835,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         activeTab === "working-papers" &&
 
+        
         shouldHaveWorkingPapers(classification) &&
-
         !wpFirstLoadedRef.current.has(classification)
 
       ) {
@@ -2890,6 +2848,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         await loadWorkingPaperFromDB(false);
 
       }
+
 
     };
 
@@ -2946,7 +2905,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               className="h-9 w-9 bg-transparent"
 
               onClick={() => setIsFullscreen((v) => !v)}
-
             >
 
               {isFullscreen ? (
@@ -4317,10 +4275,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
-          {!reviewWorkflow?.reviews || reviewWorkflow.reviews.length === 0 ? (
+            {!reviewWorkflow?.reviews || reviewWorkflow.reviews.length === 0 ? (
 
               <div className="text-center text-gray-500">No review history found for this classification.</div>
-          ) : (
+            ) : (
 
               <div className="relative pl-6">
 
@@ -4446,7 +4404,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               </div>
 
-          )}
+            )}
 
           </div>
         </DialogContent>
@@ -4869,33 +4827,31 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     return (
 
-      <div className="flex-1 border rounded-lg overflow-hidden">
+          <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
 
-        <div className="overflow-x-auto max-h-96">
+          <div className="overflow-x-auto max-h-96">
 
-          <table className="w-full text-sm">
+            <table className="w-full text-sm">
 
-            <thead className="bg-gray-50 sticky top-0">
 
-              <tr>
+                <tr>
 
-                <th className="px-4 py-2 text-left">Code</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
 
-                <th className="px-4 py-2 text-left">Account Name</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
 
-                <th className="px-4 py-2 text-right">Current Year</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
 
-                <th className="px-4 py-2 text-right">Prior Year</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
 
-                <th className="px-4 py-2 text-right">Adjustments</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
 
-                <th className="px-4 py-2 text-right">Final Balance</th>
+                  <th className="px-4 py-2 border-secondary border-b border-r text-right">Final Balance</th>
 
-                <th className="px-4 py-2 text-left">Reference</th>
+                  <th className="px-4 py-2 border-secondary border-b text-right">Reference</th>
 
-              </tr>
+                </tr>
 
-            </thead>
 
             <tbody>
 
@@ -4903,37 +4859,37 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
-                  <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary font-mono text-xs">{row.code}</td>
 
-                  <td className="px-4 py-2">{row.accountName}</td>
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary">{row.accountName}</td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary text-right">
 
                     {row.currentYear.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary text-right">
 
                     {row.priorYear.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary text-right">
 
                     {row.adjustments.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-right font-medium">
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary text-right font-medium">
 
                     {row.finalBalance.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-center">
+                  <td className="px-4 py-2 border border-b-secondary text-center">
 
-                    <div className="flex items-center gap-1 justify-center">
+                    <div className="flex flex-col items-center gap-1 justify-center">
 
                       <Button
 
@@ -4957,7 +4913,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <Eye className="h-3 w-3 mr-1" />
 
-                        View
+                        View Ref
 
                       </Button>
 
@@ -5031,27 +4987,27 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               {sectionData.length > 0 && (
 
-                <tr className="bg-muted/50 font-medium">
+                <tr className="bg-muted/50 font-bold">
 
-                  <td className="px-4 py-2" colSpan={2}>
+                  <td className="px-4 py-2 border border-r-secondary" colSpan={2}>
 
                     TOTALS
 
                   </td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-r-secondary text-right">
 
                     {totals.currentYear.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-r-secondary text-right">
 
                     {totals.priorYear.toLocaleString()}
 
                   </td>
 
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 border border-r-secondary text-right">
 
                     {totals.adjustments.toLocaleString()}
 
@@ -5065,7 +5021,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <td className="px-4 py-2"></td>
 
-                  <td className="px-4 py-2"></td>
 
                 </tr>
 
@@ -6292,7 +6247,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         const cached = JSON.parse(cachedWorkflow);
 
-        
+
         // If backend shows not signed-off but cache shows signed-off, clear the cache
         if (!workflow.isSignedOff && cached.isSignedOff) {
           console.log('Backend shows not signed-off, clearing cached signed-off status');
@@ -6495,7 +6450,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       toast.success('Classification signed off successfully');
 
-      
+
       // Notify parent to refresh notification counts
       if (onReviewStatusChange) {
         onReviewStatusChange();
@@ -6570,7 +6525,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       setConfirmReverseSignoffOpen(false);
       toast.success('Sign-off reversed successfully');
-      
+
       // Notify parent to refresh notification counts
       if (onReviewStatusChange) {
         onReviewStatusChange();
@@ -6892,14 +6847,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 {isReversingSignoff ? 'Reversing' : 'Reverse'}
               </span>
             </Button>
-          <div className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full shadow-sm">
-            <div className="flex items-center justify-center w-5 h-5 bg-green-500 rounded-full">
-              <Check className="h-3 w-3 text-white" />
+            <div className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full shadow-sm">
+              <div className="flex items-center justify-center w-5 h-5 bg-green-500 rounded-full">
+                <Check className="h-3 w-3 text-white" />
+              </div>
+              <span className="text-sm font-semibold text-green-700">
+                ✓ Signed Off
+              </span>
             </div>
-            <span className="text-sm font-semibold text-green-700">
-              ✓ Signed Off
-            </span>
-          </div>
 
           </>
         )}
@@ -6924,29 +6879,29 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       return (
 
-        <div className="flex-1 border rounded-lg overflow-hidden">
+        <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
 
           <div className="overflow-x-auto max-h-96">
 
             <table className="w-full text-sm">
 
-              <thead className="bg-gray-50 sticky top-0">
+              <thead className="bg-gray-50">
 
                 <tr>
 
-                  <th className="px-4 py-2 text-left">Code</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Code</th>
 
-                  <th className="px-4 py-2 text-left">Account Name</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Account Name</th>
 
-                  <th className="px-4 py-2 text-right">Current Year</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
 
-                  <th className="px-4 py-2 text-right">Prior Year</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
 
-                  <th className="px-4 py-2 text-right">Adjustments</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Adjustments</th>
 
-                  <th className="px-4 py-2 text-right">Final Balance</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Final Balance</th>
 
-                  <th className="px-4 py-2 text-left">Classification</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold w-[4rem] text-xs sm:text-sm">Classification</th>
 
                 </tr>
 
@@ -6958,35 +6913,35 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
-                    <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
 
-                    <td className="px-4 py-2">{row.accountName}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r">{row.accountName}</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
 
                       {row.currentYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
 
                       {row.priorYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
 
                       {row.adjustments.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right font-medium">
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right font-medium">
 
                       {row.finalBalance.toLocaleString()}
 
                     </td>
 
-                    <td>
+                    <td className="border-b border-secondary">
 
                       <button
 
@@ -7016,33 +6971,33 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 {sectionData.length > 0 && (
 
-                  <tr className="bg-muted/50 font-medium">
+                  <tr className="bg-muted/50 font-bold">
 
-                    <td className="px-4 py-2" colSpan={2}>
+                    <td className="px-4 py-2 border-r border-secondary" colSpan={2}>
 
                       TOTALS
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary text-right">
 
                       {totals.currentYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary text-right">
 
                       {totals.priorYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary text-right">
 
                       {totals.adjustments.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary text-right">
 
                       {totals.finalBalance.toLocaleString()}
 
@@ -7112,9 +7067,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             return (
 
-              <div key={cls} className="border rounded-lg ">
+              <div key={cls} className="border border-secondary rounded-lg ">
 
-                <div className="px-4 py-2 border-b bg-gray-50 font-medium">
+                <div className="px-4 py-2 border-b border-secondary font-medium">
 
                   {formatClassificationForDisplay(cls) || "Unclassified"}
 
@@ -7128,17 +7083,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                       <tr>
 
-                        <th className="px-4 py-2 text-left">Code</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Code</th>
 
-                        <th className="px-4 py-2 text-left">Account Name</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Account Name</th>
 
-                        <th className="px-4 py-2 text-right">Current Year</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
 
-                        <th className="px-4 py-2 text-right">Prior Year</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
 
-                        <th className="px-4 py-2 text-right">Adjustments</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
 
-                        <th className="px-4 py-2 text-right">Final Balance</th>
+                        <th className="px-4 py-2 font-bold border-secondary border-b text-right">Final Balance</th>
 
                       </tr>
 
@@ -7150,33 +7105,33 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
-                          <td className="px-4 py-2 font-mono text-xs">
+                          <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">
 
                             {row.code}
 
                           </td>
 
-                          <td className="px-4 py-2">{row.accountName}</td>
+                          <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
 
-                          <td className="px-4 py-2 text-right">
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                             {row.currentYear.toLocaleString()}
 
                           </td>
 
-                          <td className="px-4 py-2 text-right">
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                             {row.priorYear.toLocaleString()}
 
                           </td>
 
-                          <td className="px-4 py-2 text-right font-medium">
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
 
                             {row.adjustments.toLocaleString()}
 
                           </td>
 
-                          <td className="px-4 py-2 text-right">
+                          <td className="px-4 py-2 border-secondary border-b text-right">
 
                             {row.finalBalance.toLocaleString()}
 
@@ -7186,33 +7141,33 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                       ))}
 
-                      <tr className="bg-muted/50 font-medium border-t">
+                      <tr className="bg-muted/50 font-bold border-t">
 
-                        <td className="px-4 py-2" colSpan={2}>
+                        <td className="px-4 py-2 border-r border-secondary" colSpan={2}>
 
                           Subtotal
 
                         </td>
 
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.currentYear.toLocaleString()}
 
                         </td>
 
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.priorYear.toLocaleString()}
 
                         </td>
 
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.adjustments.toLocaleString()}
 
                         </td>
 
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 border-secondary text-right">
 
                           {subtotal.finalBalance.toLocaleString()}
 
@@ -7236,9 +7191,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           {/* Grand Totals for Adjustments */}
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg border-secondary overflow-hidden">
 
-            <div className="px-4 py-2 border-b bg-gray-50 font-medium">
+            <div className="px-4 py-2 border-b bg-gray-50 border-secondary font-medium">
 
               Adjustments — Grand Total
 
@@ -7252,9 +7207,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr>
 
-                    <td className="px-4 py-2 font-medium">Current Year</td>
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Current Year</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-secondary border-b text-right">
 
                       {totals.currentYear.toLocaleString()}
 
@@ -7264,9 +7219,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr>
 
-                    <td className="px-4 py-2 font-medium">Prior Year</td>
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Prior Year</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-secondary border-b text-right">
 
                       {totals.priorYear.toLocaleString()}
 
@@ -7276,9 +7231,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr>
 
-                    <td className="px-4 py-2 font-medium">Adjustments</td>
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Adjustments</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-secondary border-b text-right">
 
                       {totals.adjustments.toLocaleString()}
 
@@ -7288,9 +7243,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr>
 
-                    <td className="px-4 py-2 font-medium">Final Balance</td>
+                    <td className="px-4 py-2 border-r border-secondary font-bold">Final Balance</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-secondary text-right">
 
                       {totals.finalBalance.toLocaleString()}
 
@@ -7316,7 +7271,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       return (
 
-        <div className="flex-1 border rounded-lg overflow-hidden">
+        <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
 
           <div className="overflow-x-auto max-h-96">
 
@@ -7326,17 +7281,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 <tr>
 
-                  <th className="px-4 py-2 text-left">Code</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
 
-                  <th className="px-4 py-2 text-left">Account Name</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
 
-                  <th className="px-4 py-2 text-right">Current Year</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
 
-                  <th className="px-4 py-2 text-right">Prior Year</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
 
-                  <th className="px-4 py-2 text-right">Adjustments</th>
+                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
 
-                  <th className="px-4 py-2 text-right">Final Balance</th>
+                  <th className="px-4 py-2 border-secondary border-b text-right">Final Balance</th>
 
                 </tr>
 
@@ -7348,29 +7303,29 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
-                    <td className="px-4 py-2 font-mono text-xs">{row.code}</td>
+                    <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
 
-                    <td className="px-4 py-2">{row.accountName}</td>
+                    <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                       {row.currentYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                       {row.priorYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                       {row.adjustments.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right font-medium">
+                    <td className="px-4 py-2 border-secondary border-b text-right font-medium">
 
                       {row.finalBalance.toLocaleString()}
 
@@ -7404,31 +7359,31 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <tr className="bg-muted/50 font-medium">
 
-                    <td className="px-4 py-2" colSpan={2}>
+                    <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
 
                       TOTALS
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
                       {totals.currentYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
                       {totals.priorYear.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
                       {totals.adjustments.toLocaleString()}
 
                     </td>
 
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 font-bold text-right">
 
                       {totals.finalBalance.toLocaleString()}
 
