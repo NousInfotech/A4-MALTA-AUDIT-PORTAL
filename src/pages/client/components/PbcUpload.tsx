@@ -92,7 +92,7 @@ function PbcUpload({
                     delete
                   </Button> */}
                   <CardTitle className="text-xl font-extrabold text-gray-900 leading-tight">
-                    {request.description}
+                    {getEngagementTitle(request.engagement)}
                   </CardTitle>
                   <CardDescription className="text-sm text-gray-700 mt-1 flex items-center gap-2">
                     <Paperclip className="h-4 w-4 text-gray-500" />
