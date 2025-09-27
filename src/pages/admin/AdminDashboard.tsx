@@ -366,7 +366,7 @@ import {
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+          <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
     }
@@ -402,8 +402,8 @@ import {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">{getGreetingMessage()}</h1>
-          <p className="text-gray-700 animate-fade-in-delay">{getGreetingDescription()}</p>
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">{getGreetingMessage()}</h1>
+          <p className="text-gray-700">{getGreetingDescription()}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -414,7 +414,7 @@ import {
               {stats.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+                  <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
                     </div>
@@ -430,7 +430,7 @@ import {
 
             {/* Performance Indicators */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex items-center justify-between mb-4">
                   <TrendingUp className="h-6 w-6 text-gray-800" />
                 </div>
@@ -440,7 +440,7 @@ import {
                   <p className="text-sm font-medium text-green-600">+{newUsersToday} today</p>
                 </div>
               </div>
-              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex items-center justify-between mb-4">
                   <Activity className="h-6 w-6 text-gray-800" />
                 </div>
@@ -537,7 +537,7 @@ import {
           {/* Right Sidebar */}
           <div className="space-y-6">
             {/* Pending Approvals */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Pending Approvals</h3>
                 <Button 
@@ -664,7 +664,7 @@ import {
             </div>
 
             {/* Recent Activity */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
               <div className="space-y-3">
                 {recentActivity.map((activity) => (
@@ -724,7 +724,7 @@ import {
             </div>
 
             {/* System Stats */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">System Stats</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">

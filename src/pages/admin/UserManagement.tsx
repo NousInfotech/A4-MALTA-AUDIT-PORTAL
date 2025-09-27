@@ -348,7 +348,7 @@ export const UserManagement = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading Users..." />
+        <EnhancedLoader size="lg" text="Loading Users..." />
       </div>
     );
   }
@@ -370,14 +370,14 @@ export const UserManagement = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">User Management</h1>
-          <p className="text-gray-700 animate-fade-in-delay">Manage user registrations, approvals, and account status</p>
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">User Management</h1>
+          <p className="text-gray-700">Manage user registrations, approvals, and account status</p>
                 </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <Button 
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3 h-auto" 
+            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto" 
                 onClick={fetchUsers}
               >
                 <RefreshCw className="h-5 w-5 mr-2" />

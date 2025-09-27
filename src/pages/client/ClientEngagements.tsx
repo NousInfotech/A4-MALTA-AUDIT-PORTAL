@@ -100,7 +100,7 @@ export const ClientEngagements = () => {
   if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
-          <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+          <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
     }
@@ -114,13 +114,13 @@ export const ClientEngagements = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">My Engagements</h1>
-              <p className="text-gray-700 animate-fade-in-delay">View all your audit engagements and their current status</p>
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2">My Engagements</h1>
+              <p className="text-gray-700">View all your audit engagements and their current status</p>
             </div>
             <Button
               asChild
               variant="outline"
-              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 transition-all duration-300 rounded-xl"
+              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl"
             >
               <Link to="/client">
                 <ArrowLeft className="h-5 w-5 mr-2" />
@@ -138,7 +138,7 @@ export const ClientEngagements = () => {
           const completedRequests = requests.filter(r => r.status === 'completed').length;
           
           return (
-            <div key={engagement._id} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
+            <div key={engagement._id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/70 shadow-lg shadow-gray-300/30">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center flex-shrink-0">
@@ -198,7 +198,7 @@ export const ClientEngagements = () => {
                 )}
 
                 <div>
-                  <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gray-800 hover:bg-gray-900 rounded-xl w-full text-white transition-all duration-300'>PBC WorkFlow</button>
+                  <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gray-800 hover:bg-gray-900 rounded-xl w-full text-white'>PBC WorkFlow</button>
                 </div>
                 
                 {pendingRequests > 0 && (

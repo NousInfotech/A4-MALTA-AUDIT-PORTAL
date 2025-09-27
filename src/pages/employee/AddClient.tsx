@@ -135,15 +135,15 @@ export const AddClient = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">Add New Client</h1>
-                <p className="text-gray-700 animate-fade-in-delay">Create a new client company profile</p>
+                <h1 className="text-3xl font-semibold text-gray-900">Add New Client</h1>
+                <p className="text-gray-700">Create a new client company profile</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+        <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
@@ -291,7 +291,7 @@ export const AddClient = () => {
                 <Button 
                   type="submit" 
                   disabled={isSubmitting}
-                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -302,7 +302,7 @@ export const AddClient = () => {
                   type="button"
                   variant="outline"
                   onClick={() => navigate(-1)}
-                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   Cancel
                 </Button>

@@ -56,7 +56,7 @@ export const ClientDashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
+        <EnhancedLoader size="lg" text="Loading..." />
       </div>
     );
   }
@@ -104,8 +104,8 @@ export const ClientDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">Welcome to Your Client Portal</h1>
-          <p className="text-gray-700 animate-fade-in-delay">Track your audit engagements and document requests.</p>
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Welcome to Your Client Portal</h1>
+          <p className="text-gray-700">Track your audit engagements and document requests.</p>
       </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -116,7 +116,7 @@ export const ClientDashboard = () => {
               {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-                  <div key={stat.title} className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-left" style={{ animationDelay: `${index * 0.1}s` }}>
+                  <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
                     </div>
@@ -131,7 +131,7 @@ export const ClientDashboard = () => {
 
             {/* Performance Indicators */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex items-center justify-between mb-4">
                   <Upload className="h-6 w-6 text-gray-800" />
                 </div>
@@ -141,7 +141,7 @@ export const ClientDashboard = () => {
                   <p className="text-sm font-medium text-gray-600">Action required</p>
                 </div>
               </div>
-              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+              <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex items-center justify-between mb-4">
                   <CheckCircle className="h-6 w-6 text-gray-800" />
                 </div>
@@ -161,11 +161,11 @@ export const ClientDashboard = () => {
           <div className="space-y-6">
 
         {/* Recent Engagements */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h3>
               <div className="space-y-3">
                 {clientEngagements.slice(0, 3).map((engagement) => (
-                  <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                  <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <Briefcase className="h-5 w-5 text-gray-600 flex-shrink-0" />
@@ -212,11 +212,11 @@ export const ClientDashboard = () => {
             </div>
 
         {/* Pending Requests */}
-            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30 animate-slide-in-right">
+            <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Requests</h3>
               <div className="space-y-3">
                 {pendingRequests.slice(0, 3).map((request) => (
-                  <div key={request._id} className="p-3 hover:bg-gray-100/50 rounded-xl transition-colors duration-200">
+                  <div key={request._id} className="p-3 hover:bg-gray-100/50 rounded-xl">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <Clock className="h-5 w-5 text-gray-600 flex-shrink-0" />

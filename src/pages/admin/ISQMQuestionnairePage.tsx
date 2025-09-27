@@ -2924,7 +2924,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
       <div className="flex items-center justify-center h-64 sm:h-[40vh]">
 
-        <EnhancedLoader variant="pulse" size="lg" text="Loading ISQM packs..." />
+        <EnhancedLoader size="lg" text="Loading ISQM packs..." />
 
       </div>
 
