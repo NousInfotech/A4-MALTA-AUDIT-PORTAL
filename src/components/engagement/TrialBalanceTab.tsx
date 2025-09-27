@@ -59,6 +59,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   // counts for special sections
   const [etbCount, setEtbCount] = useState(0);
   const [adjustmentsCount, setAdjustmentsCount] = useState(0);
+  
+  // notification counts for classifications
+  const [classificationNotificationCounts, setClassificationNotificationCounts] = useState<{[key: string]: number}>({});
 
   const { toast } = useToast();
 
@@ -105,6 +108,14 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
         ];
         setClassifications(uniqueClassifications);
 
+        // Load notification counts immediately after classifications are set
+        if (uniqueClassifications.length > 0) {
+          // Use a small timeout to ensure state is updated
+          setTimeout(() => {
+            loadNotificationCountsForClassifications(uniqueClassifications);
+          }, 100);
+        }
+
         if (trialBalanceData || tbResponse.ok) setActiveTab("etb");
       } else {
         console.warn("ETB response not OK:", etbResponse.status);
@@ -116,10 +127,84 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     }
   }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 🔧 fetch notification counts for classifications (with direct classifications parameter)
+  const loadNotificationCountsForClassifications = useCallback(async (classificationsList: string[]) => {
+    if (!engagement?._id || classificationsList.length === 0) {
+      console.log('loadNotificationCountsForClassifications: Skipping - no engagement ID or classifications');
+      return;
+    }
+    
+    console.log('loadNotificationCountsForClassifications: Loading for classifications:', classificationsList);
+    
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      if (!base) {
+        console.log('loadNotificationCountsForClassifications: No API URL');
+        return;
+      }
+
+      // Fetch all reviews at once instead of per classification
+      const response = await authFetch(
+        `${base}/api/classification-reviews?engagementId=${engagement._id}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const reviews = data.reviews || [];
+        
+        console.log('loadNotificationCountsForClassifications: Found', reviews.length, 'total reviews');
+        
+        const counts: {[key: string]: number} = {};
+        
+        // Process all classifications at once
+        for (const classification of classificationsList) {
+          // Filter reviews for this classification that are not signed off
+          const classificationReviews = reviews.filter((review: any) => {
+            const reviewClassification = typeof review.classificationId === 'string' 
+              ? review.classificationId 
+              : review.classificationId?.classification || '';
+            return reviewClassification === classification && review.status !== 'signed-off';
+          });
+          
+          // Count unique review points (reviews with comments)
+          const reviewPointsCount = classificationReviews.filter((review: any) => 
+            review.comment && review.comment.trim() !== ''
+          ).length;
+          
+          counts[classification] = reviewPointsCount;
+          console.log(`loadNotificationCountsForClassifications: ${classification} = ${reviewPointsCount} notifications`);
+        }
+        
+        console.log('loadNotificationCountsForClassifications: Final counts:', counts);
+        setClassificationNotificationCounts(counts);
+      } else {
+        console.log('loadNotificationCountsForClassifications: API response not OK:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to load notification counts:', error);
+    }
+  }, [engagement?._id]);
+
+  // 🔧 fetch notification counts for classifications (using state)
+  const loadNotificationCounts = useCallback(async () => {
+    if (!engagement?._id || classifications.length === 0) {
+      console.log('loadNotificationCounts: Skipping - no engagement ID or classifications');
+      return;
+    }
+    
+    console.log('loadNotificationCounts: Loading counts for', classifications.length, 'classifications');
+    await loadNotificationCountsForClassifications(classifications);
+  }, [engagement?._id, classifications, loadNotificationCountsForClassifications]);
+
   // 🔧 call the memoized loader when _id becomes available/changes
   useEffect(() => {
     loadExistingData();
   }, [loadExistingData]);
+
+  // 🔧 load notification counts when classifications change
+  useEffect(() => {
+    loadNotificationCounts();
+  }, [loadNotificationCounts]);
 
   const handleUploadSuccess = (data: any) => {
     setTrialBalanceData(data);
@@ -306,27 +391,38 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                     <div className="mt-1" />
                     {Object.entries(groupedClassifications).map(
-                      ([key, classificationList]) => (
-                        <div key={key}>
-                          {key !== "Adjustments" && (
-                            <Button
-                              variant={
-                                selectedClassification === key
-                                  ? "default"
-                                  : "outline"
-                              }
-                              className="w-full justify-start text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                              onClick={() => setSelectedClassification(key)}
-                            >
-                              <div className="flex flex-col items-start">
-                                <div className="font-medium">
-                                  {formatClassificationForDisplay(key)}
+                      ([key, classificationList]) => {
+                        const notificationCount = classificationNotificationCounts[key] || 0;
+                        return (
+                          <div key={key}>
+                            {key !== "Adjustments" && (
+                              <Button
+                                variant={
+                                  selectedClassification === key
+                                    ? "default"
+                                    : "outline"
+                                }
+                                className="w-full justify-between text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                                onClick={() => setSelectedClassification(key)}
+                              >
+                                <div className="flex flex-col items-start">
+                                  <div className="font-medium">
+                                    {formatClassificationForDisplay(key)}
+                                  </div>
                                 </div>
-                              </div>
-                            </Button>
-                          )}
-                        </div>
-                      )
+                                {notificationCount > 0 && (
+                                  <Badge 
+                                    variant="destructive" 
+                                    className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1"
+                                  >
+                                    {notificationCount}
+                                  </Badge>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      }
                     )}
 
                     {etbCount === 0 &&
@@ -348,6 +444,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     classification={selectedClassification}
                     onClose={() => setSelectedClassification("")}
                     onClassificationJump={jumpToClassification}
+                    onReviewStatusChange={loadNotificationCounts}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full p-6">

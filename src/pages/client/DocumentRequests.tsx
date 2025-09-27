@@ -42,6 +42,7 @@ export const DocumentRequests = () => {
   const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadingFiles, setUploadingFiles] = useState({});
+  const [uploadComments, setUploadComments] = useState({});
 
   // Get the active tab from URL parameters
   const activeTab = searchParams.get("tab") || "pending";
@@ -135,6 +136,12 @@ export const DocumentRequests = () => {
       const formData = new FormData();
       Array.from(files).forEach((file) => formData.append("files", file));
       formData.append("markCompleted", "true"); // optional flag
+      
+      // Add comment if provided
+      const comment = uploadComments[requestId] || "";
+      if (comment.trim()) {
+        formData.append("comment", comment.trim());
+      }
 
       // Call the real upload endpoint
       console.log("📤 Uploading documents for request:", requestId);
@@ -158,6 +165,9 @@ export const DocumentRequests = () => {
       setAllRequests((prev) =>
         prev.map((req) => (req._id === requestId ? updatedReq : req))
       );
+
+      // Clear the comment after successful upload
+      setUploadComments((prev) => ({ ...prev, [requestId]: "" }));
 
       toast({
         title: "Documents uploaded successfully",
@@ -390,6 +400,30 @@ export const DocumentRequests = () => {
                             }
                             disabled={uploadingFiles[request._id]}
                           />
+                        </div>
+                        
+                        {/* Optional comment field */}
+                        <div className="mt-4 space-y-2">
+                          <Label htmlFor={`comment-${request._id}`} className="text-sm font-medium text-gray-700">
+                            Add a comment (Optional)
+                          </Label>
+                          <Input
+                            id={`comment-${request._id}`}
+                            type="text"
+                            placeholder="Add any notes about these documents..."
+                            value={uploadComments[request._id] || ""}
+                            onChange={(e) =>
+                              setUploadComments((prev) => ({
+                                ...prev,
+                                [request._id]: e.target.value,
+                              }))
+                            }
+                            disabled={uploadingFiles[request._id]}
+                            className="text-sm"
+                          />
+                          <div className="text-xs text-gray-500">
+                            Optional: Add any notes or context about the documents you're uploading.
+                          </div>
                         </div>
 
                         {uploadingFiles[request._id] && (

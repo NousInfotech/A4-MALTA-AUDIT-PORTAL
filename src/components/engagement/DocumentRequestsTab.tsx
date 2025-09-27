@@ -107,6 +107,7 @@ interface DocumentRequestsTabProps {
   documentRequest: {
     category: string
     description: string
+    comment?: string
   }
   setDocumentRequest: (request: any) => void
   handleSendDocumentRequest: () => void
@@ -209,6 +210,26 @@ export const DocumentRequestsTab = ({
               <Badge variant="outline" className="cursor-default">
                 Add due date
               </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="comment">Additional Comments (Optional)</Label>
+            <Textarea
+              id="comment"
+              value={documentRequest.comment || ""}
+              onChange={(e) =>
+                setDocumentRequest((prev: any) => ({
+                  ...prev,
+                  comment: e.target.value,
+                }))
+              }
+              placeholder="Add any additional notes or instructions for the client..."
+              rows={3}
+              className="resize-y"
+            />
+            <div className="text-xs text-muted-foreground">
+              Optional: Add any specific instructions, deadlines, or additional context for the client.
             </div>
           </div>
 

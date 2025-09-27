@@ -189,29 +189,46 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
     >
       {/* Header */}
       <div className={cn(
-        "border-b border-gray-800",
+        "border-b border-gray-800 relative",
         isCollapsed ? "p-4" : "p-6"
       )}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <div className="relative">
-            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center">
-              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-cover rounded" />
+            <div className={cn(
+              "bg-gradient-to-br from-gray-700 to-gray-800 rounded-2xl flex items-center justify-center shadow-lg border border-gray-600",
+              isCollapsed ? "w-12 h-12" : "w-16 h-16"
+            )}>
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className={cn(
+                  "object-cover rounded-lg",
+                  isCollapsed ? "h-10 w-10" : "h-12 w-12"
+                )} 
+              />
             </div>
+            {/* Subtle glow effect */}
+            <div className="absolute inset-0 bg-white/5 rounded-2xl blur-sm"></div>
           </div>
           
           <div className={cn(
             "flex-1 transition-all duration-300 ease-in-out",
             isCollapsed ? "md:opacity-0 md:w-0 md:overflow-hidden" : "md:opacity-100 md:w-auto"
           )}>
-            <h1 className="text-xl font-bold text-white">
-              Audit Portal
-            </h1>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent tracking-tight">
+                Audit Portal
+              </h1>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+                Audit & Compliance
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Mobile close */}
         <button
-          className="md:hidden absolute top-6 right-6 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          className="md:hidden absolute top-6 right-6 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors border border-gray-700"
           onClick={onClose}
           aria-label="Close Menu"
         >

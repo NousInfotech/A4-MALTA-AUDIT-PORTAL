@@ -48,6 +48,7 @@ export const EngagementDetails = () => {
   const [documentRequest, setDocumentRequest] = useState({
     category: "",
     description: "",
+    comment: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -169,9 +170,10 @@ export const EngagementDetails = () => {
       await createRequest({
         category: documentRequest.category,
         description: documentRequest.description,
+        comment: documentRequest.comment,
         clientId: engagement.clientId,
       });
-      setDocumentRequest({ category: "", description: "" });
+      setDocumentRequest({ category: "", description: "", comment: "" });
       
       // Log document request creation
       logUploadDocument(`Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`);

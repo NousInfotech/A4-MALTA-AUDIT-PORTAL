@@ -143,6 +143,7 @@ export const documentRequestApi = {
     clientId: string;
     category: string;
     description: string;
+    comment?: string;
   }) => {
     console.log('📄 Creating Document Request...');
     console.log('📋 Document Request Data:', data);
