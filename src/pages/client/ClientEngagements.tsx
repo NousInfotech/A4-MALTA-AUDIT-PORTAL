@@ -257,7 +257,7 @@ export const ClientEngagements = () => {
                     <Button
                       onClick={() => handleOpenPBC(engagement)}
                       variant="default"
-                      className=""
+                      className="rounded-full"
                     >
                       PBC&nbsp;Documents
                     </Button>
