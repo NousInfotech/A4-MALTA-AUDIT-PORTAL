@@ -296,7 +296,7 @@ export const EmployeeDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Engagement Analytics</h3>
               
               {/* Circular Progress Charts */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
                 {[
                   { status: 'Active', count: activeEngagements, total: totalEngagements, color: 'text-gray-700', bgColor: 'bg-gray-800', ringColor: 'ring-gray-800/20' },
                   { status: 'Completed', count: completedEngagements, total: totalEngagements, color: 'text-gray-600', bgColor: 'bg-gray-700', ringColor: 'ring-gray-700/20' },
@@ -309,9 +309,9 @@ export const EmployeeDashboard = () => {
                   const strokeDashoffset = circumference - (percentage / 100) * circumference;
                   
                   return (
-                    <div key={index} className="flex flex-col items-center">
-                      <div className="relative w-20 h-20 mb-3">
-                        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 70 70">
+                    <div key={index} className="flex flex-col items-center min-w-0">
+                      <div className="relative w-16 h-16 md:w-20 md:h-20 mb-2 md:mb-3">
+                        <svg className="w-16 h-16 md:w-20 md:h-20 transform -rotate-90" viewBox="0 0 70 70">
                           <circle
                             cx="35"
                             cy="35"
@@ -335,10 +335,10 @@ export const EmployeeDashboard = () => {
                           />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-lg font-bold ${item.color}`}>{item.count}</span>
+                          <span className={`text-sm md:text-lg font-bold ${item.color}`}>{item.count}</span>
                         </div>
                       </div>
-                      <span className="text-sm text-gray-700 text-center">{item.status}</span>
+                      <span className="text-xs md:text-sm text-gray-700 text-center leading-tight px-1">{item.status}</span>
                       <span className="text-xs text-gray-600">{percentage.toFixed(0)}%</span>
                   </div>
                   );
@@ -354,16 +354,16 @@ export const EmployeeDashboard = () => {
                     { status: 'Completed', count: completedEngagements, color: 'bg-gray-700', percentage: totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0 },
                     { status: 'Draft', count: draftEngagements, color: 'bg-gray-600', percentage: totalEngagements > 0 ? (draftEngagements / totalEngagements) * 100 : 0 }
                   ].map((item, index) => (
-                    <div key={index} className="flex items-center space-x-3">
-                      <div className="w-16 text-sm text-gray-700">{item.status}</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                    <div key={index} className="flex items-center space-x-2 md:space-x-3">
+                      <div className="w-16 md:w-20 text-xs md:text-sm text-gray-700 flex-shrink-0">{item.status}</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-0">
                         <div 
                           className={`h-2 rounded-full ${item.color}`}
                           style={{ width: `${item.percentage}%` }}
                         ></div>
-                </div>
-                      <div className="w-12 text-sm text-gray-700 text-right">{item.count}</div>
-                </div>
+                      </div>
+                      <div className="w-8 md:w-12 text-xs md:text-sm text-gray-700 text-right flex-shrink-0">{item.count}</div>
+                    </div>
                   ))}
                 </div>
               </div>
