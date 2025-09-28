@@ -197,9 +197,9 @@ export const ClientEngagements = () => {
                   </div>
                 )}
 
-                <div>
+                {/* <div>
                   <button onClick={() => handleOpenPBC(engagement)} className='px-4 py-2 bg-gray-800 hover:bg-gray-900 rounded-xl w-full text-white'>PBC WorkFlow</button>
-                </div>
+                </div> */}
                 
                 {pendingRequests > 0 && (
                   <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
@@ -234,14 +234,14 @@ export const ClientEngagements = () => {
       )}
 
 
-      {isPBCModalOpen && (
+      {/* {isPBCModalOpen && (
         <PbcDialog
           selectedEngagement={selectedEngagement}
           open={isPBCModalOpen}
           onOpenChange={setIsPBCModalOpen}
           onClosePBC={handleClosePBC}
         />
-      )}
+      )} */}
       </div>
     </div>
   );
