@@ -262,7 +262,7 @@ export function PbcDocuments({
                       <p className="font-semibold text-gray-800">{doc.name}</p>
                       {doc.uploadedAt && (
                         <p className="text-sm text-gray-500">
-                          Uploaded: {formatDate(doc.uploadedAt)}
+                          {doc.status === 'pending' ? 'Requested on' : "Uploaded on"}: {formatDate(doc.uploadedAt)}
                         </p>
                       )}
                     </div>
