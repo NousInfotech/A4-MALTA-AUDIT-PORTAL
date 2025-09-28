@@ -74,14 +74,16 @@ export function CreatePBCDialog({
     }
 
     try {
-      const formattedDocs = formData.documents.filter((doc) => doc.trim() !== "").map((item) => ({name: item, url: ""})) || []; // Send non-empty documents
+      const formattedDocs =
+        formData.documents
+          .filter((doc) => doc.trim() !== "")
+          .map((item) => ({ name: item, url: "" })) || []; // Send non-empty documents
       const formattedDocumentRequests =
         documentRequests?.map((item: any) => ({
           _id: item._id, // Keep the original _id for matching
           name: item.name,
           description: item.description,
-          documents: [...item.documents, ...formattedDocs]
-            
+          documents: formattedDocs, // <--- ONLY SEND THE NEW DOCUMENTS
         })) || [];
       // Construct the body for your API call.
       const body = {
@@ -99,7 +101,7 @@ export function CreatePBCDialog({
           size: selectedEngagement.size || "",
         },
       };
-      console.log("body", body)
+      console.log("body", body);
 
       const apiResponse = await pbcApi.createPBCWorkflow(body);
       console.log("apiResponse", apiResponse);

@@ -288,9 +288,9 @@ export const EngagementDetails = () => {
                 </TabsTrigger>
               </TabsList>
             </div>
-            <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-900">
+            {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-900">
               See the PBC Work Flow
-            </button>
+            </button> */}
           </div>
 
           <div className="p-6">
