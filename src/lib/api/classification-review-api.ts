@@ -16,6 +16,7 @@ export interface ClassificationReview {
   };
   comment: string;
   status: 'pending' | 'in-review' | 'signed-off';
+  isDone?: boolean;
   reviewedOn: string;
   location?: string;
   ipAddress?: string;
@@ -33,10 +34,15 @@ export interface CreateReviewRequest {
   ipAddress?: string;
   sessionId?: string;
   systemVersion?: string;
+  isDone?: boolean;
 }
 
 export interface UpdateReviewStatusRequest {
   status: 'pending' | 'in-review' | 'signed-off';
+}
+
+export interface UpdateReviewDoneRequest {
+  isDone: boolean;
 }
 
 export interface ReviewResponse {
@@ -97,6 +103,17 @@ export const updateReviewStatus = async (reviewId: string, data: UpdateReviewSta
   } catch (error: any) {
     console.error('Error updating review status:', error);
     throw new Error(error.response?.data?.error || 'Failed to update review status');
+  }
+};
+
+// Update Review Done Status
+export const updateReviewDone = async (reviewId: string, data: UpdateReviewDoneRequest): Promise<ReviewResponse> => {
+  try {
+    const response = await axiosInstance.patch(`/api/classification-reviews/${reviewId}/done`, data);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error updating review done status:', error);
+    throw new Error(error.response?.data?.error || 'Failed to update review done status');
   }
 };
 

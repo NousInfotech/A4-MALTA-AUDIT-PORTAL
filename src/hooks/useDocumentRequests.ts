@@ -48,6 +48,7 @@ export const useDocumentRequests = (engagementId?: string) => {
   const createRequest = async (data: {
     category: string;
     description: string;
+    comment?: string;
     clientId: string;
   }) => {
     if (!engagementId) return;

@@ -136,12 +136,13 @@ function SearchableSelect({
 interface DocumentRequestsTabProps {
   requests: any[];
   documentRequest: {
-    category: string;
-    description: string;
-  };
-  setDocumentRequest: (request: any) => void;
-  handleSendDocumentRequest: () => void;
-  engagement?: any;
+    category: string
+    description: string
+    comment?: string
+  }
+  setDocumentRequest: (request: any) => void
+  handleSendDocumentRequest: () => void
+  engagement?: any
 }
 
 export const DocumentRequestsTab = ({
@@ -241,45 +242,58 @@ export const DocumentRequestsTab = ({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="description">Request Description</Label>
-                <span
-                  className={cn(
-                    "text-xs",
-                    descLen > DESC_MAX
-                      ? "text-destructive"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  {descLen}/{DESC_MAX}
-                </span>
-              </div>
-              <Textarea
-                id="description"
-                value={documentRequest.description}
-                onChange={(e) =>
-                  setDocumentRequest((prev: any) => ({
-                    ...prev,
-                    description: e.target.value.slice(0, DESC_MAX),
-                  }))
-                }
-                placeholder="Describe the documents you need from the client..."
-                rows={4}
-                className="resize-y"
-              />
-              <div className="flex flex-wrap gap-2 text-xs">
-                <Badge variant="outline" className="cursor-default">
-                  Tip: include date range
-                </Badge>
-                <Badge variant="outline" className="cursor-default">
-                  Specify format (PDF/XLSX)
-                </Badge>
-                <Badge variant="outline" className="cursor-default">
-                  Add due date
-                </Badge>
-              </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">Request Description</Label>
+              <span className={cn("text-xs", descLen > DESC_MAX ? "text-destructive" : "text-muted-foreground")}>
+                {descLen}/{DESC_MAX}
+              </span>
             </div>
+            <Textarea
+              id="description"
+              value={documentRequest.description}
+              onChange={(e) =>
+                setDocumentRequest((prev: any) => ({
+                  ...prev,
+                  description: e.target.value.slice(0, DESC_MAX),
+                }))
+              }
+              placeholder="Describe the documents you need from the client..."
+              rows={4}
+              className="resize-y"
+            />
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="cursor-default">
+                Tip: include date range
+              </Badge>
+              <Badge variant="outline" className="cursor-default">
+                Specify format (PDF/XLSX)
+              </Badge>
+              <Badge variant="outline" className="cursor-default">
+                Add due date
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="comment">Additional Comments (Optional)</Label>
+            <Textarea
+              id="comment"
+              value={documentRequest.comment || ""}
+              onChange={(e) =>
+                setDocumentRequest((prev: any) => ({
+                  ...prev,
+                  comment: e.target.value,
+                }))
+              }
+              placeholder="Add any additional notes or instructions for the client..."
+              rows={3}
+              className="resize-y"
+            />
+            <div className="text-xs text-muted-foreground">
+              Optional: Add any specific instructions, deadlines, or additional context for the client.
+            </div>
+          </div>
 
             <div className="flex justify-between">
               <Button

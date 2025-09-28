@@ -646,7 +646,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
 
     return (
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
+      <div className="flex flex-col items-start sm:items-center gap-1 sm:gap-2">
         <SearchableSelect
           value={level1}
           onChange={onL1}
@@ -671,7 +671,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             onChange={onL3}
             options={level3Options}
             placeholder="Level 3"
-            className="max-h-44 w-auto overflow-y-auto"
+            className="max-h-44 max-w-32 overflow-y-auto"
             widthClass="w-full sm:w-40"
           />
         )}
@@ -775,27 +775,27 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           )}
 
           {/* Grid */}
-          <div className="rounded-lg border overflow-hidden">
+          <div className="rounded-lg border border-secondary border-b overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader className=" bg-muted/50">
                   <TableRow>
-                    <TableHead className="min-w-[4rem] sm:min-w-[6rem] text-xs sm:text-sm">Code</TableHead>
-                    <TableHead className="min-w-[12rem] sm:min-w-[16rem] text-xs sm:text-sm">Account Name</TableHead>
-                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">
+                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">Code</TableHead>
+                    <TableHead className="w-48 text-xs border-b border-r font-bold border-secondary sticky top-0 sm:text-sm">Account Name</TableHead>
+                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
                     </TableHead>
-                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">
+                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Prior Year
                     </TableHead>
-                    <TableHead className="text-right min-w-[6rem] sm:min-w-[8rem] text-xs sm:text-sm">
+                    <TableHead className="text-start  border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Adjustments
                     </TableHead>
-                    <TableHead className="text-right min-w-[8rem] sm:min-w-[10rem] text-xs sm:text-sm">
+                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Final Balance
                     </TableHead>
-                    <TableHead className="min-w-[18rem] sm:min-w-[22rem] text-xs sm:text-sm">Classification</TableHead>
-                    <TableHead className="w-[3rem] sm:w-[4rem] text-xs sm:text-sm">Actions</TableHead>
+                    <TableHead className="w-24 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">Classification</TableHead>
+                    <TableHead className="w-20 text-xs border-b border-secondary sticky top-0 font-bold sm:text-sm">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -804,52 +804,53 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       key={row.id}
                       className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}
                     >
-                      <TableCell>
+                      <TableCell className="border border-r-secondary border-b-secondary ">
                         <Input
                           value={row.code}
                           onChange={(e) => updateRow(row.id, "code", e.target.value)}
-                          className="w-16 sm:w-24 font-mono text-xs sm:text-sm"
+                          className="w-[4rem] font-mono text-xs sm:text-sm"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="border border-r-secondary border-b-secondary ">
                         <Input
                           value={row.accountName}
                           onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
-                          className="min-w-48 sm:min-w-64 text-xs sm:text-sm"
+                          className="w-48 text-xs sm:text-sm"
                         />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <Input
                           type="number"
                           value={row.currentYear}
                           onChange={(e) => updateRow(row.id, "currentYear", Number(e.target.value))}
-                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
+                          className="w-24 text-start text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <Input
                           type="number"
                           value={row.priorYear}
                           onChange={(e) => updateRow(row.id, "priorYear", Number(e.target.value))}
-                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
+                          className="w-24 text-start text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <Input
                           type="number"
                           value={row.adjustments}
                           onChange={(e) => updateRow(row.id, "adjustments", Number(e.target.value))}
-                          className="w-20 sm:w-28 text-right text-xs sm:text-sm"
+                          className="w-20 text-start text-xs sm:text-sm"
                           step="0.01"
                         />
                       </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums text-xs sm:text-sm">
+                      <TableCell className="w-20 border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
                         {Number(row.finalBalance).toLocaleString()}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <TableCell className="border border-r-secondary border-b-secondary ">
+                        <div className="w-24 flex flex-col items-right justify-start gap-1">
+                        
                           <Badge
                             variant="outline"
                             className="cursor-pointer text-xs"
@@ -859,9 +860,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             {formatClassificationForDisplay(row.classification)}
                           </Badge>
                           <ClassificationCombos row={row} />
+                          
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="w-20 border border-b-secondary ">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -877,17 +879,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
-                    <TableCell colSpan={2} className="text-xs sm:text-sm">
+                    <TableCell colSpan={2} className="border font-bold border-r-secondary text-xs sm:text-sm">
                       TOTALS
                     </TableCell>
-                    <TableCell className="text-right text-xs sm:text-sm">
+                    <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
                       {totals.currentYear.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right text-xs sm:text-sm">{totals.priorYear.toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-xs sm:text-sm">
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">{totals.priorYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {totals.adjustments.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right font-bold text-xs sm:text-sm">
+                    <TableCell className="text-start border border-r-secondary  font-bold text-xs sm:text-sm">
                       {totals.finalBalance.toLocaleString()}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
