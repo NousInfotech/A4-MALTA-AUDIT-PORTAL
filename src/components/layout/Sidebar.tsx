@@ -58,7 +58,7 @@ const navItems: NavItem[] = [
     description: 'Monitor Auditor Activities'
   },
   { 
-    title: 'ISQM Questionnaire', 
+    title: 'ISQM', 
     href: '/admin/isqm', 
     icon: FileText, 
     roles: ['admin'],
@@ -100,14 +100,14 @@ const navItems: NavItem[] = [
     description: 'Document Library'
   },
   { 
-    title: 'Accounts&Finance', 
+    title: 'Integrations', 
     href: '/employee/accounts', 
     icon: FileText, 
     roles: ['employee'],
     description: 'Accounts&Finance Details'
   },
   { 
-    title: 'ISQM Questionnaire', 
+    title: 'ISQM', 
     href: '/employee/isqm', 
     icon: Shield, 
     roles: ['employee'],
@@ -148,7 +148,7 @@ const navItems: NavItem[] = [
     getBadge: (stats) => `${stats.pendingRequests} Pending`
   },
   { 
-    title: 'Accounts & Finance', 
+    title: 'Integrations', 
     href: '/client/accounts', 
     icon: Zap, 
     roles: ['client'],

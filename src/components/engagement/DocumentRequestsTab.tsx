@@ -197,7 +197,7 @@ export const DocumentRequestsTab = ({
       {/* ######################################################################################### */}
       {/* Do not Change the PBC component */}
 
-      <div className="flex justify-end">
+      {/* <div className="flex justify-end">
         <Button
           onClick={() => setIsPbcDocumentsOpen(true)}
           variant="default"
@@ -205,7 +205,7 @@ export const DocumentRequestsTab = ({
         >
           PBC&nbsp;Documents
         </Button>
-      </div>
+      </div> */}
 
       {/* Do not Change the PBC component */}
       {/* ######################################################################################### */}

@@ -253,7 +253,7 @@ export const ClientEngagements = () => {
                     </div>
                   )}
                   {/* ####################################################### */}
-                  <div className="flex justify-end">
+                  {/* <div className="flex justify-end">
                     <Button
                       onClick={() => handleOpenPBC(engagement)}
                       variant="default"
@@ -261,7 +261,7 @@ export const ClientEngagements = () => {
                     >
                       PBC&nbsp;Documents
                     </Button>
-                  </div>
+                  </div> */}
                   {/* ####################################################### */}
 
                   {pendingRequests > 0 && (
