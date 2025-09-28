@@ -10,6 +10,7 @@ import { CategoryManager } from "./CategoryManager";
 import { DocumentRequestsView } from "./DocumentRequestsView";
 import { WorkflowSettings } from "./WorkflowSettings";
 import { pbcApi } from "@/lib/api/pbc-workflow";
+import clsx from "clsx";
 
 interface PBCWorkflowInfoProps {
   workflow: PBCWorkflow;
@@ -112,7 +113,12 @@ export function PBCWorkflowInfo({
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 border-b">
+        <TabsList
+          className={clsx(
+            "w-full grid border-b",
+            userRole === "client" ? "grid-cols-2" : "grid-cols-3"
+          )}
+        >
           <TabsTrigger
             value="overview"
             className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
@@ -128,7 +134,9 @@ export function PBCWorkflowInfo({
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors"
+            className={`${
+              userRole === "client" ? "hidden" : ""
+            } data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:bg-indigo-500 px-4 py-2 transition-colors`}
           >
             Settings
           </TabsTrigger>
