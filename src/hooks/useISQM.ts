@@ -49,6 +49,7 @@ export interface ISQMQuestionnaire {
 }
 
 export interface ISQMSection {
+  _id?: string;
   heading: string;
   sectionId?: string;
   order?: number;

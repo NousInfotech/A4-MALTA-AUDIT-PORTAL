@@ -18,10 +18,12 @@ import {
   CheckCircle,
   Clock,
   Loader2,
-  Plus
+  Plus,
+  Brain,
+  Upload
 } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
-import { ISQMQuestionnaire } from '@/hooks/useISQM';
+import { ISQMQuestionnaire, ISQMSection } from '@/hooks/useISQM';
 
 interface QuestionnaireTabProps {
   selectedParent: string;
@@ -46,6 +48,7 @@ interface QuestionnaireTabProps {
   onAddSectionNote: (questionnaireId: string, sectionIndex: number) => void;
   onSaveSection: (questionnaireId: string, sectionIndex: number) => void;
   onCreateNewPack: () => void;
+  onOpenPolicyAnalysis: (questionnaireId: string, sectionId: string, sectionHeading: string) => void;
 }
 
 export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
@@ -70,7 +73,8 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
   onDeleteSection,
   onAddSectionNote,
   onSaveSection,
-  onCreateNewPack
+  onCreateNewPack,
+  onOpenPolicyAnalysis
 }) => {
   if (!selectedParent) {
     return (
@@ -279,6 +283,19 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                               className="h-7 w-7 p-0 hover:bg-orange-50"
                             >
                               <XCircle className="w-3 h-3 text-orange-600" />
+                            </Button>
+                            {/* Policy Analysis Button */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPolicyAnalysis(questionnaire._id, section._id || sectionIdx.toString(), section.heading);
+                              }}
+                              className="h-7 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                            >
+                              <Brain className="w-3 h-3 mr-1" />
+                              AI Policy
                             </Button>
                             {/* Save Section Button */}
                             <Button

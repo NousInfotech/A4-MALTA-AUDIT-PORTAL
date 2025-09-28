@@ -21,11 +21,17 @@ import {
   TrendingUp,
 
   AlertCircle,
-  Plus
+  Plus,
+  Brain,
+  Upload,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 
 import { useISQM, ISQMParent, ISQMQuestionnaire } from '@/hooks/useISQM';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 
@@ -46,6 +52,7 @@ import {
   AddQuestionNoteDialog,
   DeleteConfirmDialog
 } from '@/components/isqm/dialogs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 
 // Type definitions
@@ -1532,6 +1539,19 @@ const ISQMQuestionnairePage: React.FC = () => {
 
   }>({ isOpen: false, type: 'parent', title: '', message: '', onConfirm: () => {} });
 
+  // Policy Analysis states
+  const [policyAnalysisDialog, setPolicyAnalysisDialog] = useState<{
+    isOpen: boolean;
+    questionnaireId: string;
+    sectionId: string;
+    sectionHeading: string;
+  }>({ isOpen: false, questionnaireId: '', sectionId: '', sectionHeading: '' });
+
+  const [policyFile, setPolicyFile] = useState<File | null>(null);
+  const [policyText, setPolicyText] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState<any>(null);
+
 
 
   // Load parents on component mount
@@ -2774,6 +2794,164 @@ const ISQMQuestionnairePage: React.FC = () => {
 
 
 
+  // Policy Analysis Functions
+  const handleOpenPolicyAnalysis = (questionnaireId: string, sectionId: string, sectionHeading: string) => {
+    setPolicyAnalysisDialog({
+      isOpen: true,
+      questionnaireId,
+      sectionId,
+      sectionHeading
+    });
+    setPolicyFile(null);
+    setPolicyText('');
+    setAnalysisResults(null);
+  };
+
+  const handlePolicyFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setPolicyFile(file);
+      setPolicyText(''); // Clear text when file is selected
+    } else {
+      alert('Please select a PDF file.');
+    }
+  };
+
+  const handleAnalyzePolicy = async () => {
+    if (!policyFile && !policyText.trim()) {
+      alert('Please upload a PDF file or enter policy text.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      // Get Supabase session token
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('❌ Auth error:', error);
+        alert('Authentication error. Please log in again.');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      const token = data.session?.access_token;
+      if (!token) {
+        alert('No authentication token found. Please log in again.');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      let policyData: any = {};
+      
+      if (policyFile) {
+        // Convert file to base64
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const base64 = e.target?.result as string;
+          policyData.policyFile = base64;
+          
+          // Call the API
+          const response = await fetch(
+            `${import.meta.env.VITE_APIURL}/api/isqm/questionnaires/${policyAnalysisDialog.questionnaireId}/sections/${policyAnalysisDialog.sectionId}/generate-category-answers`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(policyData)
+            }
+          );
+
+          const result = await response.json();
+          if (result.success) {
+            setAnalysisResults(result);
+            
+            // Update local state immediately with generated answers for instant UI rendering
+            if (result.generatedAnswers) {
+              const newLocalAnswers = new Map(localAnswers);
+              const newLocalStates = new Map(localStates);
+              
+              result.generatedAnswers.forEach((answerData: any) => {
+                const key = `${policyAnalysisDialog.questionnaireId}-${parseInt(policyAnalysisDialog.sectionId)}-${answerData.questionIndex}`;
+                newLocalAnswers.set(key, answerData.answer);
+                newLocalStates.set(key, answerData.status === 'Implemented');
+              });
+              
+              setLocalAnswers(newLocalAnswers);
+              setLocalStates(newLocalStates);
+            }
+            
+            // Refresh questionnaires to get updated answers from backend
+            if (selectedParent) {
+              await fetchQuestionnaires(selectedParent);
+            }
+          } else {
+            alert('Failed to analyze policy: ' + result.message);
+          }
+          setIsAnalyzing(false);
+        };
+        reader.readAsDataURL(policyFile);
+      } else {
+        policyData.policyText = policyText;
+        
+        const response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/isqm/questionnaires/${policyAnalysisDialog.questionnaireId}/sections/${policyAnalysisDialog.sectionId}/generate-category-answers`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(policyData)
+          }
+        );
+
+        const result = await response.json();
+        if (result.success) {
+          setAnalysisResults(result);
+          
+          // Update local state immediately with generated answers for instant UI rendering
+          if (result.generatedAnswers) {
+            const newLocalAnswers = new Map(localAnswers);
+            const newLocalStates = new Map(localStates);
+            
+            result.generatedAnswers.forEach((answerData: any) => {
+              const key = `${policyAnalysisDialog.questionnaireId}-${parseInt(policyAnalysisDialog.sectionId)}-${answerData.questionIndex}`;
+              newLocalAnswers.set(key, answerData.answer);
+              newLocalStates.set(key, answerData.status === 'Implemented');
+            });
+            
+            setLocalAnswers(newLocalAnswers);
+            setLocalStates(newLocalStates);
+          }
+          
+          // Refresh questionnaires to get updated answers from backend
+          if (selectedParent) {
+            await fetchQuestionnaires(selectedParent);
+          }
+        } else {
+          alert('Failed to analyze policy: ' + result.message);
+        }
+        setIsAnalyzing(false);
+      }
+    } catch (error) {
+      console.error('❌ Policy analysis error:', error);
+      alert('Failed to analyze policy. Please try again.');
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleClosePolicyAnalysis = async () => {
+    setPolicyAnalysisDialog({ isOpen: false, questionnaireId: '', sectionId: '', sectionHeading: '' });
+    setPolicyFile(null);
+    setPolicyText('');
+    setAnalysisResults(null);
+    
+    // No need to refresh questionnaires here since local state is already updated
+    // The answers are already rendered in the UI through local state updates
+  };
+
   const sendToAuditor = () => {
 
     console.log("Sending questionnaire to auditor:", selectedAuditor);
@@ -3080,6 +3258,7 @@ const ISQMQuestionnairePage: React.FC = () => {
               onAddSectionNote={handleAddSectionNote}
               onSaveSection={handleSaveSection}
               onCreateNewPack={() => setIsCreatingParent(true)}
+              onOpenPolicyAnalysis={handleOpenPolicyAnalysis}
             />
         </TabsContent>
 
@@ -3438,6 +3617,155 @@ const ISQMQuestionnairePage: React.FC = () => {
         onClose={() => setDeleteConfirmDialog({ isOpen: false, type: 'parent', title: '', message: '', onConfirm: () => {} })}
         onConfirm={deleteConfirmDialog.onConfirm}
               />
+
+      {/* Policy Analysis Dialog */}
+      {policyAnalysisDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Policy Analysis - {policyAnalysisDialog.sectionHeading}</h2>
+              <button
+                onClick={handleClosePolicyAnalysis}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Policy Input Section */}
+              <div className="border rounded-lg p-4">
+                <h3 className="text-lg font-medium mb-4">Upload Policy Document or Enter Text</h3>
+                
+                {/* File Upload */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload PDF Policy Document
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handlePolicyFileChange}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {policyFile && (
+                    <p className="mt-2 text-sm text-green-600">
+                      ✓ Selected: {policyFile.name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Text Input */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Or Enter Policy Text
+                  </label>
+                  <textarea
+                    value={policyText}
+                    onChange={(e) => setPolicyText(e.target.value)}
+                    placeholder="Paste your policy text here..."
+                    className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!!policyFile}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleAnalyzePolicy}
+                  disabled={isAnalyzing || (!policyFile && !policyText.trim())}
+                  className="w-full"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analyzing Policy...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4 mr-2" />
+                      Analyze Policy & Generate Answers
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Analysis Results */}
+              {analysisResults && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-4">Analysis Results</h3>
+                  
+                  {/* Summary */}
+                  <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{analysisResults.summary.implemented}</div>
+                      <div className="text-sm text-green-700">Implemented</div>
+                    </div>
+                    <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                      <div className="text-2xl font-bold text-yellow-600">{analysisResults.summary.partiallyImplemented}</div>
+                      <div className="text-sm text-yellow-700">Partially Implemented</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600">{analysisResults.summary.notImplemented}</div>
+                      <div className="text-sm text-red-700">Not Implemented</div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold text-gray-600">{analysisResults.summary.errors}</div>
+                      <div className="text-sm text-gray-700">Errors</div>
+                    </div>
+                  </div>
+
+                  {/* Detailed Results */}
+                  <div className="space-y-4">
+                    {analysisResults.generatedAnswers.map((result: any, index: number) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium text-gray-900">{result.question}</h4>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            result.status === 'Implemented' ? 'bg-green-100 text-green-800' :
+                            result.status === 'Partially Implemented' ? 'bg-yellow-100 text-yellow-800' :
+                            result.status === 'Not Implemented' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {result.status === 'Implemented' ? (
+                              <CheckCircle className="w-3 h-3 inline mr-1" />
+                            ) : result.status === 'Not Implemented' ? (
+                              <XCircle className="w-3 h-3 inline mr-1" />
+                            ) : null}
+                            {result.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">{result.answer}</p>
+                        {result.policyReferences && result.policyReferences.length > 0 && (
+                          <div className="mb-2">
+                            <span className="text-xs font-medium text-gray-500">Policy References:</span>
+                            <ul className="text-xs text-gray-600 list-disc list-inside">
+                              {result.policyReferences.map((ref: string, i: number) => (
+                                <li key={i}>{ref}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {result.gaps && result.gaps.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-gray-500">Gaps:</span>
+                            <ul className="text-xs text-red-600 list-disc list-inside">
+                              {result.gaps.map((gap: string, i: number) => (
+                                <li key={i}>{gap}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
             </div>
 
   );
