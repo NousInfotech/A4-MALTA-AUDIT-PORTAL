@@ -153,7 +153,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
               onClick={() => handleTabChange("apideck")}
             >
               <Zap className="h-4 w-4" />
-              Apideck Integration
+              Accounting&nbsp;Integration
             </Tabs.Trigger>
             <Tabs.Trigger
               className={`flex-1 px-6 py-4 text-sm font-medium cursor-pointer focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 ${
@@ -165,7 +165,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
               onClick={() => handleTabChange("saltedge")}
             >
               <CreditCard className="h-4 w-4" />
-              Salt Edge Banking
+              Banking&nbsp;Integration
             </Tabs.Trigger>
           </Tabs.List>
 
