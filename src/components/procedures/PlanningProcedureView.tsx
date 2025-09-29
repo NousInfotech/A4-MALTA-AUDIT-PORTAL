@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useMemo, useRef, useState } from "react"
+import React, { useMemo, useRef, useState, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -181,7 +181,7 @@ function TableEditor({
             {rows.length === 0 ? (
               <tr className="border-t">
                 <td className="px-3 py-2 text-muted-foreground" colSpan={cols.length + 1}>
-                  No rows. Click “Add row”.
+                  No rows. Click "Add row".
                 </td>
               </tr>
             ) : (
@@ -271,7 +271,123 @@ export const PlanningProcedureView: React.FC<{
 
   // NEW: notes state + modal flag
   const [isNotesOpen, setIsNotesOpen] = useState(false)
-  const [recommendations, setRecommendations] = useState<string>(proc?.recommendations || "")
+  // Fix: Initialize recommendations properly as checklist items array
+  const [recommendations, setRecommendations] = useState<any[]>(() => {
+    const recs = initial?.recommendations || [];
+    // Ensure we always have an array of checklist items
+    if (Array.isArray(recs)) {
+      return recs;
+    } else if (typeof recs === 'string') {
+      // If it's a string, try to parse it or convert to empty array
+      try {
+        const parsed = JSON.parse(recs);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Add useEffect to update proc when initial prop changes
+  useEffect(() => {
+    if (initial) {
+      const initialWithUids = { ...(initial || {}) }
+      initialWithUids.procedures = withUids(initialWithUids.procedures || [])
+      setProc(initialWithUids)
+    }
+  }, [initial])
+
+  // Add useEffect to update recommendations when initial prop changes
+  useEffect(() => {
+    const recs = initial?.recommendations || [];
+    if (Array.isArray(recs)) {
+      setRecommendations(recs);
+    } else if (typeof recs === 'string') {
+      try {
+        const parsed = JSON.parse(recs);
+        setRecommendations(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setRecommendations([]);
+      }
+    } else {
+      setRecommendations([]);
+    }
+  }, [initial?.recommendations])
+// NEW: handle save of notebook notes
+const handleSaveRecommendations = async (content: string | any[]) => {
+  try {
+    let recommendationsToSave: any[];
+    
+    // Handle both string and array formats from NotebookInterface
+    if (Array.isArray(content)) {
+      recommendationsToSave = content;
+    } else if (typeof content === 'string') {
+      // Convert string format to checklist items
+      recommendationsToSave = content
+        .split('\n')
+        .filter(line => line.trim())
+        .map((line, index) => ({
+          id: `rec-${Date.now()}-${index}`,
+          text: line.trim(),
+          checked: false,
+          section: 'general'
+        }));
+    } else {
+      recommendationsToSave = [];
+    }
+    
+    // Update local state first
+    setRecommendations(recommendationsToSave)
+    
+    // Save to database
+    const form = new FormData()
+    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+    }))
+    
+    const payload = {
+      ...proc,
+      procedures: cleanedProcedures,
+      recommendations: recommendationsToSave, // Save as array
+      status: proc.status || "in-progress",
+      procedureType: "planning",
+    }
+    
+    form.append("data", JSON.stringify(payload))
+    
+    const engagementId = proc.engagement || engagement?._id
+    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+      method: "POST",
+      body: form,
+    })
+    
+    if (!res.ok) throw new Error("Save failed")
+    const saved = await res.json()
+    
+    // Update state with server response - this will trigger the useEffect
+    const savedWithUids = {
+      ...saved,
+      procedures: withUids(saved?.procedures || []),
+    }
+    setProc(savedWithUids)
+    setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+    
+    toast({ 
+      title: "Notes Saved", 
+      description: "Your audit recommendations have been updated and saved to the database." 
+    })
+  } catch (e: any) {
+    toast({ 
+      title: "Save failed", 
+      description: e.message, 
+      variant: "destructive" 
+    })
+    // Revert local state if save fails
+    setRecommendations(proc?.recommendations || [])
+  }
+}
 
   const fileInput = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -350,62 +466,8 @@ export const PlanningProcedureView: React.FC<{
     })
   }
 
-  // NEW: handle save of notebook notes
-  // NEW: handle save of notebook notes
-const handleSaveRecommendations = async (content: string) => {
-  try {
-    // Update local state first
-    setRecommendations(content)
-    setProc((p: any) => ({ ...p, recommendations: content }))
-    
-    // Save to database
-    const form = new FormData()
-    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
-      ...sec,
-      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
-    }))
-    
-    const payload = {
-      ...proc,
-      procedures: cleanedProcedures,
-      recommendations: content, // Use the new content
-      status: proc.status || "in-progress",
-      procedureType: "planning",
-    }
-    
-    form.append("data", JSON.stringify(payload))
-    
-    const engagementId = proc.engagement || engagement?._id
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
-      method: "POST",
-      body: form,
-    })
-    
-    if (!res.ok) throw new Error("Save failed")
-    const saved = await res.json()
-    
-    // Update state with server response
-    setProc({
-      ...saved,
-      procedures: withUids(saved?.procedures || []),
-    })
-    setRecommendations(saved?.recommendations || "")
-    
-    toast({ 
-      title: "Notes Saved", 
-      description: "Your audit recommendations have been updated and saved to the database." 
-    })
-  } catch (e: any) {
-    toast({ 
-      title: "Save failed", 
-      description: e.message, 
-      variant: "destructive" 
-    })
-    // Revert local state if save fails
-    setRecommendations(proc?.recommendations || "")
-  }
-}
-  const save = async (asCompleted = false) => {
+
+const save = async (asCompleted = false) => {
   try {
     const form = new FormData()
     // robust normalize before mapping
@@ -414,12 +476,12 @@ const handleSaveRecommendations = async (content: string) => {
       fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
     }))
     
-    // Create the payload with updated recommendations
+    // Create the payload with updated recommendations - ensure it's always an array
     const payload = {
       ...proc,
       procedures: cleanedProcedures,
-      // Ensure recommendations are included in the payload
-      recommendations: recommendations, // This line is crucial
+      // Ensure recommendations are included in the payload as array
+      recommendations: Array.isArray(recommendations) ? recommendations : [],
       status: asCompleted ? "completed" : proc.status || "in-progress",
       procedureType: "planning",
     }
@@ -438,19 +500,20 @@ const handleSaveRecommendations = async (content: string) => {
     if (!res.ok) throw new Error("Save failed")
     const saved = await res.json()
     
-    setProc({
+    // Update state with server response - this will trigger the useEffect
+    const savedWithUids = {
       ...saved,
       procedures: withUids(saved?.procedures || []),
-    })
-    // keep local recs aligned with server
-    setRecommendations(saved?.recommendations || "")
+    }
+    setProc(savedWithUids)
+    // keep local recs aligned with server - ensure it's an array
+    setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
     toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
     setEditMode(false)
   } catch (e: any) {
     toast({ title: "Save failed", description: e.message, variant: "destructive" })
   }
 }
-
   // answers map for visibleIf
   const makeAnswers = (sec: any) =>
     (sec.fields || []).reduce((acc: any, f: any) => {
@@ -491,7 +554,6 @@ const handleSaveRecommendations = async (content: string) => {
                 </Button>
               </>
             )}
-       
           </div>
 
           <div className="space-y-2">
@@ -723,21 +785,6 @@ const handleSaveRecommendations = async (content: string) => {
           ) : (
             <div className="text-muted-foreground">No sections.</div>
           )}
-{/* 
-          {Array.isArray(proc.files) && proc.files.length > 0 && (
-            <div className="rounded-lg border p-4">
-              <div className="font-heading text-lg mb-2">Files</div>
-              <ul className="list-disc pl-5">
-                {proc.files.map((f, i) => (
-                  <li key={i}>
-                    <a className="text-primary underline" href={f.url} target="_blank" rel="noreferrer">
-                      {f.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )} */}
         </CardContent>
       </Card>
 

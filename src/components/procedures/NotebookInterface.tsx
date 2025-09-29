@@ -13,8 +13,8 @@ interface ChecklistItem {
   id: string
   text: string
   checked: boolean
-  sectionId?: string
-  classification?:string
+  section?: string
+  classification?: string
 }
 
 interface NotebookInterfaceProps {
@@ -24,6 +24,7 @@ interface NotebookInterfaceProps {
   recommendations: string | ChecklistItem[]
   isPlanning: boolean
   onSave?: (content: string | ChecklistItem[]) => void
+  dismissible?: boolean
 }
 
 function formatClassificationForDisplay(classification?: string): string {
@@ -37,7 +38,7 @@ export function transformChecklistToDisplay(checklist: ChecklistItem[]): string 
   if (!Array.isArray(checklist)) return ''
   
   const bySection = checklist.reduce((acc, item) => {
-    const sectionId = item.sectionId || 'general'
+    const sectionId = item.section || 'general'
     if (!acc[sectionId]) acc[sectionId] = []
     acc[sectionId].push(item)
     return acc
@@ -62,8 +63,14 @@ export function transformChecklistToDisplay(checklist: ChecklistItem[]): string 
 
 function getSectionTitle(sectionId: string): string {
   const sectionTitles: Record<string, string> = {
+    "section1": "Engagement Setup, Acceptance & Independence",
+    "section2": "Understanding the Entity & Its Environment", 
+    "section3": "Materiality & Risk Summary",
+    "section4": "Risk Register & Audit Response Planning",
+    "section5": "Fraud Risk & Going Concern Planning",
+    "section6": "Compliance with Laws & Regulations (ISA 250)",
     "engagement_setup_acceptance_independence": "Engagement Setup, Acceptance & Independence",
-    "understanding_entity_environment": "Understanding the Entity & Its Environment", 
+    "understanding_entity_environment": "Understanding the Entity & Its Environment",
     "materiality_risk_summary": "Materiality & Risk Summary",
     "risk_response_planning": "Risk Register & Audit Response Planning",
     "fraud_gc_planning": "Fraud Risk & Going Concern Planning",
@@ -89,12 +96,12 @@ function parseDisplayToChecklist(content: string): ChecklistItem[] {
       const sectionName = sectionMatch[1]
       // Reverse lookup to get sectionId
       const sectionId = Object.entries({
-        "Engagement Setup, Acceptance & Independence": "engagement_setup_acceptance_independence",
-        "Understanding the Entity & Its Environment": "understanding_entity_environment",
-        "Materiality & Risk Summary": "materiality_risk_summary", 
-        "Risk Register & Audit Response Planning": "risk_response_planning",
-        "Fraud Risk & Going Concern Planning": "fraud_gc_planning",
-        "Compliance with Laws & Regulations (ISA 250)": "compliance_laws_regulations"
+        "Engagement Setup, Acceptance & Independence": "section1",
+        "Understanding the Entity & Its Environment": "section2",
+        "Materiality & Risk Summary": "section3", 
+        "Risk Register & Audit Response Planning": "section4",
+        "Fraud Risk & Going Concern Planning": "section5",
+        "Compliance with Laws & Regulations (ISA 250)": "section6"
       }).find(([title]) => title === sectionName)?.[1] || 'general'
       
       currentSection = sectionId
@@ -111,7 +118,7 @@ function parseDisplayToChecklist(content: string): ChecklistItem[] {
         id: `item-${Date.now()}-${index}`,
         text: text.trim(),
         checked,
-        sectionId: currentSection
+        section: currentSection
       })
     }
   })
@@ -212,6 +219,7 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   recommendations,
   onSave,
   isPlanning,
+  dismissible = true,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editedContent, setEditedContent] = useState<string>('')
@@ -323,17 +331,20 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
-        onClick={onClose}
-      />
+      {dismissible && (
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
 
       <div
         className={cn(
           'fixed inset-4 z-50 max-w-4xl mx-auto',
           'bg-amber-50 border border-amber-200 rounded-2xl shadow-2xl',
           'transform transition-all duration-500 ease-out',
-          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
+          !dismissible && 'relative inset-0 max-w-none mx-0 shadow-none'
         )}
       >
         <div className="absolute left-0 top-0 bottom-0 w-12 bg-red-800 rounded-l-2xl">
@@ -407,14 +418,16 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                   )}
                 </>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="text-amber-700 hover:bg-gray-100"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              {dismissible && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="text-amber-700 hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -451,72 +464,56 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
                 {checklistItems.length > 0 ? (
                   Object.entries(
                     checklistItems.reduce((acc, item) => {
-                      const sectionId = item.sectionId || 'general'
-                      if (!acc[sectionId]) acc[sectionId] = []
-                      acc[sectionId].push(item)
+                      // Group by classification if it exists, otherwise by section
+                      const groupKey = item.classification 
+                        ? `classification_${item.classification}` 
+                        : `section_${item.section || 'general'}`
+                      
+                      if (!acc[groupKey]) acc[groupKey] = []
+                      acc[groupKey].push(item)
                       return acc
                     }, {} as Record<string, ChecklistItem[]>)
-                  ).map(([sectionId, items]) => (
-                    <div key={sectionId} className="space-y-3">
-                      
-                      
-                      <div className="space-y-4">
-                        {getSectionTitle(sectionId) === "General Recommendations" ? (
-                          // Group by classification for General Recommendations
-                          Object.entries(
-                            items.reduce((acc, item) => {
-                              const classification = item.classification || 'Other'
-                              if (!acc[classification]) acc[classification] = []
-                              acc[classification].push(item)
-                              return acc
-                            }, {} as Record<string, ChecklistItem[]>)
-                          ).map(([classification, classificationItems]) => (
-                            <div key={classification} className="space-y-2">
-                              <h4 className="text-xl font-semibold text-amber-800 mb-2 font-serif">
-                                {formatClassificationForDisplay(classification)}
-                              </h4>
-                              <div className="space-y-2">
-                                {classificationItems.map((item) => (
-                                  <div key={item.id} className="flex items-start space-x-3 p-2 rounded hover:bg-amber-100/50">
-                                    <Checkbox
-                                      checked={item.checked}
-                                      onCheckedChange={() => handleCheckboxToggle(item.id)}
-                                      className="mt-1 text-amber-600"
-                                    />
-                                    <span className={cn(
-                                      "text-amber-800 leading-relaxed flex-1",
-                                      item.checked && "line-through text-amber-600"
-                                    )}>
-                                      {item.text}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          // Regular display for other sections
-                          <div className="space-y-2">
-                            {items.map((item) => (
-                              <div key={item.id} className="flex items-start space-x-3 p-2 rounded hover:bg-amber-100/50">
-                                <Checkbox
-                                  checked={item.checked}
-                                  onCheckedChange={() => handleCheckboxToggle(item.id)}
-                                  className="mt-1 text-amber-600"
-                                />
-                                <span className={cn(
-                                  "text-amber-800 leading-relaxed flex-1",
-                                  item.checked && "line-through text-amber-600"
-                                )}>
-                                  {item.text}
+                  ).map(([groupKey, items]) => {
+                    // Determine the display title based on the group key
+                    let displayTitle = ''
+                    if (groupKey.startsWith('classification_')) {
+                      const classification = groupKey.replace('classification_', '')
+                      displayTitle = formatClassificationForDisplay(classification)
+                    } else if (groupKey.startsWith('section_')) {
+                      const sectionId = groupKey.replace('section_', '')
+                      displayTitle = getSectionTitle(sectionId)
+                    }
+                    
+                    return (
+                      <div key={groupKey} className="space-y-3">
+                        <h3 className="text-xl font-semibold text-amber-800 font-serif">
+                          {displayTitle}
+                        </h3>
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div key={item.id} className="flex items-start space-x-3 p-2 rounded hover:bg-amber-100/50">
+                              <Checkbox
+                                checked={item.checked}
+                                onCheckedChange={() => handleCheckboxToggle(item.id)}
+                                className="mt-1 text-amber-600"
+                              />
+                              <span className={cn(
+                                "text-amber-800 leading-relaxed flex-1",
+                                item.checked && "line-through text-amber-600"
+                              )}>
+                                {item.text}
+                              </span>
+                              {item.classification && (
+                                <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
+                                  {formatClassificationForDisplay(item.classification)}
                                 </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <p className="text-amber-600 italic font-serif">
                     No checklist items have been added yet.

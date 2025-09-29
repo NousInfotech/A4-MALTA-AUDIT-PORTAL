@@ -200,137 +200,147 @@ const AIPlanningAnswersStep: React.FC<{
   const [loading, setLoading] = useState(false)
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
   const fileInput = useRef<HTMLInputElement>(null)
-  const [sectionRecommendations, setSectionRecommendations] = useState<Record<string, string>>({});
+  // Change this line to store checklist items instead of strings
+  const [sectionRecommendations, setSectionRecommendations] = useState<Record<string, any[]>>({});
 
   const { toast } = useToast()
 
-const fillAnswersForSection = async (sectionId: string) => {
-  setLoading(true)
-  setGeneratingSections(prev => {
-    const newSet = new Set(prev)
-    newSet.add(sectionId)
-    return newSet
-  })
-  
-  try {
-    const base = import.meta.env.VITE_APIURL
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-answers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sectionId }),
-    })
-    if (!res.ok) throw new Error("Failed to generate answers for section")
-    const data = await res.json()
-
-    const extractAnswers = (responseData: any) => {
-  const answers: Record<string, any> = {};
-  
-  // Process all fields in the response
-  if (responseData.fields && Array.isArray(responseData.fields)) {
-    responseData.fields.forEach((fieldItem: any) => {
-      // Get the field data from either _doc or directly from the item
-      const fieldData = fieldItem._doc || fieldItem;
-      const key = fieldData.key;
-      
-      if (!key) return;
-      
-      // Get answer from multiple possible locations
-      const answer = 
-        fieldItem.answer !== undefined ? fieldItem.answer :
-        fieldData.answer !== undefined ? fieldData.answer :
-        fieldData.content !== undefined ? fieldData.content : null;
-      
-      answers[key] = answer;
-    });
-  }
-  const sectionRec = data.sectionRecommendations || "";
-setSectionRecommendations(prev => ({ ...prev, [sectionId]: sectionRec }));
-  
-  return answers;
-};
-
-    const answers = extractAnswers(data);
-
-    setProcedures(prev => prev.map(sec => 
-      sec.sectionId === data.sectionId
-        ? {
-            ...sec,
-            fields: (sec.fields || []).map((existingField: any) => {
-              const key = existingField?.key;
-              if (!key) return existingField;
-              
-              // Use the answer from the API response if available
-              const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
-              
-              return { 
-                ...existingField, 
-                answer: answerFromResponse 
-              };
-            })
-          }
-        : sec
-    ));
-    
-    toast({ title: "Answers Generated", description: `Answers for section generated successfully.` })
-  } catch (e: any) {
-    toast({ title: "Generation failed", description: e.message, variant: "destructive" })
-  } finally {
-    setLoading(false)
+  const fillAnswersForSection = async (sectionId: string) => {
+    setLoading(true)
     setGeneratingSections(prev => {
       const newSet = new Set(prev)
-      newSet.delete(sectionId)
+      newSet.add(sectionId)
       return newSet
     })
-  }
-}
-
-const handleSave = async () => {
-  try {
-    setLoading(true)
     
-    const form = new FormData();
-    const payload = {
-      ...stepData,
-      procedures: procedures,
-      status: "in-progress",
-      procedureType: "planning",
-      mode: mode,
-    };
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-answers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionId }),
+      })
+      if (!res.ok) throw new Error("Failed to generate answers for section")
+      const data = await res.json()
 
-    form.append("data", JSON.stringify(payload));
+      const extractAnswers = (responseData: any) => {
+        const answers: Record<string, any> = {};
+        
+        if (responseData.fields && Array.isArray(responseData.fields)) {
+          responseData.fields.forEach((fieldItem: any) => {
+            const fieldData = fieldItem._doc || fieldItem;
+            const key = fieldData.key;
+            
+            if (!key) return;
+            
+            const answer = 
+              fieldItem.answer !== undefined ? fieldItem.answer :
+              fieldData.answer !== undefined ? fieldData.answer :
+              fieldData.content !== undefined ? fieldData.content : null;
+            
+            answers[key] = answer;
+          });
+        }
+        
+        // Store the section recommendations as an array (not string)
+        const sectionRec = data.sectionRecommendations || [];
+        setSectionRecommendations(prev => ({ ...prev, [sectionId]: sectionRec }));
+        
+        return answers;
+      };
 
-    // Add files from the file input
-    if (fileInput.current?.files?.length) {
-      Array.from(fileInput.current.files).forEach((f) => {
-        const sanitizedFileName = f.name.replace(/\s+/g, "_");
-        form.append("files", f, sanitizedFileName);
-      });
+      const answers = extractAnswers(data);
+
+      setProcedures(prev => prev.map(sec => 
+        sec.sectionId === data.sectionId
+          ? {
+              ...sec,
+              fields: (sec.fields || []).map((existingField: any) => {
+                const key = existingField?.key;
+                if (!key) return existingField;
+                
+                const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
+                
+                return { 
+                  ...existingField, 
+                  answer: answerFromResponse 
+                };
+              })
+            }
+          : sec
+      ));
+      
+      toast({ title: "Answers Generated", description: `Answers for section generated successfully.` })
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+      setGeneratingSections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sectionId)
+        return newSet
+      })
     }
-
-    const engagementId = engagement._id;
-    const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/planning-procedures/${engagementId}/save`, {
-      method: "POST",
-      body: form,
-    });
-
-    if (!res.ok) throw new Error("Save failed");
-
-    const saved = await res.json();
-    
-    onComplete({
-      saved,
-      procedures: procedures,
-      engagement: engagement,
-      sectionRecommendations: sectionRecommendations // Add this line
-
-    });
-  } catch (e: any) {
-    toast({ title: "Failed to Proceed", description: e.message, variant: "destructive" });
-  } finally {
-    setLoading(false)
   }
-};
 
+  const handleSave = async () => {
+    try {
+      setLoading(true)
+      
+      const form = new FormData();
+      
+      // Collect all recommendations from all sections into one array
+      const allRecommendations: any[] = [];
+      Object.values(sectionRecommendations).forEach(sectionRecs => {
+        if (Array.isArray(sectionRecs)) {
+          allRecommendations.push(...sectionRecs);
+        }
+      });
+
+      const payload = {
+        ...stepData,
+        procedures: procedures,
+        recommendations: allRecommendations, // Pass as array of checklist items
+        status: "in-progress",
+        procedureType: "planning",
+        mode: mode,
+        sectionRecommendations: sectionRecommendations, // Also keep them organized by section
+      };
+
+      form.append("data", JSON.stringify(payload));
+
+      // Add files from the file input
+      if (fileInput.current?.files?.length) {
+        Array.from(fileInput.current.files).forEach((f) => {
+          const sanitizedFileName = f.name.replace(/\s+/g, "_");
+          form.append("files", f, sanitizedFileName);
+        });
+      }
+
+      const engagementId = engagement._id;
+      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/planning-procedures/${engagementId}/save`, {
+        method: "POST",
+        body: form,
+      });
+
+      if (!res.ok) throw new Error("Save failed");
+
+      const saved = await res.json();
+      
+      // Pass the recommendations as checklist items to the next step
+      onComplete({
+        saved,
+        procedures: procedures,
+        engagement: engagement,
+        recommendations: allRecommendations, // This will be passed as checklist items
+        sectionRecommendations: sectionRecommendations
+      });
+    } catch (e: any) {
+      toast({ title: "Failed to Proceed", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false)
+    }
+  };
   // basic editors
   const setFieldAnswer = (sectionId: string, key: string, value: any) => {
     setProcedures(prev => prev.map(sec => 
