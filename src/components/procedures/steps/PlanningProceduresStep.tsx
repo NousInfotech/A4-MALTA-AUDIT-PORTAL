@@ -276,9 +276,9 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
             if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
               nextErrors[key] = "Please enter a valid number."
             break
-          case "checkbox":
-            if (!val) nextErrors[key] = "Please confirm this item."
-            break
+          // case "checkbox":
+          //   if (!val) nextErrors[key] = "Please confirm this item."
+          //   break
           case "select":
             if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
             break

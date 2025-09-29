@@ -12,6 +12,13 @@ import { supabase } from "@/integrations/supabase/client"
 import ReactMarkdown from "react-markdown"
 import NotebookInterface from "../NotebookInterface"
 
+interface ChecklistItem {
+  id: string
+  text: string
+  checked: boolean
+  classification?: string
+}
+
 interface RecommendationsStepProps {
   engagement: any
   mode: string
@@ -149,7 +156,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
   onComplete,
   onBack,
 }) => {
-  const [recommendations, setRecommendations] = useState(stepData.recommendations || "")
+  const [recommendations, setRecommendations] = useState<any>(stepData.recommendations || [])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -199,7 +206,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
       }
 
       const data = await response.json()
-      setRecommendations(data.recommendations || "")
+      setRecommendations(data.recommendations || [])
       
       toast({
         title: "Recommendations Generated",
@@ -270,7 +277,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Audit Recommendations</CardTitle>
           <div className="flex gap-2">
-            {(mode === "ai" || mode === "hybrid") && !recommendations && !isGenerating && (
+            {(mode === "ai" || mode === "hybrid") && (!recommendations || (Array.isArray(recommendations) && recommendations.length === 0)) && !isGenerating && (
               <Button onClick={generateAIRecommendations} className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
                 Generate Recommendations
@@ -288,7 +295,7 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
         </CardHeader>
 
         <CardContent className={`transition-opacity duration-300 ${entryAnimating ? "opacity-0" : "opacity-100"}`}>
-          {!recommendations && (mode === "ai" || mode === "hybrid") && !isGenerating ? (
+          {(!recommendations || (Array.isArray(recommendations) && recommendations.length === 0)) && (mode === "ai" || mode === "hybrid") && !isGenerating ? (
             <div className="text-center py-8">
               <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No Recommendations Yet</h3>
@@ -298,6 +305,20 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
               <Button onClick={generateAIRecommendations}>
                 Generate Recommendations
               </Button>
+            </div>
+          ) : Array.isArray(recommendations) ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Recommendations are now managed as interactive checklists. Click "Preview Report" to view and edit them.
+              </p>
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2 text-sm">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span>
+                    {recommendations.length} checklist item{recommendations.length !== 1 ? 's' : ''} generated
+                  </span>
+                </div>
+              </div>
             </div>
           ) : (
             <>
