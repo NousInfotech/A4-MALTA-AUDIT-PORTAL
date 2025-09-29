@@ -83,6 +83,14 @@ async function authFetch(url: string, options: RequestInit = {}) {
     },
   })
 }
+
+interface ChecklistItem {
+  id: string
+  text: string
+  checked: boolean
+  classification?: string
+}
+
 interface ProcedureViewProps {
   procedure: any
   engagement: any
@@ -153,46 +161,84 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
   const validCount = filteredQuestions?.filter((q: any) => q?.isValid)?.length || 0
 
+  // Get recommendations for current classification as checklist items
   const recommendationsForClass = React.useMemo(() => {
-    const text = typeof procedure?.recommendations === "string" ? procedure.recommendations : ""
+    if (!procedure?.recommendations) return []
+
+    // If recommendations is already an array of checklist items, use it directly
+    if (Array.isArray(procedure.recommendations)) {
+      if (!currentClassification) {
+        return procedure.recommendations
+      }
+      return procedure.recommendations.filter((item: ChecklistItem) => 
+        item.classification === currentClassification
+      )
+    }
+
+    // Handle legacy string format
+    const text = typeof procedure.recommendations === "string" ? procedure.recommendations : ""
     const byClassFromServer = splitRecommendationsByClassification(text)
 
     if (!currentClassification) {
-      // If no current classification, return the whole string (fallback behavior)
-      return text
+      // If no current classification, convert entire text to checklist items
+      return text.split('\n')
+        .filter(line => line.trim())
+        .map((line, index) => ({
+          id: `legacy-${index}`,
+          text: line.trim(),
+          checked: false,
+          classification: "general"
+        }))
     }
 
-    // Ensure we're matching the exact full path
+    // Normalize classification for matching
     const normalizeClassification = (s: string) => s.toLowerCase().trim()
 
+    let content = ""
+    
     // 1) Exact match on full classification path
     if (byClassFromServer[currentClassification]) {
-      return byClassFromServer[currentClassification]
-    }
-
-    // 2) Try matching even with minor variations
-    for (const key of Object.keys(byClassFromServer)) {
-      if (normalizeClassification(key) === normalizeClassification(currentClassification)) {
-        return byClassFromServer[key]
+      content = byClassFromServer[currentClassification]
+    } else {
+      // 2) Try matching even with minor variations
+      for (const key of Object.keys(byClassFromServer)) {
+        if (normalizeClassification(key) === normalizeClassification(currentClassification)) {
+          content = byClassFromServer[key]
+          break
+        }
+      }
+      
+      // 3) Last resort: Try suffix match for deeper parts of the classification
+      if (!content) {
+        const leaf = currentClassification.split(">").pop()?.trim() || ""
+        const wantLeaf = normalizeClassification(leaf)
+        for (const key of Object.keys(byClassFromServer)) {
+          const keyLeaf = normalizeClassification(key.split(">").pop() || key)
+          if (keyLeaf === wantLeaf) {
+            content = byClassFromServer[key]
+            break
+          }
+        }
       }
     }
 
-    // 3) Last resort: Try suffix match for deeper parts of the classification (e.g., "Cash & Cash Equivalents")
-    const leaf = currentClassification.split(">").pop()?.trim() || ""
-    const wantLeaf = normalizeClassification(leaf)
-    for (const key of Object.keys(byClassFromServer)) {
-      const keyLeaf = normalizeClassification(key.split(">").pop() || key)
-      if (keyLeaf === wantLeaf) {
-        return byClassFromServer[key]
-      }
+    // Convert content to checklist items
+    if (content) {
+      return content.split('\n')
+        .filter(line => line.trim())
+        .map((line, index) => ({
+          id: `item-${Date.now()}-${index}`,
+          text: line.trim(),
+          checked: false,
+          classification: currentClassification
+        }))
     }
 
-    // 4) Nothing found: Empty or fallback to full text (you can adjust this fallback)
-    return ""
+    return []
   }, [procedure?.recommendations, currentClassification])
 
-  // state to allow in-place editing from the notebook
-  const [recommendations, setRecommendations] = useState<string>(recommendationsForClass)
+  // state to allow in-place editing from the notebook - now as checklist items
+  const [recommendations, setRecommendations] = useState<ChecklistItem[]>(recommendationsForClass)
   React.useEffect(() => {
     setRecommendations(recommendationsForClass)
   }, [recommendationsForClass])
@@ -244,52 +290,79 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     setEditAnswerText(newQuestion.answer)
   }
 
-const handleSaveAllChanges = async () => {
-  setIsSaving(true);
-  try {
-    const base = import.meta.env.VITE_APIURL;
+  const handleSaveAllChanges = async () => {
+    setIsSaving(true);
+    try {
+      const base = import.meta.env.VITE_APIURL;
 
-    const url = currentClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`;
-    const method = "POST";
-    const body= JSON.stringify({
-        ...procedure,
-        status:"completed",
-        questions: localQuestions,
-        recommendations: recommendations,
-      });
-    const response = await authFetch(url, { method, body });
-
-    if (response.ok) {
-      toast({
-        title: "Changes Saved",
-        description: "All changes have been saved successfully.",
-      });
-
-      // Fetch the updated procedure after successful save
-      const updatedResponse = await authFetch(url);
-      if (updatedResponse.ok) {
-        const updatedData = await updatedResponse.json();
-        // Extract the procedure from the response
-        const updatedProcedure = updatedData.procedure || updatedData;
+      const url = currentClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`;
+      const method = "POST";
+      
+      // Prepare recommendations: merge current classification with existing ones
+      let finalRecommendations = recommendations;
+      
+      if (currentClassification && Array.isArray(procedure?.recommendations)) {
+        // Get existing recommendations from other classifications
+        const otherClassificationRecommendations = procedure.recommendations.filter(
+          (item: ChecklistItem) => item.classification !== currentClassification
+        );
         
-        // Update parent component's state with the new procedure
-        if (onProcedureUpdate) {
-          onProcedureUpdate(updatedProcedure);
-        }
+        // Combine current classification recommendations with other classifications
+        finalRecommendations = [
+          ...otherClassificationRecommendations,
+          ...recommendations
+        ];
       }
-    } else {
-      throw new Error("Failed to save changes");
+      
+      const body= JSON.stringify({
+          ...procedure,
+          status:"completed",
+          questions: localQuestions,
+          recommendations: finalRecommendations,
+        });
+      const response = await authFetch(url, { method, body });
+
+      if (response.ok) {
+        toast({
+          title: "Changes Saved",
+          description: "All changes have been saved successfully.",
+        });
+
+        // Fetch the updated procedure after successful save
+        const updatedResponse = await authFetch(url);
+        if (updatedResponse.ok) {
+          const updatedData = await updatedResponse.json();
+          // Extract the procedure from the response
+          const updatedProcedure = updatedData.procedure || updatedData;
+          
+          // Update parent component's state with the new procedure
+          if (onProcedureUpdate) {
+            onProcedureUpdate(updatedProcedure);
+          }
+        }
+      } else {
+        throw new Error("Failed to save changes");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Could not save changes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
-  } catch (error: any) {
-    toast({
-      title: "Save Failed",
-      description: error.message || "Could not save changes.",
-      variant: "destructive",
-    });
-  } finally {
-    setIsSaving(false);
+  };
+
+  // Handle checklist item toggle
+  const handleCheckboxToggle = (itemId: string) => {
+    setRecommendations(prev => 
+      prev.map(item => 
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      )
+    )
   }
-};
+
   // PDF export (still includes just this classification)
   const handleExportPDF = async () => {
     try {
@@ -391,7 +464,12 @@ const handleSaveAllChanges = async () => {
           .replace(/\s+/g, " ")
           .trim()
 
-      const lines = (recommendations || "No recommendations provided.").split(/\r?\n/)
+      // Convert checklist items to display format for PDF
+      const recommendationsText = recommendations.length > 0 
+        ? recommendations.map(item => `${item.checked ? '[x]' : '[ ]'} ${item.text}`).join('\n')
+        : "No recommendations provided."
+
+      const lines = recommendationsText.split(/\r?\n/)
       let y = 30
       const write = (text: string, bold = false, size = 11) => {
         doc.setFont("helvetica", bold ? "bold" : "normal")
@@ -617,18 +695,12 @@ const handleSaveAllChanges = async () => {
       <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
       <NotebookInterface
         isOpen={isNotesOpen}
-        isEditable={!currentClassification}
+        isEditable={true}
         isPlanning={false}
         onClose={() => setIsNotesOpen(false)}
-        recommendations={
-          recommendations && currentClassification
-            ? `### ${formatClassificationForDisplay(currentClassification)}\n\n${recommendations}`
-            : recommendations || ""
-        }
+        recommendations={recommendations}
         onSave={(content) => {
-          // Remove the header if it exists before saving
-          const contentWithoutHeader = content.replace(/^### .+\n\n/, '')
-          setRecommendations(contentWithoutHeader)
+          setRecommendations(content as ChecklistItem[])
         }}
       />
     </>

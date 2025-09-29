@@ -4,17 +4,26 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { X, Edit3, Save, BookOpenCheck } from 'lucide-react'
+import { X, Edit3, Save, BookOpenCheck, CheckSquare, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { Checkbox } from '@/components/ui/checkbox'
+
+interface ChecklistItem {
+  id: string
+  text: string
+  checked: boolean
+  sectionId?: string
+  classification?:string
+}
 
 interface NotebookInterfaceProps {
   isOpen: boolean
   isEditable: boolean
   onClose: () => void
-  recommendations: string
+  recommendations: string | ChecklistItem[]
   isPlanning: boolean
-  onSave?: (content: string) => void
+  onSave?: (content: string | ChecklistItem[]) => void
 }
 
 function formatClassificationForDisplay(classification?: string): string {
@@ -23,8 +32,104 @@ function formatClassificationForDisplay(classification?: string): string {
   return parts[parts.length - 1] || classification
 }
 
-function transformRecommendationsForDisplay(input?: string): string {
-  if (!input || typeof input !== 'string') return ''
+// Helper function to convert checklist items to display format
+export function transformChecklistToDisplay(checklist: ChecklistItem[]): string {
+  if (!Array.isArray(checklist)) return ''
+  
+  const bySection = checklist.reduce((acc, item) => {
+    const sectionId = item.sectionId || 'general'
+    if (!acc[sectionId]) acc[sectionId] = []
+    acc[sectionId].push(item)
+    return acc
+  }, {} as Record<string, ChecklistItem[]>)
+
+  let output = ''
+  
+  Object.entries(bySection).forEach(([sectionId, items]) => {
+    const sectionTitle = getSectionTitle(sectionId)
+    output += `### ${sectionTitle}\n\n`
+    
+    items.forEach(item => {
+      const checkbox = item.checked ? '[x]' : '[ ]'
+      output += `${checkbox} ${item.text}\n`
+    })
+    
+    output += '\n'
+  })
+  
+  return output
+}
+
+function getSectionTitle(sectionId: string): string {
+  const sectionTitles: Record<string, string> = {
+    "engagement_setup_acceptance_independence": "Engagement Setup, Acceptance & Independence",
+    "understanding_entity_environment": "Understanding the Entity & Its Environment", 
+    "materiality_risk_summary": "Materiality & Risk Summary",
+    "risk_response_planning": "Risk Register & Audit Response Planning",
+    "fraud_gc_planning": "Fraud Risk & Going Concern Planning",
+    "compliance_laws_regulations": "Compliance with Laws & Regulations (ISA 250)",
+    "general": "General Recommendations"
+  }
+  
+  return sectionTitles[sectionId] || sectionId
+}
+
+// Helper function to parse display format back to checklist
+function parseDisplayToChecklist(content: string): ChecklistItem[] {
+  const items: ChecklistItem[] = []
+  const lines = content.split('\n')
+  let currentSection = 'general'
+  
+  lines.forEach((line, index) => {
+    const trimmed = line.trim()
+    
+    // Check for section headers
+    const sectionMatch = trimmed.match(/^###\s+(.+)$/)
+    if (sectionMatch) {
+      const sectionName = sectionMatch[1]
+      // Reverse lookup to get sectionId
+      const sectionId = Object.entries({
+        "Engagement Setup, Acceptance & Independence": "engagement_setup_acceptance_independence",
+        "Understanding the Entity & Its Environment": "understanding_entity_environment",
+        "Materiality & Risk Summary": "materiality_risk_summary", 
+        "Risk Register & Audit Response Planning": "risk_response_planning",
+        "Fraud Risk & Going Concern Planning": "fraud_gc_planning",
+        "Compliance with Laws & Regulations (ISA 250)": "compliance_laws_regulations"
+      }).find(([title]) => title === sectionName)?.[1] || 'general'
+      
+      currentSection = sectionId
+      return
+    }
+    
+    // Check for checklist items
+    const checkboxMatch = trimmed.match(/^(\s*)(\[(x| )\])\s+(.+)$/i)
+    if (checkboxMatch) {
+      const [, , , checkState, text] = checkboxMatch
+      const checked = checkState.toLowerCase() === 'x'
+      
+      items.push({
+        id: `item-${Date.now()}-${index}`,
+        text: text.trim(),
+        checked,
+        sectionId: currentSection
+      })
+    }
+  })
+  
+  return items
+}
+
+function transformRecommendationsForDisplay(input?: string | ChecklistItem[]): string {
+  if (!input) return ''
+  
+  // If it's already a checklist, convert to display format
+  if (Array.isArray(input)) {
+    return transformChecklistToDisplay(input)
+  }
+  
+  // Legacy string format handling
+  if (typeof input !== 'string') return ''
+  
   return input
     .split('\n')
     .map((line) => {
@@ -53,8 +158,16 @@ function transformRecommendationsForDisplay(input?: string): string {
     .replace(/\n{3,}/g, '\n\n')
 }
 
-function transformPlanningRecommendationsForDisplay(input?: string): string {
-  if (!input || typeof input !== 'string') return ''
+function transformPlanningRecommendationsForDisplay(input?: string | ChecklistItem[]): string {
+  if (!input) return ''
+  
+  // If it's already a checklist, convert to display format
+  if (Array.isArray(input)) {
+    return transformChecklistToDisplay(input)
+  }
+  
+  // Legacy string format handling
+  if (typeof input !== 'string') return ''
 
   const lines = input.split('\n')
   let output = ''
@@ -92,7 +205,6 @@ function transformPlanningRecommendationsForDisplay(input?: string): string {
   return output
 }
 
-
 const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   isOpen,
   isEditable,
@@ -102,27 +214,51 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   isPlanning,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
-  const [editedContent, setEditedContent] = useState(recommendations || '')
+  const [editedContent, setEditedContent] = useState<string>('')
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { toast } = useToast()
 
-  // Sync editedContent with recommendations when they change
+  // Initialize content based on recommendations type
   useEffect(() => {
-    setEditedContent(recommendations || '')
+    if (Array.isArray(recommendations)) {
+      setChecklistItems(recommendations)
+      setEditedContent(transformChecklistToDisplay(recommendations))
+    } else {
+      setEditedContent(recommendations || '')
+      // Convert legacy string to checklist if needed
+      if (recommendations && typeof recommendations === 'string') {
+        const parsed = parseDisplayToChecklist(recommendations)
+        if (parsed.length > 0) {
+          setChecklistItems(parsed)
+        }
+      }
+    }
   }, [recommendations])
 
   // Focus textarea when entering edit mode
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.focus()
-      // Move cursor to end of text
       textareaRef.current.selectionStart = textareaRef.current.value.length
       textareaRef.current.selectionEnd = textareaRef.current.value.length
     }
   }, [isEditing])
 
   const handleSave = () => {
-    onSave?.(editedContent)
+    let contentToSave: string | ChecklistItem[]
+    
+    if (isEditing) {
+      // If editing text, parse back to checklist
+      const parsedChecklist = parseDisplayToChecklist(editedContent)
+      contentToSave = parsedChecklist
+      setChecklistItems(parsedChecklist)
+    } else {
+      // If using checklist interface, use the checklist items
+      contentToSave = checklistItems
+    }
+    
+    onSave?.(contentToSave)
     setIsEditing(false)
     toast({
       title: 'Notes Saved',
@@ -131,28 +267,45 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
   }
 
   const handleCancel = () => {
-    setEditedContent(recommendations || '')
+    if (Array.isArray(recommendations)) {
+      setChecklistItems(recommendations)
+      setEditedContent(transformChecklistToDisplay(recommendations))
+    } else {
+      setEditedContent(recommendations || '')
+    }
     setIsEditing(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Allow default Enter key behavior (new line)
     if (e.key === 'Enter') {
-      // Let the browser handle the Enter key normally
       return
     }
     
-    // Save with Ctrl+Enter or Cmd+Enter
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
       handleSave()
     }
     
-    // Cancel with Escape
     if (e.key === 'Escape') {
       e.preventDefault()
       handleCancel()
     }
+  }
+
+  const handleCheckboxToggle = (itemId: string) => {
+    setChecklistItems(prev => 
+      prev.map(item => 
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      )
+    )
+  }
+
+  const handleCheckboxSave = () => {
+    onSave?.(checklistItems)
+    toast({
+      title: 'Checklist Updated',
+      description: 'Your checklist has been saved.',
+    })
   }
 
   const displayRecommendations = useMemo(() => {
@@ -162,7 +315,9 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
       : transformRecommendationsForDisplay(content)
   }, [recommendations, isPlanning])
 
-  const hasContent = displayRecommendations.trim().length > 0
+  const hasContent = Array.isArray(recommendations) 
+    ? recommendations.length > 0
+    : displayRecommendations.trim().length > 0
 
   if (!isOpen) return null
 
@@ -211,14 +366,26 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
               {isEditable && (
                 <>
                   {!isEditing ? (
-                    <Button
-                      size="sm"
-                      onClick={() => setIsEditing(true)}
-                      className="bg-inherit text-amber-700 hover:bg-gray-100"
-                    >
-                      <Edit3 className="h-4 w-4 mr-2" />
-                      Edit Notes
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => setIsEditing(true)}
+                        className="bg-inherit text-amber-700 hover:bg-gray-100"
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit Notes
+                      </Button>
+                      {Array.isArray(recommendations) && (
+                        <Button
+                          size="sm"
+                          onClick={handleCheckboxSave}
+                          className="bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Checklist
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <Button
@@ -262,76 +429,150 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
             </p>
           </div>
 
-         <ScrollArea className="flex-1">
-  {isEditing ? (
-    <Textarea
-      ref={textareaRef}
-      value={editedContent}
-      onChange={(e) => setEditedContent(e.target.value)}
-      onKeyDown={handleKeyDown}
-      placeholder="Enter your audit recommendations here..."
-      className={cn(
-        'min-h-96 bg-transparent border-none resize-none',
-        'text-amber-800 placeholder:text-amber-500',
-        'font-serif leading-relaxed text-base',
-        'focus:ring-0 focus:outline-none'
-      )}
-      style={{ whiteSpace: 'pre-wrap' }}
-    />
-  ) : (
-    <div className="space-y-3">
-      {hasContent ? (
-        // Custom rendering that preserves both markdown and newlines
-        <div className={cn(
-          'prose prose-lg max-w-none font-serif',
-          'prose-headings:text-amber-900 prose-headings:font-serif',
-          'prose-p:text-amber-800 prose-p:leading-relaxed',
-          'prose-li:text-amber-800 prose-li:my-1',
-          'prose-ul:my-3 prose-ul:space-y-1',
-          'prose-strong:text-amber-900 prose-em:italic',
-          'prose-code:bg-gray-200 prose-code:px-2 prose-code:py-1 prose-code:rounded',
-          'prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6',
-          'prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4'
-        )}>
-          {displayRecommendations.split('\n').map((line, index) => {
-            // Check if this line is a markdown heading
-            if (line.startsWith('### ')) {
-              return (
-                <h3 key={index} className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif">
-                  {line.replace('### ', '')}
-                </h3>
-              )
-            }
-            // Check if this line is a bullet point
-            if (line.trim().startsWith('- ')) {
-              return (
-                <ul key={index} className="my-3 space-y-1">
-                  <li className="text-amber-800">{line.replace('- ', '')}</li>
-                </ul>
-              )
-            }
-            
-            // Check if line is empty
-            if (line.trim() === '') {
-              return <br key={index} />
-            }
-            
-            // Regular paragraph - preserve newlines within the paragraph
-            return (
-              <p key={index} className="leading-relaxed my-3 text-amber-800 whitespace-pre-wrap">
-                {line}
-              </p>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="text-amber-600 italic font-serif">
-          No recommendations have been added or generated yet.
-        </p>
-      )}
-    </div>
-  )}
-</ScrollArea>
+          <ScrollArea className="flex-1">
+            {isEditing ? (
+              <Textarea
+                ref={textareaRef}
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter your audit recommendations here... Use ### for sections and [ ] or [x] for checklist items"
+                className={cn(
+                  'min-h-96 bg-transparent border-none resize-none',
+                  'text-amber-800 placeholder:text-amber-500',
+                  'font-serif leading-relaxed text-base',
+                  'focus:ring-0 focus:outline-none'
+                )}
+                style={{ whiteSpace: 'pre-wrap' }}
+              />
+            ) : Array.isArray(recommendations) ? (
+              // Checklist View
+              <div className="space-y-6">
+                {checklistItems.length > 0 ? (
+                  Object.entries(
+                    checklistItems.reduce((acc, item) => {
+                      const sectionId = item.sectionId || 'general'
+                      if (!acc[sectionId]) acc[sectionId] = []
+                      acc[sectionId].push(item)
+                      return acc
+                    }, {} as Record<string, ChecklistItem[]>)
+                  ).map(([sectionId, items]) => (
+                    <div key={sectionId} className="space-y-3">
+                      
+                      
+                      <div className="space-y-4">
+                        {getSectionTitle(sectionId) === "General Recommendations" ? (
+                          // Group by classification for General Recommendations
+                          Object.entries(
+                            items.reduce((acc, item) => {
+                              const classification = item.classification || 'Other'
+                              if (!acc[classification]) acc[classification] = []
+                              acc[classification].push(item)
+                              return acc
+                            }, {} as Record<string, ChecklistItem[]>)
+                          ).map(([classification, classificationItems]) => (
+                            <div key={classification} className="space-y-2">
+                              <h4 className="text-xl font-semibold text-amber-800 mb-2 font-serif">
+                                {formatClassificationForDisplay(classification)}
+                              </h4>
+                              <div className="space-y-2">
+                                {classificationItems.map((item) => (
+                                  <div key={item.id} className="flex items-start space-x-3 p-2 rounded hover:bg-amber-100/50">
+                                    <Checkbox
+                                      checked={item.checked}
+                                      onCheckedChange={() => handleCheckboxToggle(item.id)}
+                                      className="mt-1 text-amber-600"
+                                    />
+                                    <span className={cn(
+                                      "text-amber-800 leading-relaxed flex-1",
+                                      item.checked && "line-through text-amber-600"
+                                    )}>
+                                      {item.text}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          // Regular display for other sections
+                          <div className="space-y-2">
+                            {items.map((item) => (
+                              <div key={item.id} className="flex items-start space-x-3 p-2 rounded hover:bg-amber-100/50">
+                                <Checkbox
+                                  checked={item.checked}
+                                  onCheckedChange={() => handleCheckboxToggle(item.id)}
+                                  className="mt-1 text-amber-600"
+                                />
+                                <span className={cn(
+                                  "text-amber-800 leading-relaxed flex-1",
+                                  item.checked && "line-through text-amber-600"
+                                )}>
+                                  {item.text}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-amber-600 italic font-serif">
+                    No checklist items have been added yet.
+                  </p>
+                )}
+              </div>
+            ) : (
+              // Legacy Text View
+              <div className="space-y-3">
+                {hasContent ? (
+                  <div className={cn(
+                    'prose prose-lg max-w-none font-serif',
+                    'prose-headings:text-amber-900 prose-headings:font-serif',
+                    'prose-p:text-amber-800 prose-p:leading-relaxed',
+                    'prose-li:text-amber-800 prose-li:my-1',
+                    'prose-ul:my-3 prose-ul:space-y-1',
+                    'prose-strong:text-amber-900 prose-em:italic',
+                    'prose-code:bg-gray-200 prose-code:px-2 prose-code:py-1 prose-code:rounded',
+                    'prose-h3:text-xl prose-h3:mb-2 prose-h3:mt-6',
+                    'prose-h4:text-lg prose-h4:mb-2 prose-h4:mt-4'
+                  )}>
+                    {displayRecommendations.split('\n').map((line, index) => {
+                      if (line.startsWith('### ')) {
+                        return (
+                          <h3 key={index} className="text-xl font-bold text-amber-900 mb-2 mt-6 font-serif">
+                            {line.replace('### ', '')}
+                          </h3>
+                        )
+                      }
+                      if (line.trim().startsWith('- ')) {
+                        return (
+                          <ul key={index} className="my-3 space-y-1">
+                            <li className="text-amber-800">{line.replace('- ', '')}</li>
+                          </ul>
+                        )
+                      }
+                      
+                      if (line.trim() === '') {
+                        return <br key={index} />
+                      }
+                      
+                      return (
+                        <p key={index} className="leading-relaxed my-3 text-amber-800 whitespace-pre-wrap">
+                          {line}
+                        </p>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-amber-600 italic font-serif">
+                    No recommendations have been added or generated yet.
+                  </p>
+                )}
+              </div>
+            )}
+          </ScrollArea>
         </div>
       </div>
     </>
