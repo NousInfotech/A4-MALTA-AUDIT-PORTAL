@@ -197,7 +197,7 @@ export const DocumentRequestsTab = ({
       {/* ######################################################################################### */}
       {/* Do not Change the PBC component */}
 
-      <div className="flex justify-end">
+      {/* <div className="flex justify-end">
         <Button
           onClick={() => setIsPbcDocumentsOpen(true)}
           variant="default"
@@ -205,14 +205,14 @@ export const DocumentRequestsTab = ({
         >
           PBC&nbsp;Documents
         </Button>
-      </div>
+      </div> */}
 
       {/* Do not Change the PBC component */}
       {/* ######################################################################################### */}
 
       <div className="space-y-6">
-        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+        <Card className="bg-white/80 backdrop-blur-md border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50 p-6">
             <CardTitle className="text-xl font-bold text-gray-900">
               Send Document Request
             </CardTitle>
@@ -220,86 +220,84 @@ export const DocumentRequestsTab = ({
               Request specific documents from the client
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <SearchableSelect
-                  value={documentRequest.category}
-                  onChange={(value) =>
-                    setDocumentRequest((prev: any) => ({
-                      ...prev,
-                      category: value,
-                    }))
-                  }
-                  options={categories}
-                  placeholder="Search or select category"
-                  widthClass="w-full"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Start typing to filter categories.
-                </p>
+          <CardContent className="p-6 space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="category" className="text-sm font-medium text-gray-700">Category *</Label>
+              <SearchableSelect
+                value={documentRequest.category}
+                onChange={(value) =>
+                  setDocumentRequest((prev: any) => ({
+                    ...prev,
+                    category: value,
+                  }))
+                }
+                options={categories}
+                placeholder="Search or select category"
+                widthClass="w-full"
+              />
+              <p className="text-xs text-gray-500">
+                Start typing to filter categories.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description" className="text-sm font-medium text-gray-700">Request Description *</Label>
+                <span className={cn("text-xs font-medium", descLen > DESC_MAX ? "text-red-600" : "text-gray-500")}>
+                  {descLen}/{DESC_MAX}
+                </span>
+              </div>
+              <Textarea
+                id="description"
+                value={documentRequest.description}
+                onChange={(e) =>
+                  setDocumentRequest((prev: any) => ({
+                    ...prev,
+                    description: e.target.value.slice(0, DESC_MAX),
+                  }))
+                }
+                placeholder="Describe the documents you need from the client..."
+                rows={4}
+                className="resize-y border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                  Tip: include date range
+                </Badge>
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                  Specify format (PDF/XLSX)
+                </Badge>
+                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                  Add due date
+                </Badge>
               </div>
             </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="description">Request Description</Label>
-              <span className={cn("text-xs", descLen > DESC_MAX ? "text-destructive" : "text-muted-foreground")}>
-                {descLen}/{DESC_MAX}
-              </span>
+            <div className="space-y-2">
+              <Label htmlFor="comment" className="text-sm font-medium text-gray-700">Additional Comments (Optional)</Label>
+              <Textarea
+                id="comment"
+                value={documentRequest.comment || ""}
+                onChange={(e) =>
+                  setDocumentRequest((prev: any) => ({
+                    ...prev,
+                    comment: e.target.value,
+                  }))
+                }
+                placeholder="Add any additional notes or instructions for the client..."
+                rows={3}
+                className="resize-y border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+              />
+              <div className="text-xs text-gray-500">
+                Optional: Add any specific instructions, deadlines, or additional context for the client.
+              </div>
             </div>
-            <Textarea
-              id="description"
-              value={documentRequest.description}
-              onChange={(e) =>
-                setDocumentRequest((prev: any) => ({
-                  ...prev,
-                  description: e.target.value.slice(0, DESC_MAX),
-                }))
-              }
-              placeholder="Describe the documents you need from the client..."
-              rows={4}
-              className="resize-y"
-            />
-            <div className="flex flex-wrap gap-2 text-xs">
-              <Badge variant="outline" className="cursor-default">
-                Tip: include date range
-              </Badge>
-              <Badge variant="outline" className="cursor-default">
-                Specify format (PDF/XLSX)
-              </Badge>
-              <Badge variant="outline" className="cursor-default">
-                Add due date
-              </Badge>
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="comment">Additional Comments (Optional)</Label>
-            <Textarea
-              id="comment"
-              value={documentRequest.comment || ""}
-              onChange={(e) =>
-                setDocumentRequest((prev: any) => ({
-                  ...prev,
-                  comment: e.target.value,
-                }))
-              }
-              placeholder="Add any additional notes or instructions for the client..."
-              rows={3}
-              className="resize-y"
-            />
-            <div className="text-xs text-muted-foreground">
-              Optional: Add any specific instructions, deadlines, or additional context for the client.
-            </div>
-          </div>
-
-            <div className="flex justify-between">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <Button
                 variant="outline"
                 onClick={() => setKycModalOpen(true)}
-                className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none"
               >
                 <Shield className="h-4 w-4 mr-2" />
                 Setup KYC
@@ -307,7 +305,7 @@ export const DocumentRequestsTab = ({
               <Button
                 onClick={handleSendDocumentRequest}
                 disabled={!canSend}
-                className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4 mr-2" />
                 Send Request
@@ -316,8 +314,8 @@ export const DocumentRequestsTab = ({
           </CardContent>
         </Card>
 
-        <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
+        <Card className="bg-white/80 backdrop-blur-md border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50 p-6">
             <CardTitle className="text-xl font-bold text-gray-900">
               Document Requests History
             </CardTitle>
@@ -325,90 +323,71 @@ export const DocumentRequestsTab = ({
               Recent requests and uploaded documents
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="p-6">
+            <div className="space-y-4">
               {requests.map((request) => (
                 <div
                   key={request._id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300"
+                  className="p-4 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300"
                 >
-                  <div className="space-y-1 min-w-0">
-                    <div className="font-medium truncate">
-                      {request.description}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Category:{" "}
-                      <span className="font-medium">{request.category}</span> •
-                      Requested:{" "}
-                      {new Date(request.requestedAt).toLocaleDateString()}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      variant={
-                        request.status === "completed" ? "outline" : "secondary"
-                      }
-                      className={cn(
-                        "capitalize",
-                        request.status === "completed" &&
-                          "text-green-600 border-green-600"
-                      )}
-                    >
-                      {request.status}
-                    </Badge>
-
-                    {request.documents?.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {request.documents.map((doc: any, docIndex: number) => {
-                          console.log(
-                            `🎨 Rendering document ${docIndex}:`,
-                            doc
-                          );
-                          return (
-                            <div
-                              key={`${doc.name}-${docIndex}`}
-                              className="inline-block"
-                            >
-                              <a
-                                href={doc.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-gray-800 text-white rounded-xl hover:bg-gray-900 transition-all duration-300 shadow-lg hover:shadow-xl"
-                                title={doc.name}
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                                View {doc.name}
-                              </a>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Debug info - remove this after fixing */}
-                    {request.documents?.length > 0 && (
-                      <div className="text-xs text-red-600 mt-1 p-2 bg-red-50 border border-red-200 rounded">
-                        🔍 DEBUG: {request.documents.length} document(s) found -
-                        Should be visible above
-                      </div>
-                    )}
-
-                    {/* Force render test */}
-                    {request.documents?.length > 0 && (
-                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                        <div className="text-sm font-bold text-yellow-800">
-                          TEST: Documents should appear below:
+                  <div className="space-y-3">
+                    {/* Request Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 text-sm leading-relaxed">
+                          {request.description}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium">Category:</span>
+                            {request.category}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium">Requested:</span>
+                            {new Date(request.requestedAt).toLocaleDateString()}
+                          </span>
                         </div>
-                        {request.documents.map((doc: any, docIndex: number) => (
-                          <div
-                            key={`test-${docIndex}`}
-                            className="text-xs text-yellow-700"
-                          >
-                            {docIndex + 1}. {doc.name} -{" "}
-                            {doc.url ? "Has URL" : "NO URL"}
-                          </div>
-                        ))}
+                      </div>
+                      
+                      <div className="flex-shrink-0">
+                        <Badge
+                          variant={request.status === "completed" ? "outline" : "secondary"}
+                          className={cn(
+                            "capitalize text-xs px-2 py-1",
+                            request.status === "completed" &&
+                              "text-green-600 border-green-600 bg-green-50"
+                          )}
+                        >
+                          {request.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Documents Section */}
+                    {request.documents?.length > 0 && (
+                      <div className="border-t border-gray-200/50 pt-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-gray-600" />
+                          <span className="text-sm font-medium text-gray-700">
+                            Uploaded Documents ({request.documents.length})
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {request.documents.map((doc: any, docIndex: number) => (
+                            <a
+                              key={`${doc.name}-${docIndex}`}
+                              href={doc.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-all duration-300 shadow-sm hover:shadow-md text-sm"
+                              title={`View ${doc.name}`}
+                            >
+                              <FileText className="h-4 w-4" />
+                              <span className="truncate max-w-[200px]">{doc.name}</span>
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -416,9 +395,15 @@ export const DocumentRequestsTab = ({
               ))}
 
               {requests.length === 0 && (
-                <p className="text-muted-foreground text-center py-8">
-                  No document requests sent yet
-                </p>
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 text-sm">
+                    No document requests sent yet
+                  </p>
+                  <p className="text-gray-400 text-xs mt-1">
+                    Send your first request using the form above
+                  </p>
+                </div>
               )}
             </div>
           </CardContent>
