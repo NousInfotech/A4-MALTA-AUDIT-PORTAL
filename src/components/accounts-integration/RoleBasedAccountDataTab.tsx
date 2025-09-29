@@ -179,7 +179,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
                   <Zap className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800">
-                  Apideck Integration
+                  Accounting Integration
                 </h3>
                 <p className="text-gray-600 text-lg max-w-2xl mx-auto">
                   {isClient 
@@ -233,7 +233,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
                   <CreditCard className="h-8 w-8 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800">
-                  Salt Edge Banking
+                  Banking Integration
                 </h3>
                 <p className="text-gray-600 text-lg max-w-2xl mx-auto">
                   {isClient 
