@@ -45,6 +45,7 @@ import RoleBasedAccountDataTab from "./components/accounts-integration/RoleBased
 import CallbackPage from "./components/saltedge/SaltEdgeCallback";
 import ReviewDetailsPage from "./components/review-components/ReviewDetailsPage";
 import ReviewPage from "./pages/ReviewPage";
+import MockApideckHome from "./mockdata/MockApideckHome";
 
 
 
@@ -107,6 +108,7 @@ const App = () => (
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
                 <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
                 <Route path="review/" element={<ReviewPage />} />
+                <Route path="mockapideck" element={<MockApideckHome />} />
               </Route>
 
                 {/* Client Routes */}
