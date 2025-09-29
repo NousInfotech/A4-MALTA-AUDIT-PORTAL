@@ -63,6 +63,7 @@ export interface ISQMQuestion {
   question: string;
   answer: string;
   state: boolean;
+  status?: 'Implemented' | 'Partially Implemented' | 'Not Implemented';
   questionId?: string;
   isMandatory?: boolean;
   questionType?: string;

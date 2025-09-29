@@ -23,7 +23,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
-import { Send, ChevronsUpDown, Check, FileText, Shield } from "lucide-react";
+import { Send, ChevronsUpDown, Check, FileText, Shield, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
 import { PbcDocuments } from "../pbc/PbcDocuments";
@@ -139,6 +139,7 @@ interface DocumentRequestsTabProps {
     category: string
     description: string
     comment?: string
+    attachment?: File
   }
   setDocumentRequest: (request: any) => void
   handleSendDocumentRequest: () => void
@@ -290,6 +291,72 @@ export const DocumentRequestsTab = ({
               />
               <div className="text-xs text-gray-500">
                 Optional: Add any specific instructions, deadlines, or additional context for the client.
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="attachment" className="text-sm font-medium text-gray-700">Attachment (Optional)</Label>
+              <div className="space-y-3">
+                {!documentRequest.attachment ? (
+                  <div className="flex items-center justify-center w-full">
+                    <label
+                      htmlFor="attachment"
+                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors duration-300"
+                    >
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                        <p className="mb-2 text-sm text-gray-500">
+                          <span className="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-500">Excel, PDF, Word documents (MAX. 10MB)</p>
+                      </div>
+                      <input
+                        id="attachment"
+                        type="file"
+                        className="hidden"
+                        accept=".xlsx,.xls,.pdf,.doc,.docx"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setDocumentRequest((prev: any) => ({
+                              ...prev,
+                              attachment: file,
+                            }));
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-5 h-5 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-green-800">{documentRequest.attachment.name}</p>
+                        <p className="text-xs text-green-600">
+                          {(documentRequest.attachment.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setDocumentRequest((prev: any) => ({
+                          ...prev,
+                          attachment: undefined,
+                        }))
+                      }
+                      className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="text-xs text-gray-500">
+                Optional: Upload templates, forms, or reference documents for the client to use.
               </div>
             </div>
 

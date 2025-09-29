@@ -20,7 +20,8 @@ import {
   Loader2,
   Plus,
   Brain,
-  Upload
+  Upload,
+  AlertTriangle
 } from 'lucide-react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { ISQMQuestionnaire, ISQMSection } from '@/hooks/useISQM';
@@ -360,7 +361,21 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                                           <div className="flex items-center space-x-3 mb-3">
                                             <Checkbox
                                               id={`implemented-${questionnaire._id}-${sectionIdx}-${questionIdx}`}
-                                              checked={localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state}
+                                              checked={(() => {
+                                                const currentState = localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state;
+                                                const currentStatus = q.status;
+                                                
+                                                // Use status if available, otherwise fall back to state
+                                                if (currentStatus === 'Implemented') {
+                                                  return true;
+                                                } else if (currentStatus === 'Partially Implemented') {
+                                                  return true; // Show as checked for partially implemented
+                                                } else if (currentStatus === 'Not Implemented') {
+                                                  return false;
+                                                } else {
+                                                  return currentState; // Fallback to original state
+                                                }
+                                              })()}
                                               onCheckedChange={(checked) => onStateUpdate(questionnaire._id, sectionIdx, questionIdx, checked as boolean)}
                                               className="data-[state=checked]:bg-gray-800 data-[state=checked]:border-gray-800"
                                             />
@@ -371,15 +386,49 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                                               Implementation Status
                                             </label>
                                           </div>
+                                          
                                           <div className="flex items-center gap-2">
-                                            {(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? (
-                                              <CheckCircle className="w-5 h-5 text-gray-800" />
-                                            ) : (
-                                              <XCircle className="w-5 h-5 text-red-500" />
-                                            )}
-                                            <span className={`text-sm font-medium ${(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? "text-gray-800" : "text-red-600"}`}>
-                                              {(localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state) ? "Implemented" : "Not Implemented"}
-                                            </span>
+                                            {(() => {
+                                              const currentState = localStates.get(`${questionnaire._id}-${sectionIdx}-${questionIdx}`) ?? q.state;
+                                              const currentStatus = q.status;
+                                              
+                                              // Use status if available, otherwise fall back to state
+                                              if (currentStatus === 'Implemented') {
+                                                return (
+                                                  <>
+                                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                                    <span className="text-sm font-medium text-green-600">Implemented</span>
+                                                  </>
+                                                );
+                                              } else if (currentStatus === 'Partially Implemented') {
+                                                return (
+                                                  <>
+                                                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                                                    <span className="text-sm font-medium text-yellow-600">Partially Implemented</span>
+                                                  </>
+                                                );
+                                              } else if (currentStatus === 'Not Implemented') {
+                                                return (
+                                                  <>
+                                                    <XCircle className="w-5 h-5 text-red-500" />
+                                                    <span className="text-sm font-medium text-red-600">Not Implemented</span>
+                                                  </>
+                                                );
+                                              } else {
+                                                // Fallback to original state logic
+                                                return currentState ? (
+                                                  <>
+                                                    <CheckCircle className="w-5 h-5 text-gray-800" />
+                                                    <span className="text-sm font-medium text-gray-800">Implemented</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <XCircle className="w-5 h-5 text-red-500" />
+                                                    <span className="text-sm font-medium text-red-600">Not Implemented</span>
+                                                  </>
+                                                );
+                                              }
+                                            })()}
                                           </div>
                                         </div>
                                       
