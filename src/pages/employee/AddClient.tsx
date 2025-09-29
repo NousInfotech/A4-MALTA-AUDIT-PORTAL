@@ -73,7 +73,7 @@ export const AddClient = () => {
       
     try {
       const { data, error } = await supabase.auth.getSession()
-      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/users`, {
+      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/users/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
