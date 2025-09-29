@@ -2875,7 +2875,8 @@ const ISQMQuestionnairePage: React.FC = () => {
               result.generatedAnswers.forEach((answerData: any) => {
                 const key = `${policyAnalysisDialog.questionnaireId}-${parseInt(policyAnalysisDialog.sectionId)}-${answerData.questionIndex}`;
                 newLocalAnswers.set(key, answerData.answer);
-                newLocalStates.set(key, answerData.status === 'Implemented');
+                // Set state to true for both "Implemented" and "Partially Implemented"
+                newLocalStates.set(key, answerData.status === 'Implemented' || answerData.status === 'Partially Implemented');
               });
               
               setLocalAnswers(newLocalAnswers);
@@ -2885,6 +2886,9 @@ const ISQMQuestionnairePage: React.FC = () => {
             // Refresh questionnaires to get updated answers from backend
             if (selectedParent) {
               await fetchQuestionnaires(selectedParent);
+              // Clear local state to force re-initialization with fresh data
+              setLocalAnswers(new Map());
+              setLocalStates(new Map());
             }
           } else {
             alert('Failed to analyze policy: ' + result.message);
@@ -2919,7 +2923,8 @@ const ISQMQuestionnairePage: React.FC = () => {
             result.generatedAnswers.forEach((answerData: any) => {
               const key = `${policyAnalysisDialog.questionnaireId}-${parseInt(policyAnalysisDialog.sectionId)}-${answerData.questionIndex}`;
               newLocalAnswers.set(key, answerData.answer);
-              newLocalStates.set(key, answerData.status === 'Implemented');
+              // Set state to true for both "Implemented" and "Partially Implemented"
+              newLocalStates.set(key, answerData.status === 'Implemented' || answerData.status === 'Partially Implemented');
             });
             
             setLocalAnswers(newLocalAnswers);
@@ -2929,6 +2934,9 @@ const ISQMQuestionnairePage: React.FC = () => {
           // Refresh questionnaires to get updated answers from backend
           if (selectedParent) {
             await fetchQuestionnaires(selectedParent);
+            // Clear local state to force re-initialization with fresh data
+            setLocalAnswers(new Map());
+            setLocalStates(new Map());
           }
         } else {
           alert('Failed to analyze policy: ' + result.message);
@@ -2948,8 +2956,13 @@ const ISQMQuestionnairePage: React.FC = () => {
     setPolicyText('');
     setAnalysisResults(null);
     
-    // No need to refresh questionnaires here since local state is already updated
-    // The answers are already rendered in the UI through local state updates
+    // Refresh questionnaires to ensure latest data is displayed
+    if (selectedParent) {
+      await fetchQuestionnaires(selectedParent);
+      // Clear local state to force re-initialization with fresh data
+      setLocalAnswers(new Map());
+      setLocalStates(new Map());
+    }
   };
 
   const sendToAuditor = () => {

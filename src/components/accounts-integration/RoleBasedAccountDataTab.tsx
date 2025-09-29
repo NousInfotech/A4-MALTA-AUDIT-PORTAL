@@ -8,6 +8,7 @@ import ApideckHomePage from "../apideck/ApideckHomePage";
 import BankData from "../saltedge/BankData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import MockApideckHome from "@/mockdata/MockApideckHome";
 
 interface RoleBasedAccountDataTabProps {}
 
@@ -152,7 +153,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
               onClick={() => handleTabChange("apideck")}
             >
               <Zap className="h-4 w-4" />
-              Apideck Integration
+              Accounting&nbsp;Integration
             </Tabs.Trigger>
             <Tabs.Trigger
               className={`flex-1 px-6 py-4 text-sm font-medium cursor-pointer focus:z-10 focus:outline-none focus-visible:ring focus-visible:ring-gray-500 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 ${
@@ -164,7 +165,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
               onClick={() => handleTabChange("saltedge")}
             >
               <CreditCard className="h-4 w-4" />
-              Salt Edge Banking
+              Banking&nbsp;Integration
             </Tabs.Trigger>
           </Tabs.List>
 
@@ -194,11 +195,14 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
                     <ApideckIntegrationCard onSubmit={handleApideckSubmit} />
                   </div>
                   
-                  <div className="w-full">
+                  {/* <div className="w-full">
                     <ApideckHomePage />
-                  </div>
+                  </div> */}
+
+                  <MockApideckHome />
                 </>
               ) : (
+                <>
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 border border-gray-200">
                   <div className="text-center space-y-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center shadow-lg mx-auto">
@@ -208,11 +212,13 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
                     <p className="text-gray-600 max-w-md mx-auto">
                       As an auditor, you can view connected Apideck integrations and financial data, but cannot modify or create new connections.
                     </p>
-                    <div className="w-full">
+                    {/* <div className="w-full">
                       <ApideckHomePage />
-                    </div>
+                    </div> */}
                   </div>
                 </div>
+                <MockApideckHome />
+                </>
               )}
             </div>
           </Tabs.Content>

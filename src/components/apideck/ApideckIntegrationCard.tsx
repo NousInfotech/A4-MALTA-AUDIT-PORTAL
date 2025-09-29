@@ -37,7 +37,9 @@ const ApideckIntegrationCard: React.FC<ApideckIntegrationCardProps> = ({
         "[ApideckIntegrationCard] Error fetching link token:",
         error
       );
-      toast.error("Failed to initialize Apideck connection");
+      console.error("Failed to initialize Apideck connection")
+      console.log("Failed to initialize Apideck connection")
+      // toast.error("Failed to initialize Apideck connection");
     } finally {
       setLoading(false);
       console.log("[ApideckIntegrationCard] Loading set to false");
