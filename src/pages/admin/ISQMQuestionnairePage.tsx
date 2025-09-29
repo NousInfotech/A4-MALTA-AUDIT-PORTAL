@@ -2862,6 +2862,9 @@ const ISQMQuestionnairePage: React.FC = () => {
             // Refresh questionnaires to get updated answers from backend
             if (selectedParent) {
               await fetchQuestionnaires(selectedParent);
+              // Clear local state to force re-initialization with fresh data
+              setLocalAnswers(new Map());
+              setLocalStates(new Map());
             }
           } else {
             alert('Failed to analyze policy: ' + result.message);
@@ -2891,6 +2894,9 @@ const ISQMQuestionnairePage: React.FC = () => {
           // Refresh questionnaires to get updated answers from backend
           if (selectedParent) {
             await fetchQuestionnaires(selectedParent);
+            // Clear local state to force re-initialization with fresh data
+            setLocalAnswers(new Map());
+            setLocalStates(new Map());
           }
         } else {
           alert('Failed to analyze policy: ' + result.message);
@@ -2913,6 +2919,9 @@ const ISQMQuestionnairePage: React.FC = () => {
     // Refresh questionnaires to ensure latest data is displayed
     if (selectedParent) {
       await fetchQuestionnaires(selectedParent);
+      // Clear local state to force re-initialization with fresh data
+      setLocalAnswers(new Map());
+      setLocalStates(new Map());
     }
   };
 
