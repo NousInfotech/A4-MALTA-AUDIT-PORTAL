@@ -5058,7 +5058,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     return (
 
-      <div className="overflow-hidden rounded-xl border">
+      <div className="overflow-hidden border-secondary rounded-xl border">
 
         <table className="w-full text-sm">
 
@@ -5070,7 +5070,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 // <th key={i} className="px-3 py-2 text-left">{String(h ?? "")}</th>
 
-                <td key={i} className="px-3 py-2">
+                <td key={i} className={`border-t-0 border-r-0 border-b border-b-secondary ${i!==0?"border-l border-l-secondary":""} px-3 py-2 font-bold`}>
 
                   {String(h ?? "")}
 
@@ -5090,7 +5090,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 {r.map((c: any, ci: number) => (
 
-                  <td key={ci} className="px-3 py-2">
+                  <td key={ci} className={`border-t-0 border-r-0 ${ri !== rows.length - 1 ? "border-b border-b-secondary" : ""} ${ci!==0?"border-l border-l-secondary":""} px-3 py-2`}>
 
                     {String(c ?? "")}
 
