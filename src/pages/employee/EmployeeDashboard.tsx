@@ -217,7 +217,8 @@ export const EmployeeDashboard = () => {
   // Dynamic greeting message
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
-    const userName = currentUser?.name || "User";
+    // const userName = currentUser?.name || "User";
+    const userName = "Cleven";
     
     if (hour < 12) {
       return `Good morning, ${userName}!`;
