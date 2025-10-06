@@ -46,6 +46,7 @@ import CallbackPage from "./components/saltedge/SaltEdgeCallback";
 import ReviewDetailsPage from "./components/review-components/ReviewDetailsPage";
 import ReviewPage from "./pages/ReviewPage";
 import MockApideckHome from "./mockdata/MockApideckHome";
+import { PromptManagement } from "./pages/admin/PromptManagement";
 
 
 
@@ -79,7 +80,9 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
+
                 <Route index element={<AdminDashboard />} />
+                <Route path="prompts" element={<PromptManagement />} />
                 <Route path="users" element={<UserManagement />} />
                 <Route path="logs" element={<AuditorLogs />} />
                 <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
