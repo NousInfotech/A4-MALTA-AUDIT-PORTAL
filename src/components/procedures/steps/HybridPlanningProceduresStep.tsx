@@ -397,39 +397,6 @@ const handleGenerateSectionAnswers = async (sectionId: string) => {
   }
 }
 
-// Update the handleGenerateAnswers function similarly
-const handleGenerateAnswers = async () => {
-  setGeneratingAnswers(true);
-  try {
-    const base = import.meta.env.VITE_APIURL;
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-answers`, {
-      method: "POST",
-      body: JSON.stringify({
-        procedures: procedures,
-        materiality: stepData.materiality || 0,
-      }),
-    });
-    
-    if (!res.ok) throw new Error("Failed to generate answers");
-    const data = await res.json();
-    
-    // Update the procedures with the answered data
-    setProcedures(data.procedures || []);
-    setRecommendations(data.recommendations || '');
-    setAnswersGenerated(true);
-    
-    toast({
-      title: "Answers Generated",
-      description: "AI has filled in the answers. You can now review and edit them.",
-    });
-  } catch (e: any) {
-    toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-  } finally {
-    setGeneratingAnswers(false);
-  }
-};
-
-
 // Update the updateProcedureField function to handle user edits
 const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
   setProcedures((prev) =>
@@ -451,56 +418,6 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
     return next;
   });
 }
-  const handleGenerateMoreQuestions = async () => {
-    setGeneratingQuestions(true);
-    try {
-      const base = import.meta.env.VITE_APIURL;
-      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-questions`, {
-        method: "POST",
-        body: JSON.stringify({
-          mode: "hybrid",
-          materiality: stepData.materiality || 0,
-          selectedSections: stepData.selectedSections || [],
-          existingProcedures: procedures, // Send current procedures
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to generate additional questions");
-      const data = await res.json();
-
-      // Merge additional fields into existing procedures
-      const updatedProcedures = [...procedures];
-
-      data.additionalFields?.forEach((additional: any) => {
-        const targetSection = updatedProcedures.find(p => p.sectionId === additional.sectionId);
-        if (targetSection) {
-          targetSection.fields = [
-            ...targetSection.fields,
-            ...additional.fields.map((f: any) => ({
-              ...f,
-              answer: f.type === "checkbox" ? false :
-                f.type === "multiselect" ? [] :
-                  f.type === "table" ? [] :
-                    f.type === "group" ? {} : ""
-            }))
-          ];
-        }
-      });
-
-      setProcedures(updatedProcedures);
-      setQuestionsGenerated(true);
-
-      toast({
-        title: "Questions Enhanced",
-        description: "AI has generated additional questions. Review and then generate answers.",
-      });
-    } catch (e: any) {
-      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-    } finally {
-      setGeneratingQuestions(false);
-    }
-  };
-
 
 
   const getAnswersMap = (proc: any) =>
@@ -696,32 +613,6 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
               Planning Procedures (Hybrid)
             </CardTitle>
             <div className="flex items-center gap-2">
-              {/* {!questionsGenerated && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={anyGenerationInProgress}
-                  onClick={handleGenerateMoreQuestions}
-                  className="flex items-center gap-2 bg-transparent"
-                >
-                  <Bot className="h-4 w-4" />
-                  {generatingQuestions ? "Generating..." : "Generate more from AI"}
-                </Button>
-              )}
-
-              {questionsGenerated && !answersGenerated && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleGenerateAnswers}
-disabled={anyGenerationInProgress || !questionsGenerated}
-                  className="flex items-center gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {generatingAnswers ? "Generating..." : "Generate answers from AI"}
-                </Button>
-              )} */}
-
               <Button
                 variant="outline"
                 size="sm"
