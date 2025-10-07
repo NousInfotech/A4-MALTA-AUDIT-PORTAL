@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { Loader2, ChevronUp, ChevronDown } from "lucide-react"
 
 // --- helpers ---
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -114,7 +114,7 @@ export const AIPlanningQuestionsStep: React.FC<{
     // Initialize with empty sections if none exist
     const existingProcedures = withUids(stepData.procedures || []);
     if (existingProcedures.length > 0) return existingProcedures;
-    
+
     // Create empty sections for each planning section
     return PLANNING_SECTIONS.map(section => ({
       id: section.sectionId,
@@ -124,51 +124,100 @@ export const AIPlanningQuestionsStep: React.FC<{
     }));
   })
   const { toast } = useToast()
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
- const handleGenerateSectionQuestions = async (sectionId: string) => {
-  setLoading(true)
-  setGeneratingSections(prev => {
-    const newSet = new Set(prev)
-    newSet.add(sectionId)
-    return newSet
-  })
-  
-  try {
-    const base = import.meta.env.VITE_APIURL
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-questions`, {
-      method: "POST",
-      body: JSON.stringify({ sectionId }),
-    })
-    if (!res.ok) throw new Error("Failed to generate questions for section")
-    const data = await res.json()
-    
-    // Update only the selected section with the generated questions
-    setProcedures(prev => {
-      const updated = prev.map(section => 
-        section.sectionId === sectionId ? { ...section, fields: data.fields } : section
-      )
-      return updated
-    })
+  const scrollToSection = (sectionId: string) => {
+    const sectionElement = sectionRefs.current[sectionId]
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
-    toast({ title: "Questions Generated", description: `Questions for section generated successfully.` })
-  } catch (e: any) {
-    toast({ title: "Generation failed", description: e.message, variant: "destructive" })
-  } finally {
-    setLoading(false)
+  const getCurrentSectionIndex = (sectionId: string) => {
+    return PLANNING_SECTIONS.findIndex(section => section.sectionId === sectionId)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex > 0) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex - 1].sectionId)
+          }
+        }
+      }
+    } else if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex < PLANNING_SECTIONS.length - 1) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex + 1].sectionId)
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  const handleGenerateSectionQuestions = async (sectionId: string) => {
+    setLoading(true)
     setGeneratingSections(prev => {
       const newSet = new Set(prev)
-      newSet.delete(sectionId)
+      newSet.add(sectionId)
       return newSet
     })
+
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-questions`, {
+        method: "POST",
+        body: JSON.stringify({ sectionId }),
+      })
+      if (!res.ok) throw new Error("Failed to generate questions for section")
+      const data = await res.json()
+
+      // Update only the selected section with the generated questions
+      setProcedures(prev => {
+        const updated = prev.map(section =>
+          section.sectionId === sectionId ? { ...section, fields: data.fields } : section
+        )
+        return updated
+      })
+
+      toast({ title: "Questions Generated", description: `Questions for section generated successfully.` })
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+      setGeneratingSections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sectionId)
+        return newSet
+      })
+    }
   }
-}
 
 
   const handleSaveDraft = async () => {
     try {
       const base = import.meta.env.VITE_APIURL
       // Strip __uid before saving
-      const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields||[]).map(({__uid, ...rest}) => rest) }))
+      const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields || []).map(({ __uid, ...rest }) => rest) }))
       await authFetch(`${base}/api/planning-procedures/${engagement._id}/save`, {
         method: "POST",
         body: JSON.stringify({
@@ -290,12 +339,17 @@ export const AIPlanningQuestionsStep: React.FC<{
       </div>
 
       <div className="space-y-4">
-        {PLANNING_SECTIONS.map((section) => {
+        {PLANNING_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
-          
+
           return (
-            <Card key={section.sectionId} className="border rounded-md p-4 space-y-3">
+            <Card
+              key={section.sectionId}
+              className="border rounded-md p-4 space-y-3"
+              ref={el => sectionRefs.current[section.sectionId] = el}
+              data-section-id={section.sectionId}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-heading text-lg">{section.title}</div>
@@ -303,16 +357,38 @@ export const AIPlanningQuestionsStep: React.FC<{
                     {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
                   </div>
                 </div>
-                <Button
-                  onClick={() => handleGenerateSectionQuestions(section.sectionId)}
-                  disabled={loading || generatingSections.has(section.sectionId)}
-                  className="flex items-center justify-center"
-                >
-                  {generatingSections.has(section.sectionId) ? (
-                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />                    
-                  ) : null}
-                  {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
-                </Button>
+                {/* Navigation buttons */}
+                <div className="flex justify-between gap-2">
+                  <Button
+                    onClick={() => handleGenerateSectionQuestions(section.sectionId)}
+                    disabled={loading || generatingSections.has(section.sectionId)}
+                    className="flex items-center justify-center"
+                  >
+                    {generatingSections.has(section.sectionId) ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
+                  </Button>
+                  {index > 0 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => scrollToSection(PLANNING_SECTIONS[index - 1].sectionId)}
+                      className="flex items-center gap-2"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                      Previous Section
+                    </Button>
+                  )}
+                  {index < PLANNING_SECTIONS.length - 1 && (
+                    <Button
+                      onClick={() => scrollToSection(PLANNING_SECTIONS[index + 1].sectionId)}
+                      className="flex items-center gap-2 ml-auto"
+                    >
+                      Next Section
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {hasQuestions ? (
@@ -327,7 +403,7 @@ export const AIPlanningQuestionsStep: React.FC<{
                         }}>Remove</Button>
                       </div>
                       {editorForField(
-                        procedures.findIndex(s => s.sectionId === section.sectionId), 
+                        procedures.findIndex(s => s.sectionId === section.sectionId),
                         f
                       )}
                       <div className="text-xs text-muted-foreground">
@@ -337,9 +413,9 @@ export const AIPlanningQuestionsStep: React.FC<{
                       </div>
                     </div>
                   ))}
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => {
                       const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
                       if (secIdx >= 0) addQuestion(secIdx);
@@ -363,7 +439,7 @@ export const AIPlanningQuestionsStep: React.FC<{
           disabled={!procedures?.length || procedures.every(p => !p.fields?.length)}
           onClick={() => {
             // strip __uid before passing to next step
-            const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields||[]).map(({__uid, ...rest}) => rest) }))
+            const clean = procedures.map(sec => ({ ...sec, fields: (sec.fields || []).map(({ __uid, ...rest }) => rest) }))
             onComplete({ procedures: clean })
           }}
         >

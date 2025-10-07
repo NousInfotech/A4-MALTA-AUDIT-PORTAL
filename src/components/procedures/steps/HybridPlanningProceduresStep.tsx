@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, Bot, Sparkles, PlusCircle, Loader2 } from "lucide-react"
+import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, Bot, Sparkles, PlusCircle, Loader2, ChevronUp, ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -209,6 +209,16 @@ function GroupField({
   )
 }
 
+// Define the 6 standard planning sections
+const PLANNING_SECTIONS = [
+  { sectionId: "engagement_setup_acceptance_independence", title: "Engagement Setup, Acceptance & Independence" },
+  { sectionId: "understanding_entity_environment", title: "Understanding the Entity & Its Environment" },
+  { sectionId: "materiality_risk_summary", title: "Materiality & Risk Summary" },
+  { sectionId: "risk_response_planning", title: "Risk Register & Audit Response Planning" },
+  { sectionId: "fraud_gc_planning", title: "Fraud Risk & Going Concern Planning" },
+  { sectionId: "compliance_laws_regulations", title: "Compliance with Laws & Regulations (ISA 250)" }
+];
+
 /** ---------- main component ---------- **/
 interface HybridPlanningProceduresStepProps {
   engagement: any
@@ -238,17 +248,66 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
   const [generatingAnswersSections, setGeneratingAnswersSections] = useState<Set<string>>(new Set())
   const [answersGenerated, setAnswersGenerated] = useState(false)
   const { toast } = useToast()
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // for smooth scroll to first invalid field
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
-    useEffect(() => {
-  const inProgress = 
-    generatingQuestions || 
-    generatingAnswers || 
-    generatingQuestionsSections.size > 0 || 
-    generatingAnswersSections.size > 0;
-  setAnyGenerationInProgress(inProgress);
-}, [generatingQuestions, generatingAnswers, generatingQuestionsSections, generatingAnswersSections])
+  useEffect(() => {
+    const inProgress =
+      generatingQuestions ||
+      generatingAnswers ||
+      generatingQuestionsSections.size > 0 ||
+      generatingAnswersSections.size > 0;
+    setAnyGenerationInProgress(inProgress);
+  }, [generatingQuestions, generatingAnswers, generatingQuestionsSections, generatingAnswersSections])
+
+  const scrollToSection = (sectionId: string) => {
+    const sectionElement = sectionRefs.current[sectionId]
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const getCurrentSectionIndex = (sectionId: string) => {
+    return PLANNING_SECTIONS.findIndex(section => section.sectionId === sectionId)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex > 0) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex - 1].sectionId)
+          }
+        }
+      }
+    } else if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex < PLANNING_SECTIONS.length - 1) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex + 1].sectionId)
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   useEffect(() => {
     const ids = Array.isArray(stepData.selectedSections) ? stepData.selectedSections : []
@@ -260,7 +319,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
 
     const next = ids.map((sectionId: string) => {
       const base = getPredefinedSection(sectionId)
-      const prevSec = (procedures || []).find((s: any) => s.sectionId === sectionId)
+      const prevSec = (procedures || []).find(s => s.sectionId === sectionId)
 
       const fields = (base.fields || []).map((f: any) => {
         const prev = prevSec?.fields?.find((pf: any) => pf.key === f.key)
@@ -346,78 +405,78 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
       })
     }
   }
-const handleGenerateSectionAnswers = async (sectionId: string) => {
-  setGeneratingAnswersSections(prev => {
-    const newSet = new Set(prev)
-    newSet.add(sectionId)
-    return newSet
-  })
-
-  try {
-    const base = import.meta.env.VITE_APIURL;
-    const section = procedures.find(proc => proc.sectionId === sectionId);
-    
-    if (!section) {
-      throw new Error("Section not found");
-    }
-
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-section-answers`, {
-      method: "POST",
-      body: JSON.stringify({
-        sectionId,
-        materiality: stepData.materiality || 0,
-        sectionData: section // Send the current section data
-      }),
+  const handleGenerateSectionAnswers = async (sectionId: string) => {
+    setGeneratingAnswersSections(prev => {
+      const newSet = new Set(prev)
+      newSet.add(sectionId)
+      return newSet
     })
 
-    if (!res.ok) throw new Error("Failed to generate answers for section");
-    const data = await res.json();
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      const section = procedures.find(proc => proc.sectionId === sectionId);
 
-    // Update only the specific section, not the entire procedures array
-    setProcedures(prev => 
-      prev.map(proc => 
-        proc.sectionId === sectionId 
-          ? { ...proc, fields: data.fields } 
-          : proc
-      )
+      if (!section) {
+        throw new Error("Section not found");
+      }
+
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/hybrid-section-answers`, {
+        method: "POST",
+        body: JSON.stringify({
+          sectionId,
+          materiality: stepData.materiality || 0,
+          sectionData: section // Send the current section data
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to generate answers for section");
+      const data = await res.json();
+
+      // Update only the specific section, not the entire procedures array
+      setProcedures(prev =>
+        prev.map(proc =>
+          proc.sectionId === sectionId
+            ? { ...proc, fields: data.fields }
+            : proc
+        )
+      );
+
+      toast({
+        title: "Answers Generated",
+        description: `Answers for section generated successfully.`
+      });
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+    } finally {
+      setGeneratingAnswersSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+      });
+    }
+  }
+
+  // Update the updateProcedureField function to handle user edits
+  const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
+    setProcedures((prev) =>
+      (prev || []).map((proc) =>
+        proc.id === procedureId
+          ? {
+            ...proc,
+            fields: (proc.fields || []).map((f: any) =>
+              f.key === fieldKey ? { ...f, answer: value } : f
+            )
+          }
+          : proc,
+      ),
     );
-
-    toast({
-      title: "Answers Generated",
-      description: `Answers for section generated successfully.`
-    });
-  } catch (e: any) {
-    toast({ title: "Generation failed", description: e.message, variant: "destructive" });
-  } finally {
-    setGeneratingAnswersSections(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(sectionId);
-      return newSet;
+    // clear error for this field if now valid
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[`${procedureId}.${fieldKey}`];
+      return next;
     });
   }
-}
-
-// Update the updateProcedureField function to handle user edits
-const updateProcedureField = (procedureId: string, fieldKey: string, value: any) => {
-  setProcedures((prev) =>
-    (prev || []).map((proc) =>
-      proc.id === procedureId
-        ? { 
-            ...proc, 
-            fields: (proc.fields || []).map((f: any) => 
-              f.key === fieldKey ? { ...f, answer: value } : f
-            ) 
-          }
-        : proc,
-    ),
-  );
-  // clear error for this field if now valid
-  setErrors((prev) => {
-    const next = { ...prev };
-    delete next[`${procedureId}.${fieldKey}`];
-    return next;
-  });
-}
 
 
   const getAnswersMap = (proc: any) =>
@@ -659,10 +718,15 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
 
         <CardContent>
           <div className="space-y-6">
-            {(Array.isArray(procedures) ? procedures : []).map((procedure) => {
+            {(Array.isArray(procedures) ? procedures : []).map((procedure, index) => {
               const answersMap = getAnswersMap(procedure)
               return (
-                <Card key={procedure.id} className="border-l-4 border-l-primary">
+                <Card
+                  key={procedure.id}
+                  className="border-l-4 border-l-primary"
+                  ref={el => sectionRefs.current[procedure.sectionId] = el}
+                  data-section-id={procedure.sectionId}
+                >
                   <div className="flex gap-2 mt-4">
                     <Button
                       size="sm"
@@ -698,6 +762,38 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
                     <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                       {procedure.title}
                       <Badge variant="outline">{procedure.sectionId}</Badge>
+                      {/* Navigation buttons */}
+                      <div className="flex justify-between">
+                        {index > 0 && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              const prevSection = procedures[index - 1];
+                              if (prevSection) {
+                                scrollToSection(prevSection.sectionId);
+                              }
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                            Previous Section
+                          </Button>
+                        )}
+                        {index < procedures.length - 1 && (
+                          <Button
+                            onClick={() => {
+                              const nextSection = procedures[index + 1];
+                              if (nextSection) {
+                                scrollToSection(nextSection.sectionId);
+                              }
+                            }}
+                            className="flex items-center gap-2 ml-auto"
+                          >
+                            Next Section
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </CardTitle>
                     {procedure.standards?.length ? (
                       <div className="text-xs text-muted-foreground">Standards: {procedure.standards.join(", ")}</div>
@@ -738,6 +834,38 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
                                   <span className="text-xs text-muted-foreground ml-2">(Manual upload required)</span>
                                 )}
                               </Label>
+                              {/* Navigation buttons */}
+                              <div className="flex items-center justify-between">
+                                {index > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      const prevSection = procedures[index - 1];
+                                      if (prevSection) {
+                                        scrollToSection(prevSection.sectionId);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <ChevronUp className="h-4 w-4" />
+                                    Previous Section
+                                  </Button>
+                                )}
+                                {index < procedures.length - 1 && (
+                                  <Button
+                                    onClick={() => {
+                                      const nextSection = procedures[index + 1];
+                                      if (nextSection) {
+                                        scrollToSection(nextSection.sectionId);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2 ml-auto"
+                                  >
+                                    Next Section
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                               {field.help && (
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -961,6 +1089,7 @@ const updateProcedureField = (procedureId: string, fieldKey: string, value: any)
     </div>
   )
 }
+
 /** ---------- Predefined Sections (manual mode, full spec) ---------- **/
 function getPredefinedSection(sectionId: string) {
   const sections: Record<string, any> =

@@ -21,6 +21,8 @@ import {
   CheckCircle,
   Sparkles,
   Brain,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -111,45 +113,45 @@ const mapClassificationToProcedureKey = (classification: string): string => {
   const mapping: Record<string, string> = {
     // Assets > Current
     "Assets > Current > Cash & Cash Equivalents": "Bank and Cash",
-    "Assets > Current > Trade Receivables": "Receivables", 
+    "Assets > Current > Trade Receivables": "Receivables",
     "Assets > Current > Other Receivables": "Receivables",
     "Assets > Current > Prepayments": "Receivables",
     "Assets > Current > Inventory": "Inventory",
     "Assets > Current > Recoverable VAT/Tax": "Taxation",
-    
+
     // Assets > Non-current
     "Assets > Non-current > Property, Plant & Equipment": "PPE",
     "Assets > Non-current > Intangible Assets": "Intangible Assets",
     "Assets > Non-current > Investments": "Investments",
     "Assets > Non-current > Deferred Tax Asset": "Taxation",
     "Assets > Non-current > Long-term Receivables/Deposits": "Receivables",
-    
+
     // Liabilities > Current
     "Liabilities > Current > Trade Payables": "Payables",
     "Liabilities > Current > Accruals": "Payables",
     "Liabilities > Current > Taxes Payable": "Taxation",
     "Liabilities > Current > Short-term Borrowings/Overdraft": "Borrowings and Loans",
     "Liabilities > Current > Other Payables": "Payables",
-    
+
     // Liabilities > Non-current
     "Liabilities > Non-current > Borrowings (Long-term)": "Borrowings and Loans",
     "Liabilities > Non-current > Provisions": "Payables",
     "Liabilities > Non-current > Deferred Tax Liability": "Taxation",
     "Liabilities > Non-current > Lease Liabilities": "Borrowings and Loans",
-    
+
     // Equity (root level)
     "Equity > Share Capital": "Equity",
     "Equity > Share Premium": "Equity",
     "Equity > Reserves": "Equity",
     "Equity > Retained Earnings": "Equity",
-    
+
     // Income (root level)
     "Income > Operating > Revenue (Goods)": "Profit and Loss",
     "Income > Operating > Revenue (Services)": "Profit and Loss",
     "Income > Operating > Other Operating Income": "Profit and Loss",
     "Income > Non-operating > Other Income": "Profit and Loss",
     "Income > Non-operating > FX Gains": "Profit and Loss",
-    
+
     // Expenses (root level)
     "Expenses > Cost of Sales > Materials/Purchases": "Profit and Loss",
     "Expenses > Cost of Sales > Freight Inwards": "Profit and Loss",
@@ -178,7 +180,7 @@ const mapClassificationToProcedureKey = (classification: string): string => {
     "Expenses > Other > FX Losses": "Profit and Loss",
     "Expenses > Other > Exceptional/Impairment": "Profit and Loss",
   }
-  
+
   return mapping[classification] || "default"
 }
 
@@ -213,6 +215,48 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const { toast } = useToast();
 
+  const groups = useMemo(() => {
+    const by: Record<string, any[]> = {};
+    for (const q of questions) {
+      const key = groupKeyFor(q);
+      if (!by[key]) by[key] = [];
+      by[key].push(q);
+    }
+    return by;
+  }, [questions]);
+
+  // Section navigation
+  const sectionIds = useMemo(() => Object.keys(groups).map((key, index) => `section-${index}`), [groups]);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const currentSection = document.elementFromPoint(window.innerWidth / 2, 100)?.closest('[id^="section-"]');
+      if (currentSection) {
+        const currentIndex = sectionIds.indexOf(currentSection.id);
+        if (event.key === 'ArrowUp' && currentIndex > 0) {
+          scrollToSection(sectionIds[currentIndex - 1]);
+        } else if (event.key === 'ArrowDown' && currentIndex < sectionIds.length - 1) {
+          scrollToSection(sectionIds[currentIndex + 1]);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sectionIds]);
+
   // pretty progress text while AI runs
   const [phase, setPhase] = useState("");
   useEffect(() => {
@@ -246,22 +290,22 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
         ? stepData.selectedClassifications
         : [];
       const all: any[] = [];
-      
+
       selected.forEach((hierarchicalClassification) => {
         // Map the hierarchical classification to a procedure key
         const procedureKey = mapClassificationToProcedureKey(hierarchicalClassification);
         const arr = staticProcedures[procedureKey] || staticProcedures.default || [];
-        
-        arr.forEach((proc: any) => all.push({ 
-          ...proc, 
+
+        arr.forEach((proc: any) => all.push({
+          ...proc,
           classification: hierarchicalClassification, // Keep original hierarchical classification for grouping
-          answer: "" 
+          answer: ""
         }));
       });
-      
+
       setQuestions(normalizeQuestions(all));
       setRecommendations([]); // manual may not have recs
-      
+
       // Debug logging
       console.log('Selected classifications:', selected);
       console.log('Loaded questions count:', all.length);
@@ -405,18 +449,6 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     setQuestions((prev) => prev.map((q) => (q.__uid === uidKey ? { ...q, isRequired: !q.isRequired } : q)));
   };
 
-  /* ------------ Grouping + labels ------------ */
-
-  const groups = useMemo(() => {
-    const by: Record<string, any[]> = {};
-    for (const q of questions) {
-      const key = groupKeyFor(q);
-      if (!by[key]) by[key] = [];
-      by[key].push(q);
-    }
-    return by;
-  }, [questions]);
-
   const recTextFor = (bucket: string) => {
     const hit =
       (recommendations || []).find((r: any) =>
@@ -427,29 +459,29 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
     return typeof hit?.text === "string"
       ? hit.text
       : typeof hit?.recommendation === "string"
-      ? hit.recommendation
-      : "";
+        ? hit.recommendation
+        : "";
   };
 
   /* ------------ Proceed guard ------------ */
 
   const handleProceed = () => {
     const req = questions.filter((q) => q.isRequired);
-    const missing = req.filter((q) => !String(q.answer || "").trim());
-    if (missing.length) {
-      toast({
-        title: "Required unanswered",
-        description: `Please answer all ${missing.length} required item(s).`,
-        variant: "destructive",
-      });
-      return;
-    }
+    // const missing = req.filter((q) => !String(q.answer || "").trim());
+    // if (missing.length) {
+    //   toast({
+    //     title: "Required unanswered",
+    //     description: `Please answer all ${missing.length} required item(s).`,
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
     onComplete({
       questions: questions.map(({ __uid, ...rest }) => rest), // strip __uid before saving
       recommendations,
     });
   };
-  
+
   if (loading && mode !== "manual") {
     return (
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
@@ -503,8 +535,8 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
       ) : (
         <>
           {/* grouped cards */}
-          {Object.entries(groups).map(([bucket, items]) => (
-            <Card key={bucket} className="border-2 border-primary/10">
+          {Object.entries(groups).map(([bucket, items], index) => (
+            <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -516,9 +548,33 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                       <p className="text-xs text-muted-foreground mt-2">{recTextFor(bucket)}</p>
                     ) : null}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => addItem(bucket)}>
-                    <Plus className="h-4 w-4 mr-1" /> Add
-                  </Button>
+                  <div className="flex gap-2">
+                    {/* Section Navigation Buttons */}
+                    <div className="flex justify-between">
+                      {index > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => scrollToSection(sectionIds[index - 1])}
+                          className="flex items-center gap-2"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                          Previous Section
+                        </Button>
+                      )}
+                      {index < sectionIds.length - 1 && (
+                        <Button
+                          onClick={() => scrollToSection(sectionIds[index + 1])}
+                          className="flex items-center gap-2 ml-auto"
+                        >
+                          Next Section
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => addItem(bucket)}>
+                      <Plus className="h-4 w-4 mr-1" /> Add
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -537,6 +593,28 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-2">
+                          {/* Section Navigation Buttons */}
+                          <div className="flex justify-between">
+                            {index > 0 && (
+                              <Button
+                                variant="outline"
+                                onClick={() => scrollToSection(sectionIds[index - 1])}
+                                className="flex items-center gap-2"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                                Previous Section
+                              </Button>
+                            )}
+                            {index < sectionIds.length - 1 && (
+                              <Button
+                                onClick={() => scrollToSection(sectionIds[index + 1])}
+                                className="flex items-center gap-2 ml-auto"
+                              >
+                                Next Section
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                           <Button size="sm" variant="outline" onClick={() => toggleRequired(q.__uid)}>
                             {q.isRequired ? "Mark Optional" : "Mark Required"}
                           </Button>

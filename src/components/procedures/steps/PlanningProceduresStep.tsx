@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle } from "lucide-react"
+import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -101,7 +101,7 @@ function TableEditor({
 
   const addRow = () => {
     const emptyRow: any = {}
-    ;(field.columns || []).forEach((c: string) => (emptyRow[c] = ""))
+      ; (field.columns || []).forEach((c: string) => (emptyRow[c] = ""))
     onChange([...rows, emptyRow])
   }
 
@@ -185,6 +185,16 @@ function GroupField({
   )
 }
 
+// Define the 6 standard planning sections
+const PLANNING_SECTIONS = [
+  { sectionId: "engagement_setup_acceptance_independence", title: "Engagement Setup, Acceptance & Independence" },
+  { sectionId: "understanding_entity_environment", title: "Understanding the Entity & Its Environment" },
+  { sectionId: "materiality_risk_summary", title: "Materiality & Risk Summary" },
+  { sectionId: "risk_response_planning", title: "Risk Register & Audit Response Planning" },
+  { sectionId: "fraud_gc_planning", title: "Fraud Risk & Going Concern Planning" },
+  { sectionId: "compliance_laws_regulations", title: "Compliance with Laws & Regulations (ISA 250)" }
+];
+
 /** ---------- main component ---------- **/
 interface PlanningProceduresStepProps {
   engagement: any
@@ -206,9 +216,58 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // for smooth scroll to first invalid field
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const scrollToSection = (sectionId: string) => {
+    const sectionElement = sectionRefs.current[sectionId]
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const getCurrentSectionIndex = (sectionId: string) => {
+    return PLANNING_SECTIONS.findIndex(section => section.sectionId === sectionId)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex > 0) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex - 1].sectionId)
+          }
+        }
+      }
+    } else if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex < PLANNING_SECTIONS.length - 1) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex + 1].sectionId)
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   // generate manual (preserve answers by sectionId+field.key)
   useEffect(() => {
@@ -227,9 +286,9 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
         const prev = prevSec?.fields?.find((pf: any) => pf.key === f.key)
         const defaultAnswer =
           f.type === "checkbox" ? false :
-          f.type === "multiselect" ? [] :
-          f.type === "table" ? [] :
-          f.type === "group" ? {} : ""
+            f.type === "multiselect" ? [] :
+              f.type === "table" ? [] :
+                f.type === "group" ? {} : ""
         return { ...f, answer: prev?.answer ?? defaultAnswer }
       })
 
@@ -258,51 +317,51 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
     currentProcedures.forEach((proc) => {
       const answersMap = getAnswersMap(proc)
-      ;(proc.fields || []).forEach((field: any) => {
-        const visible = isFieldVisible(field, answersMap)
-        if (!visible) return
-        if (!field.required) return
+        ; (proc.fields || []).forEach((field: any) => {
+          const visible = isFieldVisible(field, answersMap)
+          if (!visible) return
+          if (!field.required) return
 
-        const key = `${proc.id}.${field.key}`
-        const val = field.answer
+          const key = `${proc.id}.${field.key}`
+          const val = field.answer
 
-        switch (field.type) {
-          case "text":
-          case "textarea":
-          case "user":
-            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
-            break
-          case "number":
-            if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
-              nextErrors[key] = "Please enter a valid number."
-            break
-          // case "checkbox":
-          //   if (!val) nextErrors[key] = "Please confirm this item."
-          //   break
-          case "select":
-            if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
-            break
-          case "multiselect":
-            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Select at least one option."
-            break
-          case "table":
-            if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Add at least one row."
-            break
-          case "group":
-            if (!val || typeof val !== "object" || Object.values(val).every((v) => !v))
-              nextErrors[key] = "Select at least one option."
-            break
-          case "file":
-            // Accept either a File (new upload) or a non-empty string (pre-saved reference)
-            if (!(val instanceof File) && !isNotEmpty(val)) nextErrors[key] = "Please upload a file."
-            break
-          case "markdown":
-            // no validation
-            break
-          default:
-            if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
-        }
-      })
+          switch (field.type) {
+            case "text":
+            case "textarea":
+            case "user":
+              if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
+              break
+            case "number":
+              if (val === "" || val === null || val === undefined || Number.isNaN(Number(val)))
+                nextErrors[key] = "Please enter a valid number."
+              break
+            // case "checkbox":
+            //   if (!val) nextErrors[key] = "Please confirm this item."
+            //   break
+            case "select":
+              if (!isNotEmpty(val)) nextErrors[key] = "Please select an option."
+              break
+            case "multiselect":
+              if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Select at least one option."
+              break
+            case "table":
+              if (!Array.isArray(val) || val.length === 0) nextErrors[key] = "Add at least one row."
+              break
+            case "group":
+              if (!val || typeof val !== "object" || Object.values(val).every((v) => !v))
+                nextErrors[key] = "Select at least one option."
+              break
+            case "file":
+              // Accept either a File (new upload) or a non-empty string (pre-saved reference)
+              if (!(val instanceof File) && !isNotEmpty(val)) nextErrors[key] = "Please upload a file."
+              break
+            case "markdown":
+              // no validation
+              break
+            default:
+              if (!isNotEmpty(val)) nextErrors[key] = "This field is required."
+          }
+        })
     })
 
     setErrors(nextErrors)
@@ -435,14 +494,52 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
         <CardContent>
           <div className="space-y-6">
-            {(Array.isArray(procedures) ? procedures : []).map((procedure) => {
+
+            {(Array.isArray(procedures) ? procedures : []).map((procedure, index) => {
               const answersMap = getAnswersMap(procedure)
               return (
-                <Card key={procedure.id} className="border-l-4 border-l-primary">
+                <Card
+                  key={procedure.id}
+                  className="border-l-4 border-l-primary"
+                  ref={el => sectionRefs.current[procedure.sectionId] = el}
+                  data-section-id={procedure.sectionId}
+                >
                   <CardHeader>
                     <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                       {procedure.title}
                       <Badge variant="outline">{procedure.sectionId}</Badge>
+                      {/* Navigation buttons */}
+                      <div className="flex justify-between">
+                        {index > 0 && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              const prevSection = procedures[index - 1];
+                              if (prevSection) {
+                                scrollToSection(prevSection.sectionId);
+                              }
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                            Previous Section
+                          </Button>
+                        )}
+                        {index < procedures.length - 1 && (
+                          <Button
+                            onClick={() => {
+                              const nextSection = procedures[index + 1];
+                              if (nextSection) {
+                                scrollToSection(nextSection.sectionId);
+                              }
+                            }}
+                            className="flex items-center gap-2 ml-auto"
+                          >
+                            Next Section
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </CardTitle>
                     {procedure.standards?.length ? (
                       <div className="text-xs text-muted-foreground">Standards: {procedure.standards.join(", ")}</div>
@@ -467,6 +564,38 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                 {field.label ?? field.key}
                                 {required && <span className="text-destructive ml-1">*</span>}
                               </Label>
+                              {/* Navigation buttons */}
+                              <div className="flex items-center justify-between">
+                                {index > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      const prevSection = procedures[index - 1];
+                                      if (prevSection) {
+                                        scrollToSection(prevSection.sectionId);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <ChevronUp className="h-4 w-4" />
+                                    Previous Section
+                                  </Button>
+                                )}
+                                {index < procedures.length - 1 && (
+                                  <Button
+                                    onClick={() => {
+                                      const nextSection = procedures[index + 1];
+                                      if (nextSection) {
+                                        scrollToSection(nextSection.sectionId);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2 ml-auto"
+                                  >
+                                    Next Section
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                               {field.help && (
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -476,6 +605,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                 </div>
                               )}
                             </div>
+
 
                             {field.type === "markdown" && (
                               <Alert className="prose prose-sm max-w-none whitespace-pre-wrap">{field.content}</Alert>
@@ -673,7 +803,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
 /** ---------- Predefined Sections (manual mode, full spec) ---------- **/
 function getPredefinedSection(sectionId: string) {
-  const sections: Record<string, any> = 
+  const sections: Record<string, any> =
   {
     "engagement_setup_acceptance_independence": {
       title: "Section 1: Engagement Setup, Acceptance & Independence",
@@ -683,7 +813,7 @@ function getPredefinedSection(sectionId: string) {
           key: "reporting_framework",
           type: "select",
           label: "Reporting Framework",
-          options: ["IFRS","EU-IFRS","Local GAAP","GAPSME","Other"],
+          options: ["IFRS", "EU-IFRS", "Local GAAP", "GAPSME", "Other"],
           required: true,
           help: "Choose the framework used for financial statements; ISA 210 requires an acceptable framework (GAPSME included)."
         },
@@ -712,7 +842,7 @@ function getPredefinedSection(sectionId: string) {
           key: "engagement_type",
           type: "select",
           label: "Engagement Type",
-          options: ["New Acceptance","Continuation","Declination"],
+          options: ["New Acceptance", "Continuation", "Declination"],
           required: true,
           help: "Select appropriate action; ISA 300 emphasizes that planning and acceptance may need revisiting."
         },
@@ -767,7 +897,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Independence Declarations",
           required: true,
-          columns: ["Name","Role","Declaration Date","Exceptions"],
+          columns: ["Name", "Role", "Declaration Date", "Exceptions"],
           help: "Record confirmations from all team members per ISA 220 (Revised)."
         },
         {
@@ -781,7 +911,7 @@ function getPredefinedSection(sectionId: string) {
           key: "fee_dependency_actions",
           type: "multiselect",
           label: "Safeguards triggered by fee dependency",
-          options: ["Partner rotation / Cooling-off","TCWG disclosure","EQR required","Disengagement plan"],
+          options: ["Partner rotation / Cooling-off", "TCWG disclosure", "EQR required", "Disengagement plan"],
           required: true,
           visibleIf: { audit_fee_percent: [{ operator: ">=", value: 15 }] },
           help: "Select safeguards if dependency is high, especially for PIEs."
@@ -805,7 +935,7 @@ function getPredefinedSection(sectionId: string) {
           key: "ethical_threat_types",
           type: "multiselect",
           label: "Threat types identified",
-          options: ["Self-review","Familiarity","Advocacy","Intimidation","Self-interest","Other"],
+          options: ["Self-review", "Familiarity", "Advocacy", "Intimidation", "Self-interest", "Other"],
           help: "ISA 220 (Revised) requires documentation of identified threats."
         },
         {
@@ -821,7 +951,7 @@ function getPredefinedSection(sectionId: string) {
           type: "textarea",
           label: "Safeguards applied to address threats",
           required: true,
-          visibleIf: { ethical_threat_types: [{ operator: "any", value: ["Self-review","Familiarity","Advocacy","Intimidation","Self-interest","Other"] }] },
+          visibleIf: { ethical_threat_types: [{ operator: "any", value: ["Self-review", "Familiarity", "Advocacy", "Intimidation", "Self-interest", "Other"] }] },
           help: "Document safeguards that reduce threats per ISA 220."
         },
         {
@@ -843,7 +973,7 @@ function getPredefinedSection(sectionId: string) {
           label: "Describe actions taken if any ethical issues flagged",
           required: true,
           visibleIf: {
-            ethical_additional_checks: [{ operator: "any", value: ["long_tenure","client_relationships","management_functions","non_audit_services"] }]
+            ethical_additional_checks: [{ operator: "any", value: ["long_tenure", "client_relationships", "management_functions", "non_audit_services"] }]
           },
           help: "Explain mitigation if any ethical issues are flagged."
         },
@@ -865,7 +995,7 @@ function getPredefinedSection(sectionId: string) {
           key: "eqr_required",
           type: "select",
           label: "Is Engagement Quality Reviewer (EQR) required?",
-          options: ["No","Yes – mandated","Yes – risk-based"],
+          options: ["No", "Yes – mandated", "Yes – risk-based"],
           required: true,
           help: "Include EQR if required by ISQM 1 or firm policy."
         },
@@ -874,7 +1004,7 @@ function getPredefinedSection(sectionId: string) {
           type: "user",
           label: "Assigned EQR Reviewer",
           required: true,
-          visibleIf: { eqr_required: ["Yes – mandated","Yes – risk-based"] },
+          visibleIf: { eqr_required: ["Yes – mandated", "Yes – risk-based"] },
           help: "Assign a reviewer if EQR is required."
         },
         {
@@ -888,7 +1018,7 @@ function getPredefinedSection(sectionId: string) {
           key: "consultation_triggers",
           type: "multiselect",
           label: "Consultation triggers",
-          options: ["Fraud","Going Concern","IT","Estimates","Complex Transactions","Legal","Group Consolidation","Other"],
+          options: ["Fraud", "Going Concern", "IT", "Estimates", "Complex Transactions", "Legal", "Group Consolidation", "Other"],
           required: true,
           help: "Identify areas requiring consultation during planning."
         },
@@ -1007,7 +1137,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Identified Risks of Material Misstatement (Financial Statement & Assertion Level)",
           required: true,
-          columns: ["Risk Description","Level (FS / Assertion)","Assertion Affected","Inherent Risk Factors","Controls Related"],
+          columns: ["Risk Description", "Level (FS / Assertion)", "Assertion Affected", "Inherent Risk Factors", "Controls Related"],
           help: "List identified risks by level, related assertions, IRF tags, and relevant controls (ISA 315 ¶25, ¶26)."
         },
         {
@@ -1056,7 +1186,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Specific Materiality for Particular Items",
           required: false,
-          columns: ["Item","Materiality (€)","Rationale"],
+          columns: ["Item", "Materiality (€)", "Rationale"],
           help: "Lower thresholds for sensitive balances."
         },
         {
@@ -1121,7 +1251,7 @@ function getPredefinedSection(sectionId: string) {
           type: "table",
           label: "Component Materiality (€)",
           required: false,
-          columns: ["Component","Materiality (€)","Rationale"],
+          columns: ["Component", "Materiality (€)", "Rationale"],
           help: "Set lower thresholds for components to address aggregation risk."
         },
         {
@@ -1147,7 +1277,7 @@ function getPredefinedSection(sectionId: string) {
           key: "risk_inherent_factor_tags",
           type: "multiselect",
           label: "Inherent Risk Factors",
-          options: ["Complexity","Subjectivity","Uncertainty","Change","Bias/Fraud Susceptibility"],
+          options: ["Complexity", "Subjectivity", "Uncertainty", "Change", "Bias/Fraud Susceptibility"],
           required: true,
           help: "Tag risk factors per ISA 315 revised."
         },
@@ -1162,7 +1292,7 @@ function getPredefinedSection(sectionId: string) {
           key: "control_test_type",
           type: "select",
           label: "Type of Control Test",
-          options: ["Design & Implementation","Operating Effectiveness"],
+          options: ["Design & Implementation", "Operating Effectiveness"],
           required: false,
           visibleIf: { controls_relied_on: [{ operator: "not_empty" }] },
           help: "Select control test type (only if controls are relied on)."
@@ -1205,7 +1335,7 @@ function getPredefinedSection(sectionId: string) {
 
     "fraud_gc_planning": {
       title: "Section 4: Fraud Risk & Going Concern Planning",
-      standards: ["ISA 240 (Revised)","ISA 570 (Revised 2024)"],
+      standards: ["ISA 240 (Revised)", "ISA 570 (Revised 2024)"],
       fields: [
         {
           key: "fraud_lens_discussion",
@@ -1261,7 +1391,7 @@ function getPredefinedSection(sectionId: string) {
           type: "select",
           label: "Auditor Report Section: Going Concern or MURGC",
           required: true,
-          options: ["Going Concern – No material uncertainty","Material Uncertainty Related to Going Concern (MURGC)"],
+          options: ["Going Concern – No material uncertainty", "Material Uncertainty Related to Going Concern (MURGC)"],
           help: "ISA 570 (Revised) requires a dedicated report section in all cases."
         },
         {

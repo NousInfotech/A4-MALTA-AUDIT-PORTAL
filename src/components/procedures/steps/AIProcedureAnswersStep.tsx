@@ -1,6 +1,6 @@
 // @ts-nocheck
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import {
   X,
   CheckCircle,
   Trash2,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -165,6 +167,38 @@ const AIProcedureAnswersStep: React.FC<{
     }
     return by;
   }, [questions]);
+
+  // Section navigation
+  const sectionIds = useMemo(() => Object.keys(grouped).map((key, index) => `section-${index}`), [grouped]);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const currentSection = document.elementFromPoint(window.innerWidth / 2, 100)?.closest('[id^="section-"]');
+      if (currentSection) {
+        const currentIndex = sectionIds.indexOf(currentSection.id);
+        if (event.key === 'ArrowUp' && currentIndex > 0) {
+          scrollToSection(sectionIds[currentIndex - 1]);
+        } else if (event.key === 'ArrowDown' && currentIndex < sectionIds.length - 1) {
+          scrollToSection(sectionIds[currentIndex + 1]);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sectionIds]);
 
   const fillAnswersForClassification = async (classification: string) => {
     setLoading(true);
@@ -352,8 +386,8 @@ const AIProcedureAnswersStep: React.FC<{
             </Alert>
           ) : (
             <>
-              {Object.entries(grouped).map(([bucket, items]) => (
-                <Card key={bucket} className="border-2 border-primary/10">
+              {Object.entries(grouped).map(([bucket, items], index) => (
+                <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
@@ -363,6 +397,29 @@ const AIProcedureAnswersStep: React.FC<{
                         <Badge variant="secondary">
                           {items.length} item{items.length > 1 ? "s" : ""}
                         </Badge>
+                        {/* Section Navigation Buttons */}
+                        <div className="flex justify-between">
+                          {index > 0 && (
+                            <Button
+                              variant="outline"
+                              onClick={() => scrollToSection(sectionIds[index - 1])}
+                              className="flex items-center gap-2"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                              Previous Section
+                            </Button>
+                          )}
+                          {index < sectionIds.length - 1 && (
+                            <Button
+                              variant="outline"
+                              onClick={() => scrollToSection(sectionIds[index + 1])}
+                              className="flex items-center gap-2 ml-auto"
+                            >
+                              Next Section
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatClassificationForDisplay(bucket)} — review and

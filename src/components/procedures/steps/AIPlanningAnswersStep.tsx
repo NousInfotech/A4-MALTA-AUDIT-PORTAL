@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChevronUp, ChevronDown } from "lucide-react"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -51,7 +52,7 @@ function MultiSelectEditor({ field, onChange }: { field: any; onChange: (v: any)
   )
 }
 
-function SelectEditor({ field, onChange }: { field: any; onChange: (v: any) =>void }) {
+function SelectEditor({ field, onChange }: { field: any; onChange: (v: any) => void }) {
   const opts = Array.isArray(field.options) ? field.options : []
   const value = typeof field.answer === "string" ? field.answer : ""
   return (
@@ -202,8 +203,57 @@ const AIPlanningAnswersStep: React.FC<{
   const fileInput = useRef<HTMLInputElement>(null)
   // Change this line to store checklist items instead of strings
   const [sectionRecommendations, setSectionRecommendations] = useState<Record<string, any[]>>({});
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const { toast } = useToast()
+
+  const scrollToSection = (sectionId: string) => {
+    const sectionElement = sectionRefs.current[sectionId]
+    if (sectionElement) {
+      sectionElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const getCurrentSectionIndex = (sectionId: string) => {
+    return PLANNING_SECTIONS.findIndex(section => section.sectionId === sectionId)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex > 0) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex - 1].sectionId)
+          }
+        }
+      }
+    } else if (event.key === 'ArrowDown' && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      const activeElement = document.activeElement
+      const currentCard = activeElement?.closest('[data-section-id]') as HTMLElement
+      if (currentCard) {
+        const currentSectionId = currentCard.dataset.sectionId
+        if (currentSectionId) {
+          const currentIndex = getCurrentSectionIndex(currentSectionId)
+          if (currentIndex < PLANNING_SECTIONS.length - 1) {
+            scrollToSection(PLANNING_SECTIONS[currentIndex + 1].sectionId)
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   const fillAnswersForSection = async (sectionId: string) => {
     setLoading(true)
@@ -212,7 +262,7 @@ const AIPlanningAnswersStep: React.FC<{
       newSet.add(sectionId)
       return newSet
     })
-    
+
     try {
       const base = import.meta.env.VITE_APIURL
       const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}/generate/section-answers`, {
@@ -225,51 +275,51 @@ const AIPlanningAnswersStep: React.FC<{
 
       const extractAnswers = (responseData: any) => {
         const answers: Record<string, any> = {};
-        
+
         if (responseData.fields && Array.isArray(responseData.fields)) {
           responseData.fields.forEach((fieldItem: any) => {
             const fieldData = fieldItem._doc || fieldItem;
             const key = fieldData.key;
-            
+
             if (!key) return;
-            
-            const answer = 
+
+            const answer =
               fieldItem.answer !== undefined ? fieldItem.answer :
-              fieldData.answer !== undefined ? fieldData.answer :
-              fieldData.content !== undefined ? fieldData.content : null;
-            
+                fieldData.answer !== undefined ? fieldData.answer :
+                  fieldData.content !== undefined ? fieldData.content : null;
+
             answers[key] = answer;
           });
         }
-        
+
         // Store the section recommendations as an array (not string)
         const sectionRec = data.sectionRecommendations || [];
         setSectionRecommendations(prev => ({ ...prev, [sectionId]: sectionRec }));
-        
+
         return answers;
       };
 
       const answers = extractAnswers(data);
 
-      setProcedures(prev => prev.map(sec => 
+      setProcedures(prev => prev.map(sec =>
         sec.sectionId === data.sectionId
           ? {
-              ...sec,
-              fields: (sec.fields || []).map((existingField: any) => {
-                const key = existingField?.key;
-                if (!key) return existingField;
-                
-                const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
-                
-                return { 
-                  ...existingField, 
-                  answer: answerFromResponse 
-                };
-              })
-            }
+            ...sec,
+            fields: (sec.fields || []).map((existingField: any) => {
+              const key = existingField?.key;
+              if (!key) return existingField;
+
+              const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
+
+              return {
+                ...existingField,
+                answer: answerFromResponse
+              };
+            })
+          }
           : sec
       ));
-      
+
       toast({ title: "Answers Generated", description: `Answers for section generated successfully.` })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
@@ -286,9 +336,9 @@ const AIPlanningAnswersStep: React.FC<{
   const handleSave = async () => {
     try {
       setLoading(true)
-      
+
       const form = new FormData();
-      
+
       // Collect all recommendations from all sections into one array
       const allRecommendations: any[] = [];
       Object.values(sectionRecommendations).forEach(sectionRecs => {
@@ -326,7 +376,7 @@ const AIPlanningAnswersStep: React.FC<{
       if (!res.ok) throw new Error("Save failed");
 
       const saved = await res.json();
-      
+
       // Pass the recommendations as checklist items to the next step
       onComplete({
         saved,
@@ -343,12 +393,12 @@ const AIPlanningAnswersStep: React.FC<{
   };
   // basic editors
   const setFieldAnswer = (sectionId: string, key: string, value: any) => {
-    setProcedures(prev => prev.map(sec => 
+    setProcedures(prev => prev.map(sec =>
       sec.sectionId === sectionId
         ? {
-            ...sec,
-            fields: sec.fields.map(f => f.key === key ? { ...f, answer: value } : f)
-          }
+          ...sec,
+          fields: sec.fields.map(f => f.key === key ? { ...f, answer: value } : f)
+        }
         : sec
     ))
   }
@@ -368,12 +418,17 @@ const AIPlanningAnswersStep: React.FC<{
       </div>
 
       <div className="space-y-4">
-        {PLANNING_SECTIONS.map((section) => {
+        {PLANNING_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
-          
+
           return (
-            <Card key={section.sectionId} className="border rounded-md p-4 space-y-3">
+            <Card
+              key={section.sectionId}
+              className="border rounded-md p-4 space-y-3"
+              ref={el => sectionRefs.current[section.sectionId] = el}
+              data-section-id={section.sectionId}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-heading text-lg">{section.title}</div>
@@ -391,6 +446,28 @@ const AIPlanningAnswersStep: React.FC<{
                   ) : null}
                   Generate Answers
                 </Button>
+                {/* Navigation buttons */}
+                <div className="flex justify-between pt-4 border-t">
+                  {index > 0 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => scrollToSection(PLANNING_SECTIONS[index - 1].sectionId)}
+                      className="flex items-center gap-2"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                      Previous Section
+                    </Button>
+                  )}
+                  {index < PLANNING_SECTIONS.length - 1 && (
+                    <Button
+                      onClick={() => scrollToSection(PLANNING_SECTIONS[index + 1].sectionId)}
+                      className="flex items-center gap-2 ml-auto"
+                    >
+                      Next Section
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {hasQuestions ? (
@@ -404,41 +481,41 @@ const AIPlanningAnswersStep: React.FC<{
                         {f.help ? <div className="text-xs text-muted-foreground">{f.help}</div> : null}
 
                         {t === "textarea" ? (
-                          <Textarea 
-                            value={f.answer ?? ""} 
+                          <Textarea
+                            value={f.answer ?? ""}
                             onChange={(e) => setFieldAnswer(section.sectionId, f.key, e.target.value)}
                             placeholder="Enter your answer..."
                           />
                         ) : t === "text" ? (
-                          <Input 
-                            value={f.answer ?? ""} 
+                          <Input
+                            value={f.answer ?? ""}
                             onChange={(e) => setFieldAnswer(section.sectionId, f.key, e.target.value)}
                             placeholder="Enter your answer..."
                           />
                         ) : t === "number" || t === "currency" ? (
-                          <Input 
-                            type="number" 
-                            value={f.answer ?? ""} 
+                          <Input
+                            type="number"
+                            value={f.answer ?? ""}
                             onChange={(e) => setFieldAnswer(section.sectionId, f.key, e.target.valueAsNumber)}
                             placeholder="Enter a number..."
                           />
                         ) : t === "checkbox" ? (
                           <div className="flex items-center gap-2">
-                            <Checkbox 
-                              checked={!!f.answer} 
-                              onCheckedChange={(ck) => setFieldAnswer(section.sectionId, f.key, !!ck)} 
+                            <Checkbox
+                              checked={!!f.answer}
+                              onCheckedChange={(ck) => setFieldAnswer(section.sectionId, f.key, !!ck)}
                             />
                             <span className="text-sm">Yes</span>
                           </div>
                         ) : t === "select" ? (
-                          <SelectEditor 
-                            field={f} 
-                            onChange={(v) => setFieldAnswer(section.sectionId, f.key, v)} 
+                          <SelectEditor
+                            field={f}
+                            onChange={(v) => setFieldAnswer(section.sectionId, f.key, v)}
                           />
                         ) : t === "multiselect" ? (
-                          <MultiSelectEditor 
-                            field={f} 
-                            onChange={(v) => setFieldAnswer(section.sectionId, f.key, v)} 
+                          <MultiSelectEditor
+                            field={f}
+                            onChange={(v) => setFieldAnswer(section.sectionId, f.key, v)}
                           />
                         ) : isTable ? (
                           <TableEditor
@@ -449,25 +526,25 @@ const AIPlanningAnswersStep: React.FC<{
                         ) : t === "group" ? (
                           <Textarea
                             className="font-mono"
-                            value={(() => { 
-                              try { 
-                                return JSON.stringify(f.answer ?? {}, null, 2) 
-                              } catch { 
-                                return "{}" 
-                              } 
+                            value={(() => {
+                              try {
+                                return JSON.stringify(f.answer ?? {}, null, 2)
+                              } catch {
+                                return "{}"
+                              }
                             })()}
                             onChange={(e) => {
-                              try { 
+                              try {
                                 setFieldAnswer(section.sectionId, f.key, JSON.parse(e.target.value || "{}"))
-                              } catch { 
-                                /* ignore */ 
+                              } catch {
+                                /* ignore */
                               }
                             }}
                             placeholder='{"childKey": true}'
                           />
                         ) : (
-                          <Input 
-                            value={String(f.answer ?? "")} 
+                          <Input
+                            value={String(f.answer ?? "")}
                             onChange={(e) => setFieldAnswer(section.sectionId, f.key, e.target.value)}
                             placeholder="Enter your answer..."
                           />
