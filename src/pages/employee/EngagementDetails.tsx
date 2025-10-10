@@ -18,6 +18,7 @@ import {
   Library,
   BarChart3,
   Shield,
+  BookOpenText,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,7 @@ import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { KYCManagement } from "@/components/kyc/KYCManagement";
 import PbcDialog from "@/components/pbc/PbcDialog";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -288,6 +290,13 @@ export const EngagementDetails = () => {
                   <Shield className="h-4 w-4 mr-2" />
                   KYC
                 </TabsTrigger>
+                <TabsTrigger
+                  value="work-book"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-lg"
+                >
+                  <BookOpenText className="h-4 w-4 mr-2" />
+                  Work&nbsp;Book
+                </TabsTrigger>
               </TabsList>
             </div>
             {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-900">
@@ -336,6 +345,9 @@ export const EngagementDetails = () => {
 
             <TabsContent value="kyc" className="space-y-6">
               <KYCManagement engagementId={id!} />
+            </TabsContent>
+            <TabsContent value="work-book" className="space-y-6">
+              <WorkBookApp />
             </TabsContent>
           </div>
         </Tabs>

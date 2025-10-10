@@ -46,6 +46,7 @@ import CallbackPage from "./components/saltedge/SaltEdgeCallback";
 import ReviewDetailsPage from "./components/review-components/ReviewDetailsPage";
 import ReviewPage from "./pages/ReviewPage";
 import MockApideckHome from "./mockdata/MockApideckHome";
+import WorkBookApp from "./components/audit-workbooks/WorkBookApp";
 
 
 
@@ -109,6 +110,7 @@ const App = () => (
                 <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
                 <Route path="review/" element={<ReviewPage />} />
                 <Route path="mockapideck" element={<MockApideckHome />} />
+                <Route path="audit-workbook" element={<WorkBookApp />} />
               </Route>
 
                 {/* Client Routes */}

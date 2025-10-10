@@ -1,0 +1,66 @@
+// const mockWorkbooks: Workbook[] = [
+//   {
+//     id: '1',
+//     name: 'FY2023_Financial_Statements.xlsx',
+//     uploadedDate: '2023-10-26',
+//     version: 'v2',
+//     lastModified: '2023-10-27T10:00:00Z',
+//     lastModifiedBy: 'Alice',
+//     fileData: {
+//       'Balance Sheet': [
+//         ['', 'A', 'B', 'C', 'D'],
+//         ['1', 'Assets', 'Q1 2023', 'Q2 2023', 'Q3 2023'],
+//         ['2', 'Current Assets', '150,000', '165,000', '180,000'],
+//         ['3', 'Cash', '50,000', '55,000', '60,000'],
+//         ['4', 'Accounts Receivable', '100,000', '110,000', '120,000'],
+//         ['5', 'Total Current Assets', '150,000', '165,000', '180,000'],
+//         ['6', 'Non-Current Assets', '350,000', '360,000', '370,000'],
+//         ['7', 'Total Assets', '500,000', '525,000', '550,000'],
+//       ],
+//       'Income Statement': [
+//         ['', 'A', 'B', 'C'],
+//         ['1', 'Revenue', '200,000', '220,000'],
+//         ['2', 'Cost of Goods Sold', '-80,000', '-88,000'],
+//         ['3', 'Gross Profit', '120,000', '132,000'],
+//         ['4', 'Operating Expenses', '-70,000', '-75,000'],
+//         ['5', 'Net Income', '50,000', '57,000'],
+//       ],
+//     },
+//   },
+//   {
+//     id: '2',
+//     name: 'Q4_Sales_Report_Regional.xlsx',
+//     uploadedDate: '2023-10-25',
+//     version: 'v1',
+//     lastModifiedBy: 'Bob',
+//     fileData: {
+//       'Sales Data': [
+//         ['', 'A', 'B', 'C', 'D', 'E'],
+//         ['1', 'Region', 'Product A', 'Product B', 'Product C', 'Total Sales'],
+//         ['2', 'North', '15,000', '18,000', '22,000', '55,000'],
+//         ['3', 'South', '12,000', '14,000', '16,000', '42,000'],
+//         ['4', 'East', '18,000', '20,000', '25,000', '63,000'],
+//         ['5', 'West', '10,000', '11,000', '13,000', '34,000'],
+//         ['6', 'Grand Total', '55,000', '63,000', '76,000', '194,000'],
+//       ],
+//     },
+//   },
+//   {
+//     id: '3',
+//     name: 'Employee_List_HR.xlsx',
+//     uploadedDate: '2023-09-15',
+//     version: 'v3',
+//     lastModifiedBy: 'Charlie',
+//     fileData: {
+//       'Employees': [
+//         ['', 'A', 'B', 'C', 'D'],
+//         ['1', 'Employee ID', 'Full Name', 'Department', 'Hire Date'],
+//         ['2', 'E001', 'John Doe', 'Engineering', '2021-05-20'],
+//         ['3', 'E002', 'Jane Smith', 'Marketing', '2020-08-15'],
+//         ['4', 'E003', 'Peter Jones', 'Engineering', '2022-01-10'],
+//         ['5', 'E004', 'Mary Williams', 'Human Resources', '2019-11-30'],
+//         ['6', 'E005', 'David Brown', 'Sales', '2022-03-22'],
+//       ],
+//     },
+//   },
+// ];
