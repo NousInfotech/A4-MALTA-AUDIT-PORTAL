@@ -22,6 +22,7 @@ import {
   Target,
   Shield
 } from 'lucide-react';
+import { IconRobotFace } from '@tabler/icons-react';
 
 interface NavItem {
   title: string;
@@ -65,7 +66,14 @@ const navItems: NavItem[] = [
     description: 'Quality Management Assessment',
     badge: 'New'
   },
-
+{ 
+  title: 'Prompt Management', 
+  href: '/admin/prompts', 
+  icon: IconRobotFace, 
+  roles: ['admin'],
+  description: 'Manage AI Prompts',
+  badge: 'New'
+},
   // Employee
   { 
     title: 'Dashboard', 

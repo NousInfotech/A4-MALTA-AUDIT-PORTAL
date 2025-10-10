@@ -1,13 +1,13 @@
 // Replace the entire file with this updated version
 // @ts-nocheck
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { Loader2, Sparkles, Edit3, Save, Trash2, CheckCircle } from "lucide-react"
+import { Loader2, Sparkles, Edit3, Save, Trash2, CheckCircle, ChevronUp, ChevronDown } from "lucide-react"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -71,6 +71,48 @@ const AIProcedureQuestionsStep: React.FC<{
     return top
   }
 
+  const groups = useMemo(() => {
+    const by: Record<string, any[]> = {}
+    for (const q of questions) {
+      const key = groupKeyFor(q)
+      if (!by[key]) by[key] = []
+      by[key].push(q)
+    }
+    return by
+  }, [questions])
+
+  // Section navigation
+  const sectionIds = useMemo(() => Object.keys(groups).map((key, index) => `section-${index}`), [groups]);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const currentSection = document.elementFromPoint(window.innerWidth / 2, 100)?.closest('[id^="section-"]');
+      if (currentSection) {
+        const currentIndex = sectionIds.indexOf(currentSection.id);
+        if (event.key === 'ArrowUp' && currentIndex > 0) {
+          scrollToSection(sectionIds[currentIndex - 1]);
+        } else if (event.key === 'ArrowDown' && currentIndex < sectionIds.length - 1) {
+          scrollToSection(sectionIds[currentIndex + 1]);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sectionIds]);
+
   const generateQuestionsForClassification = async (classification: string) => {
     setLoading(true)
     setGeneratingClassifications(prev => {
@@ -78,7 +120,7 @@ const AIProcedureQuestionsStep: React.FC<{
       newSet.add(classification)
       return newSet
     })
-    
+
     try {
       const base = import.meta.env.VITE_APIURL
       if (!base) throw new Error("VITE_APIURL is not set")
@@ -97,22 +139,22 @@ const AIProcedureQuestionsStep: React.FC<{
         const text = await res.text().catch(() => "")
         throw new Error(
           ct.includes("application/json") ? (JSON.parse(text)?.message || "Failed to generate AI questions")
-          : (text?.slice(0, 120) || `Failed to generate AI questions (HTTP ${res.status}).`)
+            : (text?.slice(0, 120) || `Failed to generate AI questions (HTTP ${res.status}).`)
         )
       }
 
       const data = await res.json()
       const newQuestions = normalizeQuestions(Array.isArray(data?.aiQuestions) ? data.aiQuestions : [])
-      
+
       // Remove existing questions for this classification and add new ones
       setQuestions(prev => {
         const filtered = prev.filter(q => q.classification !== classification)
         return [...filtered, ...newQuestions.map(q => ({ ...q, classification }))]
       })
-      
-      toast({ 
-        title: "AI Questions Ready", 
-        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}.` 
+
+      toast({
+        title: "AI Questions Ready",
+        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}.`
       })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
@@ -155,16 +197,6 @@ const AIProcedureQuestionsStep: React.FC<{
     }
   }
 
-  const groups = useMemo(() => {
-    const by: Record<string, any[]> = {}
-    for (const q of questions) {
-      const key = groupKeyFor(q)
-      if (!by[key]) by[key] = []
-      by[key].push(q)
-    }
-    return by
-  }, [questions])
-
   const recTextFor = (bucket: string) => {
     const hit =
       (recommendations || []).find((r: any) =>
@@ -174,7 +206,7 @@ const AIProcedureQuestionsStep: React.FC<{
       ) || null
     return typeof hit?.text === "string" ? hit.text
       : typeof hit?.recommendation === "string" ? hit.recommendation
-      : ""
+        : ""
   }
 
   return (
@@ -217,14 +249,37 @@ const AIProcedureQuestionsStep: React.FC<{
             <p className="text-sm text-muted-foreground">No questions yet. Select a classification to generate questions.</p>
           ) : (
             <>
-              {Object.entries(groups).map(([bucket, items]) => (
-                <Card key={bucket} className="border-2 border-primary/10 shadow-sm">
+              {Object.entries(groups).map(([bucket, items], index) => (
+                <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 shadow-sm relative">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{formatClassificationForDisplay(bucket)}</Badge>
                           <Badge variant="secondary">{items.length} item{items.length > 1 ? "s" : ""}</Badge>
+                          {/* Section Navigation Buttons */}
+                          <div className="flex justify-between">
+                            {index > 0 && (
+                              <Button
+                                variant="outline"
+                                onClick={() => scrollToSection(sectionIds[index - 1])}
+                                className="flex items-center gap-2"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                                Previous Section
+                              </Button>
+                            )}
+                            {index < sectionIds.length - 1 && (
+                              <Button
+                                variant="outline"
+                                onClick={() => scrollToSection(sectionIds[index + 1])}
+                                className="flex items-center gap-2 ml-auto"
+                              >
+                                Next Section
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         {recTextFor(bucket) ? (
                           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
@@ -237,15 +292,15 @@ const AIProcedureQuestionsStep: React.FC<{
                   <CardContent className="space-y-3">
                     {items.map((q) => (
                       <div key={q.__uid} className="rounded border p-3">
-                        {q.framework&&
-                              <Badge className="mr-2" variant="default">{q.framework}</Badge>
-                            }
-                            {q.reference&&
-                              <Badge variant="outline">{q.reference}</Badge>
-                            }
+                        {q.framework &&
+                          <Badge className="mr-2" variant="default">{q.framework}</Badge>
+                        }
+                        {q.reference &&
+                          <Badge variant="outline">{q.reference}</Badge>
+                        }
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary">{formatClassificationForDisplay(q.classificationTag) || "General"}</Badge>                            
+                            <Badge variant="secondary">{formatClassificationForDisplay(q.classificationTag) || "General"}</Badge>
                             {q.isRequired ? (
                               <Badge variant="default">Required</Badge>
                             ) : (
@@ -274,7 +329,7 @@ const AIProcedureQuestionsStep: React.FC<{
                             placeholder="Edit the procedure question"
                           />
                         </div>
-                        
+
                       </div>
                     ))}
                   </CardContent>

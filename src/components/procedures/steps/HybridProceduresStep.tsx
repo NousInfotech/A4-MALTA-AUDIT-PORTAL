@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { Loader2, Sparkles, PlusCircle, Save, Edit3, X, CheckCircle, Trash2 } from "lucide-react"
+import { Loader2, Sparkles, PlusCircle, Save, Edit3, X, CheckCircle, Trash2, ChevronUp, ChevronDown } from "lucide-react"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -43,6 +43,84 @@ function formatClassificationForDisplay(classification?: string) {
   return top
 }
 
+/* ---------------- classification mapping ---------------- */
+
+// Map hierarchical classifications to procedure keys
+const mapClassificationToProcedureKey = (classification: string): string => {
+  const mapping: Record<string, string> = {
+    // Assets > Current
+    "Assets > Current > Cash & Cash Equivalents": "Bank and Cash",
+    "Assets > Current > Trade Receivables": "Receivables",
+    "Assets > Current > Other Receivables": "Receivables",
+    "Assets > Current > Prepayments": "Receivables",
+    "Assets > Current > Inventory": "Inventory",
+    "Assets > Current > Recoverable VAT/Tax": "Taxation",
+
+    // Assets > Non-current
+    "Assets > Non-current > Property, Plant & Equipment": "PPE",
+    "Assets > Non-current > Intangible Assets": "Intangible Assets",
+    "Assets > Non-current > Investments": "Investments",
+    "Assets > Non-current > Deferred Tax Asset": "Taxation",
+    "Assets > Non-current > Long-term Receivables/Deposits": "Receivables",
+
+    // Liabilities > Current
+    "Liabilities > Current > Trade Payables": "Payables",
+    "Liabilities > Current > Accruals": "Payables",
+    "Liabilities > Current > Taxes Payable": "Taxation",
+    "Liabilities > Current > Short-term Borrowings/Overdraft": "Borrowings and Loans",
+    "Liabilities > Current > Other Payables": "Payables",
+
+    // Liabilities > Non-current
+    "Liabilities > Non-current > Borrowings (Long-term)": "Borrowings and Loans",
+    "Liabilities > Non-current > Provisions": "Payables",
+    "Liabilities > Non-current > Deferred Tax Liability": "Taxation",
+    "Liabilities > Non-current > Lease Liabilities": "Borrowings and Loans",
+
+    // Equity (root level)
+    "Equity > Share Capital": "Equity",
+    "Equity > Share Premium": "Equity",
+    "Equity > Reserves": "Equity",
+    "Equity > Retained Earnings": "Equity",
+
+    // Income (root level)
+    "Income > Operating > Revenue (Goods)": "Profit and Loss",
+    "Income > Operating > Revenue (Services)": "Profit and Loss",
+    "Income > Operating > Other Operating Income": "Profit and Loss",
+    "Income > Non-operating > Other Income": "Profit and Loss",
+    "Income > Non-operating > FX Gains": "Profit and Loss",
+
+    // Expenses (root level)
+    "Expenses > Cost of Sales > Materials/Purchases": "Profit and Loss",
+    "Expenses > Cost of Sales > Freight Inwards": "Profit and Loss",
+    "Expenses > Cost of Sales > Manufacturing Labour": "Profit and Loss",
+    "Expenses > Cost of Sales > Production Overheads": "Profit and Loss",
+    "Expenses > Direct Costs": "Profit and Loss",
+    "Expenses > Administrative Expenses > Payroll": "Profit and Loss",
+    "Expenses > Administrative Expenses > Rent & Utilities": "Profit and Loss",
+    "Expenses > Administrative Expenses > Office/Admin": "Profit and Loss",
+    "Expenses > Administrative Expenses > Marketing": "Profit and Loss",
+    "Expenses > Administrative Expenses > Repairs & Maintenance": "Profit and Loss",
+    "Expenses > Administrative Expenses > IT & Software": "Profit and Loss",
+    "Expenses > Administrative Expenses > Insurance": "Profit and Loss",
+    "Expenses > Administrative Expenses > Professional Fees": "Profit and Loss",
+    "Expenses > Administrative Expenses > Depreciation & Amortisation": "Profit and Loss",
+    "Expenses > Administrative Expenses > Research & Development": "Profit and Loss",
+    "Expenses > Administrative Expenses > Lease Expenses": "Profit and Loss",
+    "Expenses > Administrative Expenses > Bank Charges": "Profit and Loss",
+    "Expenses > Administrative Expenses > Travel & Entertainment": "Profit and Loss",
+    "Expenses > Administrative Expenses > Training & Staff Welfare": "Profit and Loss",
+    "Expenses > Administrative Expenses > Telephone & Communication": "Profit and Loss",
+    "Expenses > Administrative Expenses > Subscriptions & Memberships": "Profit and Loss",
+    "Expenses > Administrative Expenses > Bad Debt Written Off": "Profit and Loss",
+    "Expenses > Administrative Expenses > Stationery & Printing": "Profit and Loss",
+    "Expenses > Finance Costs": "Profit and Loss",
+    "Expenses > Other > FX Losses": "Profit and Loss",
+    "Expenses > Other > Exceptional/Impairment": "Profit and Loss",
+  }
+
+  return mapping[classification] || "default"
+}
+
 /* ---------------- component ---------------- */
 
 export const HybridProceduresStep: React.FC<{
@@ -63,6 +141,48 @@ export const HybridProceduresStep: React.FC<{
     typeof stepData.recommendations === "string" ? stepData.recommendations : ""
   )
 
+  const grouped = useMemo(() => {
+    const by: Record<string, any[]> = {}
+    for (const q of questions) {
+      const key = q.classification || "General"
+      if (!by[key]) by[key] = []
+      by[key].push(q)
+    }
+    return by
+  }, [questions])
+
+  // Section navigation
+  const sectionIds = useMemo(() => Object.keys(grouped).map((key, index) => `section-${index}`), [grouped]);
+
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const currentSection = document.elementFromPoint(window.innerWidth / 2, 100)?.closest('[id^="section-"]');
+      if (currentSection) {
+        const currentIndex = sectionIds.indexOf(currentSection.id);
+        if (event.key === 'ArrowUp' && currentIndex > 0) {
+          scrollToSection(sectionIds[currentIndex - 1]);
+        } else if (event.key === 'ArrowDown' && currentIndex < sectionIds.length - 1) {
+          scrollToSection(sectionIds[currentIndex + 1]);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sectionIds]);
+
   // 1) Load MANUAL procedures from local templates (no API)
   useEffect(() => {
     const loadManual = async () => {
@@ -76,12 +196,16 @@ export const HybridProceduresStep: React.FC<{
           : []
 
         const all: any[] = []
-        selected.forEach((cls) => {
-          const arr = staticProcedures[cls] || staticProcedures.default || []
+
+        selected.forEach((hierarchicalClassification) => {
+          // Map the hierarchical classification to a procedure key
+          const procedureKey = mapClassificationToProcedureKey(hierarchicalClassification)
+          const arr = staticProcedures[procedureKey] || staticProcedures.default || []
+
           arr.forEach((p: any) =>
             all.push({
               id: p.id || `man_${mkUid()}`,
-              classification: cls,
+              classification: hierarchicalClassification, // Keep original hierarchical classification for grouping
               question: p.question || p.title || "",
               answer: p.answer || "",
               isRequired: !!p.isRequired,
@@ -91,13 +215,25 @@ export const HybridProceduresStep: React.FC<{
         })
 
         setQuestions(normalize(all))
+
+        // Debug logging
+        console.log('Selected classifications:', selected)
+        console.log('Loaded questions count:', all.length)
+        console.log('Questions:', all)
+
         if (all.length === 0) {
           toast({
-            title: "No Templates",
+            title: "No Templates Found",
             description: "Add entries in src/static/procedures.ts for your selected classifications.",
+          })
+        } else {
+          toast({
+            title: "Manual Procedures Loaded",
+            description: `Loaded ${all.length} procedures for ${selected.length} classifications.`,
           })
         }
       } catch (e: any) {
+        console.error('Load manual procedures error:', e)
         toast({ title: "Load failed", description: e.message, variant: "destructive" })
       } finally {
         setLoading(false)
@@ -116,7 +252,7 @@ export const HybridProceduresStep: React.FC<{
       newSet.add(classification)
       return newSet
     })
-    
+
     try {
       const base = import.meta.env.VITE_APIURL
       const res = await authFetch(`${base}/api/procedures/hybrid/questions`, {
@@ -143,8 +279,8 @@ export const HybridProceduresStep: React.FC<{
       const extra = Array.isArray(data?.aiQuestions)
         ? data.aiQuestions
         : Array.isArray(data?.aiQuestions)
-        ? data.aiQuestions
-        : []
+          ? data.aiQuestions
+          : []
 
       const normalized = normalize(extra.map((q: any, i: number) => ({
         id: q.id || `ai_${i + 1}_${Math.random().toString(36).slice(2, 6)}`,
@@ -223,18 +359,6 @@ export const HybridProceduresStep: React.FC<{
     setEditedA("")
   }
 
-  /* ---------------- grouping ---------------- */
-
-  const grouped = useMemo(() => {
-    const by: Record<string, any[]> = {}
-    for (const q of questions) {
-      const key = q.classification || "General"
-      if (!by[key]) by[key] = []
-      by[key].push(q)
-    }
-    return by
-  }, [questions])
-
   /* ---------------- save / continue ---------------- */
 
   const saveDraft = async () => {
@@ -292,8 +416,8 @@ export const HybridProceduresStep: React.FC<{
             </Alert>
           ) : (
             <>
-              {Object.entries(grouped).map(([bucket, items]) => (
-                <Card key={bucket} className="border-2 border-primary/10">
+              {Object.entries(grouped).map(([bucket, items], index) => (
+                <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2">
@@ -304,8 +428,8 @@ export const HybridProceduresStep: React.FC<{
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         onClick={() => generateMoreWithAI(bucket)}
                         disabled={loading || generatingClassifications.has(bucket)}
                       >
@@ -320,6 +444,28 @@ export const HybridProceduresStep: React.FC<{
                         <PlusCircle className="h-4 w-4 mr-2" />
                         Add Custom
                       </Button>
+
+                      {/* Section Navigation Buttons */}
+                      {index > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => scrollToSection(sectionIds[index - 1])}
+                          className="flex items-center gap-2"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                          Previous Section
+                        </Button>
+                      )}
+                      {index < sectionIds.length - 1 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => scrollToSection(sectionIds[index + 1])}
+                          className="flex items-center gap-2 ml-auto"
+                        >
+                          Next Section
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
 
@@ -329,12 +475,12 @@ export const HybridProceduresStep: React.FC<{
                       const badge = formatClassificationForDisplay(q.classification)
                       return (
                         <div key={q.__uid} className="rounded border p-3 space-y-2">
-                          {q.framework&&
-                              <Badge className="mr-2" variant="default">{q.framework}</Badge>
-                            }
-                            {q.reference&&
-                              <Badge variant="outline">{q.reference}</Badge>
-                            }
+                          {q.framework &&
+                            <Badge className="mr-2" variant="default">{q.framework}</Badge>
+                          }
+                          {q.reference &&
+                            <Badge variant="outline">{q.reference}</Badge>
+                          }
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <Badge variant="outline">{badge}</Badge>
@@ -348,6 +494,28 @@ export const HybridProceduresStep: React.FC<{
                               )}
                             </div>
                             <div className="flex gap-2">
+
+                              {/* Section Navigation Buttons */}
+                              {index > 0 && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => scrollToSection(sectionIds[index - 1])}
+                                  className="flex items-center gap-2"
+                                >
+                                  <ChevronUp className="h-4 w-4" />
+                                  Previous Section
+                                </Button>
+                              )}
+                              {index < sectionIds.length - 1 && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => scrollToSection(sectionIds[index + 1])}
+                                  className="flex items-center gap-2 ml-auto"
+                                >
+                                  Next Section
+                                  <ChevronDown className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button size="sm" variant="outline" onClick={() => toggleRequired(q.__uid)}>
                                 {q.isRequired ? "Mark Optional" : "Mark Required"}
                               </Button>
