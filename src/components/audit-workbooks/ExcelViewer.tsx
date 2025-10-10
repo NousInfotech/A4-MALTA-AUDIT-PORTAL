@@ -785,7 +785,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   onClick={() => handleNamedRangeClick(nr)}
                 >
                   <span className="font-medium">{nr.name}</span>
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs whitespace-nowrap">
                     {nr.range}
                   </Badge>
                 </div>
@@ -897,7 +897,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                       onClick={() => handleNamedRangeClick(nr)}
                     >
                       <span className="font-medium">{nr.name}</span>
-                      <Badge variant="outline" className="text-xs whitespace-nowrap text-end w-fit">
+                      <Badge variant="outline" className="text-xs whitespace-nowrap">
                         {nr.range}
                       </Badge>
                     </div>
