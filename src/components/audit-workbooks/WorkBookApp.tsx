@@ -263,7 +263,10 @@ export default function App() {
   };
 
   const handleUploadWorkbook = (workbook: Workbook) => {
+    // 1. Add the new workbook to the list
     setWorkbooks((prev) => [...prev, workbook]);
+    
+    // 2. Add an audit log for the upload
     setAuditLogs((prev) => [
       ...prev,
       {
@@ -274,11 +277,16 @@ export default function App() {
         details: `Uploaded ${workbook.name} version ${workbook.version}`,
       },
     ]);
+
+    // 3. Show a success toast
     toast({
       title: "Workbook Uploaded",
       description: `Successfully uploaded ${workbook.name}`,
     });
-    handleSelectWorkbook(workbook);
+
+    // 4. Select the new workbook and navigate to the viewer
+    setSelectedWorkbook(workbook);
+    setCurrentView("viewer");
   };
 
   const handleUploadError = (message: string) => {

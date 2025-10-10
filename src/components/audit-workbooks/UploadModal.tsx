@@ -1,15 +1,13 @@
-// src/components/audit-workbooks/UploadModal.tsx
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { Workbook } from '../../types/audit-workbooks/types';
+import * as XLSX from 'xlsx'; // Import SheetJS
+import { Workbook, SheetData } from '../../types/audit-workbooks/types';
 
 interface UploadModalProps {
   onClose: () => void;
   onUploadSuccess: (workbook: Workbook) => void;
-  // We'll add toast for error handling
   onError: (message: string) => void; 
 }
 
@@ -23,8 +21,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSucce
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        // Parse the file data
-        const workbook = XLSX.read(data, { type: 'binary' });
+        // Parse the file data into a SheetJS workbook object
+        const parsedWorkbook = XLSX.read(data, { type: 'binary' });
+        
+        // --- KEY FIX: Process the data into our app's format ---
+        const processedFileData: SheetData = {};
+        parsedWorkbook.SheetNames.forEach(sheetName => {
+          const worksheet = parsedWorkbook.Sheets[sheetName];
+          // Convert the worksheet to a 2D array, then ensure all values are strings
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          // Map over each row and each cell to convert it to a string
+          const stringData: string[][] = jsonData.map((row: any) =>
+            (row as any[]).map((cell: any) => String(cell ?? '')) // Convert cell to string, handle null/undefined
+          );
+          
+          processedFileData[sheetName] = stringData;
+        });
         
         // Create the workbook object that our App.tsx expects
         const newWorkbook: Workbook = {
@@ -33,11 +46,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSucce
           uploadedDate: new Date().toISOString().split('T')[0],
           version: 'v1',
           lastModifiedBy: 'Current User',
-          fileData: workbook, // Store the parsed data here!
+          fileData: processedFileData, // Store the PROCESSED data here!
         };
         
         onUploadSuccess(newWorkbook);
-        onClose(); // Close the modal on successful upload
 
       } catch (error) {
         console.error("Error parsing file:", error);
