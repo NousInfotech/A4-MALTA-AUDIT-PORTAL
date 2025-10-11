@@ -1448,11 +1448,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               {namedRanges.map((nr) => (
                 <div
                   key={nr.id}
-                  className="p-2 text-xs bg-gray-100 rounded flex justify-between items-center cursor-pointer hover:bg-gray-200 group"
+                  className="p-2 text-xs bg-gray-100 rounded flex justify-between items-start cursor-pointer hover:bg-gray-200 group"
                   onClick={() => handleNamedRangeClick(nr)}
                 >
-                  <span className="font-medium">{nr.name}</span>
-                  <div className="flex items-center gap-1">
+                  <span className="font-medium py-1">{nr.name}</span>
+                  <div className="flex flex-col items-center gap-1">
                     <Badge
                       variant="outline"
                       className="text-xs whitespace-nowrap"
@@ -1632,18 +1632,18 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 {namedRanges.map((nr) => (
                   <div
                     key={nr.id}
-                    className="p-2 text-xs bg-gray-100 rounded flex justify-between items-center cursor-pointer hover:bg-gray-200 group"
+                    className="p-2 text-xs bg-gray-100 rounded flex justify-between items-start cursor-pointer hover:bg-gray-200 group"
                     onClick={() => handleNamedRangeClick(nr)}
                   >
-                    <span className="font-medium">{nr.name}</span>
-                    <div className="flex items-center gap-1">
+                    <span className="font-medium py-1">{nr.name}</span>
+                    <div className="flex flex-col items-center gap-1">
                       <Badge
                         variant="outline"
                         className="text-xs whitespace-nowrap"
                       >
                         {nr.range}
                       </Badge>
-                      <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+                      <div className="group-hover:opacity-105 flex gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
