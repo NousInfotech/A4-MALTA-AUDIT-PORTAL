@@ -30,9 +30,15 @@ export interface Mapping {
   color: string;
 }
 
+// export interface NamedRange {
+//   name: string;
+//   range: string;
+// }
+
 export interface NamedRange {
+  id: string; // Add an ID for easy management
   name: string;
-  range: string;
+  range: string; // e.g., "Balance Sheet!B2:C3"
 }
 
 export interface DatasetMapping {
