@@ -1011,6 +1011,10 @@ import {
   Trash2,
   Save,
   X,
+  Database,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import {
   Workbook,
@@ -1019,6 +1023,8 @@ import {
   Mapping,
   NamedRange,
 } from "../../types/audit-workbooks/types";
+import { useToast } from "@/hooks/use-toast";
+import { SaveSheetRequest, SaveWorkbookRequest, workbookApi } from "@/lib/api/workbookApi";
 
 const generateColor = () => {
   const colors = [
@@ -1070,6 +1076,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   isFullscreenMode = false,
   onToggleFullscreen,
 }) => {
+
+  const { toast } = useToast();
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
 
@@ -1078,6 +1086,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   );
   const [selection, setSelection] = useState<Selection | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
+
+   // Save dialog states
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveType, setSaveType] = useState<'workbook' | 'sheet'>('workbook');
+  const [isSaving, setIsSaving] = useState(false);
 
   // State for managing named ranges
   const [isCreateNamedRangeOpen, setIsCreateNamedRangeOpen] = useState(false);
@@ -1094,6 +1107,131 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const [newMappingTransform, setNewMappingTransform] = useState("sum");
 
   const currentSheetData = sheetData[selectedSheet] || [];
+
+
+
+  /**
+   * Save entire workbook to backend
+   */
+  const handleSaveWorkbook = async () => {
+    if (!workbook) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No workbook data available to save",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const request: SaveWorkbookRequest = {
+        workbookId: workbook.id,
+        workbookName: workbook.name,
+        version: workbook.version,
+        sheetData: sheetData,
+        metadata: {
+          uploadedDate: workbook.uploadedDate,
+          lastModifiedBy: workbook.lastModifiedBy || "Current User",
+          lastModified: new Date().toISOString(),
+        },
+      };
+
+      const response = await workbookApi.saveWorkbook(request);
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Workbook saved successfully to database",
+        });
+        setIsSaveDialogOpen(false);
+      } else {
+        throw new Error(response.error || "Failed to save workbook");
+      }
+    } catch (error) {
+      console.error("Error saving workbook:", error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Save current sheet to backend
+   */
+  const handleSaveSheet = async () => {
+    if (!workbook || !selectedSheet) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No sheet data available to save",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const request: SaveSheetRequest = {
+        workbookId: workbook.id,
+        workbookName: workbook.name,
+        sheetName: selectedSheet,
+        sheetData: sheetData[selectedSheet] || [],
+        metadata: {
+          uploadedDate: workbook.uploadedDate,
+          lastModifiedBy: workbook.lastModifiedBy || "Current User",
+          lastModified: new Date().toISOString(),
+        },
+      };
+
+      const response = await workbookApi.saveSheet(request);
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: `Sheet "${selectedSheet}" saved successfully to database`,
+        });
+        setIsSaveDialogOpen(false);
+      } else {
+        throw new Error(response.error || "Failed to save sheet");
+      }
+    } catch (error) {
+      console.error("Error saving sheet:", error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Open save dialog
+   */
+  const openSaveDialog = (type: 'workbook' | 'sheet') => {
+    setSaveType(type);
+    setIsSaveDialogOpen(true);
+  };
+
+  /**
+   * Handle save confirmation
+   */
+  const handleSaveConfirm = () => {
+    if (saveType === 'workbook') {
+      handleSaveWorkbook();
+    } else {
+      handleSaveSheet();
+    }
+  };
+
+
 
   const handleMouseDown = (rowIndex: number, colIndex: number) => {
     setIsSelecting(true);
@@ -1270,6 +1408,151 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     onDeleteMapping(id);
   };
 
+  const renderHeader = () => (
+    <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
+      <div className="flex items-center space-x-4">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">{workbook.name}</h1>
+          <p className="text-xs text-gray-500">
+            Version {workbook.version} • Last modified{" "}
+            {workbook.lastModified || workbook.uploadedDate}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        {/* Save Buttons */}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => openSaveDialog('sheet')}
+          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          Save Sheet
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => openSaveDialog('workbook')}
+          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+        >
+          <Database className="h-4 w-4 mr-2" />
+          Save Workbook
+        </Button>
+        
+        {onToggleFullscreen && (
+          <Button variant="outline" size="sm" onClick={onToggleFullscreen}>
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={onViewAuditLog}>
+          <History className="h-4 w-4 mr-2" />
+          Audit Log
+        </Button>
+        <Button variant="outline" size="sm" onClick={onReupload}>
+          <Upload className="h-4 w-4 mr-2" />
+          Re-upload
+        </Button>
+        <Button variant="outline" size="sm">
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
+    </header>
+  );
+
+  // Save Confirmation Dialog
+  const renderSaveDialog = () => (
+    <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            Save {saveType === 'workbook' ? 'Workbook' : 'Sheet'} to Database
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>What will be saved:</Label>
+            <div className="p-3 bg-gray-50 rounded-md space-y-2">
+              {saveType === 'workbook' ? (
+                <>
+                  <div className="flex items-center text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span>Workbook: {workbook?.name}</span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span>All Sheets: {sheetNames.length} sheet(s)</span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span>Version: {workbook?.version}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600 mt-2">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    <span>Total rows: {Object.values(sheetData).reduce((sum, sheet) => sum + sheet.length, 0)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span>Sheet: {selectedSheet}</span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span>Workbook: {workbook?.name}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600 mt-2">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    <span>Total rows: {sheetData[selectedSheet]?.length || 0}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {isSaving && (
+            <div className="flex items-center justify-center p-4">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              <span className="ml-2 text-sm text-gray-600">Saving to database...</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => setIsSaveDialogOpen(false)}
+            disabled={isSaving}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveConfirm}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Database className="h-4 w-4 mr-2" />
+                Confirm Save
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+
   const renderSpreadsheet = () => (
     <div className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1">
       <Table>
@@ -1331,6 +1614,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     );
   };
 
+
+
+  
+
   if (isFullscreenMode) {
     return (
       <div className="h-full flex flex-col">
@@ -1345,7 +1632,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
+      {/* <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
@@ -1376,7 +1663,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             <Settings className="h-4 w-4" />
           </Button>
         </div>
-      </header>
+      </header> */}
+      {renderHeader()}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar for Desktop */}
@@ -1732,6 +2020,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           </div>
         </SheetContent>
       </Sheet>
+
+      {renderSaveDialog()}
 
       {/* Create Named Range Dialog */}
       <Dialog open={isCreateNamedRangeOpen} onOpenChange={setIsCreateNamedRangeOpen}>
