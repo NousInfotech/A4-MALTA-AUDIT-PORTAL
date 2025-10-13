@@ -3347,7 +3347,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           >
 
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
 
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
 
@@ -3356,6 +3356,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               <TabsTrigger value="evidence">Evidence</TabsTrigger>
 
               <TabsTrigger value="procedures">Procedures</TabsTrigger>
+
+              <TabsTrigger value="work-book">WorkBook</TabsTrigger>
 
 
 

@@ -148,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id:         signUpData.user.id,
           name:            userData.name,
           role:            userData.role,
-          status:          'pending',
+          status:          'approved',
           company_name:    userData.companyName   || null,
           company_number:  userData.companyNumber || null,
           industry:        userData.industry      || null,
