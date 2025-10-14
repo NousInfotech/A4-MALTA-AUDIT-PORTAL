@@ -437,7 +437,6 @@
 
 import React, { useState, useEffect } from "react";
 import { MainDashboard } from "@/components/audit-workbooks/MainDashboard";
-import { ExcelViewer } from "@/components/audit-workbooks/ExcelViewer";
 import { AuditLog } from "@/components/audit-workbooks/AuditLog";
 import { UploadModal } from "@/components/audit-workbooks/UploadModal";
 import { LinkToFieldModal } from "@/components/audit-workbooks/LinkToFieldModal";
@@ -628,7 +627,7 @@ const mockAuditLogs: AuditLogEntry[] = [
   },
 ];
 
-export default function App() {
+export default function WorkBookApp() {
   // --- INITIALIZE STATE WITH MOCK DATA ---
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(

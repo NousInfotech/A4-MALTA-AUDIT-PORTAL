@@ -185,6 +185,7 @@ import ClassificationReviewPanel from "../classification-review/ClassificationRe
 import axiosInstance from "@/lib/axiosInstance";
 
 import ProcedureView from "../procedures/ProcedureView";
+import WorkBookApp from "../audit-workbooks/WorkBookApp";
 
 
 
@@ -3543,6 +3544,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               )}
 
+            </TabsContent>
+
+            {/* work book */}
+            <TabsContent
+
+              value="work-book"
+
+              className="flex-1 flex flex-col"
+
+            >
+              <WorkBookApp />
             </TabsContent>
 
           </Tabs>
