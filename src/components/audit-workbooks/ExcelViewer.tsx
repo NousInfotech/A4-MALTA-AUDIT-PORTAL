@@ -573,121 +573,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     onDeleteMapping(id);
   };
 
-  //   const renderHeader = () => (
-  //     <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
-  //       <div className="flex items-center space-x-2 lg:space-x-4 flex-grow-0">
-  //         <Button variant="ghost" size="sm" onClick={onBack}>
-  //           <ArrowLeft className="h-4 w-4" />
-  //         </Button>
-  //         <div>
-  //           <h1 className="text-lg font-semibold">{workbook.name}</h1>
-  //           <p className="text-xs text-gray-500">
-  //             Version {workbook.version} • Last modified{" "}
-  //             {workbook.lastModified || workbook.uploadedDate}
-  //           </p>
-  //         </div>
-  //       </div>
-
-  //       <div className="flex items-center space-x-2 flex-wrap justify-end md:flex-grow">
-  //         {/* Sheet Selector */}
-  //         <Select value={selectedSheet} onValueChange={setSelectedSheet}>
-  //           <SelectTrigger className="w-[180px]">
-  //             <FileSpreadsheet className="h-4 w-4 mr-2" />
-  //             <SelectValue placeholder="Select Sheet" />
-  //           </SelectTrigger>
-  //           <SelectContent>
-  //             {sheetNames.map((sheet) => (
-  //               <SelectItem key={sheet} value={sheet}>
-  //                 {sheet}
-  //               </SelectItem>
-  //             ))}
-  //           </SelectContent>
-  //         </Select>
-
-  //         {/* Actions Dropdown */}
-  //         <DropdownMenu>
-  //           <DropdownMenuTrigger asChild>
-  //             <Button variant="outline" size="sm">
-  //               <Code className="h-4 w-4 mr-2" /> Actions{" "}
-  //               <ChevronDown className="ml-2 h-3 w-3" />
-  //             </Button>
-  //           </DropdownMenuTrigger>
-  //           <DropdownMenuContent className="w-56">
-  //             <DropdownMenuLabel>Data Actions</DropdownMenuLabel>
-  //             <DropdownMenuItem
-  //               onClick={() => selection && onLinkField(selection)}
-  //               disabled={!selection}
-  //             >
-  //               <Link className="h-4 w-4 mr-2" /> Link to Field
-  //             </DropdownMenuItem>
-  //             <DropdownMenuItem onClick={onLinkSheet}>
-  //               <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as Dataset
-  //             </DropdownMenuItem>
-  //             <DropdownMenuItem onClick={onLinkWorkbook}>
-  //               <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
-  //             </DropdownMenuItem>
-  //           </DropdownMenuContent>
-  //         </DropdownMenu>
-
-  //         {/* Named Ranges Dialog Trigger */}
-  //         <Button
-  //           variant="outline"
-  //           size="sm"
-  //           onClick={() => setIsNamedRangesDialogOpen(true)}
-  //         >
-  //           <List className="h-4 w-4 mr-2" /> Named Ranges
-  //         </Button>
-
-  //         {/* Mappings Dialog Trigger */}
-  //         <Button
-  //           variant="outline"
-  //           size="sm"
-  //           onClick={() => setIsMappingsDialogOpen(true)}
-  //         >
-  //           <Code className="h-4 w-4 mr-2" /> Mappings
-  //         </Button>
-
-  //         {/* Save Buttons */}
-  //         <Button
-  //           variant="outline"
-  //           size="sm"
-  //           onClick={() => openSaveDialog("sheet")}
-  //           className="text-blue-600 border-blue-600 hover:bg-blue-50"
-  //         >
-  //           <Database className="h-4 w-4 mr-2" />
-  //           Save Sheet
-  //         </Button>
-  //         <Button
-  //           variant="outline"
-  //           size="sm"
-  //           onClick={() => openSaveDialog("workbook")}
-  //           className="text-blue-600 border-blue-600 hover:bg-blue-50"
-  //         >
-  //           <Database className="h-4 w-4 mr-2" />
-  //           Save Workbook
-  //         </Button>
-
-  //         {onToggleFullscreen && (
-  //           <Button variant="outline" size="sm" onClick={onToggleFullscreen}>
-  //             <Maximize2 className="h-4 w-4" />
-  //           </Button>
-  //         )}
-  //         <Button variant="outline" size="sm" onClick={onViewAuditLog}>
-  //           <History className="h-4 w-4 mr-2" />
-  //           Audit Log
-  //         </Button>
-  //         <Button variant="outline" size="sm" onClick={onReupload}>
-  //           <Upload className="h-4 w-4 mr-2" />
-  //           Re-upload
-  //         </Button>
-  //         <Button variant="outline" size="sm">
-  //           <Settings className="h-4 w-4" />
-  //         </Button>
-  //       </div>
-  //     </header>
-  //   );
-
-  // new
   const renderHeader = () => (
     <header className="bg-white shadow-sm border-b px-4 py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
       <div className="w-full flex flex-col space-y-5">
@@ -1205,7 +1090,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       {renderHeader()}
       <div className="flex flex-1 overflow-hidden">
         {/* Main content area */}
-        <main className="flex-1 p-4 lg:p-8 bg-gray-50 flex flex-col w-full overflow-hidden">
+        <main className="flex-1 p-4 bg-gray-50 flex flex-col w-full overflow-hidden">
           <div className="flex-grow overflow-auto">{renderSpreadsheet()}</div>
           {renderSelectionFooter()}
         </main>
