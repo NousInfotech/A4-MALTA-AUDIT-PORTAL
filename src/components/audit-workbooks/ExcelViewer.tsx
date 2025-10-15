@@ -588,6 +588,146 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     onDeleteMapping(id);
   };
 
+  // const renderHeader = () => (
+  //   <header className="bg-white shadow-sm border-b px-4 py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+  //     <div className="w-full flex flex-col space-y-5">
+  //       <div className="flex items-center space-x-2 lg:space-x-4 flex-grow-0 mb-2 md:mb-0">
+  //         <Button variant="ghost" size="sm" onClick={onBack}>
+  //           <ArrowLeft className="h-4 w-4" />
+  //         </Button>
+  //         <div>
+  //           <h1 className="text-lg font-semibold">{workbook.name}</h1>
+  //           <p className="text-xs text-gray-500">
+  //             Version {workbook.version} • Last modified{" "}
+  //             {workbook.lastModified || workbook.uploadedDate}
+  //           </p>
+  //         </div>
+  //       </div>
+
+  //       {/* Feature Box for Sheet, Actions, Named Ranges, Mappings */}
+  //       <div className="flex flex-wrap items-center gap-2 p-2 border rounded-md bg-gray-50 flex-grow-0 md:flex-grow min-w-full md:min-w-0 justify-between">
+  //         {/* Sheet Selector */}
+  //         <Select value={selectedSheet} onValueChange={setSelectedSheet}>
+  //           <SelectTrigger className="w-[180px]">
+  //             <FileSpreadsheet className="h-4 w-4 mr-2" />
+  //             <SelectValue placeholder="Select Sheet" />
+  //           </SelectTrigger>
+  //           <SelectContent>
+  //             {sheetNames.map((sheet) => (
+  //               <SelectItem key={sheet} value={sheet}>
+  //                 {sheet}
+  //               </SelectItem>
+  //             ))}
+  //           </SelectContent>
+  //         </Select>
+
+  //         {/* Actions Dropdown */}
+  //         <DropdownMenu>
+  //           <DropdownMenuTrigger asChild>
+  //             <Button variant="outline" size="sm">
+  //               <Code className="h-4 w-4 mr-2" /> Actions{" "}
+  //               <ChevronDown className="ml-2 h-3 w-3" />
+  //             </Button>
+  //           </DropdownMenuTrigger>
+  //           <DropdownMenuContent className="w-56">
+  //             <DropdownMenuLabel>Data Actions</DropdownMenuLabel>
+  //             <DropdownMenuItem
+  //               onClick={() => selection && onLinkField(selection)}
+  //               disabled={!selection}
+  //             >
+  //               <Link className="h-4 w-4 mr-2" /> Link to Field
+  //             </DropdownMenuItem>
+  //             <DropdownMenuItem onClick={onLinkSheet}>
+  //               <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as
+  //               Dataset
+  //             </DropdownMenuItem>
+  //             <DropdownMenuItem onClick={onLinkWorkbook}>
+  //               <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
+  //             </DropdownMenuItem>
+  //           </DropdownMenuContent>
+  //         </DropdownMenu>
+
+  //         {/* Named Ranges Dialog Trigger */}
+  //         <Button
+  //           variant="outline"
+  //           size="sm"
+  //           onClick={() => setIsNamedRangesDialogOpen(true)}
+  //         >
+  //           <List className="h-4 w-4 mr-2" /> Named Ranges
+  //         </Button>
+
+  //         {/* Mappings Dialog Trigger */}
+  //         <Button
+  //           variant="outline"
+  //           size="sm"
+  //           onClick={() => setIsMappingsDialogOpen(true)}
+  //         >
+  //           <Code className="h-4 w-4 mr-2" /> Mappings
+  //         </Button>
+  //       </div>
+
+  //       {/* Right-aligned utility buttons */}
+  //       <div className="flex items-center space-x-2 flex-wrap gap-5 justify-end mt-2 md:mt-0 md:ml-auto">
+  //         <Button
+  //           variant="outline"
+  //           size="sm"
+  //           className="text-blue-600 border-blue-600 hover:bg-blue-50"
+  //           onClick={() => {
+  //             if (workbook.webUrl) {
+  //               window.open(workbook.webUrl, "_blank"); // Open the workbook in a new tab
+  //             } else {
+  //               toast({
+  //                 variant: "destructive",
+  //                 title: "No Web URL",
+  //                 description: "This workbook does not have a web URL to open.",
+  //               });
+  //             }
+  //           }}
+  //           disabled={!workbook.webUrl} // Disable if no webUrl
+  //         >
+  //           <FileSpreadsheet className="h-4 w-4 mr-2" />
+  //           Open Excel
+  //         </Button>
+  //         {/* Save Buttons */}
+  //         <Button
+  //           variant="outline"
+  //           size="sm"
+  //           onClick={() => openSaveDialog("sheet")}
+  //           className="text-blue-600 border-blue-600 hover:bg-blue-50"
+  //         >
+  //           <Database className="h-4 w-4 mr-2" />
+  //           Save Sheet
+  //         </Button>
+  //         <Button
+  //           variant="outline"
+  //           size="sm"
+  //           onClick={() => openSaveDialog("workbook")}
+  //           className="text-blue-600 border-blue-600 hover:bg-blue-50"
+  //         >
+  //           <Database className="h-4 w-4 mr-2" />
+  //           Save Workbook
+  //         </Button>
+
+  //         {onToggleFullscreen && (
+  //           <Button variant="outline" size="sm" onClick={onToggleFullscreen}>
+  //             <Maximize2 className="h-4 w-4" />
+  //           </Button>
+  //         )}
+  //         <Button variant="outline" size="sm" onClick={onViewAuditLog}>
+  //           <History className="h-4 w-4 mr-2" />
+  //           Audit Log
+  //         </Button>
+  //         <Button variant="outline" size="sm" onClick={onReupload}>
+  //           <Upload className="h-4 w-4 mr-2" />
+  //           Re-upload
+  //         </Button>
+  //         <Button variant="outline" size="sm">
+  //           <Settings className="h-4 w-4" />
+  //         </Button>
+  //       </div>
+  //     </div>
+  //   </header>
+  // );
   const renderHeader = () => (
     <header className="bg-white shadow-sm border-b px-4 py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
       <div className="w-full flex flex-col space-y-5">
@@ -606,20 +746,37 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
         {/* Feature Box for Sheet, Actions, Named Ranges, Mappings */}
         <div className="flex flex-wrap items-center gap-2 p-2 border rounded-md bg-gray-50 flex-grow-0 md:flex-grow min-w-full md:min-w-0 justify-between">
-          {/* Sheet Selector */}
-          <Select value={selectedSheet} onValueChange={setSelectedSheet}>
-            <SelectTrigger className="w-[180px]">
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Select Sheet" />
-            </SelectTrigger>
-            <SelectContent>
-              {sheetNames.map((sheet) => (
-                <SelectItem key={sheet} value={sheet}>
-                  {sheet}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Sheet Selector with Title */}
+          <div className="flex items-center space-x-2">
+            <Label
+              htmlFor="sheet-selector"
+              className="text-sm font-medium text-gray-700"
+            >
+              Sheets:
+            </Label>
+            <Select value={selectedSheet} onValueChange={setSelectedSheet}>
+              <SelectTrigger
+                id="sheet-selector"
+                className="w-[120px] h-7 text-xs px-2 py-0" // Adjusted width, height, text size, and padding
+              >
+                <SelectValue placeholder="Select Sheet" className="text-xs" />{" "}
+                {/* Ensured SelectValue text is small */}
+              </SelectTrigger>
+              <SelectContent>
+                {sheetNames.map((sheet) => (
+                  <SelectItem
+                    key={sheet}
+                    value={sheet}
+                    className="text-xs py-1"
+                  >
+                    {" "}
+                    {/* Adjusted item text size and padding */}
+                    {sheet}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Actions Dropdown */}
           <DropdownMenu>
