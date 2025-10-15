@@ -752,6 +752,10 @@ export default function WorkBookApp({ engagementId, classification }) {
   const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(
     null // Start with no workbook selected
   );
+  const [viewerSelectedSheet, setViewerSelectedSheet] = useState<
+    string | undefined
+  >(undefined);
+
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(
     null
   );
@@ -814,15 +818,7 @@ export default function WorkBookApp({ engagementId, classification }) {
   }, [engagementId, classification, toast]);
 
   const handleSelectWorkbook = async (workbook: Workbook) => {
-    // If the workbook already has fileData, just select it
-    if (workbook.fileData && Object.keys(workbook.fileData).length > 0) {
-      setSelectedWorkbook(workbook);
-      setCurrentView("viewer");
-      return;
-    }
-
-    // Otherwise, fetch the fileData for the selected workbook
-    setIsLoadingWorkbookData(true); // <--- Set loading to true
+    setIsLoadingWorkbookData(true);
     try {
       toast({
         title: "Loading Workbook",
@@ -830,18 +826,28 @@ export default function WorkBookApp({ engagementId, classification }) {
         duration: 3000,
       });
 
-      const listSheetsResponse = await workbookApi.listWorksheets(workbook.id);
-      if (!listSheetsResponse.success) {
-        throw new Error(
-          listSheetsResponse.error ||
-            "Failed to list worksheets from selected file."
+      let updatedWorkbook = workbook;
+      let sheetNamesToProcess: string[] = [];
+
+      // If the workbook already has fileData, use its sheet names
+      if (workbook.fileData && Object.keys(workbook.fileData).length > 0) {
+        sheetNamesToProcess = Object.keys(workbook.fileData);
+      } else {
+        // Otherwise, fetch the sheet names from the backend
+        const listSheetsResponse = await workbookApi.listWorksheets(
+          workbook.id
         );
+        if (!listSheetsResponse.success) {
+          throw new Error(
+            listSheetsResponse.error ||
+              "Failed to list worksheets from selected file."
+          );
+        }
+        sheetNamesToProcess = listSheetsResponse.data.map((ws) => ws.name);
       }
 
-      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
       const fetchedFileData: SheetData = {};
-
-      for (const sheetName of sheetNames) {
+      for (const sheetName of sheetNamesToProcess) {
         const readSheetResponse = await workbookApi.readSheet(
           workbook.id,
           sheetName
@@ -857,13 +863,13 @@ export default function WorkBookApp({ engagementId, classification }) {
             const maxCols = Math.max(...rawSheetData.map((row) => row.length));
             const headerRow: string[] = [""]; // Empty corner cell
             for (let i = 0; i < maxCols; i++) {
-              headerRow.push(zeroIndexToExcelCol(i)); // Helper from ExcelViewer
+              headerRow.push(zeroIndexToExcelCol(i));
             }
 
             const excelLikeData: string[][] = [headerRow];
             for (let i = 0; i < rawSheetData.length; i++) {
               const originalRow = rawSheetData[i];
-              const newRow: string[] = [(i + 1).toString()]; // Prepend row number
+              const newRow: string[] = [(i + 1).toString()];
               for (let j = 0; j < maxCols; j++) {
                 newRow.push(String(originalRow[j] ?? ""));
               }
@@ -876,11 +882,20 @@ export default function WorkBookApp({ engagementId, classification }) {
         }
       }
 
-      const updatedWorkbook = { ...workbook, fileData: fetchedFileData };
+      updatedWorkbook = { ...workbook, fileData: fetchedFileData };
       setWorkbooks((prev) =>
         prev.map((wb) => (wb.id === workbook.id ? updatedWorkbook : wb))
       );
       setSelectedWorkbook(updatedWorkbook);
+
+      // --- IMPORTANT: SET THE VIEWER'S SELECTED SHEET HERE ---
+      if (sheetNamesToProcess.length > 0) {
+        setViewerSelectedSheet(sheetNamesToProcess[0]);
+      } else {
+        setViewerSelectedSheet("Sheet1"); // Default if no sheets found
+      }
+      // --- END IMPORTANT CHANGE ---
+
       setCurrentView("viewer");
     } catch (error) {
       console.error("Error fetching workbook sheets:", error);
@@ -892,7 +907,7 @@ export default function WorkBookApp({ engagementId, classification }) {
         }`,
       });
     } finally {
-      setIsLoadingWorkbookData(false); // <--- Set loading to false
+      setIsLoadingWorkbookData(false);
     }
   };
 
@@ -1066,17 +1081,14 @@ export default function WorkBookApp({ engagementId, classification }) {
 
   const handleUploadWorkbook = (newWorkbookFromUploadModal: Workbook) => {
     setWorkbooks((prev) => {
-      // Check if a workbook with this ID already exists (e.g., if re-uploading an existing one)
       const existingIndex = prev.findIndex(
         (wb) => wb.id === newWorkbookFromUploadModal.id
       );
       if (existingIndex > -1) {
-        // Replace the existing one with the updated workbook
         const updatedWorkbooks = [...prev];
         updatedWorkbooks[existingIndex] = newWorkbookFromUploadModal;
         return updatedWorkbooks;
       } else {
-        // Add the new workbook
         return [...prev, newWorkbookFromUploadModal];
       }
     });
@@ -1098,6 +1110,20 @@ export default function WorkBookApp({ engagementId, classification }) {
     });
 
     setSelectedWorkbook(newWorkbookFromUploadModal); // Select the new workbook
+
+    // --- IMPORTANT: SET THE VIEWER'S SELECTED SHEET HERE ---
+    if (
+      newWorkbookFromUploadModal.fileData &&
+      Object.keys(newWorkbookFromUploadModal.fileData).length > 0
+    ) {
+      setViewerSelectedSheet(
+        Object.keys(newWorkbookFromUploadModal.fileData)[0]
+      );
+    } else {
+      setViewerSelectedSheet("Sheet1"); // Default if no sheets found
+    }
+    // --- END IMPORTANT CHANGE ---
+
     setCurrentView("viewer");
   };
 
@@ -1172,6 +1198,10 @@ export default function WorkBookApp({ engagementId, classification }) {
             onUpdateNamedRange={handleUpdateNamedRange}
             onDeleteNamedRange={handleDeleteNamedRange}
             isLoadingWorkbookData={isLoadingWorkbookData} // <--- Pass the new prop
+            // --- PASS THESE NEW PROPS ---
+            selectedSheet={viewerSelectedSheet}
+            setSelectedSheet={setViewerSelectedSheet}
+            // --- END NEW PROPS ---
           />
         ) : null;
       case "audit-log":
