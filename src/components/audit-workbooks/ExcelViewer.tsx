@@ -750,14 +750,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <div className="flex items-center space-x-2">
             <Label
               htmlFor="sheet-selector"
-              className="text-sm font-medium text-gray-700"
+              className="text-sm font-medium text-gray-900"
             >
               Sheets:
             </Label>
             <Select value={selectedSheet} onValueChange={setSelectedSheet}>
               <SelectTrigger
                 id="sheet-selector"
-                className="w-[120px] h-7 text-xs px-2 py-0" // Adjusted width, height, text size, and padding
+                className="w-[120px] h-7 text-xs font-semibold px-2 py-0" // Adjusted width, height, text size, and padding
               >
                 <SelectValue placeholder="Select Sheet" className="text-xs" />{" "}
                 {/* Ensured SelectValue text is small */}
