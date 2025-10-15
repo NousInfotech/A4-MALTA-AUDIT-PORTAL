@@ -14,9 +14,9 @@ interface MainDashboardProps {
 
 
 const mockActivities = [
-  { user: 'Alice', action: 'uploaded work book X', time: '2 hours ago' },
+  { user: 'Alice', action: 'uploaded work book FY2023_Financial_Statements.xlsx', time: '2 hours ago' },
   { user: 'Bob', action: 'uploaded new version of Q4_Sales_Report', time: '5 hours ago' },
-  { user: 'Charlie', action: 'deleted work book X', time: '1 day ago' },
+  { user: 'Charlie', action: 'deleted work book FY2023_Financial_Statements.xlsx', time: '1 day ago' },
 ];
 
 export const MainDashboard: React.FC<MainDashboardProps> = ({ workbooks, onSelectWorkbook, onUploadClick }) => {

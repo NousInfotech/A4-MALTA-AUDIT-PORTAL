@@ -1,6 +1,5 @@
 // import React, { useState, useEffect } from "react";
 // import { MainDashboard } from "@/components/audit-workbooks/MainDashboard";
-// import { ExcelViewer } from "@/components/audit-workbooks/ExcelViewer";
 // import { AuditLog } from "@/components/audit-workbooks/AuditLog";
 // import { UploadModal } from "@/components/audit-workbooks/UploadModal";
 // import { LinkToFieldModal } from "@/components/audit-workbooks/LinkToFieldModal";
@@ -14,6 +13,7 @@
 //   DatasetMapping,
 //   WorkbookRule,
 //   AuditLogEntry,
+//   NamedRange,
 // } from "../../types/audit-workbooks/types";
 // import { Toaster } from "@/components/ui/toaster";
 // import { useToast } from "@/hooks/use-toast";
@@ -154,7 +154,7 @@
 //   },
 // ];
 
-// // You can also add some initial mock mappings, dataset mappings, and rules
+// // You can also add some initial mock mappings, dataset mappings, rules, and named ranges
 // const mockMappings: Mapping[] = [
 //   {
 //     id: "m1",
@@ -165,6 +165,12 @@
 //     transform: "sum",
 //     color: "bg-blue-200",
 //   },
+// ];
+
+// const mockNamedRanges: NamedRange[] = [
+//   { id: "nr1", name: "ppe_values", range: "Balance Sheet!B8:D8" },
+//   { id: "nr2", name: "total_assets", range: "Balance Sheet!B1:D1" },
+//   { id: "nr3", name: "revenue_data", range: "Income Statement!B1:C1" },
 // ];
 
 // const mockAuditLogs: AuditLogEntry[] = [
@@ -184,7 +190,7 @@
 //   },
 // ];
 
-// export default function App() {
+// export default function WorkBookApp() {
 //   // --- INITIALIZE STATE WITH MOCK DATA ---
 //   const [currentView, setCurrentView] = useState<View>("dashboard");
 //   const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(
@@ -195,6 +201,7 @@
 //   );
 //   const [workbooks, setWorkbooks] = useState<Workbook[]>(mockWorkbooks); // Initialize with mock data
 //   const [mappings, setMappings] = useState<Mapping[]>(mockMappings); // Initialize with mock mappings
+//   const [namedRanges, setNamedRanges] = useState<NamedRange[]>(mockNamedRanges); // Initialize with mock named ranges
 //   const [datasetMappings, setDatasetMappings] = useState<DatasetMapping[]>([]);
 //   const [workbookRules, setWorkbookRules] = useState<WorkbookRule[]>([]);
 //   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(mockAuditLogs); // Initialize with mock logs
@@ -227,6 +234,114 @@
 //       description: `Successfully mapped to ${mapping.destinationField}`,
 //     });
 //     setPendingSelection(null);
+//   };
+
+//   const handleUpdateMapping = (
+//     id: string,
+//     updatedMapping: Partial<Mapping>
+//   ) => {
+//     setMappings((prev) =>
+//       prev.map((m) => (m.id === id ? { ...m, ...updatedMapping } : m))
+//     );
+//     setAuditLogs((prev) => [
+//       ...prev,
+//       {
+//         id: Date.now().toString(),
+//         timestamp: new Date().toISOString(),
+//         user: "Current User",
+//         action: "Updated Mapping",
+//         details: `Updated mapping for ${
+//           updatedMapping.destinationField || "unknown field"
+//         }`,
+//       },
+//     ]);
+//     toast({
+//       title: "Mapping Updated",
+//       description: `Successfully updated mapping`,
+//     });
+//   };
+
+//   const handleDeleteMapping = (id: string) => {
+//     const mapping = mappings.find((m) => m.id === id);
+//     setMappings((prev) => prev.filter((m) => m.id !== id));
+//     setAuditLogs((prev) => [
+//       ...prev,
+//       {
+//         id: Date.now().toString(),
+//         timestamp: new Date().toISOString(),
+//         user: "Current User",
+//         action: "Deleted Mapping",
+//         details: `Deleted mapping for ${
+//           mapping?.destinationField || "unknown field"
+//         }`,
+//       },
+//     ]);
+//     toast({
+//       title: "Mapping Deleted",
+//       description: `Successfully deleted mapping`,
+//     });
+//   };
+
+//   const handleCreateNamedRange = (namedRange: NamedRange) => {
+//     setNamedRanges((prev) => [...prev, namedRange]);
+//     setAuditLogs((prev) => [
+//       ...prev,
+//       {
+//         id: Date.now().toString(),
+//         timestamp: new Date().toISOString(),
+//         user: "Current User",
+//         action: "Created Named Range",
+//         details: `Created named range ${namedRange.name} for ${namedRange.range}`,
+//       },
+//     ]);
+//     toast({
+//       title: "Named Range Created",
+//       description: `Successfully created named range ${namedRange.name}`,
+//     });
+//   };
+
+//   const handleUpdateNamedRange = (
+//     id: string,
+//     updatedNamedRange: Partial<NamedRange>
+//   ) => {
+//     setNamedRanges((prev) =>
+//       prev.map((nr) => (nr.id === id ? { ...nr, ...updatedNamedRange } : nr))
+//     );
+//     setAuditLogs((prev) => [
+//       ...prev,
+//       {
+//         id: Date.now().toString(),
+//         timestamp: new Date().toISOString(),
+//         user: "Current User",
+//         action: "Updated Named Range",
+//         details: `Updated named range ${
+//           updatedNamedRange.name || "unknown range"
+//         }`,
+//       },
+//     ]);
+//     toast({
+//       title: "Named Range Updated",
+//       description: `Successfully updated named range`,
+//     });
+//   };
+
+//   const handleDeleteNamedRange = (id: string) => {
+//     const namedRange = namedRanges.find((nr) => nr.id === id);
+//     setNamedRanges((prev) => prev.filter((nr) => nr.id !== id));
+//     setAuditLogs((prev) => [
+//       ...prev,
+//       {
+//         id: Date.now().toString(),
+//         timestamp: new Date().toISOString(),
+//         user: "Current User",
+//         action: "Deleted Named Range",
+//         details: `Deleted named range ${namedRange?.name || "unknown range"}`,
+//       },
+//     ]);
+//     toast({
+//       title: "Named Range Deleted",
+//       description: `Successfully deleted named range`,
+//     });
 //   };
 
 //   const handleCreateDatasetMapping = (datasetMapping: DatasetMapping) => {
@@ -349,12 +464,19 @@
 //           <ExcelViewerWithFullscreen
 //             workbook={selectedWorkbook}
 //             mappings={mappings}
+//             namedRanges={namedRanges}
 //             onBack={() => setCurrentView("dashboard")}
 //             onLinkField={handleLinkFieldClick}
 //             onLinkSheet={() => setCurrentView("dataset-preview-modal")}
 //             onLinkWorkbook={() => setCurrentView("workbook-rules-modal")}
 //             onReupload={() => handleReuploadWorkbook(selectedWorkbook)}
 //             onViewAuditLog={() => setCurrentView("audit-log")}
+//             onCreateMapping={handleCreateMapping}
+//             onUpdateMapping={handleUpdateMapping}
+//             onDeleteMapping={handleDeleteMapping}
+//             onCreateNamedRange={handleCreateNamedRange}
+//             onUpdateNamedRange={handleUpdateNamedRange}
+//             onDeleteNamedRange={handleDeleteNamedRange}
 //           />
 //         ) : null;
 //       case "audit-log":
@@ -424,16 +546,7 @@
 //   );
 // }
 
-
-
-
-
-
-// // #########################################################################################################
-
-
-
-
+// #######################################################################################################
 
 import React, { useState, useEffect } from "react";
 import { MainDashboard } from "@/components/audit-workbooks/MainDashboard";
@@ -451,10 +564,13 @@ import {
   WorkbookRule,
   AuditLogEntry,
   NamedRange,
+  SheetData,
 } from "../../types/audit-workbooks/types";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelViewerWithFullscreen } from "@/components/audit-workbooks/ExcelViewer";
+import { Loader2 } from "lucide-react";
+import { workbookApi } from "@/lib/api/workbookApi";
 
 type View =
   | "dashboard"
@@ -476,6 +592,7 @@ const mockWorkbooks: Workbook[] = [
     version: "v2",
     lastModified: "2023-10-27T10:00:00Z",
     lastModifiedBy: "Alice",
+    webUrl: "https://mock-url/workbook1.xlsx",
     fileData: {
       "Balance Sheet": [
         ["", "A", "B", "C", "D"],
@@ -531,6 +648,7 @@ const mockWorkbooks: Workbook[] = [
     uploadedDate: "2023-10-25",
     version: "v1",
     lastModifiedBy: "Bob",
+    webUrl: "https://mock-url/workbook1.xlsx",
     fileData: {
       "Sales Data": [
         ["", "A", "B", "C", "D", "E"],
@@ -563,6 +681,7 @@ const mockWorkbooks: Workbook[] = [
     uploadedDate: "2023-09-15",
     version: "v3",
     lastModifiedBy: "Charlie",
+    webUrl: "https://mock-url/workbook1.xlsx",
     fileData: {
       Employees: [
         ["", "A", "B", "C", "D"],
@@ -627,26 +746,154 @@ const mockAuditLogs: AuditLogEntry[] = [
   },
 ];
 
-export default function WorkBookApp() {
+export default function WorkBookApp({ engagementId, classification }) {
   // --- INITIALIZE STATE WITH MOCK DATA ---
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(
-    mockWorkbooks[0] || null
-  ); // Select the first workbook by default
+    null // Start with no workbook selected
+  );
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(
     null
   );
-  const [workbooks, setWorkbooks] = useState<Workbook[]>(mockWorkbooks); // Initialize with mock data
+  const [workbooks, setWorkbooks] = useState<Workbook[] | []>(mockWorkbooks); // Initialize with mock data
   const [mappings, setMappings] = useState<Mapping[]>(mockMappings); // Initialize with mock mappings
   const [namedRanges, setNamedRanges] = useState<NamedRange[]>(mockNamedRanges); // Initialize with mock named ranges
   const [datasetMappings, setDatasetMappings] = useState<DatasetMapping[]>([]);
   const [workbookRules, setWorkbookRules] = useState<WorkbookRule[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(mockAuditLogs); // Initialize with mock logs
+  const [isLoadingWorkbooks, setIsLoadingWorkbooks] = useState(true);
+  const [isLoadingWorkbookData, setIsLoadingWorkbookData] = useState(false); // New state for loading workbook data
   const { toast } = useToast();
 
-  const handleSelectWorkbook = (workbook: Workbook) => {
-    setSelectedWorkbook(workbook);
-    setCurrentView("viewer");
+  // New useEffect to fetch workbooks from the backend on component mount
+  useEffect(() => {
+    const fetchWorkbooks = async () => {
+      setIsLoadingWorkbooks(true);
+      try {
+        const response = await workbookApi.listWorkbooks(
+          engagementId,
+          classification
+        );
+        if (response.success && response.data) {
+          // Transform the backend response to match your frontend Workbook type
+          // Assuming backend returns an array of objects with id, name, webUrl, lastModifiedDateTime
+          const fetchedWorkbooks: Workbook[] = response.data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            webUrl: item.webUrl,
+            uploadedDate: item.lastModifiedDateTime
+              ? new Date(item.lastModifiedDateTime).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0],
+            version: "v1", // You might need a more robust versioning strategy from backend
+            lastModified: item.lastModifiedDateTime,
+            lastModifiedBy: "System", // Or derive from backend
+            fileData: {}, // Always initialize with empty fileData to indicate it needs fetching
+          }));
+          setWorkbooks(fetchedWorkbooks);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error fetching workbooks",
+            description:
+              response.error || "Failed to load workbooks from the server.",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch workbooks:", error);
+        toast({
+          variant: "destructive",
+          title: "Error fetching workbooks",
+          description: `An unexpected error occurred: ${error.message}`,
+        });
+      } finally {
+        setIsLoadingWorkbooks(false);
+      }
+    };
+
+    fetchWorkbooks();
+  }, [engagementId, classification, toast]);
+
+  const handleSelectWorkbook = async (workbook: Workbook) => {
+    // If the workbook already has fileData, just select it
+    if (workbook.fileData && Object.keys(workbook.fileData).length > 0) {
+      setSelectedWorkbook(workbook);
+      setCurrentView("viewer");
+      return;
+    }
+
+    // Otherwise, fetch the fileData for the selected workbook
+    setIsLoadingWorkbookData(true); // <--- Set loading to true
+    try {
+      toast({
+        title: "Loading Workbook",
+        description: `Fetching data for ${workbook.name}...`,
+        duration: 3000,
+      });
+
+      const listSheetsResponse = await workbookApi.listWorksheets(workbook.id);
+      if (!listSheetsResponse.success) {
+        throw new Error(
+          listSheetsResponse.error ||
+            "Failed to list worksheets from selected file."
+        );
+      }
+
+      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
+      const fetchedFileData: SheetData = {};
+
+      for (const sheetName of sheetNames) {
+        const readSheetResponse = await workbookApi.readSheet(
+          workbook.id,
+          sheetName
+        );
+        if (!readSheetResponse.success) {
+          console.warn(
+            `Failed to read data for sheet '${sheetName}'. Skipping.`
+          );
+          fetchedFileData[sheetName] = [["Error reading sheet"]];
+        } else {
+          const rawSheetData = readSheetResponse.data;
+          if (rawSheetData && rawSheetData.length > 0) {
+            const maxCols = Math.max(...rawSheetData.map((row) => row.length));
+            const headerRow: string[] = [""]; // Empty corner cell
+            for (let i = 0; i < maxCols; i++) {
+              headerRow.push(zeroIndexToExcelCol(i)); // Helper from ExcelViewer
+            }
+
+            const excelLikeData: string[][] = [headerRow];
+            for (let i = 0; i < rawSheetData.length; i++) {
+              const originalRow = rawSheetData[i];
+              const newRow: string[] = [(i + 1).toString()]; // Prepend row number
+              for (let j = 0; j < maxCols; j++) {
+                newRow.push(String(originalRow[j] ?? ""));
+              }
+              excelLikeData.push(newRow);
+            }
+            fetchedFileData[sheetName] = excelLikeData;
+          } else {
+            fetchedFileData[sheetName] = [[""]];
+          }
+        }
+      }
+
+      const updatedWorkbook = { ...workbook, fileData: fetchedFileData };
+      setWorkbooks((prev) =>
+        prev.map((wb) => (wb.id === workbook.id ? updatedWorkbook : wb))
+      );
+      setSelectedWorkbook(updatedWorkbook);
+      setCurrentView("viewer");
+    } catch (error) {
+      console.error("Error fetching workbook sheets:", error);
+      toast({
+        variant: "destructive",
+        title: "Load Failed",
+        description: `Failed to load data for ${workbook.name}: ${
+          error instanceof Error ? error.message : "Unknown error."
+        }`,
+      });
+    } finally {
+      setIsLoadingWorkbookData(false); // <--- Set loading to false
+    }
   };
 
   const handleLinkFieldClick = (selection: Selection) => {
@@ -673,7 +920,10 @@ export default function WorkBookApp() {
     setPendingSelection(null);
   };
 
-  const handleUpdateMapping = (id: string, updatedMapping: Partial<Mapping>) => {
+  const handleUpdateMapping = (
+    id: string,
+    updatedMapping: Partial<Mapping>
+  ) => {
     setMappings((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updatedMapping } : m))
     );
@@ -684,7 +934,9 @@ export default function WorkBookApp() {
         timestamp: new Date().toISOString(),
         user: "Current User",
         action: "Updated Mapping",
-        details: `Updated mapping for ${updatedMapping.destinationField || "unknown field"}`,
+        details: `Updated mapping for ${
+          updatedMapping.destinationField || "unknown field"
+        }`,
       },
     ]);
     toast({
@@ -703,7 +955,9 @@ export default function WorkBookApp() {
         timestamp: new Date().toISOString(),
         user: "Current User",
         action: "Deleted Mapping",
-        details: `Deleted mapping for ${mapping?.destinationField || "unknown field"}`,
+        details: `Deleted mapping for ${
+          mapping?.destinationField || "unknown field"
+        }`,
       },
     ]);
     toast({
@@ -730,7 +984,10 @@ export default function WorkBookApp() {
     });
   };
 
-  const handleUpdateNamedRange = (id: string, updatedNamedRange: Partial<NamedRange>) => {
+  const handleUpdateNamedRange = (
+    id: string,
+    updatedNamedRange: Partial<NamedRange>
+  ) => {
     setNamedRanges((prev) =>
       prev.map((nr) => (nr.id === id ? { ...nr, ...updatedNamedRange } : nr))
     );
@@ -741,7 +998,9 @@ export default function WorkBookApp() {
         timestamp: new Date().toISOString(),
         user: "Current User",
         action: "Updated Named Range",
-        details: `Updated named range ${updatedNamedRange.name || "unknown range"}`,
+        details: `Updated named range ${
+          updatedNamedRange.name || "unknown range"
+        }`,
       },
     ]);
     toast({
@@ -805,11 +1064,23 @@ export default function WorkBookApp() {
     });
   };
 
-  const handleUploadWorkbook = (workbook: Workbook) => {
-    // 1. Add the new workbook to the list
-    setWorkbooks((prev) => [...prev, workbook]);
+  const handleUploadWorkbook = (newWorkbookFromUploadModal: Workbook) => {
+    setWorkbooks((prev) => {
+      // Check if a workbook with this ID already exists (e.g., if re-uploading an existing one)
+      const existingIndex = prev.findIndex(
+        (wb) => wb.id === newWorkbookFromUploadModal.id
+      );
+      if (existingIndex > -1) {
+        // Replace the existing one with the updated workbook
+        const updatedWorkbooks = [...prev];
+        updatedWorkbooks[existingIndex] = newWorkbookFromUploadModal;
+        return updatedWorkbooks;
+      } else {
+        // Add the new workbook
+        return [...prev, newWorkbookFromUploadModal];
+      }
+    });
 
-    // 2. Add an audit log for the upload
     setAuditLogs((prev) => [
       ...prev,
       {
@@ -817,18 +1088,16 @@ export default function WorkBookApp() {
         timestamp: new Date().toISOString(),
         user: "Current User",
         action: "Uploaded Workbook",
-        details: `Uploaded ${workbook.name} version ${workbook.version}`,
+        details: `Uploaded ${newWorkbookFromUploadModal.name} version ${newWorkbookFromUploadModal.version}`,
       },
     ]);
 
-    // 3. Show a success toast
     toast({
       title: "Workbook Uploaded",
-      description: `Successfully uploaded ${workbook.name}`,
+      description: `Successfully uploaded ${newWorkbookFromUploadModal.name}`,
     });
 
-    // 4. Select the new workbook and navigate to the viewer
-    setSelectedWorkbook(workbook);
+    setSelectedWorkbook(newWorkbookFromUploadModal); // Select the new workbook
     setCurrentView("viewer");
   };
 
@@ -902,6 +1171,7 @@ export default function WorkBookApp() {
             onCreateNamedRange={handleCreateNamedRange}
             onUpdateNamedRange={handleUpdateNamedRange}
             onDeleteNamedRange={handleDeleteNamedRange}
+            isLoadingWorkbookData={isLoadingWorkbookData} // <--- Pass the new prop
           />
         ) : null;
       case "audit-log":
@@ -918,6 +1188,8 @@ export default function WorkBookApp() {
             onClose={() => setCurrentView("dashboard")}
             onUploadSuccess={handleUploadWorkbook}
             onError={handleUploadError}
+            engagementId={engagementId} // Pass engagementId
+            classification={classification} // Pass classification
           />
         );
       case "link-field-modal":
@@ -963,6 +1235,25 @@ export default function WorkBookApp() {
     }
   };
 
+  if (isLoadingWorkbooks) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+        <span className="ml-3 text-lg text-gray-700">Loading Workbooks...</span>
+      </div>
+    );
+  }
+
+  if (isLoadingWorkbookData) {
+    // <--- Add this loading check
+    return (
+      <div className="flex flex-col items-center justify-center h-48 bg-gray-50 rounded-lg shadow">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="mt-2 text-gray-700">Loading sheet data...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-foreground">
       {renderView()}
@@ -970,3 +1261,17 @@ export default function WorkBookApp() {
     </div>
   );
 }
+
+// Add the zeroIndexToExcelCol helper function if it's not globally available or imported in WorkBookApp
+const zeroIndexToExcelCol = (colIndex: number): string => {
+  let colLetter = "";
+  let tempColIndex = colIndex;
+
+  do {
+    const remainder = tempColIndex % 26;
+    colLetter = String.fromCharCode(65 + remainder) + colLetter;
+    tempColIndex = Math.floor(tempColIndex / 26) - 1;
+  } while (tempColIndex >= 0);
+
+  return colLetter;
+};

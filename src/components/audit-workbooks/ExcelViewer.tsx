@@ -122,6 +122,9 @@ interface ExcelViewerProps {
   onDeleteNamedRange: (id: string) => void;
   isFullscreenMode?: boolean;
   onToggleFullscreen?: () => void;
+  isLoadingWorkbookData?: boolean;
+  selectedSheet?: string;
+  setSelectedSheet?: (sheetName: string) => void;
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -142,14 +145,15 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   onDeleteNamedRange,
   isFullscreenMode = false,
   onToggleFullscreen,
+  isLoadingWorkbookData = false,
+  selectedSheet,
+  setSelectedSheet,
 }) => {
   const { toast } = useToast();
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
 
-  const [selectedSheet, setSelectedSheet] = useState<string>(
-    sheetNames[0] || "Balance_Sheet"
-  );
+  
   const [selection, setSelection] = useState<Selection | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
@@ -176,6 +180,18 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const [newMappingDestinationField, setNewMappingDestinationField] =
     useState("");
   const [newMappingTransform, setNewMappingTransform] = useState("sum");
+
+  useEffect(() => {
+    // If workbook.fileData changes, ensure selectedSheet is still valid or reset
+    if (!sheetNames.includes(selectedSheet) && sheetNames.length > 0) {
+      setSelectedSheet(sheetNames[0]);
+    } else if (sheetNames.length === 0 && selectedSheet !== "Sheet1") {
+      setSelectedSheet("Sheet1");
+    } else if (sheetNames.length > 0 && !selectedSheet) {
+      // If no sheet was selected initially, select the first one
+      setSelectedSheet(sheetNames[0]);
+    }
+  }, [workbook.fileData, sheetNames, selectedSheet, setSelectedSheet]);
 
   // currentSheetData now includes the prepended column letters and row numbers
   const currentSheetData = sheetData[selectedSheet] || [];
@@ -654,13 +670,25 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         {/* Right-aligned utility buttons */}
         <div className="flex items-center space-x-2 flex-wrap gap-5 justify-end mt-2 md:mt-0 md:ml-auto">
           <Button
-            variant="outline"
-            size="sm"
-            className="text-blue-600 border-blue-600 hover:bg-blue-50"
-          >
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Open Excel
-          </Button>
+          variant="outline"
+          size="sm"
+          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+          onClick={() => {
+            if (workbook.webUrl) {
+              window.open(workbook.webUrl, "_blank"); // Open the workbook in a new tab
+            } else {
+              toast({
+                variant: "destructive",
+                title: "No Web URL",
+                description: "This workbook does not have a web URL to open.",
+              });
+            }
+          }}
+          disabled={!workbook.webUrl} // Disable if no webUrl
+        >
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Open Excel
+        </Button>
           {/* Save Buttons */}
           <Button
             variant="outline"
@@ -981,6 +1009,15 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   );
 
   const renderSpreadsheet = () => {
+    if (isLoadingWorkbookData) { // <--- Add this loading check
+      return (
+        <div className="flex flex-col items-center justify-center h-48 bg-gray-50 rounded-lg shadow">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="mt-2 text-gray-700">Loading sheet data...</p>
+        </div>
+      );
+    }
+
     if (!currentSheetData || currentSheetData.length === 0) {
       return (
         <div className="flex items-center justify-center h-48 bg-gray-50 rounded-lg shadow">
@@ -1495,15 +1532,39 @@ export const ExcelViewerWithFullscreen: React.FC<ExcelViewerProps> = (
   props
 ) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedSheet, setSelectedSheet] = useState<string>(
+    props.workbook?.fileData ? Object.keys(props.workbook.fileData)[0] || "Sheet1" : "Sheet1"
+  );
+
+  useEffect(() => {
+    if (props.workbook?.fileData && Object.keys(props.workbook.fileData).length > 0) {
+      setSelectedSheet(Object.keys(props.workbook.fileData)[0]);
+    } else {
+      setSelectedSheet("Sheet1");
+    }
+  }, [props.workbook]);
+
+
   const handleToggleFullscreen = () => {
     setIsFullscreen(true);
   };
   return (
     <>
-      <ExcelViewer {...props} onToggleFullscreen={handleToggleFullscreen} />
+      <ExcelViewer 
+        {...props} 
+        onToggleFullscreen={handleToggleFullscreen} 
+        selectedSheet={selectedSheet} // Pass the state
+        setSelectedSheet={setSelectedSheet} // Pass the setter
+      />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
-          <ExcelViewer {...props} isFullscreenMode={true} />
+          {/* Ensure isLoadingWorkbookData is passed down */}
+          <ExcelViewer 
+            {...props} 
+            isFullscreenMode={true} 
+            selectedSheet={selectedSheet} // Pass the state
+            setSelectedSheet={setSelectedSheet} // Pass the setter
+          /> 
           <div className="absolute top-4 right-4 z-10">
             <Button
               variant="outline"
@@ -1518,3 +1579,8 @@ export const ExcelViewerWithFullscreen: React.FC<ExcelViewerProps> = (
     </>
   );
 };
+
+
+
+
+

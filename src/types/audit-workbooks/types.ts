@@ -5,7 +5,8 @@ export interface Workbook {
   version: string;
   lastModified?: string;
   lastModifiedBy?: string;
-  previousVersion?: string;
+  webUrl?: string; // Add this line
+  previousVersion?: string; // If you track previous versions
   fileData?: any;
 }
 

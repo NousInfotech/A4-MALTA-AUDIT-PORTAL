@@ -3554,7 +3554,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               className="flex-1 flex flex-col"
 
             >
-              <WorkBookApp />
+              <WorkBookApp engagementId={engagement.id} classification={classification}/>
             </TabsContent>
 
           </Tabs>
