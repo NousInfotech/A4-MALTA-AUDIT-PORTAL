@@ -70,6 +70,7 @@ import {
   SaveWorkbookRequest,
   workbookApi,
 } from "@/lib/api/workbookApi";
+import { excelColToZeroIndex } from "./utils";
 
 const generateColor = () => {
   const colors = [
@@ -82,14 +83,7 @@ const generateColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-// Define helpers outside the component
-const excelColToZeroIndex = (colLetter: string): number => {
-  let result = 0;
-  for (let i = 0; i < colLetter.length; i++) {
-    result = result * 26 + (colLetter.charCodeAt(i) - "A".charCodeAt(0) + 1);
-  }
-  return result - 1; // Convert to 0-indexed
-};
+
 
 const zeroIndexToExcelCol = (colIndex: number): string => {
   let colLetter = "";
