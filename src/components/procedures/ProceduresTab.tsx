@@ -12,6 +12,8 @@ import { ProcedureView } from "./ProcedureView" // Fieldwork view
 import { PlanningProcedureView } from "./PlanningProcedureView" // NEW
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { CompletionProcedureGeneration } from "./CompletionProcedureGeneration"
+import { CompletionProcedureView } from "./CompletionProcedureView"
 
 // Keep your authFetch helper
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -34,48 +36,57 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const [activeTab, setActiveTab] = useState("generate")
   const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>(null)
   const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null)
+  const [completionProcedure, setCompletionProcedure] = useState<any>(null)
   const [planningProcedure, setPlanningProcedure] = useState<any>(null)
   const { toast } = useToast()
 
- useEffect(() => {
-  if (!engagement?._id) return;
-  loadFieldwork();
-  loadPlanning();
-}, [engagement?._id]);
+  useEffect(() => {
+    if (!engagement?._id) return;
+    loadFieldwork();
+    loadPlanning();
+  }, [engagement?._id]);
 
 
   const base = import.meta.env.VITE_APIURL
   const loadFieldwork = async () => {
-  try {
-    const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
-    const data = await res.json();
-    console.log('API Response:', data); // Debugging response
-    
-    // Check if the procedure exists in the response
-    if (res.ok && data?.procedure) {
-      console.log('Setting fieldwork procedure:', data.procedure); // Debugging
-      setFieldworkProcedure(data.procedure); // Set the procedure directly into the state
-    } else {
-      console.error("Fieldwork procedure not found");
-    }
-  } catch (error) {
-    console.error("Error fetching fieldwork procedure:", error);
-  }
-}
+    try {
+      const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+      const data = await res.json();
+      console.log('API Response:', data); // Debugging response
 
+      // Check if the procedure exists in the response
+      if (res.ok && data?.procedure) {
+        console.log('Setting fieldwork procedure:', data.procedure); // Debugging
+        setFieldworkProcedure(data.procedure); // Set the procedure directly into the state
+      } else {
+        console.error("Fieldwork procedure not found");
+      }
+    } catch (error) {
+      console.error("Error fetching fieldwork procedure:", error);
+    }
+  }
+
+  const loadCompletion = async () => {
+    try {
+      const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`)
+      if (res.ok) setCompletionProcedure(await res.json())
+    } catch { }
+  }
 
   const loadPlanning = async () => {
     try {
       const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`)
       if (res.ok) setPlanningProcedure(await res.json())
-    } catch {}
+    } catch { }
   }
 
   const handleProcedureComplete = (procedureData: any) => {
     if (procedureData?.procedureType === "planning") {
       setPlanningProcedure(procedureData)
-    } else {
+    } else if (procedureData?.procedureType === "flieldwork") {
       setFieldworkProcedure(procedureData)
+    } else {
+      setCompletionProcedure(procedureData)
     }
     setActiveTab("view")
     toast({ title: "Procedures Generated", description: "Saved successfully." })
@@ -89,7 +100,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const getProcedureStatusBadge = () => {
     const procedure =
       selectedProcedureType === "planning" ? planningProcedure :
-      selectedProcedureType === "fieldwork" ? fieldworkProcedure : null
+        selectedProcedureType === "fieldwork" ? fieldworkProcedure : null
     if (!procedure) return null
 
     const statusConfig = {
@@ -134,13 +145,13 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           </div>
         </div>
         {
-          (selectedProcedureType)&&(
+          (selectedProcedureType) && (
             <Button variant="outline" onClick={handleRegenerate} className="flex items-center gap-2 bg-transparent">
-            <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
-          </Button>
+              <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
+            </Button>
           )
         }
-          
+
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
@@ -167,29 +178,29 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
             <ProcedureGeneration
               engagement={engagement}
               existingProcedure={fieldworkProcedure}
+              onBack={() => setSelectedProcedureType(null)}
               onComplete={handleProcedureComplete}
             />
           ) : (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-body-semibold text-lg text-foreground mb-2">Coming Soon</h3>
-                <p className="text-muted-foreground font-body">Completion procedures will be available soon.</p>
-              </div>
-            </div>
+            <CompletionProcedureGeneration
+              engagement={engagement}
+              onBack={() => setSelectedProcedureType(null)}
+              existingProcedure={completionProcedure}
+              onComplete={handleProcedureComplete}
+            />
           )}
         </TabsContent>
 
         <TabsContent value="view" className="flex-1 mt-6">
           {!selectedProcedureType ? (
-              <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
+            <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
             planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (
             fieldworkProcedure && fieldworkProcedure.status === "completed"
               ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
               : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
-          ) : null}
+          ) : planningProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
         </TabsContent>
       </Tabs>
     </div>
