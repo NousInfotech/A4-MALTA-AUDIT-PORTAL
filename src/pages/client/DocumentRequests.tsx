@@ -32,6 +32,7 @@ import { Separator } from "@/components/ui/separator";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Link, useSearchParams, useNavigate } from "react-router-dom"; // Import useNavigate
 import PbcUpload from "./components/PbcUpload";
+import KycUpload from "./components/KycUpload";
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
@@ -62,7 +63,23 @@ export const DocumentRequests = () => {
         );
         const arrays = await Promise.all(promises);
         console.log("allredocreqs", arrays);
-        setAllRequests(arrays.flat());
+        const allRequests = arrays.flat();
+        console.log("All requests:", allRequests);
+        console.log("KYC requests:", allRequests.filter((r) => r.category === "kyc"));
+        console.log("Client engagements:", clientFiltered);
+        console.log("Current user ID:", user?.id);
+        
+        // Temporary: Check all KYC requests in the system
+        try {
+          const allKYCRequests = await documentRequestApi.getAll();
+          const kycOnly = allKYCRequests.filter((r) => r.category === "kyc");
+          console.log("ALL KYC requests in system:", kycOnly);
+          console.log("KYC requests by clientId:", kycOnly.map(k => ({ id: k._id, clientId: k.clientId, engagement: k.engagement })));
+        } catch (error) {
+          console.log("Could not fetch all KYC requests:", error);
+        }
+        
+        setAllRequests(allRequests);
       } catch (err) {
         console.error(err);
         toast({
@@ -81,6 +98,7 @@ export const DocumentRequests = () => {
   const pendingRequests = allRequests.filter((r) => r.status === "pending");
   const completedRequests = allRequests.filter((r) => r.status === "completed");
   const pbcRequests = allRequests.filter((r) => r.category === "pbc");
+  const kycRequests = allRequests.filter((r) => r.category === "kyc");
 
   const handleFileUpload = async (requestId, files) => {
     if (!files?.length) return;
@@ -316,6 +334,12 @@ export const DocumentRequests = () => {
             >
               PBC ({pbcRequests.length})
             </TabsTrigger>
+            <TabsTrigger
+              value="kyc"
+              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white"
+            >
+              KYC ({kycRequests.length})
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="pending" className="space-y-6">
             {pendingRequests.length === 0 ? (
@@ -542,6 +566,36 @@ export const DocumentRequests = () => {
               getEngagementTitle={getEngagementTitle}
               handleFileUpload={handleFileUpload}
               uploadingFiles={uploadingFiles}
+            />
+          </TabsContent>
+          {/* New KYC Tab Content */}
+          <TabsContent value="kyc" className="space-y-6">
+            <KycUpload
+              kycRequests={kycRequests}
+              getEngagementTitle={getEngagementTitle}
+              handleFileUpload={handleFileUpload}
+              uploadingFiles={uploadingFiles}
+              onRequestUpdate={() => {
+                // Refresh the data after upload
+                const fetchClientData = async () => {
+                  try {
+                    const allEngagements = await engagementApi.getAll();
+                    const clientFiltered = allEngagements.filter(
+                      (e) => e.clientId === user?.id
+                    );
+                    setClientEngagements(clientFiltered);
+
+                    const promises = clientFiltered.map((e) =>
+                      documentRequestApi.getByEngagement(e._id).catch(() => [])
+                    );
+                    const arrays = await Promise.all(promises);
+                    setAllRequests(arrays.flat());
+                  } catch (err) {
+                    console.error(err);
+                  }
+                };
+                fetchClientData();
+              }}
             />
           </TabsContent>
         </Tabs>

@@ -29,12 +29,13 @@ import { CreateEngagement } from "@/pages/employee/CreateEngagement";
 import { EngagementDetails } from "@/pages/employee/EngagementDetails";
 import GlobalLibraryPage from "./pages/employee/Library";
 import ISQMQuestionnairePage from "@/pages/employee/ISQMQuestionnairePage";
-import { KYCManagement } from "@/pages/employee/KYCManagement";
+import KYCEnhancedManagement from "@/pages/employee/KYCEnhancedManagement";
 
 // Client pages
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
 import { ClientEngagements } from "@/pages/client/ClientEngagements";
 import { DocumentRequests } from "@/pages/client/DocumentRequests";
+
 
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -107,13 +108,14 @@ const App = () => (
                 <Route path="engagements/:id" element={<EngagementDetails />} />
                 <Route path="library" element={<GlobalLibraryPage />} />
                 <Route path="isqm" element={<ISQMQuestionnairePage />} />
-                <Route path="kyc" element={<KYCManagement />} />
+                <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
+                <Route path="kyc" element={<KYCEnhancedManagement />} />
                 <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />
                 <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
                 <Route path="review/" element={<ReviewPage />} />
                 <Route path="mockapideck" element={<MockApideckHome />} />
-                <Route path="audit-workbook" element={<WorkBookApp />} />
+                <Route path="audit-workbook" element={<WorkBookApp engagementId={null} classification={null} />} />
               </Route>
 
                 {/* Client Routes */}
@@ -128,6 +130,7 @@ const App = () => (
                   <Route index element={<ClientDashboard />} />
                   <Route path="engagements" element={<ClientEngagements />} />
                   <Route path="requests" element={<DocumentRequests />} />
+              
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                   
                 </Route>

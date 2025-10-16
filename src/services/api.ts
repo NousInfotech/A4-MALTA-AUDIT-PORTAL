@@ -144,6 +144,16 @@ export const documentRequestApi = {
     category: string;
     description: string;
     comment?: string;
+    documents?: Array<{
+      name: string;
+      type: 'direct' | 'template';
+      description?: string;
+      template?: {
+        url?: string;
+        instruction?: string;
+      };
+      status: 'pending';
+    }>;
   }) => {
     console.log('📄 Creating Document Request...');
     console.log('📋 Document Request Data:', data);
@@ -166,6 +176,10 @@ export const documentRequestApi = {
     return apiCall(`/api/document-requests/engagement/${engagementId}`);
   },
 
+  getById: async (id: string) => {
+    return apiCall(`/api/document-requests/${id}`);
+  },
+
   update: async (id: string, data: any) => {
     return apiCall(`/api/document-requests/${id}`, {
       method: 'PATCH',
@@ -179,6 +193,32 @@ export const documentRequestApi = {
       method: 'POST',
       body: formData, // apiCall will detect FormData and handle headers
     });
+  },
+
+  uploadSingleDocument: async (id: string, formData: FormData) => {
+    return apiCall(`/api/document-requests/${id}/documents/single`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  updateDocumentStatus: async (id: string, documentIndex: number, status: string) => {
+    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  bulkUpdateDocumentStatuses: async (id: string, updates: Array<{ documentIndex: number; status: string }>) => {
+    return apiCall(`/api/document-requests/${id}/documents/bulk-status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ updates }),
+    });
+  },
+
+  getStats: async (engagementId: string, category?: string) => {
+    const params = category ? `?category=${category}` : '';
+    return apiCall(`/api/document-requests/${engagementId}/stats${params}`);
   }
 };
 
@@ -341,6 +381,26 @@ export const kycApi = {
 
   getMyKYCs: async () => {
     return apiCall('/api/kyc/my');
+  },
+
+  updateStatus: async (id: string, status: string) => {
+    return apiCall(`/api/kyc/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  addDiscussion: async (id: string, data: {
+    message: string;
+    documentRef?: {
+      documentRequestId: string;
+      documentIndex: number;
+    } | null;
+  }) => {
+    return apiCall(`/api/kyc/${id}/discussions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 
