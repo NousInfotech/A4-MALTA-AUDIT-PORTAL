@@ -21,7 +21,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Building2, Loader2, Users, Mail, Globe, FileText, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  Loader2,
+  Users,
+  Mail,
+  Globe,
+  FileText,
+  Sparkles,
+  EyeOff,
+  Eye,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 
@@ -52,6 +63,7 @@ export const AddClient = () => {
     summary: "",
     customValue: "",
   });
+  const [showPassword, setShowPassword] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -66,31 +78,36 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary } = formData;
+    const { name, email, password, companyName, companyNumber, summary } =
+      formData;
 
     const industry =
       formData.industry === "Other" ? formData.customValue : formData.industry;
-      
+
     try {
-      const { data, error } = await supabase.auth.getSession()
-      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/users/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${data.session?.access_token}`,
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          name,
-          companyName,
-          companyNumber,
-          industry,
-          summary,
-        }),
-      });
+      const { data, error } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/users/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            companyName,
+            companyNumber,
+            industry,
+            summary,
+          }),
+        }
+      );
 
       const res = await response.json();
+     
 
       if (!response.ok) {
         throw new Error(res.error || "Failed to create client");
@@ -122,9 +139,9 @@ export const AddClient = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => navigate(-1)}
               className="rounded-xl border-gray-200 hover:bg-gray-50"
             >
@@ -135,8 +152,12 @@ export const AddClient = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900">Add New Client</h1>
-                <p className="text-gray-700">Create a new client company profile</p>
+                <h1 className="text-3xl font-semibold text-gray-900">
+                  Add New Client
+                </h1>
+                <p className="text-gray-700">
+                  Create a new client company profile
+                </p>
               </div>
             </div>
           </div>
@@ -150,14 +171,16 @@ export const AddClient = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-semibold text-gray-900">Client Information</h2>
+                <h2 className="text-2xl font-semibold text-gray-900">
+                  Client Information
+                </h2>
                 <p className="text-gray-600">
                   Enter the basic information for the new client company
                 </p>
               </div>
             </div>
           </div>
-          
+
           <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Basic Info */}
@@ -166,12 +189,19 @@ export const AddClient = () => {
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Users className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Basic Information
+                  </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label htmlFor="name" className="text-sm font-medium text-gray-700">Client Name *</Label>
+                    <Label
+                      htmlFor="name"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Client Name *
+                    </Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -182,30 +212,48 @@ export const AddClient = () => {
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="companyName" className="text-sm font-medium text-gray-700">Company Name *</Label>
+                    <Label
+                      htmlFor="companyName"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Company Name *
+                    </Label>
                     <Input
                       id="companyName"
                       value={formData.companyName}
-                      onChange={(e) => handleChange("companyName", e.target.value)}
+                      onChange={(e) =>
+                        handleChange("companyName", e.target.value)
+                      }
                       placeholder="Enter company name"
                       className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
-
                   <div className="space-y-3">
-                    <Label htmlFor="companyNumber" className="text-sm font-medium text-gray-700">Company Number *</Label>
+                    <Label
+                      htmlFor="companyNumber"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Company Number *
+                    </Label>
                     <Input
                       id="companyNumber"
                       value={formData.companyNumber}
-                      onChange={(e) => handleChange("companyNumber", e.target.value)}
+                      onChange={(e) =>
+                        handleChange("companyNumber", e.target.value)
+                      }
                       placeholder="Enter company registration number"
                       className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
                     />
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700">Company Email *</Label>
+                    <Label
+                      htmlFor="email"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Company Email *
+                    </Label>
                     <Input
                       id="email"
                       type="email"
@@ -216,6 +264,34 @@ export const AddClient = () => {
                       required
                     />
                   </div>
+                  <div className="space-y-3 relative">
+                    <Label
+                      htmlFor="password"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Company Password *
+                    </Label>
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => handleChange("password", e.target.value)}
+                      placeholder="Client123"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -225,12 +301,19 @@ export const AddClient = () => {
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Globe className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Industry Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Industry Details
+                  </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label htmlFor="industry" className="text-sm font-medium text-gray-700">Industry *</Label>
+                    <Label
+                      htmlFor="industry"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Industry *
+                    </Label>
                     <Select
                       value={formData.industry}
                       onValueChange={(value) => handleChange("industry", value)}
@@ -240,7 +323,11 @@ export const AddClient = () => {
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 rounded-xl">
                         {industries.map((industry) => (
-                          <SelectItem key={industry} value={industry} className="rounded-lg">
+                          <SelectItem
+                            key={industry}
+                            value={industry}
+                            className="rounded-lg"
+                          >
                             {industry}
                           </SelectItem>
                         ))}
@@ -249,13 +336,18 @@ export const AddClient = () => {
                   </div>
                   {formData.industry === "Other" && (
                     <div className="space-y-3">
-                      <Label htmlFor="customValue" className="text-sm font-medium text-gray-700">
+                      <Label
+                        htmlFor="customValue"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Please Specify The Industry
                       </Label>
                       <Input
                         id="customValue"
                         value={formData.customValue}
-                        onChange={(e) => handleChange("customValue", e.target.value)}
+                        onChange={(e) =>
+                          handleChange("customValue", e.target.value)
+                        }
                         placeholder="Enter your custom value"
                         className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       />
@@ -270,11 +362,18 @@ export const AddClient = () => {
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <FileText className="h-4 w-4 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Company Summary</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Company Summary
+                  </h3>
                 </div>
-                
+
                 <div className="space-y-3">
-                  <Label htmlFor="summary" className="text-sm font-medium text-gray-700">Company Summary</Label>
+                  <Label
+                    htmlFor="summary"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Company Summary
+                  </Label>
                   <Textarea
                     id="summary"
                     value={formData.summary}
@@ -288,8 +387,8 @@ export const AddClient = () => {
 
               {/* Actions */}
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={isSubmitting}
                   className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
