@@ -724,9 +724,9 @@ const mockMappings: Mapping[] = [
 ];
 
 const mockNamedRanges: NamedRange[] = [
-  { id: "nr1", name: "ppe_values", range: "Balance Sheet!B8:D8" },
-  { id: "nr2", name: "total_assets", range: "Balance Sheet!B1:D1" },
-  { id: "nr3", name: "revenue_data", range: "Income Statement!B1:C1" },
+  { id: "nr1", name: "total_debits", range: "Template!F3:F23" },
+  { id: "nr2", name: "total_credits", range: "Template!G3:G23" },
+  { id: "nr3", name: "receivable_li jie", range: "Template!F8" },
 ];
 
 const mockAuditLogs: AuditLogEntry[] = [
