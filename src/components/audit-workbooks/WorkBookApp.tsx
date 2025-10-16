@@ -175,7 +175,7 @@ const mockMappings: Mapping[] = [
 ];
 
 const mockNamedRanges: NamedRange[] = [
-  { id: "nr1", name: "total_debits", range: "Template!G5:F25" },
+  { id: "nr1", name: "total_debits", range: "Template!G5:G25" },
   { id: "nr2", name: "total_credits", range: "Template!H5:H25" },
   { id: "nr3", name: "receivable_li jie", range: "Template!G10" },
 ];
