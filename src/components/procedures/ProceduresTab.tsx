@@ -44,6 +44,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
     if (!engagement?._id) return;
     loadFieldwork();
     loadPlanning();
+    loadCompletion();
   }, [engagement?._id]);
 
 
@@ -200,7 +201,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
             fieldworkProcedure && fieldworkProcedure.status === "completed"
               ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
               : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
-          ) : planningProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
+          ) : completionProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
         </TabsContent>
       </Tabs>
     </div>

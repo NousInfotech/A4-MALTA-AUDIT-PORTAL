@@ -304,7 +304,15 @@ export const HybridCompletionProceduresStep: React.FC<HybridCompletionProcedures
   }, [])
 
   useEffect(() => {
-    const ids = Array.isArray(stepData.selectedSections) ? stepData.selectedSections : []
+    const ids = [
+      'initial_completion',
+    'audit_highlights_report',
+    'final_analytical_review',
+    'points_forward_next_year',
+    'final_client_meeting_notes',
+    'summary_unadjusted_errors',
+    'reappointment_schedule'
+    ]
     if (!ids.length) {
       setProcedures([])
       setIsLoading(false)

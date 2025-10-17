@@ -252,6 +252,15 @@ function isFieldVisible(field: any, answersMap: Record<string, any>) {
   })
 }
 
+function formatBytes(bytes?: number) {
+  if (!bytes && bytes !== 0) return ''
+  const b = Number(bytes || 0)
+  if (b === 0) return '0 B'
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(b) / Math.log(1024))
+  return `${parseFloat((b / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`
+}
+
 export const CompletionProcedureView: React.FC<{
   procedure: any
   engagement?: any
@@ -536,6 +545,27 @@ export const CompletionProcedureView: React.FC<{
             <div className="text-sm font-medium">Attach files (optional)</div>
             <input ref={fileInput} type="file" multiple disabled={!editMode} />
           </div>
+
+          {Array.isArray(proc.files) && proc.files.length > 0 && (
+            <div className="space-y-2 mt-4">
+              <div className="text-sm font-medium">Uploaded files</div>
+              <ul className="space-y-2">
+                {proc.files.map((f: any) => (
+                  <li key={f.id || f.url} className="flex items-center justify-between">
+                    <a
+                      href={f.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
+                      {f.name}
+                    </a>
+                    <div className="text-xs text-muted-foreground ml-4">{formatBytes(f.size)} • {f.mimetype}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {Array.isArray(proc.procedures) && proc.procedures.length > 0 ? (
             proc.procedures.map((sec: any, sIdx: number) => {

@@ -81,6 +81,20 @@ function getSectionTitle(sectionId: string): string {
   return sectionTitles[sectionId] || sectionId
 }
 
+// Map slug-style section headers (e.g., initial_completion) to display titles
+function mapSlugToTitle(slug: string): string {
+  const map: Record<string, string> = {
+    "initial_completion": "P1: Initial Completion",
+    "audit_highlights_report": "P2: Audit Highlights Report",
+    "final_analytical_review": "P3: Final Analytical Review",
+    "points_forward_next_year": "P4: Points Forward for Next Year",
+    "final_client_meeting_notes": "P5: Notes of Final Client Meeting",
+    "summary_unadjusted_errors": "P6: Summary of Unadjusted Errors",
+    "reappointment_schedule": "P7: Reappointment Schedule",
+  }
+  return map[slug] || getSectionTitle(slug)
+}
+
 // Helper function to parse display format back to checklist
 function parseDisplayToChecklist(content: string): ChecklistItem[] {
   const items: ChecklistItem[] = []
@@ -91,19 +105,35 @@ function parseDisplayToChecklist(content: string): ChecklistItem[] {
     const trimmed = line.trim()
     
     // Check for section headers
+    // Accept either human titles or slug-style headers (### initial_completion)
     const sectionMatch = trimmed.match(/^###\s+(.+)$/)
     if (sectionMatch) {
-      const sectionName = sectionMatch[1]
-      // Reverse lookup to get sectionId
+      const sectionName = sectionMatch[1].trim()
+      // If it's a known slug (contains underscore and matches our map), use it
+      if (/^[a-z0-9_]+$/.test(sectionName)) {
+        const mapped = Object.entries({
+          "initial_completion": "initial_completion",
+          "audit_highlights_report": "audit_highlights_report",
+          "final_analytical_review": "final_analytical_review",
+          "points_forward_next_year": "points_forward_next_year",
+          "final_client_meeting_notes": "final_client_meeting_notes",
+          "summary_unadjusted_errors": "summary_unadjusted_errors",
+          "reappointment_schedule": "reappointment_schedule"
+        }).find(([k]) => k === sectionName)?.[1]
+        currentSection = mapped || 'general'
+        return
+      }
+
+      // Reverse lookup existing titles
       const sectionId = Object.entries({
         "Engagement Setup, Acceptance & Independence": "section1",
         "Understanding the Entity & Its Environment": "section2",
-        "Materiality & Risk Summary": "section3", 
+        "Materiality & Risk Summary": "section3",
         "Risk Register & Audit Response Planning": "section4",
         "Fraud Risk & Going Concern Planning": "section5",
         "Compliance with Laws & Regulations (ISA 250)": "section6"
       }).find(([title]) => title === sectionName)?.[1] || 'general'
-      
+
       currentSection = sectionId
       return
     }
