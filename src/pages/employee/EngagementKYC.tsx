@@ -379,17 +379,20 @@ export function EngagementKYC() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <KYCDocumentRequestModal
-                engagementId={engagementId || ''}
-                clientId={engagement?.clientId || ''}
-                onSuccess={fetchKYCWorkflows}
-                trigger={
-                  <Button className="bg-gray-800 hover:bg-gray-900 text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create KYC
-                  </Button>
-                }
-              />
+              {engagementId && (
+                <KYCDocumentRequestModal
+                  engagementId={engagementId}
+                  clientId={engagement?.clientId || ''}
+                  engagementName={engagement?.title}
+                  onSuccess={fetchKYCWorkflows}
+                  trigger={
+                    <Button className="bg-gray-800 hover:bg-gray-900 text-white">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create KYC
+                    </Button>
+                  }
+                />
+              )}
               <Button
                 variant="outline"
                 onClick={fetchKYCWorkflows}
@@ -468,17 +471,20 @@ export function EngagementKYC() {
                 ? "No KYC workflows found matching your criteria."
                 : "No KYC workflows have been created for this engagement yet."}
             </p>
-            <KYCDocumentRequestModal
-              engagementId={engagementId || ''}
-              clientId={engagement?.clientId || ''}
-              onSuccess={fetchKYCWorkflows}
-              trigger={
-                <Button className="bg-gray-800 hover:bg-gray-900 text-white">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create First KYC Workflow
-                </Button>
-              }
-            />
+            {engagementId && (
+              <KYCDocumentRequestModal
+                engagementId={engagementId}
+                clientId={engagement?.clientId || ''}
+                engagementName={engagement?.title}
+                onSuccess={fetchKYCWorkflows}
+                trigger={
+                  <Button className="bg-gray-800 hover:bg-gray-900 text-white">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First KYC Workflow
+                  </Button>
+                }
+              />
+            )}
           </CardContent>
         </Card>
       ) : (

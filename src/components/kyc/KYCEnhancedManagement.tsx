@@ -367,10 +367,11 @@ export const KYCEnhancedManagement = ({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {userRole === 'auditor' && (
+              {userRole === 'auditor' && engagementId && (
                 <KYCDocumentRequestModal
-                  engagementId={engagementId || ''}
+                  engagementId={engagementId}
                   clientId={user?.id || ''}
+                  engagementName={`Engagement ${engagementId}`}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
                     <Button className="bg-gray-800 hover:bg-gray-900 text-white">
@@ -379,6 +380,16 @@ export const KYCEnhancedManagement = ({
                     </Button>
                   }
                 />
+              )}
+              {userRole === 'auditor' && !engagementId && (
+                <Button 
+                  disabled 
+                  className="bg-gray-400 text-white cursor-not-allowed"
+                  title="Engagement ID is required to create KYC workflow"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create KYC
+                </Button>
               )}
               <Button
                 variant="outline"

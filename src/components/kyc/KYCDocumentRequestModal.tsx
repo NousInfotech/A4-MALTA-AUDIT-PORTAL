@@ -33,7 +33,7 @@ import {
   Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { documentRequestApi, engagementApi } from "@/services/api";
+import { kycApi } from "@/services/api";
 
 interface Document {
   name: string;
@@ -49,6 +49,7 @@ interface Document {
 interface KYCDocumentRequestModalProps {
   engagementId: string;
   clientId: string;
+  engagementName?: string;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
@@ -56,6 +57,7 @@ interface KYCDocumentRequestModalProps {
 export function KYCDocumentRequestModal({
   engagementId,
   clientId,
+  engagementName,
   onSuccess,
   trigger
 }: KYCDocumentRequestModalProps) {
@@ -71,42 +73,8 @@ export function KYCDocumentRequestModal({
     }
   });
   const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [engagements, setEngagements] = useState<any[]>([]);
-  const [selectedEngagementId, setSelectedEngagementId] = useState<string>(engagementId || '');
-  const [selectedClientId, setSelectedClientId] = useState<string>(clientId || '');
   const { toast } = useToast();
 
-  // Fetch engagements when modal opens
-  useEffect(() => {
-    if (open) {
-      fetchEngagements();
-    }
-  }, [open]);
-
-  const fetchEngagements = async () => {
-    try {
-      const engagementsData = await engagementApi.getAll();
-      setEngagements(engagementsData || []);
-    } catch (error) {
-      console.error('Error fetching engagements:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch engagements",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleEngagementChange = (engagementId: string) => {
-    setSelectedEngagementId(engagementId);
-    // Find the selected engagement and set the client ID
-    const selectedEngagement = engagements.find(eng => eng._id === engagementId);
-    if (selectedEngagement) {
-      console.log('Selected engagement:', selectedEngagement);
-      console.log('Engagement clientId:', selectedEngagement.clientId);
-      setSelectedClientId(selectedEngagement.clientId || '');
-    }
-  };
 
   const handleAddDocument = () => {
     if (!newDocument.name?.trim()) {
@@ -171,6 +139,24 @@ export function KYCDocumentRequestModal({
   };
 
   const handleSubmit = async () => {
+    if (!engagementId || engagementId.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Engagement ID is required to create KYC workflow",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!clientId || clientId.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Client ID is required to create KYC workflow",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (documents.length === 0) {
       toast({
         title: "Error",
@@ -200,21 +186,23 @@ export function KYCDocumentRequestModal({
         })
       );
 
-      // Create document request
-      const documentRequestData = {
-        engagementId: selectedEngagementId,
-        clientId: selectedClientId,
-        category: 'kyc',
-        description: 'KYC Document Request',
-        documents: processedDocuments
+      // Create KYC workflow with document request
+      const kycData = {
+        engagementId: engagementId,
+        clientId: clientId,
+        documentRequest: {
+          category: 'kyc',
+          description: 'KYC Document Request',
+          documents: processedDocuments
+        }
       };
 
-      console.log('Creating KYC document request with data:', documentRequestData);
-      await documentRequestApi.create(documentRequestData);
+      console.log('Creating KYC workflow with data:', kycData);
+      await kycApi.create(kycData);
 
       toast({
         title: "Success",
-        description: "Document request created successfully",
+        description: "KYC workflow created successfully",
       });
 
       // Reset form
@@ -228,15 +216,13 @@ export function KYCDocumentRequestModal({
         }
       });
       setTemplateFile(null);
-      setSelectedEngagementId(engagementId || '');
-      setSelectedClientId(clientId || '');
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error creating document request:', error);
+      console.error('Error creating KYC workflow:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create document request",
+        description: error.message || "Failed to create KYC workflow",
         variant: "destructive",
       });
     } finally {
@@ -272,7 +258,7 @@ export function KYCDocumentRequestModal({
         {trigger || (
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="h-4 w-4 mr-2" />
-            Create Document Request
+            Create KYC Workflow
           </Button>
         )}
       </DialogTrigger>
@@ -280,10 +266,10 @@ export function KYCDocumentRequestModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Create KYC Document Request
+            Create KYC Workflow
           </DialogTitle>
           <DialogDescription>
-            Create a document request for KYC compliance. Choose between Direct upload or Template-based workflow.
+            Create a KYC workflow for this engagement. Add documents that clients need to provide for KYC compliance.
           </DialogDescription>
         </DialogHeader>
 
@@ -294,50 +280,22 @@ export function KYCDocumentRequestModal({
               <CardTitle className="text-lg">Request Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="engagementSelect">Select Engagement *</Label>
-                  <Select
-                    value={selectedEngagementId}
-                    onValueChange={handleEngagementChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose an engagement..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {engagements.map((engagement) => (
-                        <SelectItem key={engagement._id} value={engagement._id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{engagement.title || engagement.entityName}</span>
-                            <span className="text-xs text-gray-500">
-                              {engagement.yearEndDate ? new Date(engagement.yearEndDate).getFullYear() : 'No year'}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!selectedEngagementId && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Please select an engagement to create KYC documents
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="clientId">Client ID</Label>
-                  <Input
-                    id="clientId"
-                    value={selectedClientId || 'Not specified'}
-                    disabled
-                    className="bg-gray-50"
-                    placeholder="Auto-populated from engagement"
-                  />
-                  {!selectedClientId && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Client ID will be auto-populated when engagement is selected
-                    </p>
-                  )}
-                </div>
+              <div>
+                <Label htmlFor="engagementDisplay">Engagement</Label>
+                <Input
+                  id="engagementDisplay"
+                  value={engagementName || 'Current Engagement'}
+                  disabled
+                  className="bg-gray-50"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  KYC documents will be created for this engagement
+                </p>
+                {(!engagementId || engagementId.trim() === '') && (
+                  <p className="text-xs text-red-600 mt-1">
+                    ⚠️ Engagement ID is missing. Please ensure you're accessing this from an engagement page.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -530,7 +488,7 @@ export function KYCDocumentRequestModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || documents.length === 0 || !selectedEngagementId}
+              disabled={loading || documents.length === 0 || !engagementId || !clientId}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (
@@ -541,7 +499,7 @@ export function KYCDocumentRequestModal({
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Create Document Request
+                  Create KYC Workflow
                 </>
               )}
             </Button>
