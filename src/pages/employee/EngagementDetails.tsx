@@ -29,7 +29,7 @@ import { TrialBalanceTab } from "@/components/engagement/TrialBalanceTab";
 import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab";
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
-import { KYCManagement } from "@/components/kyc/KYCManagement";
+import { EngagementKYC } from "./EngagementKYC";
 import PbcDialog from "@/components/pbc/PbcDialog";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
@@ -338,7 +338,7 @@ export const EngagementDetails = () => {
             </TabsContent>
 
             <TabsContent value="kyc" className="space-y-6">
-              <KYCManagement engagementId={id!} />
+              <EngagementKYC />
             </TabsContent>
             
           </div>

@@ -13,7 +13,8 @@ import {
   Eye,
   ChevronRight,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Shield
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -80,7 +81,8 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
         { title: "All Requests", href: "/client/requests", icon: FileText, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 85, description: "View all requests" },
         { title: "Pending", href: "/client/requests?tab=pending", icon: Clock, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 60, description: "Pending uploads" },
         { title: "Completed", href: "/client/requests?tab=completed", icon: CheckCircle, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 90, description: "Completed uploads" },
-        { title: "PBC", href: "/client/requests?tab=pbc", icon: Upload, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 40, description: "Provided by Client" }
+        { title: "PBC", href: "/client/requests?tab=pbc", icon: Upload, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 40, description: "Provided by Client" },
+        { title: "KYC", href: "/client/requests?tab=kyc", icon: Shield, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 40, description: "Know Your Client" }
       ]
     },
     {

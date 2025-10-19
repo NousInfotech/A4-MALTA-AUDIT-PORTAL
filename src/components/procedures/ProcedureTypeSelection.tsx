@@ -48,7 +48,6 @@ export const ProcedureTypeSelection: React.FC<ProcedureTypeSelectionProps> = ({ 
         "Management representations",
         "Audit conclusion",
       ],
-      disabled: true,
     },
   ]
 
