@@ -18,11 +18,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Selection, Mapping } from "../../types/audit-workbooks/types";
+// Import the utility function
+import { zeroIndexToExcelCol } from "./utils"; // Assuming utils.ts is in the same directory
 
 interface LinkToFieldModalProps {
+  workbook:any;
   onClose: () => void;
   selection: Selection | null;
-  onLink: (mapping: Mapping) => void;
+  onLink: (workbookid:string,mapping:any) => void;
 }
 
 const destinationFields = [
@@ -58,6 +61,7 @@ const validations = [
 ];
 
 export const LinkToFieldModal: React.FC<LinkToFieldModalProps> = ({
+  workbook,
   onClose,
   selection,
   onLink,
@@ -74,7 +78,7 @@ export const LinkToFieldModal: React.FC<LinkToFieldModalProps> = ({
   const handleLink = () => {
     if (!selection || !destinationField) return;
 
-    const newMapping: Mapping = {
+    const newMapping = {
       id: Date.now().toString(),
       sheet: selection.sheet,
       start: selection.start,
@@ -85,13 +89,38 @@ export const LinkToFieldModal: React.FC<LinkToFieldModalProps> = ({
       color: "bg-green-300",
     };
 
-    onLink(newMapping);
+    onLink(workbook.id,newMapping);
     onClose();
   };
 
-  const selectionText = selection
-    ? `${selection.sheet}!A${selection.start.row + 1}`
-    : "None";
+  // --- MODIFIED SELECTION TEXT CALCULATION ---
+  const getSelectionRangeText = () => {
+    if (!selection) return "None";
+    const { start, end, sheet } = selection;
+
+    const actualMinColIndex = Math.min(start.col, end.col);
+    const actualMaxColIndex = Math.max(start.col, end.col);
+    const actualMinRowNumber = Math.min(start.row, end.row);
+    const actualMaxRowNumber = Math.max(start.row, end.row);
+
+    const displayRangeStartColLetter = zeroIndexToExcelCol(actualMinColIndex);
+    const displayRangeEndColLetter = zeroIndexToExcelCol(actualMaxColIndex);
+
+    const displayRangeStart = `${displayRangeStartColLetter}${actualMinRowNumber}`;
+    const displayRangeEnd = `${displayRangeEndColLetter}${actualMaxRowNumber}`;
+
+    if (
+      actualMinColIndex === actualMaxColIndex &&
+      actualMinRowNumber === actualMaxRowNumber
+    ) {
+      return `${sheet}!${displayRangeStart}`;
+    }
+
+    return `${sheet}!${displayRangeStart}:${displayRangeEnd}`;
+  };
+
+  const selectionText = getSelectionRangeText();
+  // --- END MODIFIED SELECTION TEXT CALCULATION ---
 
   return (
     <Dialog open={true} onOpenChange={onClose}>

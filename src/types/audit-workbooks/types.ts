@@ -1,3 +1,5 @@
+import { MappingCoordinates } from "@/lib/api/workbookApi";
+
 export interface Workbook {
   id: string;
   name: string;
@@ -20,26 +22,34 @@ export interface Selection {
   end: { row: number; col: number };
 }
 
-export interface Mapping {
-  id: string;
-  sheet: string;
-  start: { row: number; col: number };
-  end: { row: number; col: number };
-  destinationField: string;
-  transform?: string;
-  validation?: string;
-  color: string;
-}
-
-// export interface NamedRange {
-//   name: string;
-//   range: string;
+// export interface Mapping {
+//   _id: string; // or _id
+//   sheet: string;
+//   start: MappingCoordinates;
+//   end?: MappingCoordinates; // <-- 'end' might be optional in some cases
+//   destinationField: string;
+//   transform: string;
+//   color: string;
+//   // ... other properties
 // }
 
+export interface Mapping {
+  _id: string; // Add _id since your backend returns it
+  destinationField: string;
+  transform: string;
+  color: string;
+  details: {
+    // <--- Add this details object
+    sheet: string;
+    start: MappingCoordinates;
+    end: MappingCoordinates;
+  };
+}
+
 export interface NamedRange {
-  id: string; // Add an ID for easy management
+  _id: string;
   name: string;
-  range: string; // e.g., "Balance Sheet!B2:C3"
+  range: string;
 }
 
 export interface DatasetMapping {
@@ -70,10 +80,10 @@ export interface WorkbookRule {
   name: string;
   rules: {
     source: {
-      type: 'named_range' | 'sheet' | 'table';
+      type: "named_range" | "sheet" | "table";
       name: string;
     };
-    destinationType: 'field' | 'dataset';
+    destinationType: "field" | "dataset";
     destination: FieldDestination | DatasetDestination;
   }[];
 }

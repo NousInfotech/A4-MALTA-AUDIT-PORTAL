@@ -56,7 +56,7 @@ export interface SaveSheetRequest {
 
 const BASE_URL = "/api/engagements/engagement/classification/excel"; // Your backend endpoint prefix
 
-export const workbookApi = {
+export const msDriveworkbookApi = {
   saveWorkbook: async (request: any) => {
     try {
       const response = await axiosInstance.put(
@@ -166,6 +166,472 @@ export const workbookApi = {
       return {
         success: false,
         error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+};
+
+// ################################################################################################
+export interface MappingCoordinates {
+  row: number;
+  col: number;
+}
+
+const BASE_PATH = "/api/workbooks";
+
+export const db_WorkbookApi = {
+  // Save processed workbook and its sheets data to the DB (existing)
+  saveProcessedWorkbook: async (workbookData: any, fileData: any) => {
+    try {
+      const response = await axiosInstance.post(`${BASE_PATH}`, {
+        workbook: workbookData,
+        fileData: fileData,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error saving processed workbook:", error);
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to save processed workbook.",
+      };
+    }
+  },
+
+  deleteWorkbook: async (workbookId: string) => {
+    try {
+      // axiosInstance already has 'Content-Type' and potentially 'Authorization' headers configured
+      const response = await axiosInstance.delete(`${BASE_PATH}/${workbookId}`);
+      return response.data; // Contains { success: true, message: "..." }
+    } catch (error) {
+      console.error(
+        "Error deleting workbook:",
+        (error as any).response?.data || (error as any).message
+      );
+      // Re-throw the error so the calling component can catch and handle it
+      throw error;
+    }
+  },
+
+  // Fetch a workbook with its associated sheets (existing - fetches latest current version)
+  fetchWorkbookWithSheets: async (workbookId: string) => {
+    try {
+      const response = await axiosInstance.get(`${BASE_PATH}/${workbookId}`);
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error fetching workbook ${workbookId} with sheets:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to fetch workbook with sheets.",
+      };
+    }
+  },
+
+  // **NEW**: Fetch a specific historical version of a workbook
+  fetchHistoricalWorkbookVersion: async (
+    workbookId: string,
+    versionTag: string
+  ) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_PATH}/${workbookId}/versions/${versionTag}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error fetching historical workbook ${workbookId} version ${versionTag}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          `Failed to fetch historical workbook version ${versionTag}.`,
+      };
+    }
+  },
+
+  // Fetch a single sheet’s data (MODIFIED to support optional versionTag)
+  fetchSheetData: async (
+    workbookId: string,
+    sheetName: string,
+    versionTag?: string
+  ) => {
+    try {
+      let url = `${BASE_PATH}/${workbookId}/sheets/${sheetName}/data`;
+      if (versionTag) {
+        url += `/${versionTag}`;
+      }
+      const response = await axiosInstance.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error fetching sheet data for workbook ${workbookId}, sheet ${sheetName}, version ${
+          versionTag || "latest"
+        }:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to fetch sheet data.",
+      };
+    }
+  },
+
+  // **NEW**: List all workbooks for a given engagement and optional classification
+  listWorkbooks: async (engagementId: string, classification?: string) => {
+    try {
+      let url = `${BASE_PATH}/list`; // Adjusting based on your route definition
+      if (engagementId && classification) {
+        url = `${BASE_PATH}/${engagementId}/${classification}/workbooks/list`;
+      } else if (engagementId) {
+        url = `${BASE_PATH}/${engagementId}/workbooks/list`; // Assuming a default classification or no classification needed
+        // You might need to adjust your backend route to handle this case if classification is mandatory
+        // As per your route `/:engagementId/:classification/workbooks/list`, both are path params.
+        // For simplicity, let's assume if classification is not passed, the backend might handle it,
+        // or we adjust the call to always provide one, or duplicate routes.
+        // For now, I'll stick to the strict route match. If classification is optional,
+        // your backend route should be `/list?engagementId=...&classification=...`
+        // Given your current route definition, `classification` is a path parameter.
+        // If you want it optional, the route should be `/:engagementId/workbooks/list` and `classification` as a query param.
+        // For now, I'll make the client-side enforce classification for this route.
+        return {
+          success: false,
+          error:
+            "Both engagementId and classification are required for listing workbooks as per current backend routes.",
+        };
+      } else {
+        return {
+          success: false,
+          error: "engagementId is required to list workbooks.",
+        };
+      }
+
+      const response = await axiosInstance.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error listing workbooks for engagement ${engagementId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to list workbooks.",
+      };
+    }
+  },
+
+  // **NEW**: Get a single workbook by its ID (without populating sheets by default)
+  getWorkbookById: async (workbookId: string) => {
+    try {
+      // This route is defined as `router.get('/:workbookId', ...)`
+      // The `fetchWorkbookWithSheets` above already uses `/:id`. There's a potential clash or redundancy.
+      // Assuming `getWorkbookById` is meant for basic workbook info without sheets populated,
+      // and `fetchWorkbookWithSheets` populates sheets.
+      // Your backend routes have `router.get('/:id', requireAuth, workbookController.getWorkbookWithSheets);`
+      // AND `router.get('/:workbookId', requireAuth, workbookController.getWorkbookById);`
+      // This is an **issue** on the backend: two routes with the same pattern `/:id` or `/:workbookId` will conflict.
+      // The one defined first will always match.
+      // For the client, I'll assume you resolve this backend conflict and provide a distinct route if `getWorkbookById`
+      // is truly intended to be different from `getWorkbookWithSheets`.
+      // For now, I'll point it to the same route, recognizing the backend ambiguity.
+      const response = await axiosInstance.get(`${BASE_PATH}/${workbookId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting workbook by ID ${workbookId}:`, error);
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to get workbook by ID.",
+      };
+    }
+  },
+
+  // **NEW**: Upload parsed workbook and sheet data
+  uploadWorkbookDataAndSheetData: async (
+    engagementId: string,
+    classification: string,
+    fileName: string,
+    workbookData: any[],
+    webUrl?: string
+  ) => {
+    try {
+      const response = await axiosInstance.post(`${BASE_PATH}/work-bookdata`, {
+        engagementId,
+        classification,
+        fileName,
+        workbookData,
+        webUrl,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error uploading workbook data and sheet data:", error);
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to upload workbook data and sheet data.",
+      };
+    }
+  },
+
+  // **NEW**: Save/update entire workbook data (creates new version)
+  saveWorkbook: async (
+    workbookId: string,
+    workbookName: string,
+    sheetData: any,
+    metadata?: any,
+    savedByUserId?: string
+  ) => {
+    try {
+      const response = await axiosInstance.post(`${BASE_PATH}/save-workbook`, {
+        workbookId,
+        workbookName,
+        sheetData,
+        metadata,
+        savedByUserId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error saving workbook ${workbookId}:`, error);
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to save workbook.",
+      };
+    }
+  },
+
+  // **NEW**: Save/update a single sheet's data (creates new workbook version)
+  saveSheet: async (
+    workbookId: string,
+    sheetName: string,
+    sheetData: any,
+    metadata?: any,
+    savedByUserId?: string
+  ) => {
+    try {
+      const response = await axiosInstance.post(`${BASE_PATH}/save-sheet`, {
+        workbookId,
+        sheetName,
+        sheetData,
+        metadata,
+        savedByUserId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error saving sheet ${sheetName} for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error: (error as any).response?.data?.error || "Failed to save sheet.",
+      };
+    }
+  },
+
+  // **NEW**: Get list of sheet names for a workbook
+  listSheets: async (workbookId: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_PATH}/${workbookId}/sheets`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error listing sheets for workbook ${workbookId}:`, error);
+      return {
+        success: false,
+        error: (error as any).response?.data?.error || "Failed to list sheets.",
+      };
+    }
+  },
+
+  // --- Mappings Operations ---
+
+  // **NEW**: Create a new mapping for a workbook
+  createMapping: async (
+    workbookId: string,
+    mappingDetails: {
+      sheet: string;
+      start: MappingCoordinates; // Updated type
+      end: MappingCoordinates; // Updated type
+      destinationField: string;
+      transform: string;
+      color: string;
+    }
+  ) => {
+    try {
+      const response = await axiosInstance.post(
+        `${BASE_PATH}/${workbookId}/mappings`,
+        mappingDetails
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error creating mapping for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to create mapping.",
+      };
+    }
+  },
+
+  // **NEW**: Update an existing mapping for a workbook
+  updateMapping: async (
+    workbookId: string,
+    mappingId: string,
+    updatedMappingDetails: {
+      sheet?: string;
+      start?: MappingCoordinates; // Updated type
+      end?: MappingCoordinates; // Updated type
+      destinationField?: string;
+      transform?: string;
+      color?: string;
+    }
+  ) => {
+    try {
+      const response = await axiosInstance.put(
+        `${BASE_PATH}/${workbookId}/mappings/${mappingId}`,
+        updatedMappingDetails
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error updating mapping ${mappingId} for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to update mapping.",
+      };
+    }
+  },
+
+  // **NEW**: Delete a mapping from a workbook
+  deleteMapping: async (workbookId: string, mappingId: string) => {
+    try {
+      const response = await axiosInstance.delete(
+        `${BASE_PATH}/${workbookId}/mappings/${mappingId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error deleting mapping ${mappingId} from workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to delete mapping.",
+      };
+    }
+  },
+
+  // --- Named Ranges Operations ---
+
+  // **NEW**: Create a new named range for a workbook
+  createNamedRange: async (
+    workbookId: string,
+    namedRangeDetails: { name: string; range: string }
+  ) => {
+    try {
+      const response = await axiosInstance.post(
+        `${BASE_PATH}/${workbookId}/named-ranges`,
+        namedRangeDetails
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error creating named range for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to create named range.",
+      };
+    }
+  },
+
+  // **NEW**: Update an existing named range for a workbook
+  updateNamedRange: async (
+    workbookId: string,
+    namedRangeId: string,
+    updatedNamedRangeDetails: { name?: string; range?: string }
+  ) => {
+    try {
+      const response = await axiosInstance.put(
+        `${BASE_PATH}/${workbookId}/named-ranges/${namedRangeId}`,
+        updatedNamedRangeDetails
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error updating named range ${namedRangeId} for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to update named range.",
+      };
+    }
+  },
+
+  // **NEW**: Delete a named range from a workbook
+  deleteNamedRange: async (workbookId: string, namedRangeId: string) => {
+    try {
+      const response = await axiosInstance.delete(
+        `${BASE_PATH}/${workbookId}/named-ranges/${namedRangeId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error deleting named range ${namedRangeId} from workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to delete named range.",
+      };
+    }
+  },
+
+
+  getWorkbookLogs: async (workbookId: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_PATH}/${workbookId}/logs`
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error fetching logs for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to fetch workbook logs.",
       };
     }
   },
