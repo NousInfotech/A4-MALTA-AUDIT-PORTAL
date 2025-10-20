@@ -1750,26 +1750,7 @@
 //   );
 // };
 
-
-
-
-
-
-
-
-
-
-
-
-
 //###########################################################################################################
-
-
-
-
-
-
-
 
 import React, { useState, useCallback, useEffect, useRef } from "react"; // Added useRef
 import { Button } from "@/components/ui/button";
@@ -1992,7 +1973,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // Effect to populate newNamedRangeRange when Create Named Range dialog opens and a selection exists
   useEffect(() => {
     // Take the last selection for context if multiple exist
-    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    const currentSelection =
+      selections.length > 0 ? selections[selections.length - 1] : null;
     if (isCreateNamedRangeOpen && currentSelection) {
       setNewNamedRangeRange(getSelectionText(currentSelection));
     } else if (!isCreateNamedRangeOpen) {
@@ -2387,10 +2369,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // Updated getSelectionText to work with the last selection in the array
   const getSelectionText = (currentSelection: Selection | null = null) => {
-    const selectionToDisplay = currentSelection || (selections.length > 0 ? selections[selections.length - 1] : null);
+    const selectionToDisplay =
+      currentSelection ||
+      (selections.length > 0 ? selections[selections.length - 1] : null);
 
     if (!selectionToDisplay) {
-      return selections.length > 0 ? `${selections.length} ranges selected` : "";
+      return selections.length > 0
+        ? `${selections.length} ranges selected`
+        : "";
     }
     const { start, end, sheet } = selectionToDisplay;
 
@@ -2449,7 +2435,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   const handleCreateNamedRange = () => {
     console.log(workbook._id);
-    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    const currentSelection =
+      selections.length > 0 ? selections[selections.length - 1] : null;
 
     if (!currentSelection || !newNamedRangeName || !newNamedRangeRange) return;
 
@@ -2513,7 +2500,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   const handleCreateMapping = () => {
     // Act on the last selection
-    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    const currentSelection =
+      selections.length > 0 ? selections[selections.length - 1] : null;
     if (!currentSelection || !newMappingDestinationField) return;
 
     const newMapping = {
@@ -2617,22 +2605,33 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56">
               <DropdownMenuLabel>Data Actions</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-gray-500 text-xs mt-1 mb-2">
+                Select a range in the sheet to link to a field.
+              </DropdownMenuLabel>
               <DropdownMenuItem
                 onClick={() => {
-                  const lastSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+                  const lastSelection =
+                    selections.length > 0
+                      ? selections[selections.length - 1]
+                      : null;
                   if (lastSelection) onLinkField(lastSelection);
                 }}
                 disabled={selections.length === 0}
               >
                 <Link className="h-4 w-4 mr-2" /> Link to Field
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onLinkSheet}>
+
+              {/* make it hidden for temprorary */}
+
+              {/* <DropdownMenuItem onClick={onLinkSheet}>
                 <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as
                 Dataset
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onLinkWorkbook}>
                 <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
-              </DropdownMenuItem>
+              </DropdownMenuItem> */}
+
+              {/* end make it hidden for temprorary */}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -3171,7 +3170,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   const renderSelectionFooter = () => {
     // Display info for the last selection, or a summary if multiple
-    const lastSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    const lastSelection =
+      selections.length > 0 ? selections[selections.length - 1] : null;
 
     if (selections.length === 0) return null;
 
@@ -3180,7 +3180,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         <span>
           Selection:{" "}
           <Badge variant="secondary">
-            {selections.length > 1 ? `${selections.length} ranges selected` : getSelectionText(lastSelection)}
+            {selections.length > 1
+              ? `${selections.length} ranges selected`
+              : getSelectionText(lastSelection)}
           </Badge>
         </span>
         <div className="flex gap-2">
@@ -3191,9 +3193,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           >
             Create Mapping
           </Button>
-          <Button size="sm" onClick={() => {
-            if (lastSelection) onLinkField(lastSelection);
-          }}>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (lastSelection) onLinkField(lastSelection);
+            }}
+          >
             Link to Field
           </Button>
         </div>
@@ -3255,7 +3260,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   size="sm"
                   className="w-full justify-start"
                   onClick={() => {
-                    const lastSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+                    const lastSelection =
+                      selections.length > 0
+                        ? selections[selections.length - 1]
+                        : null;
                     if (lastSelection) onLinkField(lastSelection);
                   }}
                   disabled={selections.length === 0}
@@ -3357,7 +3365,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => selections.length > 0 && setIsCreateMappingOpen(true)}
+                  onClick={() =>
+                    selections.length > 0 && setIsCreateMappingOpen(true)
+                  }
                   disabled={selections.length === 0}
                 >
                   <Plus className="h-4 w-4" />
@@ -3556,7 +3566,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             {selections.length > 0 && (
               <div className="p-2 bg-gray-100 rounded">
                 <p className="text-sm font-medium">Selected Range:</p>
-                <p className="text-sm">{getSelectionText(selections[selections.length - 1])}</p>
+                <p className="text-sm">
+                  {getSelectionText(selections[selections.length - 1])}
+                </p>
               </div>
             )}
           </div>
