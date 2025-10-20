@@ -4586,12 +4586,33 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                         }
                       >
                         <span className="whitespace-nowrap">{cell}</span>
+
+                        {/* invisible but occupying the enough space for the title */}
+                        {mapping &&
+                          !isHeaderCell &&
+                          isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
+                            <span
+                              className={`invisible text-[15px] text-nowrap whitespace-nowrap font-semibold text-red-500 px-1 rounded-sm ${mapping.color.replace(
+                                "bg-",
+                                "bg-"
+                              )}`}
+                              style={{
+                                transform: "scale(0.8)",
+                                transformOrigin: "top left",
+                              }} // Smaller text size
+                            >
+                              {mapping.destinationField}
+                            </span>
+                          )}
+
+                        {/* end invisible but occupying the enough space for the title */}
+                        {/* visible title */}
                         {mapping &&
                           !isHeaderCell &&
                           isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
                             <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-1 pointer-events-none">
                               <span
-                                className={`text-[15px] font-semibold text-red-500 px-1 rounded-sm ${mapping.color.replace(
+                                className={`text-[15px] font-semibold text-nowrap whitespace-nowrap text-red-500 px-1 rounded-sm ${mapping.color.replace(
                                   "bg-",
                                   "bg-"
                                 )}`}
@@ -4604,6 +4625,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               </span>
                             </div>
                           )}
+                        {/* end visible title */}
+
                         {/* The small blue dot can remain or be removed, depending on preference */}
                         {excelGridColIndex > 0 &&
                           excelGridRowIndex > 0 &&
