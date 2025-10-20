@@ -205,7 +205,13 @@ const mockAuditLogs: AuditLogEntry[] = [
   },
 ];
 
-export default function WorkBookApp({ engagementId, classification }) {
+export default function WorkBookApp({
+  engagementId,
+  classification,
+}: {
+  engagementId: string;
+  classification: string;
+}) {
   // --- INITIALIZE STATE WITH MOCK DATA ---
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedWorkbook, setSelectedWorkbook] = useState<any | null>(

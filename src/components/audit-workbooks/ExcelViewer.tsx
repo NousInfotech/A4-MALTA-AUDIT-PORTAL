@@ -1,4 +1,4 @@
-// import React, { useState, useCallback, useEffect } from "react";
+// import React, { useState, useCallback, useEffect, useRef } from "react"; // Added useRef
 // import { Button } from "@/components/ui/button";
 // import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 // import {
@@ -175,8 +175,12 @@
 //   const sheetData: SheetData = workbook?.fileData || {};
 //   const sheetNames = Object.keys(sheetData);
 
-//   const [selection, setSelection] = useState<Selection | null>(null);
+//   // Changed selection to an array for multi-selection
+//   const [selections, setSelections] = useState<Selection[]>([]);
 //   const [isSelecting, setIsSelecting] = useState(false);
+//   const anchorSelectionStart = useRef<{ row: number; col: number } | null>(
+//     null
+//   ); // For Shift-click range extension
 
 //   // Save dialog states
 //   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -214,12 +218,15 @@
 
 //   // Effect to populate newNamedRangeRange when Create Named Range dialog opens and a selection exists
 //   useEffect(() => {
-//     if (isCreateNamedRangeOpen && selection) {
-//       setNewNamedRangeRange(getSelectionText());
+//     // Take the last selection for context if multiple exist
+//     const currentSelection =
+//       selections.length > 0 ? selections[selections.length - 1] : null;
+//     if (isCreateNamedRangeOpen && currentSelection) {
+//       setNewNamedRangeRange(getSelectionText(currentSelection));
 //     } else if (!isCreateNamedRangeOpen) {
 //       setNewNamedRangeRange(""); // Clear when dialog closes
 //     }
-//   }, [isCreateNamedRangeOpen, selection]);
+//   }, [isCreateNamedRangeOpen, selections]);
 
 //   // currentSheetData now includes the prepended column letters and row numbers
 //   const currentSheetData = sheetData[selectedSheet] || [];
@@ -353,42 +360,152 @@
 
 //   const handleMouseDown = (
 //     excelGridRowIndex: number,
-//     excelGridColIndex: number
+//     excelGridColIndex: number,
+//     event: React.MouseEvent
 //   ) => {
-//     setIsSelecting(true);
+//     // Prevent selection on header cells
 //     if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
-//       setSelection(null);
+//       setSelections([]); // Clear selections if a header is clicked directly
+//       anchorSelectionStart.current = null;
 //       return;
 //     }
 
+//     setIsSelecting(true);
 //     const excelRowNumber = excelGridRowIndex;
 //     const excelColIndex = excelGridColIndex - 1;
 
-//     const newSelection = {
-//       sheet: selectedSheet,
-//       start: { row: excelRowNumber, col: excelColIndex },
-//       end: { row: excelRowNumber, col: excelColIndex },
-//     };
-//     setSelection(newSelection);
+//     const clickedCell = { row: excelRowNumber, col: excelColIndex };
+
+//     if (event.ctrlKey || event.metaKey) {
+//       // Ctrl/Cmd + click: Add to selection or deselect
+//       const newSelection: Selection = {
+//         sheet: selectedSheet,
+//         start: clickedCell,
+//         end: clickedCell,
+//       };
+
+//       setSelections((prevSelections) => {
+//         // Check if the clicked cell is already part of an existing selection
+//         const existingSelectionIndex = prevSelections.findIndex((s) =>
+//           isCellInSelection(clickedCell, s)
+//         );
+
+//         if (existingSelectionIndex !== -1) {
+//           // If already selected, remove it (for single cell selections)
+//           // For simplicity, we'll remove the whole selection if the clicked cell is its only cell
+//           // A more robust solution would split/trim selections.
+//           const existingSelection = prevSelections[existingSelectionIndex];
+//           if (
+//             existingSelection.start.row === clickedCell.row &&
+//             existingSelection.start.col === clickedCell.col &&
+//             existingSelection.end.row === clickedCell.row &&
+//             existingSelection.end.col === clickedCell.col
+//           ) {
+//             return prevSelections.filter(
+//               (_, idx) => idx !== existingSelectionIndex
+//             );
+//           }
+//           // If it's part of a larger range, for now, we'll just ignore it or remove the whole range.
+//           // For this implementation, we'll remove the whole range if clicked again.
+//           // A true implementation would manage disjoint areas.
+//           return prevSelections.filter(
+//             (_, idx) => idx !== existingSelectionIndex
+//           );
+//         } else {
+//           // Add a new single-cell selection
+//           return [...prevSelections, newSelection];
+//         }
+//       });
+//       anchorSelectionStart.current = clickedCell;
+//     } else if (event.shiftKey) {
+//       // Shift + click: Extend selection from anchor
+//       if (anchorSelectionStart.current) {
+//         const newSelection: Selection = {
+//           sheet: selectedSheet,
+//           start: anchorSelectionStart.current,
+//           end: clickedCell,
+//         };
+//         setSelections((prevSelections) => {
+//           // If there are existing selections, update the last one to the new range
+//           // Otherwise, create a new selection.
+//           if (prevSelections.length > 0) {
+//             const lastSelection = prevSelections[prevSelections.length - 1];
+//             // Only update the last selection if its anchor matches the current anchor start,
+//             // or if it's a fresh shift click following a normal click.
+//             // This logic can get complex for truly disjoint ranges.
+//             // For now, we'll replace the last selection or add a new one if different sheet.
+//             if (lastSelection.sheet === selectedSheet) {
+//               const updatedSelections = [...prevSelections];
+//               updatedSelections[updatedSelections.length - 1] = newSelection;
+//               return updatedSelections;
+//             } else {
+//               return [...prevSelections, newSelection];
+//             }
+//           }
+//           return [newSelection];
+//         });
+//       } else {
+//         // If shift-click without prior anchor, treat as normal click but set anchor
+//         const newSelection: Selection = {
+//           sheet: selectedSheet,
+//           start: clickedCell,
+//           end: clickedCell,
+//         };
+//         setSelections([newSelection]);
+//         anchorSelectionStart.current = clickedCell;
+//       }
+//     } else {
+//       // Normal click: Start a new selection, clear previous ones
+//       const newSelection: Selection = {
+//         sheet: selectedSheet,
+//         start: clickedCell,
+//         end: clickedCell,
+//       };
+//       setSelections([newSelection]);
+//       anchorSelectionStart.current = clickedCell;
+//     }
 //   };
 
 //   const handleMouseEnter = (
 //     excelGridRowIndex: number,
 //     excelGridColIndex: number
 //   ) => {
-//     if (isSelecting && selection) {
-//       if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
-//         return;
+//     if (!isSelecting || !selectedSheet) {
+//       return;
+//     }
+
+//     if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
+//       return;
+//     }
+
+//     const excelRowNumber = excelGridRowIndex;
+//     const excelColIndex = excelGridColIndex - 1;
+//     const currentHoverCell = { row: excelRowNumber, col: excelColIndex };
+
+//     setSelections((prevSelections) => {
+//       if (prevSelections.length === 0) {
+//         // This shouldn't happen if handleMouseDown correctly initializes a selection
+//         return prevSelections;
 //       }
 
-//       const excelRowNumber = excelGridRowIndex;
-//       const excelColIndex = excelGridColIndex - 1;
+//       const lastSelectionIndex = prevSelections.length - 1;
+//       const lastSelection = prevSelections[lastSelectionIndex];
 
-//       setSelection({
-//         ...selection,
-//         end: { row: excelRowNumber, col: excelColIndex },
-//       });
-//     }
+//       if (lastSelection.sheet !== selectedSheet) {
+//         // If sheet changed during drag, abandon dragging the old selection
+//         return prevSelections;
+//       }
+
+//       // If we are actively dragging (isSelecting is true),
+//       // we need to update the `end` of the current active selection.
+//       // The "active selection" is generally the last one in the `selections` array.
+//       const updatedSelections = [...prevSelections];
+//       updatedSelections[lastSelectionIndex] = {
+//         ...lastSelection,
+//         end: currentHoverCell,
+//       };
+//       return updatedSelections;
+//     });
 //   };
 
 //   const handleMouseUp = useCallback(() => {
@@ -402,9 +519,30 @@
 //     };
 //   }, [handleMouseUp]);
 
+//   // Helper to check if a cell is within a given selection
+//   const isCellInSelection = (
+//     cell: { row: number; col: number },
+//     selection: Selection
+//   ) => {
+//     if (!selection || selection.sheet !== selectedSheet) return false;
+
+//     const minRow = Math.min(selection.start.row, selection.end.row);
+//     const maxRow = Math.max(selection.start.row, selection.end.row);
+//     const minCol = Math.min(selection.start.col, selection.end.col);
+//     const maxCol = Math.max(selection.start.col, selection.end.col);
+
+//     return (
+//       cell.row >= minRow &&
+//       cell.row <= maxRow &&
+//       cell.col >= minCol &&
+//       cell.col <= maxCol
+//     );
+//   };
+
 //   const getCellClassName = useCallback(
 //     (excelGridRowIndex: number, excelGridColIndex: number) => {
-//       let className = "min-w-[100px] cursor-pointer select-none relative ";
+//       let className =
+//         "min-w-[100px] cursor-pointer select-none relative border border-gray-200 "; // Added default border
 
 //       if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
 //         className += "bg-gray-100 font-semibold text-gray-700 sticky ";
@@ -423,21 +561,13 @@
 //       const excelRowNumber = excelGridRowIndex;
 //       const excelColIndex = excelGridColIndex - 1;
 
-//       if (selection && selection.sheet === selectedSheet) {
-//         const { start, end } = selection;
-//         const minRow = Math.min(start.row, end.row);
-//         const maxRow = Math.max(start.row, end.row);
-//         const minCol = Math.min(start.col, end.col);
-//         const maxCol = Math.max(start.col, end.col);
+//       // Check if current cell is part of any selection
+//       const isSelected = selections.some((s) =>
+//         isCellInSelection({ row: excelRowNumber, col: excelColIndex }, s)
+//       );
 
-//         if (
-//           excelRowNumber >= minRow &&
-//           excelRowNumber <= maxRow &&
-//           excelColIndex >= minCol &&
-//           excelColIndex <= maxCol
-//         ) {
-//           className += "ring-2 ring-blue-500 bg-blue-50 ";
-//         }
+//       if (isSelected) {
+//         className += "ring-2 ring-blue-500 bg-blue-50 border-blue-500 "; // Stronger selection border
 //       }
 
 //       // FIX: Add defensive checks for mapping.end before accessing its properties
@@ -480,12 +610,21 @@
 //       }
 //       return className;
 //     },
-//     [selection, selectedSheet, mappings]
+//     [selections, selectedSheet, mappings]
 //   );
 
-//   const getSelectionText = () => {
-//     if (!selection) return "";
-//     const { start, end, sheet } = selection;
+//   // Updated getSelectionText to work with the last selection in the array
+//   const getSelectionText = (currentSelection: Selection | null = null) => {
+//     const selectionToDisplay =
+//       currentSelection ||
+//       (selections.length > 0 ? selections[selections.length - 1] : null);
+
+//     if (!selectionToDisplay) {
+//       return selections.length > 0
+//         ? `${selections.length} ranges selected`
+//         : "";
+//     }
+//     const { start, end, sheet } = selectionToDisplay;
 
 //     const actualMinColIndex = Math.min(start.col, end.col);
 //     const actualMaxColIndex = Math.max(start.col, end.col);
@@ -534,14 +673,18 @@
 //         start: { row: startRow, col: startCol },
 //         end: { row: endRow, col: endCol },
 //       };
-//       setSelection(newSelection);
+//       setSelections([newSelection]); // Set this as the only selection
+//       anchorSelectionStart.current = newSelection.start; // Update anchor
 //       setIsNamedRangesDialogOpen(false); // Close dialog after selection
 //     }
 //   };
 
 //   const handleCreateNamedRange = () => {
 //     console.log(workbook._id);
-//     if (!newNamedRangeName || !newNamedRangeRange) return;
+//     const currentSelection =
+//       selections.length > 0 ? selections[selections.length - 1] : null;
+
+//     if (!currentSelection || !newNamedRangeName || !newNamedRangeRange) return;
 
 //     const rangeRegex = /^[^!]+!([A-Z]+)(\d+)(:([A-Z]+)(\d+))?$/;
 //     if (!rangeRegex.test(newNamedRangeRange)) {
@@ -602,15 +745,18 @@
 //   };
 
 //   const handleCreateMapping = () => {
-//     if (!selection || !newMappingDestinationField) return;
+//     // Act on the last selection
+//     const currentSelection =
+//       selections.length > 0 ? selections[selections.length - 1] : null;
+//     if (!currentSelection || !newMappingDestinationField) return;
 
 //     const newMapping = {
 //       destinationField: newMappingDestinationField,
 //       transform: newMappingTransform,
 //       color: generateColor(),
-//       sheet: selection.sheet,
-//       start: selection.start,
-//       end: selection.end,
+//       sheet: currentSelection.sheet,
+//       start: currentSelection.start,
+//       end: currentSelection.end,
 //     };
 
 //     onCreateMapping(workbook.id, newMapping); // Pass the newMapping directly
@@ -705,19 +851,33 @@
 //             </DropdownMenuTrigger>
 //             <DropdownMenuContent className="w-56">
 //               <DropdownMenuLabel>Data Actions</DropdownMenuLabel>
+//               <DropdownMenuLabel className="text-gray-500 text-xs mt-1 mb-2">
+//                 Select a range in the sheet to link to a field.
+//               </DropdownMenuLabel>
 //               <DropdownMenuItem
-//                 onClick={() => selection && onLinkField(selection)}
-//                 disabled={!selection}
+//                 onClick={() => {
+//                   const lastSelection =
+//                     selections.length > 0
+//                       ? selections[selections.length - 1]
+//                       : null;
+//                   if (lastSelection) onLinkField(lastSelection);
+//                 }}
+//                 disabled={selections.length === 0}
 //               >
 //                 <Link className="h-4 w-4 mr-2" /> Link to Field
 //               </DropdownMenuItem>
-//               <DropdownMenuItem onClick={onLinkSheet}>
+
+//               {/* make it hidden for temprorary */}
+
+//               {/* <DropdownMenuItem onClick={onLinkSheet}>
 //                 <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as
 //                 Dataset
 //               </DropdownMenuItem>
 //               <DropdownMenuItem onClick={onLinkWorkbook}>
 //                 <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
-//               </DropdownMenuItem>
+//               </DropdownMenuItem> */}
+
+//               {/* end make it hidden for temprorary */}
 //             </DropdownMenuContent>
 //           </DropdownMenu>
 
@@ -821,12 +981,12 @@
 //               setIsCreateNamedRangeOpen(true);
 //               setIsNamedRangesDialogOpen(false); // Close parent dialog to show child
 //             }}
-//             disabled={!selection} // Disable if no selection
+//             disabled={selections.length === 0} // Disable if no selection
 //           >
 //             <Plus className="h-4 w-4 mr-2" /> Create New Named Range (Current
 //             Selection)
 //           </Button>
-//           {!selection && (
+//           {selections.length === 0 && (
 //             <p className="text-sm text-gray-500 text-center">
 //               Select a range in the sheet to create a new named range.
 //             </p>
@@ -911,12 +1071,12 @@
 //               setIsCreateMappingOpen(true);
 //               setIsMappingsDialogOpen(false); // Close parent dialog to show child
 //             }}
-//             disabled={!selection}
+//             disabled={selections.length === 0}
 //           >
 //             <Plus className="h-4 w-4 mr-2" /> Create New Mapping (Current
 //             Selection)
 //           </Button>
-//           {!selection && (
+//           {selections.length === 0 && (
 //             <p className="text-sm text-gray-500 text-center">
 //               Select a range in the sheet to create a new mapping.
 //             </p>
@@ -1177,8 +1337,12 @@
 //                           excelGridRowIndex,
 //                           excelGridColIndex
 //                         )}
-//                         onMouseDown={() =>
-//                           handleMouseDown(excelGridRowIndex, excelGridColIndex)
+//                         onMouseDown={(event) =>
+//                           handleMouseDown(
+//                             excelGridRowIndex,
+//                             excelGridColIndex,
+//                             event
+//                           )
 //                         }
 //                         onMouseEnter={() =>
 //                           handleMouseEnter(excelGridRowIndex, excelGridColIndex)
@@ -1251,11 +1415,21 @@
 //   };
 
 //   const renderSelectionFooter = () => {
-//     if (!selection) return null;
+//     // Display info for the last selection, or a summary if multiple
+//     const lastSelection =
+//       selections.length > 0 ? selections[selections.length - 1] : null;
+
+//     if (selections.length === 0) return null;
+
 //     return (
 //       <div className="sticky bottom-0 left-0 right-0 mt-4 p-4 bg-blue-100 text-blue-800 rounded-t-lg flex justify-between items-center z-10 shadow-lg">
 //         <span>
-//           Selection: <Badge variant="secondary">{getSelectionText()}</Badge>
+//           Selection:{" "}
+//           <Badge variant="secondary">
+//             {selections.length > 1
+//               ? `${selections.length} ranges selected`
+//               : getSelectionText(lastSelection)}
+//           </Badge>
 //         </span>
 //         <div className="flex gap-2">
 //           <Button
@@ -1265,7 +1439,12 @@
 //           >
 //             Create Mapping
 //           </Button>
-//           <Button size="sm" onClick={() => onLinkField(selection)}>
+//           <Button
+//             size="sm"
+//             onClick={() => {
+//               if (lastSelection) onLinkField(lastSelection);
+//             }}
+//           >
 //             Link to Field
 //           </Button>
 //         </div>
@@ -1326,8 +1505,14 @@
 //                 <Button
 //                   size="sm"
 //                   className="w-full justify-start"
-//                   onClick={() => selection && onLinkField(selection)}
-//                   disabled={!selection}
+//                   onClick={() => {
+//                     const lastSelection =
+//                       selections.length > 0
+//                         ? selections[selections.length - 1]
+//                         : null;
+//                     if (lastSelection) onLinkField(lastSelection);
+//                   }}
+//                   disabled={selections.length === 0}
 //                 >
 //                   <Link className="h-4 w-4 mr-2" /> Link to Field
 //                 </Button>
@@ -1361,7 +1546,7 @@
 //                   size="sm"
 //                   variant="ghost"
 //                   onClick={() => setIsCreateNamedRangeOpen(true)}
-//                   disabled={!selection} // Disable if no selection
+//                   disabled={selections.length === 0} // Disable if no selection
 //                 >
 //                   <Plus className="h-4 w-4" />
 //                 </Button>
@@ -1426,8 +1611,10 @@
 //                 <Button
 //                   size="sm"
 //                   variant="ghost"
-//                   onClick={() => selection && setIsCreateMappingOpen(true)}
-//                   disabled={!selection}
+//                   onClick={() =>
+//                     selections.length > 0 && setIsCreateMappingOpen(true)
+//                   }
+//                   disabled={selections.length === 0}
 //                 >
 //                   <Plus className="h-4 w-4" />
 //                 </Button>
@@ -1622,10 +1809,12 @@
 //                 </SelectContent>
 //               </Select>
 //             </div>
-//             {selection && (
+//             {selections.length > 0 && (
 //               <div className="p-2 bg-gray-100 rounded">
 //                 <p className="text-sm font-medium">Selected Range:</p>
-//                 <p className="text-sm">{getSelectionText()}</p>
+//                 <p className="text-sm">
+//                   {getSelectionText(selections[selections.length - 1])}
+//                 </p>
 //               </div>
 //             )}
 //           </div>
@@ -1750,9 +1939,16 @@
 //   );
 // };
 
-//###########################################################################################################
+// #############################################################################################################
 
-import React, { useState, useCallback, useEffect, useRef } from "react"; // Added useRef
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  Dispatch,
+  SetStateAction,
+} from "react"; // Added useRef
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -1897,6 +2093,16 @@ interface ExcelViewerProps {
   isLoadingWorkbookData?: boolean;
   selectedSheet?: string;
   setSelectedSheet?: (sheetName: string) => void;
+  // Add new props for selection state
+  selections?: Selection[];
+  setSelections?: Dispatch<SetStateAction<Selection[]>>;
+
+  isSelecting?: boolean;
+  setIsSelecting?: (selecting: boolean) => void;
+  anchorSelectionStart?: React.MutableRefObject<{
+    row: number;
+    col: number;
+  } | null>;
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -1920,21 +2126,36 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   isLoadingWorkbookData = false,
   selectedSheet,
   setSelectedSheet,
+  // Add new props with default values for backward compatibility
+  selections: propSelections,
+  setSelections: propSetSelections,
+  isSelecting: propIsSelecting,
+  setIsSelecting: propSetIsSelecting,
+  anchorSelectionStart: propAnchorSelectionStart,
 }) => {
-  useEffect(() => {
-    console.log(namedRanges);
-    console.log(workbook);
-  }, []);
   const { toast } = useToast();
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
 
-  // Changed selection to an array for multi-selection
-  const [selections, setSelections] = useState<Selection[]>([]);
-  const [isSelecting, setIsSelecting] = useState(false);
-  const anchorSelectionStart = useRef<{ row: number; col: number } | null>(
+  // cell selection states
+  const [localSelections, setLocalSelections] = useState<Selection[]>([]);
+  const [localIsSelecting, setLocalIsSelecting] = useState(false);
+  const localAnchorSelectionStart = useRef<{ row: number; col: number } | null>(
     null
-  ); // For Shift-click range extension
+  );
+
+  const selections =
+    propSelections !== undefined ? propSelections : localSelections;
+  const setSelections =
+    propSetSelections !== undefined ? propSetSelections : setLocalSelections;
+  const isSelecting =
+    propIsSelecting !== undefined ? propIsSelecting : localIsSelecting;
+  const setIsSelecting =
+    propSetIsSelecting !== undefined ? propSetIsSelecting : setLocalIsSelecting;
+  const anchorSelectionStart =
+    propAnchorSelectionStart !== undefined
+      ? propAnchorSelectionStart
+      : localAnchorSelectionStart;
 
   // Save dialog states
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -1959,13 +2180,16 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const [newMappingTransform, setNewMappingTransform] = useState("sum");
 
   useEffect(() => {
-    // If the currently selected sheet is no longer valid (e.g., workbook changed to one without that sheet)
-    // or if no sheet is selected, default to the first available sheet.
+    console.log(namedRanges);
+    console.log(workbook);
+  }, [namedRanges, workbook]);
+
+  useEffect(() => {
     if (!selectedSheet || !sheetNames.includes(selectedSheet)) {
       if (sheetNames.length > 0) {
-        setSelectedSheet(sheetNames[0]);
+        setSelectedSheet?.(sheetNames[0]);
       } else {
-        setSelectedSheet("Sheet1"); // Fallback for an empty workbook
+        setSelectedSheet?.("Sheet1");
       }
     }
   }, [workbook.id, sheetNames, selectedSheet, setSelectedSheet]);
@@ -2119,7 +2343,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   ) => {
     // Prevent selection on header cells
     if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
-      setSelections([]); // Clear selections if a header is clicked directly
+      setSelections([]);
       anchorSelectionStart.current = null;
       return;
     }
@@ -2133,7 +2357,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     if (event.ctrlKey || event.metaKey) {
       // Ctrl/Cmd + click: Add to selection or deselect
       const newSelection: Selection = {
-        sheet: selectedSheet,
+        sheet: selectedSheet || "", // Add fallback
         start: clickedCell,
         end: clickedCell,
       };
@@ -2146,8 +2370,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
         if (existingSelectionIndex !== -1) {
           // If already selected, remove it (for single cell selections)
-          // For simplicity, we'll remove the whole selection if the clicked cell is its only cell
-          // A more robust solution would split/trim selections.
           const existingSelection = prevSelections[existingSelectionIndex];
           if (
             existingSelection.start.row === clickedCell.row &&
@@ -2159,9 +2381,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               (_, idx) => idx !== existingSelectionIndex
             );
           }
-          // If it's part of a larger range, for now, we'll just ignore it or remove the whole range.
-          // For this implementation, we'll remove the whole range if clicked again.
-          // A true implementation would manage disjoint areas.
           return prevSelections.filter(
             (_, idx) => idx !== existingSelectionIndex
           );
@@ -2180,14 +2399,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           end: clickedCell,
         };
         setSelections((prevSelections) => {
-          // If there are existing selections, update the last one to the new range
-          // Otherwise, create a new selection.
           if (prevSelections.length > 0) {
             const lastSelection = prevSelections[prevSelections.length - 1];
-            // Only update the last selection if its anchor matches the current anchor start,
-            // or if it's a fresh shift click following a normal click.
-            // This logic can get complex for truly disjoint ranges.
-            // For now, we'll replace the last selection or add a new one if different sheet.
             if (lastSelection.sheet === selectedSheet) {
               const updatedSelections = [...prevSelections];
               updatedSelections[updatedSelections.length - 1] = newSelection;
@@ -2238,7 +2451,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
     setSelections((prevSelections) => {
       if (prevSelections.length === 0) {
-        // This shouldn't happen if handleMouseDown correctly initializes a selection
         return prevSelections;
       }
 
@@ -2246,13 +2458,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       const lastSelection = prevSelections[lastSelectionIndex];
 
       if (lastSelection.sheet !== selectedSheet) {
-        // If sheet changed during drag, abandon dragging the old selection
         return prevSelections;
       }
 
-      // If we are actively dragging (isSelecting is true),
-      // we need to update the `end` of the current active selection.
-      // The "active selection" is generally the last one in the `selections` array.
       const updatedSelections = [...prevSelections];
       updatedSelections[lastSelectionIndex] = {
         ...lastSelection,
@@ -2264,7 +2472,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   const handleMouseUp = useCallback(() => {
     setIsSelecting(false);
-  }, []);
+  }, [setIsSelecting]);
 
   useEffect(() => {
     window.addEventListener("mouseup", handleMouseUp);
@@ -3662,23 +3870,60 @@ export const ExcelViewerWithFullscreen: React.FC<ExcelViewerProps> = (
 ) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Move selection state here
+  const [selections, setSelections] = useState<Selection[]>([]);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const anchorSelectionStart = useRef<{ row: number; col: number } | null>(
+    null
+  );
+
+  // Reset selection when workbook changes
+  useEffect(() => {
+    setSelections([]);
+    setIsSelecting(false);
+    anchorSelectionStart.current = null;
+  }, [props.workbook.id]);
+
   const handleToggleFullscreen = () => {
     setIsFullscreen(true);
   };
+
+  // Create handlers for selection that will be passed to both ExcelViewer instances
+  const handleSelectionChange = (newSelections: Selection[]) => {
+    setSelections(newSelections);
+  };
+
+  const handleSelectingChange = (selecting: boolean) => {
+    setIsSelecting(selecting);
+  };
+
   return (
     <>
-      <ExcelViewer {...props} onToggleFullscreen={handleToggleFullscreen} />
+      <ExcelViewer
+        {...props}
+        onToggleFullscreen={handleToggleFullscreen}
+        // Pass selection state and handlers
+        selections={selections}
+        setSelections={handleSelectionChange}
+        isSelecting={isSelecting}
+        setIsSelecting={handleSelectingChange}
+        anchorSelectionStart={anchorSelectionStart}
+      />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
-          {/* Render ExcelViewer inside the fullscreen dialog, passing the fullscreen prop */}
+          {/* Render ExcelViewer inside the fullscreen dialog, passing the same selection state */}
           <ExcelViewer
             {...props}
             isFullscreenMode={true}
             onToggleFullscreen={() => setIsFullscreen(false)}
+            // Pass the same selection state and handlers
+            selections={selections}
+            setSelections={handleSelectionChange}
+            isSelecting={isSelecting}
+            setIsSelecting={handleSelectingChange}
+            anchorSelectionStart={anchorSelectionStart}
           />
           <div className="absolute top-4 right-4 z-50">
-            {" "}
-            {/* Increased z-index for the close button */}
             <Button
               variant="outline"
               size="sm"
