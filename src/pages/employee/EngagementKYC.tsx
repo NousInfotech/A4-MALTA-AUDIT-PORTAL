@@ -51,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "@/components/kyc/KYCDocumentRequestModal";
 import { KYCClientDocumentUpload } from "@/components/kyc/KYCClientDocumentUpload";
+import { AddDocumentRequestModal } from "@/components/kyc/AddDocumentRequestModal";
 
 interface Engagement {
   _id: string;
@@ -79,6 +80,7 @@ interface KYCWorkflow {
     documents: Array<{
       name: string;
       type: 'direct' | 'template';
+      description?: string;
       url?: string;
       template?: {
         url?: string;
@@ -335,6 +337,9 @@ export function EngagementKYC() {
   const handleViewDetails = async (kyc: KYCWorkflow) => {
     try {
       const fullKYC = await kycApi.getById(kyc._id);
+      console.log('Full KYC loaded:', fullKYC);
+      console.log('KYC engagement field:', fullKYC.engagement);
+      console.log('KYC engagement._id:', fullKYC.engagement?._id);
       setSelectedKYC(fullKYC);
       setShowDetails(true);
     } catch (error: any) {
@@ -539,16 +544,16 @@ export function EngagementKYC() {
                     <h4 className="font-semibold text-gray-900 mb-2">Documents</h4>
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm text-gray-700">
-                        <span>Total</span>
-                        <span>{workflow.documentRequests?.[0]?.documents?.length || 0}</span>
+                        <span>Requests</span>
+                        <span>{workflow.documentRequests?.length || 0}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-700">
+                        <span>Total Docs</span>
+                        <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.length || 0), 0) || 0}</span>
                       </div>
                       <div className="flex justify-between text-sm text-gray-700">
                         <span>Uploaded</span>
-                        <span>{workflow.documentRequests?.[0]?.documents?.filter(d => d.status === 'uploaded' || d.status === 'approved').length || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>In Review</span>
-                        <span>{workflow.documentRequests?.[0]?.documents?.filter(d => d.status === 'in-review').length || 0}</span>
+                        <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.filter(d => d.status === 'uploaded' || d.status === 'approved').length || 0), 0) || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -580,13 +585,41 @@ export function EngagementKYC() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">KYC Workflow Details</h2>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowDetails(false)}
-                  className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                >
-                  Close
-                </Button>
+                <div className="flex items-center gap-2">
+                  <AddDocumentRequestModal
+                    kycId={selectedKYC._id}
+                    engagementId={typeof selectedKYC.engagement === 'object' ? selectedKYC.engagement._id : selectedKYC.engagement}
+                    clientId={selectedKYC.clientId}
+                    onSuccess={async () => {
+                      await fetchKYCWorkflows();
+                      const updatedKYC = await kycApi.getById(selectedKYC._id);
+                      setSelectedKYC(updatedKYC);
+                    }}
+                    trigger={
+                      <Button 
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => {
+                          console.log('=== Opening Add Document Request Modal ===');
+                          console.log('Selected KYC:', selectedKYC);
+                          console.log('KYC ID:', selectedKYC._id);
+                          console.log('Engagement (raw):', selectedKYC.engagement);
+                          console.log('Engagement ID to use:', typeof selectedKYC.engagement === 'object' ? selectedKYC.engagement._id : selectedKYC.engagement);
+                          console.log('Client ID:', selectedKYC.clientId);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Document Request
+                      </Button>
+                    }
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowDetails(false)}
+                    className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
               
               <div className="space-y-6">
@@ -651,62 +684,96 @@ export function EngagementKYC() {
                 {selectedKYC.documentRequests && selectedKYC.documentRequests.length > 0 && (
                   <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
                     <CardHeader>
-                      <CardTitle className="text-gray-900">Document Requests</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-gray-900">Document Requests ({selectedKYC.documentRequests.length})</CardTitle>
+                        <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
+                          {selectedKYC.documentRequests.length} Request{selectedKYC.documentRequests.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      {selectedKYC.documentRequests.map((docRequest, index) => (
-                        <div key={index} className="mb-6 last:mb-0">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
-                            <Badge variant="outline" className="text-gray-600 border-gray-600 bg-gray-50">
-                              {docRequest.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            {docRequest.documents?.map((doc, docIndex) => (
-                              <div key={docIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  {doc.type === 'template' ? (
-                                    <FileEdit className="h-5 w-5 text-gray-600" />
-                                  ) : (
-                                    <FileUp className="h-5 w-5 text-gray-600" />
-                                  )}
-                                  <div>
-                                    <p className="font-medium text-gray-900">{doc.name}</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      {doc.type === 'template' ? (
-                                        <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                          Template
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                          Direct
-                                        </Badge>
-                                      )}
-                                      <Badge variant="outline" className="text-gray-600 border-gray-300">
-                                        {doc.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
+                      <div className="space-y-6">
+                        {selectedKYC.documentRequests.map((docRequest, index) => (
+                          <div key={docRequest._id || index} className="pb-6 last:pb-0 border-b last:border-b-0">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <span className="text-sm font-bold text-blue-600">{index + 1}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  {doc.url && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => window.open(doc.url, '_blank')}
-                                      className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </Button>
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{docRequest.name || `Document Request ${index + 1}`}</h4>
+                                  {docRequest.description && (
+                                    <p className="text-sm text-gray-600">{docRequest.description}</p>
                                   )}
                                 </div>
                               </div>
-                            ))}
+                              <Badge variant="outline" className="text-gray-600 border-gray-600 bg-gray-50">
+                                {docRequest.status}
+                              </Badge>
+                            </div>
+                            
+                            {docRequest.documents && docRequest.documents.length > 0 ? (
+                              <div className="space-y-3">
+                                {docRequest.documents.map((doc, docIndex) => (
+                                  <div key={docIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                      {doc.type === 'template' ? (
+                                        <FileEdit className="h-5 w-5 text-blue-600" />
+                                      ) : (
+                                        <FileUp className="h-5 w-5 text-green-600" />
+                                      )}
+                                      <div>
+                                        <p className="font-medium text-gray-900">{doc.name}</p>
+                                        {doc.description && (
+                                          <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
+                                        )}
+                                        <div className="flex items-center gap-2 mt-1">
+                                          {doc.type === 'template' ? (
+                                            <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
+                                              Template
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                                              Direct
+                                            </Badge>
+                                          )}
+                                          <Badge variant="outline" className="text-gray-600 border-gray-300">
+                                            {doc.status}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {doc.url && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            console.log('Opening document:', {
+                                              name: doc.name,
+                                              url: doc.url,
+                                              type: doc.type,
+                                              description: doc.description
+                                            });
+                                            window.open(doc.url, '_blank');
+                                          }}
+                                          className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-4 text-gray-500 text-sm">
+                                No documents in this request yet
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
                 )}

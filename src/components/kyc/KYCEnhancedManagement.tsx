@@ -366,7 +366,7 @@ export const KYCEnhancedManagement = ({
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               {userRole === 'auditor' && engagementId && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
@@ -399,7 +399,7 @@ export const KYCEnhancedManagement = ({
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-            </div>
+            </div> */}
           </div>
         </CardHeader>
         <CardContent className="p-6">
@@ -680,7 +680,7 @@ export const KYCEnhancedManagement = ({
                                         onClick={() => window.open(doc.url, '_blank')}
                                         className="border-gray-300 hover:bg-gray-100 text-gray-700"
                                       >
-                                        <Download className="h-4 w-4" />
+                                        <Eye className="h-4 w-4" />
                                       </Button>
                                     )}
                                   </div>

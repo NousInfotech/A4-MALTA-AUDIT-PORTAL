@@ -141,6 +141,7 @@ export const documentRequestApi = {
   create: async (data: {
     engagementId: string;
     clientId: string;
+    name?: string;
     category: string;
     description: string;
     comment?: string;

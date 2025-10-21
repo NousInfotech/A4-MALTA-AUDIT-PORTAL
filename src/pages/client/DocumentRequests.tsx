@@ -451,9 +451,9 @@ export const DocumentRequests = () => {
                         </div>
 
                         {uploadingFiles[request._id] && (
-                          <div className="mt-4 flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
-                            <span className="text-sm text-gray-600">
+                          <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            <span className="text-sm text-blue-600 font-medium">
                               Uploading files...
                             </span>
                           </div>
@@ -544,6 +544,32 @@ export const DocumentRequests = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
+                                  onClick={() => {
+                                    if (doc.url) {
+                                      console.log('Opening document:', {
+                                        name: doc.name,
+                                        url: doc.url,
+                                        type: doc.type
+                                      });
+                                      
+                                      // Check if it's a PDF file
+                                      if (doc.url.toLowerCase().includes('.pdf') || doc.name.toLowerCase().endsWith('.pdf')) {
+                                        // For PDFs, open in a new tab
+                                        window.open(doc.url, '_blank');
+                                      } else {
+                                        // For other files, try to download or open
+                                        const link = document.createElement('a');
+                                        link.href = doc.url;
+                                        link.download = doc.name;
+                                        link.target = '_blank';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }
+                                    } else {
+                                      console.error('No URL found for document:', doc);
+                                    }
+                                  }}
                                   className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl"
                                 >
                                   <Download className="h-4 w-4" />
