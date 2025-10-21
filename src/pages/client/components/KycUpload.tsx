@@ -21,7 +21,7 @@ import {
 import React, { useState } from "react";
 import { deleteDocumentRequestsbyId } from "@/lib/api/documentRequests";
 import { toast } from "sonner";
-import { supabase } from '@/integrations/supabase/client';
+import { documentRequestApi } from "@/services/api";
 
 function KycUpload({
   kycRequests,
@@ -47,25 +47,8 @@ function KycUpload({
       formData.append('uploadedFileName', file.name); // Store the actual uploaded file name
       formData.append('markCompleted', 'true');
       
-      // Call the upload API directly
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      
-      const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
-      const response = await fetch(`${API_URL}/api/document-requests/${reqId}/documents`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${data.session?.access_token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(errorData.message || 'Upload failed');
-      }
-
-      const result = await response.json();
+      // Use the centralized API service
+      const result = await documentRequestApi.uploadDocuments(reqId, formData);
       console.log('Upload successful:', result);
       
       // Set success status
@@ -96,32 +79,99 @@ function KycUpload({
     }
   };
 
-  const handleDownloadTemplate = (templateUrl: string, documentName: string) => {
-    const link = document.createElement('a');
-    link.href = templateUrl;
-    link.download = `${documentName}_template`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success(`${documentName} template has been downloaded`);
-  };
-
-  const handleViewDocument = (url: string, documentName: string) => {
-    // Check if it's a PDF file
-    if (url.toLowerCase().includes('.pdf') || documentName.toLowerCase().endsWith('.pdf')) {
-      // For PDFs, open in a new tab
-      window.open(url, '_blank');
-    } else {
-      // For other files, try to download or open
+  const handleDownloadTemplate = async (templateUrl: string, documentName: string) => {
+    try {
+      console.log('Starting template download:', { templateUrl, documentName });
+      
+      const blob = await documentRequestApi.downloadTemplate(templateUrl);
+      console.log('Template download successful');
+      
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = documentName;
-      link.target = '_blank';
+      link.download = `${documentName}_template`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`${documentName} template has been downloaded`);
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback: open in new tab
+      window.open(templateUrl, '_blank');
+      toast.success(`${documentName} template has been opened in a new tab`);
+    }
+  };
+
+  const getFileExtension = (filename: string): string => {
+    return filename.split('.').pop()?.toLowerCase() || '';
+  };
+
+  const getMimeType = (extension: string): string => {
+    const mimeTypes: Record<string, string> = {
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'txt': 'text/plain',
+      'zip': 'application/zip',
+    };
+    return mimeTypes[extension] || 'application/octet-stream';
+  };
+
+  const handleViewDocument = async (url: string, documentName: string, uploadedFileName?: string) => {
+    try {
+      // Use uploadedFileName if available, otherwise fall back to documentName
+      const actualFileName = uploadedFileName || documentName;
+      const fileExtension = getFileExtension(actualFileName);
+      
+      console.log('Opening document:', {
+        url,
+        documentName,
+        uploadedFileName,
+        actualFileName,
+        fileExtension
+      });
+
+      // For PDFs, open in a new tab to view directly
+      if (fileExtension === 'pdf') {
+        window.open(url, '_blank');
+        return;
+      }
+
+      // For other files, download with proper filename and extension
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch document');
+      }
+
+      const blob = await response.blob();
+      const mimeType = getMimeType(fileExtension);
+      
+      // Create a new blob with the correct MIME type
+      const typedBlob = new Blob([blob], { type: mimeType });
+      const downloadUrl = window.URL.createObjectURL(typedBlob);
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = actualFileName; // Use the actual filename with extension
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the object URL
+      window.URL.revokeObjectURL(downloadUrl);
+      
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      // Fallback: open in new tab
+      window.open(url, '_blank');
     }
   };
 
@@ -321,9 +371,10 @@ function KycUpload({
                       // Check if this document has been uploaded (has a URL)
                       const isUploaded = doc.url && doc.status !== 'pending';
                       const isPending = doc.status === 'pending' && !doc.url;
+                      const isTemplate = doc.type === 'template';
                       
-                      // Only show pending documents or uploaded documents
-                      if (!isPending && !isUploaded) return null;
+                      // Show pending documents, uploaded documents, or template documents
+                      if (!isPending && !isUploaded && !isTemplate) return null;
                       
                       return (
                       <div
@@ -367,7 +418,7 @@ function KycUpload({
                                 )}
                                 
                                 <div className="flex items-center gap-2">
-                                  {doc.template.url && (
+                                  {doc.template.url ? (
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -377,6 +428,10 @@ function KycUpload({
                                       <Download className="h-4 w-4 mr-1" />
                                       Download Template
                                     </Button>
+                                  ) : (
+                                    <div className="text-sm text-gray-500 italic">
+                                      Template file not available
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -388,7 +443,7 @@ function KycUpload({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleViewDocument(doc.url, doc.name)}
+                                  onClick={() => handleViewDocument(doc.url, doc.name, doc.uploadedFileName)}
                                   className="text-green-600 border-green-200 hover:bg-green-50"
                                 >
                                   <Eye className="h-4 w-4 mr-1" />

@@ -40,6 +40,7 @@ interface Document {
     url?: string;
     instruction?: string;
   };
+  templateFile?: File; // Store the file temporarily before upload
   status: 'pending';
 }
 
@@ -71,7 +72,7 @@ export function AddDocumentRequestModal({
       instruction: ''
     }
   });
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   const handleAddDocument = () => {
@@ -91,6 +92,7 @@ export function AddDocumentRequestModal({
       template: newDocument.type === 'template' ? {
         instruction: newDocument.template?.instruction?.trim() || ''
       } : undefined,
+      templateFile: newDocument.type === 'template' ? currentTemplateFile || undefined : undefined,
       status: 'pending'
     };
 
@@ -103,7 +105,7 @@ export function AddDocumentRequestModal({
         instruction: ''
       }
     });
-    setTemplateFile(null);
+    setCurrentTemplateFile(null);
   };
 
   const handleRemoveDocument = (index: number) => {
@@ -113,20 +115,12 @@ export function AddDocumentRequestModal({
   const handleTemplateUpload = async (file: File) => {
     try {
       setLoading(true);
-      const formData = new FormData();
-      formData.append('file', file);
+      console.log('Uploading template file:', file.name);
       
-      const uploadResponse = await fetch('/api/upload/template', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await documentRequestApi.uploadTemplate(file);
+      console.log('Template upload successful:', response);
       
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload template');
-      }
-      
-      const { url } = await uploadResponse.json();
-      return url;
+      return response.url;
     } catch (error) {
       console.error('Template upload error:', error);
       throw error;
@@ -160,15 +154,26 @@ export function AddDocumentRequestModal({
       // Process documents with template uploads
       const processedDocuments = await Promise.all(
         documents.map(async (doc) => {
-          if (doc.type === 'template' && templateFile) {
-            const templateUrl = await handleTemplateUpload(templateFile);
-            return {
-              ...doc,
-              template: {
-                ...doc.template,
-                url: templateUrl
-              }
-            };
+          if (doc.type === 'template' && doc.templateFile) {
+            try {
+              const templateUrl = await handleTemplateUpload(doc.templateFile);
+              return {
+                ...doc,
+                template: {
+                  ...doc.template,
+                  url: templateUrl
+                },
+                templateFile: undefined // Remove the file from the final object
+              };
+            } catch (error) {
+              console.error(`Failed to upload template for document: ${doc.name}`, error);
+              toast({
+                title: "Template Upload Failed",
+                description: `Failed to upload template for "${doc.name}". Please try again.`,
+                variant: "destructive",
+              });
+              throw error; // Re-throw to stop the entire process
+            }
           }
           return doc;
         })
@@ -227,7 +232,7 @@ export function AddDocumentRequestModal({
           instruction: ''
         }
       });
-      setTemplateFile(null);
+      setCurrentTemplateFile(null);
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
@@ -383,7 +388,7 @@ export function AddDocumentRequestModal({
                       id="templateFile"
                       type="file"
                       accept=".pdf,.doc,.docx,.xls,.xlsx"
-                      onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+                      onChange={(e) => setCurrentTemplateFile(e.target.files?.[0] || null)}
                     />
                     <p className="text-xs text-gray-600 mt-1">
                       Upload a template file that clients will download and fill out

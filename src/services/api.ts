@@ -220,6 +220,34 @@ export const documentRequestApi = {
   getStats: async (engagementId: string, category?: string) => {
     const params = category ? `?category=${category}` : '';
     return apiCall(`/api/document-requests/${engagementId}/stats${params}`);
+  },
+
+  uploadTemplate: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return apiCall('/api/document-requests/template/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  downloadTemplate: async (templateUrl: string) => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(`${API_URL}/api/document-requests/template/download?templateUrl=${encodeURIComponent(templateUrl)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to download template');
+    }
+    
+    return response.blob();
   }
 };
 

@@ -544,27 +544,67 @@ export const DocumentRequests = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (doc.url) {
-                                      console.log('Opening document:', {
-                                        name: doc.name,
-                                        url: doc.url,
-                                        type: doc.type
-                                      });
-                                      
-                                      // Check if it's a PDF file
-                                      if (doc.url.toLowerCase().includes('.pdf') || doc.name.toLowerCase().endsWith('.pdf')) {
-                                        // For PDFs, open in a new tab
-                                        window.open(doc.url, '_blank');
-                                      } else {
-                                        // For other files, try to download or open
+                                      try {
+                                        // Use uploadedFileName if available, otherwise fall back to doc.name
+                                        const actualFileName = doc.uploadedFileName || doc.name;
+                                        const fileExtension = actualFileName.split('.').pop()?.toLowerCase() || '';
+                                        
+                                        console.log('Opening document:', {
+                                          name: doc.name,
+                                          uploadedFileName: doc.uploadedFileName,
+                                          actualFileName,
+                                          fileExtension,
+                                          url: doc.url
+                                        });
+                                        
+                                        // For PDFs, open in a new tab to view directly
+                                        if (fileExtension === 'pdf') {
+                                          window.open(doc.url, '_blank');
+                                          return;
+                                        }
+
+                                        // For other files, download with proper filename and extension
+                                        const response = await fetch(doc.url);
+                                        if (!response.ok) {
+                                          throw new Error('Failed to fetch document');
+                                        }
+
+                                        const blob = await response.blob();
+                                        
+                                        // Create a new blob with the correct MIME type
+                                        const mimeTypes: Record<string, string> = {
+                                          'pdf': 'application/pdf',
+                                          'doc': 'application/msword',
+                                          'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                          'xls': 'application/vnd.ms-excel',
+                                          'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                          'jpg': 'image/jpeg',
+                                          'jpeg': 'image/jpeg',
+                                          'png': 'image/png',
+                                          'gif': 'image/gif',
+                                          'txt': 'text/plain',
+                                          'zip': 'application/zip',
+                                        };
+                                        const mimeType = mimeTypes[fileExtension] || 'application/octet-stream';
+                                        const typedBlob = new Blob([blob], { type: mimeType });
+                                        const downloadUrl = window.URL.createObjectURL(typedBlob);
+                                        
                                         const link = document.createElement('a');
-                                        link.href = doc.url;
-                                        link.download = doc.name;
-                                        link.target = '_blank';
+                                        link.href = downloadUrl;
+                                        link.download = actualFileName; // Use the actual filename with extension
                                         document.body.appendChild(link);
                                         link.click();
                                         document.body.removeChild(link);
+                                        
+                                        // Clean up the object URL
+                                        window.URL.revokeObjectURL(downloadUrl);
+                                        
+                                      } catch (error) {
+                                        console.error('Error downloading document:', error);
+                                        // Fallback: open in new tab
+                                        window.open(doc.url, '_blank');
                                       }
                                     } else {
                                       console.error('No URL found for document:', doc);
