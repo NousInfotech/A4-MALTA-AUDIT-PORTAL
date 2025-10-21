@@ -42,6 +42,7 @@ const destinationFields = [
 ];
 
 const transforms = [
+  { value: "map", label: "MAP" },
   { value: "sum", label: "SUM" },
   { value: "average", label: "AVERAGE" },
   { value: "first", label: "FIRST" },
@@ -67,7 +68,7 @@ export const LinkToFieldModal: React.FC<LinkToFieldModalProps> = ({
   onLink,
 }) => {
   const [destinationField, setDestinationField] = useState("");
-  const [transform, setTransform] = useState("");
+  const [transform, setTransform] = useState("map");
   const [validationType, setValidationType] = useState("");
   const [validationParams, setValidationParams] = useState({
     min: "",
