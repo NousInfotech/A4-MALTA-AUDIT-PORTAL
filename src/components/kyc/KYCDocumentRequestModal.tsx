@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { kycApi } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
   name: string;
@@ -119,8 +120,15 @@ export function KYCDocumentRequestModal({
       const formData = new FormData();
       formData.append('file', file);
       
-      const uploadResponse = await fetch('/api/upload/template', {
+      // Get auth token
+      const { data } = await supabase.auth.getSession();
+      const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
+      
+      const uploadResponse = await fetch(`${API_URL}/api/document-requests/template/upload`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${data.session?.access_token}`
+        },
         body: formData,
       });
       

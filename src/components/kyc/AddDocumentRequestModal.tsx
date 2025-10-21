@@ -85,6 +85,16 @@ export function AddDocumentRequestModal({
       return;
     }
 
+    // Validate template file if type is template
+    if (newDocument.type === 'template' && !currentTemplateFile) {
+      toast({
+        title: "Template File Required",
+        description: "Please upload a template file for template-based documents",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const document: Document = {
       name: newDocument.name.trim(),
       type: newDocument.type || 'direct',
@@ -106,6 +116,11 @@ export function AddDocumentRequestModal({
       }
     });
     setCurrentTemplateFile(null);
+    
+    toast({
+      title: "Document Added",
+      description: `${newDocument.name} has been added to the request`,
+    });
   };
 
   const handleRemoveDocument = (index: number) => {
@@ -152,11 +167,14 @@ export function AddDocumentRequestModal({
       setLoading(true);
 
       // Process documents with template uploads
+      console.log('📤 Processing documents and uploading templates...');
       const processedDocuments = await Promise.all(
         documents.map(async (doc) => {
           if (doc.type === 'template' && doc.templateFile) {
             try {
+              console.log(`  → Uploading template for "${doc.name}"`);
               const templateUrl = await handleTemplateUpload(doc.templateFile);
+              console.log(`  ✅ Template uploaded: ${templateUrl}`);
               return {
                 ...doc,
                 template: {
@@ -166,7 +184,7 @@ export function AddDocumentRequestModal({
                 templateFile: undefined // Remove the file from the final object
               };
             } catch (error) {
-              console.error(`Failed to upload template for document: ${doc.name}`, error);
+              console.error(`  ❌ Failed to upload template for document: ${doc.name}`, error);
               toast({
                 title: "Template Upload Failed",
                 description: `Failed to upload template for "${doc.name}". Please try again.`,
@@ -178,6 +196,8 @@ export function AddDocumentRequestModal({
           return doc;
         })
       );
+      console.log('✅ All templates uploaded successfully');
+      console.log('📋 Processed documents:', JSON.stringify(processedDocuments, null, 2));
 
       // Step 1: Create a new DocumentRequest
       const documentRequestData = {
@@ -190,7 +210,7 @@ export function AddDocumentRequestModal({
       };
 
       console.log('=== Step 1: Creating DocumentRequest ===');
-      console.log('DocumentRequest data:', documentRequestData);
+      console.log('DocumentRequest data:', JSON.stringify(documentRequestData, null, 2));
       console.log('Engagement ID being used:', engagementId);
       
       const response = await documentRequestApi.create(documentRequestData);

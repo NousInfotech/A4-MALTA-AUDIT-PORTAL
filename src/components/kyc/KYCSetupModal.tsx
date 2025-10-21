@@ -37,6 +37,7 @@ interface KYCDocument {
   description: string;
   templateUrl?: string;
   isTemplate: boolean;
+  templateFile?: File;
 }
 
 interface KYCSetupModalProps {
@@ -160,32 +161,28 @@ export function KYCSetupModal({
       name: 'Source of Wealth',
       type: 'required',
       description: 'Documentation proving the source of wealth and income',
-      templateUrl: '/demo-pdfs/sample-agreement.pdf',
-      isTemplate: true,
+      isTemplate: false,
     },
     {
       id: '4',
       name: 'PEP Declaration',
       type: 'required',
       description: 'Politically Exposed Person declaration form',
-      templateUrl: '/demo-pdfs/sample-agreement.pdf',
-      isTemplate: true,
+      isTemplate: false,
     },
     {
       id: '5',
       name: 'Company Activity',
       type: 'required',
       description: 'Detailed description of company business activities',
-      templateUrl: '/demo-pdfs/sample-agreement.pdf',
-      isTemplate: true,
+      isTemplate: false,
     },
     {
       id: '6',
       name: 'Company Profile',
       type: 'required',
       description: 'Complete company profile and corporate structure',
-      templateUrl: '/demo-pdfs/sample-agreement.pdf',
-      isTemplate: true,
+      isTemplate: false,
     },
     {
       id: '7',
@@ -202,6 +199,7 @@ export function KYCSetupModal({
     description: '',
     type: 'required' as 'required' | 'optional',
     isTemplate: false,
+    templateFile: null as File | null,
   });
 
   const handleAddDocument = () => {
@@ -220,11 +218,12 @@ export function KYCSetupModal({
       type: newDocument.type,
       description: newDocument.description,
       isTemplate: newDocument.isTemplate,
-      templateUrl: newDocument.isTemplate ? '/demo-pdfs/sample-agreement.pdf' : undefined,
+      templateFile: newDocument.templateFile || undefined,
+      templateUrl: undefined, // Will be set after upload
     };
 
     setDocuments([...documents, document]);
-    setNewDocument({ name: '', description: '', type: 'required', isTemplate: false });
+    setNewDocument({ name: '', description: '', type: 'required', isTemplate: false, templateFile: null });
     
     toast({
       title: "Document Added",
@@ -260,6 +259,29 @@ export function KYCSetupModal({
     setCurrentStep('preview');
   };
 
+  const uploadTemplateFile = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const { data } = await supabase.auth.getSession();
+    const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
+    
+    const response = await fetch(`${API_URL}/api/document-requests/template/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to upload template file');
+    }
+    
+    const result = await response.json();
+    return result.url;
+  };
+
   const handleCompleteKYC = async () => {
     console.log('🚀 Starting KYC API Integration Process...');
     console.log('📋 KYC Data:', {
@@ -292,26 +314,85 @@ export function KYCSetupModal({
         userEmail: user.email
       });
 
-      // Step 2: Create KYC workflow with document request (API creates DocumentRequest automatically)
-      console.log('🔄 Step 2: Creating KYC workflow with document requirements...');
+      // Step 2: Upload template files if any
+      console.log('📤 Step 2: Uploading template files...');
+      const processedDocuments = await Promise.all(
+        documents.map(async (doc) => {
+          if (doc.isTemplate && doc.templateFile) {
+            try {
+              console.log(`Uploading template for ${doc.name}...`);
+              const templateUrl = await uploadTemplateFile(doc.templateFile);
+              console.log(`✅ Template uploaded for ${doc.name}: ${templateUrl}`);
+              return {
+                ...doc,
+                templateUrl
+              };
+            } catch (error) {
+              console.error(`❌ Failed to upload template for ${doc.name}:`, error);
+              toast({
+                title: "Template Upload Failed",
+                description: `Failed to upload template for ${doc.name}`,
+                variant: "destructive",
+              });
+              throw error;
+            }
+          }
+          return doc;
+        })
+      );
+      console.log('✅ All templates uploaded successfully');
+      console.log('📋 Processed documents:', processedDocuments);
+
+      // Validate that all template documents have URLs
+      const invalidTemplates = processedDocuments.filter(doc => doc.isTemplate && !doc.templateUrl);
+      if (invalidTemplates.length > 0) {
+        const names = invalidTemplates.map(d => d.name).join(', ');
+        console.error('❌ Template documents missing URLs:', invalidTemplates);
+        toast({
+          title: "Template Upload Required",
+          description: `Please upload template files for: ${names}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Step 3: Create KYC workflow with document request (API creates DocumentRequest automatically)
+      console.log('🔄 Step 3: Creating KYC workflow with document requirements...');
+      
+      const mappedDocuments = processedDocuments.map(doc => {
+        const baseDoc = {
+          name: doc.name,
+          type: doc.isTemplate ? 'template' : 'direct',
+        };
+        
+        // Only add template object if document is template-based AND has a URL
+        if (doc.isTemplate && doc.templateUrl) {
+          return {
+            ...baseDoc,
+            template: {
+              url: doc.templateUrl,
+              instruction: doc.description || ''
+            }
+          };
+        }
+        
+        return baseDoc;
+      });
+      
+      console.log('📋 Mapped documents for API:', JSON.stringify(mappedDocuments, null, 2));
+      
       const kycWorkflowData = {
         engagementId: selectedEngagement?._id,
         clientId: selectedEngagement?.clientId,
         auditorId: user.id,
         documentRequest: {
           name: `KYC Documents - ${kycData.clientName || selectedEngagement?.title}`,
-          description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${documents.filter(d => d.type === 'required').map(d => d.name).join(', ')}. Additional instructions: ${kycData.instructions || 'Please ensure all documents are clear and legible.'}`,
-          documents: documents.map(doc => ({
-            name: doc.name,
-            type: doc.type,
-            description: doc.description,
-            templateUrl: doc.templateUrl,
-            isTemplate: doc.isTemplate
-          }))
+          description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${processedDocuments.filter(d => d.type === 'required').map(d => d.name).join(', ')}. Additional instructions: ${kycData.instructions || 'Please ensure all documents are clear and legible.'}`,
+          documents: mappedDocuments
         }
       };
 
-      console.log('📤 Sending KYC workflow data:', kycWorkflowData);
+      console.log('📤 Sending KYC workflow data:', JSON.stringify(kycWorkflowData, null, 2));
       const kycWorkflow = await kycApi.create(kycWorkflowData);
       console.log('✅ KYC workflow created successfully:', {
         kycId: kycWorkflow.kyc._id,
@@ -319,7 +400,7 @@ export function KYCSetupModal({
         documentRequestId: kycWorkflow.kyc.documentRequests?._id
       });
 
-      // Step 3: Prepare final data
+      // Step 4: Prepare final data
       const finalKycData = {
         ...kycData,
         documents,
@@ -335,7 +416,7 @@ export function KYCSetupModal({
       console.log('🎉 KYC API Integration completed successfully!');
       console.log('📊 Final KYC Data:', finalKycData);
 
-      // Step 4: Complete the process
+      // Step 5: Complete the process
       onKYCComplete(finalKycData);
       setCurrentStep('complete');
       
@@ -496,7 +577,7 @@ export function KYCSetupModal({
                       </Badge>
                       {doc.isTemplate && (
                         <Badge variant="outline" className="text-blue-600 border-blue-200">
-                          Template Available
+                          {doc.templateFile ? `Template: ${doc.templateFile.name}` : 'Template Required'}
                         </Badge>
                       )}
                     </div>
@@ -504,17 +585,6 @@ export function KYCSetupModal({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {doc.isTemplate && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownloadTemplate(doc.templateUrl!, doc.name)}
-                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Template
-                  </Button>
-                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -563,6 +633,24 @@ export function KYCSetupModal({
                 />
                 <Label className="text-sm">Provide template</Label>
               </div>
+              {newDocument.isTemplate && (
+                <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <Label htmlFor="templateFile" className="text-sm font-medium">Upload Template File</Label>
+                  <Input
+                    id="templateFile"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setNewDocument(prev => ({ ...prev, templateFile: file }));
+                    }}
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-gray-600">
+                    Upload a template that clients will download, fill out, and re-upload
+                  </p>
+                </div>
+              )}
               <Button onClick={handleAddDocument} className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Document
@@ -650,7 +738,7 @@ export function KYCSetupModal({
                   <span className="font-medium text-gray-900">{doc.name}</span>
                   {doc.isTemplate && (
                     <Badge variant="outline" className="ml-2 text-blue-600 border-blue-200">
-                      Template Available
+                      {doc.templateFile ? `Template: ${doc.templateFile.name}` : 'Template Required'}
                     </Badge>
                   )}
                   <p className="text-sm text-gray-600">{doc.description}</p>
@@ -677,7 +765,7 @@ export function KYCSetupModal({
                     <span className="font-medium text-gray-900">{doc.name}</span>
                     {doc.isTemplate && (
                       <Badge variant="outline" className="ml-2 text-blue-600 border-blue-200">
-                        Template Available
+                        {doc.templateFile ? `Template: ${doc.templateFile.name}` : 'Template Required'}
                       </Badge>
                     )}
                     <p className="text-sm text-gray-600">{doc.description}</p>
