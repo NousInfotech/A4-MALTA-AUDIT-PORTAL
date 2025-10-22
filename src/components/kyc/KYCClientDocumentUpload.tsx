@@ -70,6 +70,12 @@ export function KYCClientDocumentUpload({
     try {
       setLoading(true);
       const response = await documentRequestApi.getById(documentRequestId);
+      console.log('Document Request Response:', response);
+      console.log('Documents:', response.documents);
+      response.documents?.forEach((doc, index) => {
+        console.log(`Document ${index}:`, doc);
+        console.log(`Template data:`, doc.template);
+      });
       setDocumentRequest(response);
       onStatusChange?.(response.status);
     } catch (error: any) {
@@ -115,19 +121,45 @@ export function KYCClientDocumentUpload({
     }
   };
 
-  const handleDownloadTemplate = (templateUrl: string, documentName: string) => {
-    const link = document.createElement('a');
-    link.href = templateUrl;
-    link.download = `${documentName}_template`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Template Downloaded",
-      description: `${documentName} template has been downloaded`,
-    });
+  const handleDownloadTemplate = async (templateUrl: string, documentName: string) => {
+    try {
+      // Use the backend download endpoint for proper authentication and file handling
+      const downloadUrl = `/api/document-requests/template/download?templateUrl=${encodeURIComponent(templateUrl)}`;
+      
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${documentName}_template`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Template Downloaded",
+        description: `${documentName} template has been downloaded`,
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback: open in new tab
+      window.open(templateUrl, '_blank');
+      toast({
+        title: "Template Opened",
+        description: `${documentName} template has been opened in a new tab`,
+      });
+    }
   };
 
   const handleViewDocument = (url: string, documentName: string) => {
@@ -280,21 +312,30 @@ export function KYCClientDocumentUpload({
                     )}
 
                     {/* Template Information */}
-                    {doc.type === 'template' && doc.template && (
+                    {doc.type === 'template' && (
                       <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                         <div className="flex items-center gap-2 mb-2">
                           <Info className="h-4 w-4 text-blue-600" />
                           <span className="text-sm font-medium text-blue-800">Template-based Document</span>
                         </div>
                         
-                        {doc.template.instruction && (
+                        {/* Debug Information */}
+                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                          <strong>Debug Info:</strong><br/>
+                          Template exists: {doc.template ? 'Yes' : 'No'}<br/>
+                          Template URL: {doc.template?.url || 'Missing'}<br/>
+                          Template instruction: {doc.template?.instruction || 'Missing'}<br/>
+                          Full template object: {JSON.stringify(doc.template)}
+                        </div>
+                        
+                        {doc.template?.instruction && (
                           <p className="text-sm text-blue-700 mb-2">
                             <strong>Instructions:</strong> {doc.template.instruction}
                           </p>
                         )}
                         
                         <div className="flex items-center gap-2">
-                          {doc.template.url && (
+                          {doc.template?.url ? (
                             <Button
                               variant="outline"
                               size="sm"
@@ -304,6 +345,28 @@ export function KYCClientDocumentUpload({
                               <Download className="h-4 w-4 mr-1" />
                               Download Template
                             </Button>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="text-sm text-red-600">
+                                <strong>Template URL Missing!</strong><br/>
+                                This document is marked as template but has no template URL.
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  toast({
+                                    title: "Template Missing",
+                                    description: "This template was not properly uploaded. Please contact your auditor.",
+                                    variant: "destructive",
+                                  });
+                                }}
+                                className="text-red-600 border-red-200 hover:bg-red-50"
+                              >
+                                <AlertCircle className="h-4 w-4 mr-1" />
+                                Report Issue
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>

@@ -59,6 +59,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "./KYCDocumentRequestModal";
 import { KYCClientDocumentUpload } from "./KYCClientDocumentUpload";
+import { AddDocumentRequestModal } from "./AddDocumentRequestModal";
 
 interface KYCWorkflow {
   _id: string;
@@ -366,7 +367,7 @@ export const KYCEnhancedManagement = ({
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               {userRole === 'auditor' && engagementId && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
@@ -399,7 +400,7 @@ export const KYCEnhancedManagement = ({
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-            </div>
+            </div> */}
           </div>
         </CardHeader>
         <CardContent className="p-6">
@@ -622,13 +623,36 @@ export const KYCEnhancedManagement = ({
                 )}
 
                 {/* Document Requests */}
-                {selectedKYC.documentRequests && selectedKYC.documentRequests.length > 0 && (
                   <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
                     <CardHeader>
+                    <div className="flex items-center justify-between">
                       <CardTitle className="text-gray-900">Document Requests</CardTitle>
+                      {userRole === 'auditor' && (
+                        <AddDocumentRequestModal
+                          kycId={selectedKYC._id}
+                          engagementId={selectedKYC.engagement._id}
+                          clientId={selectedKYC.clientId}
+                          onSuccess={() => {
+                            fetchKYCWorkflows();
+                            // Refresh the selected KYC data
+                            const updatedKYC = kycWorkflows.find(k => k._id === selectedKYC._id);
+                            if (updatedKYC) {
+                              setSelectedKYC(updatedKYC);
+                            }
+                          }}
+                          trigger={
+                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Document Request
+                            </Button>
+                          }
+                        />
+                      )}
+                    </div>
                     </CardHeader>
                     <CardContent>
-                      {selectedKYC.documentRequests.map((docRequest, index) => (
+                    {selectedKYC.documentRequests && selectedKYC.documentRequests.length > 0 ? (
+                      selectedKYC.documentRequests.map((docRequest, index) => (
                         <div key={index} className="mb-6 last:mb-0">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
@@ -673,6 +697,44 @@ export const KYCEnhancedManagement = ({
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
+                                    {doc.template?.url && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={async () => {
+                                          try {
+                                            const downloadUrl = `/api/document-requests/template/download?templateUrl=${encodeURIComponent(doc.template.url)}`;
+                                            
+                                            const response = await fetch(downloadUrl, {
+                                              method: 'GET',
+                                              headers: {
+                                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                              },
+                                            });
+                                            
+                                            if (!response.ok) {
+                                              throw new Error('Failed to download template');
+                                            }
+                                            
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = `${doc.name}_template`;
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                            window.URL.revokeObjectURL(url);
+                                          } catch (error) {
+                                            console.error('Download error:', error);
+                                            window.open(doc.template.url, '_blank');
+                                          }
+                                        }}
+                                        className="border-blue-300 hover:bg-blue-50 text-blue-700"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                     {doc.url && (
                                       <Button
                                         size="sm"
@@ -680,7 +742,7 @@ export const KYCEnhancedManagement = ({
                                         onClick={() => window.open(doc.url, '_blank')}
                                         className="border-gray-300 hover:bg-gray-100 text-gray-700"
                                       >
-                                        <Download className="h-4 w-4" />
+                                        <Eye className="h-4 w-4" />
                                       </Button>
                                     )}
                                   </div>
@@ -689,10 +751,23 @@ export const KYCEnhancedManagement = ({
                             </div>
                           )}
                         </div>
-                      ))}
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <FileText className="h-8 w-8 text-gray-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Document Requests</h3>
+                        <p className="text-gray-600 mb-4">
+                          {userRole === 'auditor' 
+                            ? "No document requests have been created yet. Click 'Add Document Request' to get started."
+                            : "No document requests have been created yet."
+                          }
+                        </p>
+                      </div>
+                    )}
                     </CardContent>
                   </Card>
-                )}
 
                 {/* Discussions - COMMENTED OUT */}
                 {/*

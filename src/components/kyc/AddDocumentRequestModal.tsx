@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,19 +22,15 @@ import {
 } from "@/components/ui/select";
 import {
   FileText,
-  Upload,
-  Download,
   Plus,
   X,
-  AlertCircle,
   CheckCircle,
   FileEdit,
   FileUp,
   Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { kycApi } from "@/services/api";
-import { supabase } from "@/integrations/supabase/client";
+import { kycApi, documentRequestApi } from "@/services/api";
 
 interface Document {
   name: string;
@@ -44,26 +40,29 @@ interface Document {
     url?: string;
     instruction?: string;
   };
+  templateFile?: File; // Store the file temporarily before upload
   status: 'pending';
 }
 
-interface KYCDocumentRequestModalProps {
+interface AddDocumentRequestModalProps {
+  kycId: string;
   engagementId: string;
   clientId: string;
-  engagementName?: string;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
 
-export function KYCDocumentRequestModal({
+export function AddDocumentRequestModal({
+  kycId,
   engagementId,
   clientId,
-  engagementName,
   onSuccess,
   trigger
-}: KYCDocumentRequestModalProps) {
+}: AddDocumentRequestModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [requestName, setRequestName] = useState('');
+  const [requestDescription, setRequestDescription] = useState('');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [newDocument, setNewDocument] = useState<Partial<Document>>({
     name: '',
@@ -73,15 +72,24 @@ export function KYCDocumentRequestModal({
       instruction: ''
     }
   });
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
   const { toast } = useToast();
-
 
   const handleAddDocument = () => {
     if (!newDocument.name?.trim()) {
       toast({
         title: "Error",
         description: "Document name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate template file if type is template
+    if (newDocument.type === 'template' && !currentTemplateFile) {
+      toast({
+        title: "Template File Required",
+        description: "Please upload a template file for template-based documents",
         variant: "destructive",
       });
       return;
@@ -94,6 +102,7 @@ export function KYCDocumentRequestModal({
       template: newDocument.type === 'template' ? {
         instruction: newDocument.template?.instruction?.trim() || ''
       } : undefined,
+      templateFile: newDocument.type === 'template' ? currentTemplateFile || undefined : undefined,
       status: 'pending'
     };
 
@@ -106,7 +115,12 @@ export function KYCDocumentRequestModal({
         instruction: ''
       }
     });
-    setTemplateFile(null);
+    setCurrentTemplateFile(null);
+    
+    toast({
+      title: "Document Added",
+      description: `${newDocument.name} has been added to the request`,
+    });
   };
 
   const handleRemoveDocument = (index: number) => {
@@ -116,28 +130,12 @@ export function KYCDocumentRequestModal({
   const handleTemplateUpload = async (file: File) => {
     try {
       setLoading(true);
-      // Upload template file to get URL
-      const formData = new FormData();
-      formData.append('file', file);
+      console.log('Uploading template file:', file.name);
       
-      // Get auth token
-      const { data } = await supabase.auth.getSession();
-      const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
+      const response = await documentRequestApi.uploadTemplate(file);
+      console.log('Template upload successful:', response);
       
-      const uploadResponse = await fetch(`${API_URL}/api/document-requests/template/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${data.session?.access_token}`
-        },
-        body: formData,
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload template');
-      }
-      
-      const { url } = await uploadResponse.json();
-      return url;
+      return response.url;
     } catch (error) {
       console.error('Template upload error:', error);
       throw error;
@@ -147,19 +145,10 @@ export function KYCDocumentRequestModal({
   };
 
   const handleSubmit = async () => {
-    if (!engagementId || engagementId.trim() === '') {
+    if (!requestName.trim()) {
       toast({
         title: "Error",
-        description: "Engagement ID is required to create KYC workflow",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!clientId || clientId.trim() === '') {
-      toast({
-        title: "Error",
-        description: "Client ID is required to create KYC workflow",
+        description: "Request name is required",
         variant: "destructive",
       });
       return;
@@ -178,42 +167,82 @@ export function KYCDocumentRequestModal({
       setLoading(true);
 
       // Process documents with template uploads
+      console.log('📤 Processing documents and uploading templates...');
       const processedDocuments = await Promise.all(
         documents.map(async (doc) => {
-          if (doc.type === 'template' && templateFile) {
-            const templateUrl = await handleTemplateUpload(templateFile);
-            return {
-              ...doc,
-              template: {
-                ...doc.template,
-                url: templateUrl
-              }
-            };
+          if (doc.type === 'template' && doc.templateFile) {
+            try {
+              console.log(`  → Uploading template for "${doc.name}"`);
+              const templateUrl = await handleTemplateUpload(doc.templateFile);
+              console.log(`  ✅ Template uploaded: ${templateUrl}`);
+              return {
+                ...doc,
+                template: {
+                  ...doc.template,
+                  url: templateUrl
+                },
+                templateFile: undefined // Remove the file from the final object
+              };
+            } catch (error) {
+              console.error(`  ❌ Failed to upload template for document: ${doc.name}`, error);
+              toast({
+                title: "Template Upload Failed",
+                description: `Failed to upload template for "${doc.name}". Please try again.`,
+                variant: "destructive",
+              });
+              throw error; // Re-throw to stop the entire process
+            }
           }
           return doc;
         })
       );
+      console.log('✅ All templates uploaded successfully');
+      console.log('📋 Processed documents:', JSON.stringify(processedDocuments, null, 2));
 
-      // Create KYC workflow with document request
-      const kycData = {
+      // Step 1: Create a new DocumentRequest
+      const documentRequestData = {
         engagementId: engagementId,
         clientId: clientId,
-        documentRequest: {
-          category: 'kyc',
-          description: 'KYC Document Request',
-          documents: processedDocuments
-        }
+        name: requestName.trim(),
+        category: 'kyc',
+        description: requestDescription.trim() || 'Additional KYC Document Request',
+        documents: processedDocuments
       };
 
-      console.log('Creating KYC workflow with data:', kycData);
-      await kycApi.create(kycData);
+      console.log('=== Step 1: Creating DocumentRequest ===');
+      console.log('DocumentRequest data:', JSON.stringify(documentRequestData, null, 2));
+      console.log('Engagement ID being used:', engagementId);
+      
+      const response = await documentRequestApi.create(documentRequestData);
+      console.log('Full API response:', JSON.stringify(response, null, 2));
+      
+      // Extract the actual document request from the response
+      const createdDocumentRequest = response.documentRequest || response;
+      console.log('Extracted DocumentRequest:', createdDocumentRequest);
+      console.log('DocumentRequest._id:', createdDocumentRequest._id);
+      console.log('DocumentRequest.engagement:', createdDocumentRequest.engagement);
+
+      // Step 2: Attach the DocumentRequest to the KYC workflow
+      console.log('=== Step 2: Attaching to KYC ===');
+      console.log('KYC ID:', kycId);
+      console.log('DocumentRequest ID to attach:', createdDocumentRequest._id);
+      console.log('Expected engagement match:', engagementId);
+      
+      const attachPayload = {
+        documentRequestId: createdDocumentRequest._id
+      };
+      console.log('Attach payload:', attachPayload);
+      
+      await kycApi.addDocumentRequest(kycId, attachPayload);
 
       toast({
         title: "Success",
-        description: "KYC workflow created successfully",
+        description: "Document request added to KYC workflow successfully",
       });
 
       // Reset form
+      setRequestName('');
+      setRequestDescription('');
       setDocuments([]);
       setNewDocument({
         name: '',
@@ -223,14 +252,14 @@ export function KYCDocumentRequestModal({
           instruction: ''
         }
       });
-      setTemplateFile(null);
+      setCurrentTemplateFile(null);
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error creating KYC workflow:', error);
+      console.error('Error adding document request to KYC:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create KYC workflow",
+        description: error.message || "Failed to add document request",
         variant: "destructive",
       });
     } finally {
@@ -266,7 +295,7 @@ export function KYCDocumentRequestModal({
         {trigger || (
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="h-4 w-4 mr-2" />
-            Create KYC Workflow
+            Add Document Request
           </Button>
         )}
       </DialogTrigger>
@@ -274,36 +303,38 @@ export function KYCDocumentRequestModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Create KYC Workflow
+            Add Document Request to KYC
           </DialogTitle>
           <DialogDescription>
-            Create a KYC workflow for this engagement. Add documents that clients need to provide for KYC compliance.
+            Create a new document request and add it to this KYC workflow. This allows you to request additional documents from the client.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Document Request Info */}
+          {/* Request Information */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Request Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="engagementDisplay">Engagement</Label>
+                <Label htmlFor="requestName">Request Name *</Label>
                 <Input
-                  id="engagementDisplay"
-                  value={engagementName || 'Current Engagement'}
-                  disabled
-                  className="bg-gray-50"
+                  id="requestName"
+                  placeholder="e.g., Additional Financial Documents"
+                  value={requestName}
+                  onChange={(e) => setRequestName(e.target.value)}
                 />
-                <p className="text-xs text-gray-600 mt-1">
-                  KYC documents will be created for this engagement
-                </p>
-                {(!engagementId || engagementId.trim() === '') && (
-                  <p className="text-xs text-red-600 mt-1">
-                    ⚠️ Engagement ID is missing. Please ensure you're accessing this from an engagement page.
-                  </p>
-                )}
+              </div>
+              <div>
+                <Label htmlFor="requestDescription">Description</Label>
+                <Textarea
+                  id="requestDescription"
+                  placeholder="Describe what documents are needed and why..."
+                  value={requestDescription}
+                  onChange={(e) => setRequestDescription(e.target.value)}
+                  rows={2}
+                />
               </div>
             </CardContent>
           </Card>
@@ -377,7 +408,7 @@ export function KYCDocumentRequestModal({
                       id="templateFile"
                       type="file"
                       accept=".pdf,.doc,.docx,.xls,.xlsx"
-                      onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+                      onChange={(e) => setCurrentTemplateFile(e.target.files?.[0] || null)}
                     />
                     <p className="text-xs text-gray-600 mt-1">
                       Upload a template file that clients will download and fill out
@@ -459,7 +490,7 @@ export function KYCDocumentRequestModal({
           {/* Workflow Information */}
           <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
-              <CardTitle className="text-lg text-blue-800">Workflow Information</CardTitle>
+              <CardTitle className="text-lg text-blue-800">About Document Requests</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -482,6 +513,11 @@ export function KYCDocumentRequestModal({
                   </div>
                 </div>
               </div>
+              <div className="p-3 bg-white rounded-lg">
+                <p className="text-sm text-gray-700">
+                  💡 <strong>Tip:</strong> You can add multiple document requests to the same KYC workflow to organize documents by category (e.g., Financial Documents, Legal Documents, Tax Documents).
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -496,18 +532,18 @@ export function KYCDocumentRequestModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || documents.length === 0 || !engagementId || !clientId}
+              disabled={loading || documents.length === 0 || !requestName.trim()}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating...
+                  Adding...
                 </>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Create KYC Workflow
+                  Add to KYC Workflow
                 </>
               )}
             </Button>
@@ -517,3 +553,4 @@ export function KYCDocumentRequestModal({
     </Dialog>
   );
 }
+
