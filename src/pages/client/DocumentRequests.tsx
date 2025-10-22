@@ -95,10 +95,18 @@ export const DocumentRequests = () => {
     if (user) fetchClientData();
   }, [user, toast]);
 
+  // Filter requests for different tabs
+  // Pending tab: Show ALL pending requests (including KYC)
   const pendingRequests = allRequests.filter((r) => r.status === "pending");
+  
+  // Completed tab: Show all completed requests (including KYC)
   const completedRequests = allRequests.filter((r) => r.status === "completed");
+  
+  // PBC tab: Show all PBC requests regardless of status
   const pbcRequests = allRequests.filter((r) => r.category === "pbc");
-  const kycRequests = allRequests.filter((r) => r.category === "kyc");
+  
+  // KYC tab: Show only pending KYC requests (completed KYC moves to Completed tab)
+  const kycRequests = allRequests.filter((r) => r.category === "kyc" && r.status !== "completed");
 
   const handleFileUpload = async (requestId, files) => {
     if (!files?.length) return;

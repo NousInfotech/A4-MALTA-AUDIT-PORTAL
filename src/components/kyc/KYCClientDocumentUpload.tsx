@@ -138,10 +138,32 @@ export function KYCClientDocumentUpload({
       }
       
       const blob = await response.blob();
+      
+      // Extract file extension from the original Supabase URL
+      const getFileExtension = (url: string): string => {
+        try {
+          // Extract filename from URL (after the last slash)
+          const urlPath = new URL(url).pathname;
+          const filename = urlPath.split('/').pop() || '';
+          
+          // Get extension from filename
+          const extension = filename.split('.').pop();
+          
+          // Return extension with dot if found, otherwise empty string
+          return extension ? `.${extension}` : '';
+        } catch (error) {
+          console.warn('Could not extract extension from URL:', url);
+          return '';
+        }
+      };
+      
+      const fileExtension = getFileExtension(templateUrl);
+      const downloadFilename = `${documentName}_template${fileExtension}`;
+      
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${documentName}_template`;
+      link.download = downloadFilename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
