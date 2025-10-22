@@ -17,6 +17,7 @@ import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
 import { ClassificationSection } from "./ClassificationSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
+import TrialBalanceWorkbook from "../audit-workbooks/TrialBalanceWorkbook";
 
 interface TrialBalanceTabProps {
   engagement: any;
@@ -280,7 +281,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
           {/* Fixed tabs container outside of any table constraints */}
           <div className="flex-shrink-0 border-b bg-gray-50/80 backdrop-blur-sm">
             <div className="px-4 py-2">
-              <TabsList className="grid w-full grid-cols-3 bg-white/80 backdrop-blur-sm border border-white/30 p-1 rounded-xl">
+              <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm border border-white/30 p-1 rounded-xl">
                 <TabsTrigger
                   value="upload"
                   className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
@@ -298,6 +299,19 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                   <span className="hidden sm:inline">Extended TB</span>
                   <span className="sm:hidden">ETB</span>
                 </TabsTrigger>
+
+
+                <TabsTrigger
+                  value="tb-excel"
+                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
+                >
+                  <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">TB Excel</span>
+                  <span className="sm:hidden">Upload</span>
+                </TabsTrigger>
+
+
+
                 <TabsTrigger
                   value="sections"
                   className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
@@ -327,6 +341,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
               engagement={engagement}
               onUploadSuccess={handleUploadSuccess}
             />
+          </TabsContent>
+
+          <TabsContent value="tb-excel" className="flex-1 overflow-hidden">
+            <TrialBalanceWorkbook engagementId={engagement.id}/>
           </TabsContent>
 
           <TabsContent

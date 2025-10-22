@@ -293,6 +293,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   loadExistingData,
   onClassificationJump,
 }) => {
+  useEffect(() => {
+    console.log("CUREENT-Engagement",engagement)
+  }, [engagement])
   const [etbRows, setEtbRows] = useState<ETBRow[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
