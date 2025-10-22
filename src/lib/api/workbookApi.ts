@@ -55,6 +55,7 @@ export interface SaveSheetRequest {
 }
 
 const BASE_URL = "/api/engagements/engagement/classification/excel"; // Your backend endpoint prefix
+const BASE_URL_TRIAL_BALANCE = "/api/engagements/engagement/excel";
 
 export const msDriveworkbookApi = {
   saveWorkbook: async (request: any) => {
@@ -169,9 +170,131 @@ export const msDriveworkbookApi = {
       };
     }
   },
+
+
+
+  // New functions for Trial Balance (not classification-aware in the URL)
+
+  uploadTrialBalanceFile: async (request: any) => {
+    try {
+      const formData = new FormData();
+      formData.append("engagementId", request.engagementId);
+      const fileBlob = new Blob([request.fileBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      formData.append("file", fileBlob, request.fileName);
+
+      const response = await axiosInstance.post(
+        `${BASE_URL_TRIAL_BALANCE}/upload-trial-balance`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+
+  listTrialBalances: async (engagementId: string) => {
+    try {
+      const params: any = { engagementId };
+      const response = await axiosInstance.get(`${BASE_URL_TRIAL_BALANCE}/trial-balances`, {
+        params,
+      });
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+
+  // Reusing general workbook functions for trial balances if they follow the same structure
+  // The BASE_URL would need to be adjusted or passed in dynamically if you want to use the same functions
+  // but target the trial balance specific routes.
+  // For now, these assume the `workbookId` passed refers to a trial balance workbook and the backend handles the path correctly.
+
+  listTrialBalanceWorksheets: async (workbookId: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_URL_TRIAL_BALANCE}/trial-balances/${workbookId}/worksheets` // Adjusted path
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+
+  readTrialBalanceSheet: async (workbookId: string, sheetName: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_URL_TRIAL_BALANCE}/trial-balances/${workbookId}/sheets/${encodeURIComponent(
+          sheetName
+        )}/read` // Adjusted path
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+
+  saveEntireTrialBalanceWorkbook: async (request: any) => {
+    try {
+      const response = await axiosInstance.put(
+        `${BASE_URL_TRIAL_BALANCE}/trial-balances/${request.workbookId}`, // Adjusted path
+        request
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
+
+  saveTrialBalanceSheet: async (request: any) => {
+    try {
+      const response = await axiosInstance.put(
+        `${BASE_URL_TRIAL_BALANCE}/trial-balances/${request.workbookId}/sheets/${request.sheetName}`, // Adjusted path
+        request
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message,
+      };
+    }
+  },
 };
 
+
+
+
+
+
+
+
 // ################################################################################################
+
+
+
+
 export interface MappingCoordinates {
   row: number;
   col: number;
@@ -313,6 +436,25 @@ export const db_WorkbookApi = {
           error: "engagementId is required to list workbooks.",
         };
       }
+
+      const response = await axiosInstance.get(url);
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error listing workbooks for engagement ${engagementId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to list workbooks.",
+      };
+    }
+  },
+
+  listTrialBalanceWorkbooks: async (engagementId: string) => {
+    try {
+      let url = `/api/workbooks/engagement/${engagementId}/trial-balance/list`;
 
       const response = await axiosInstance.get(url);
       return response.data;
@@ -615,7 +757,6 @@ export const db_WorkbookApi = {
     }
   },
 
-
   getWorkbookLogs: async (workbookId: string) => {
     try {
       const response = await axiosInstance.get(
@@ -623,10 +764,7 @@ export const db_WorkbookApi = {
       );
       return response.data;
     } catch (error) {
-      console.error(
-        `Error fetching logs for workbook ${workbookId}:`,
-        error
-      );
+      console.error(`Error fetching logs for workbook ${workbookId}:`, error);
       return {
         success: false,
         error:

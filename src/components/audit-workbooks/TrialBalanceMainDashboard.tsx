@@ -27,7 +27,7 @@ interface MainDashboardProps {
   isLoading: boolean; // This prop likely refers to loading workbooks or initial data for the dashboard
 }
 
-export const MainDashboard: React.FC<MainDashboardProps> = ({
+export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
   workbooks,
   onSelectWorkbook,
   onUploadClick,
@@ -47,7 +47,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-          <h1 className="text-2xl font-bold">Audit&nbsp;Work&nbsp;Book</h1>
+          <h1 className="text-2xl font-bold">Trial&nbsp;Balance</h1>
         </div>
         <div className="flex items-center space-x-4">
           <Avatar>
@@ -67,7 +67,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
-                Upload Workbook
+                Upload&nbsp;Trial&nbsp;Balance
               </CardTitle>
               <CardDescription>
                 Add a new Excel file to start mapping.
@@ -92,7 +92,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
           {/* Recent Workbooks */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Workbooks</CardTitle>
+              <CardTitle>Recent Trial Balances</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {workbooks.map((wb) => (

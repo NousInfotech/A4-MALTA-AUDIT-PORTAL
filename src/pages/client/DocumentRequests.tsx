@@ -451,9 +451,9 @@ export const DocumentRequests = () => {
                         </div>
 
                         {uploadingFiles[request._id] && (
-                          <div className="mt-4 flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
-                            <span className="text-sm text-gray-600">
+                          <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg">
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            <span className="text-sm text-blue-600 font-medium">
                               Uploading files...
                             </span>
                           </div>
@@ -544,6 +544,72 @@ export const DocumentRequests = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
+                                  onClick={async () => {
+                                    if (doc.url) {
+                                      try {
+                                        // Use uploadedFileName if available, otherwise fall back to doc.name
+                                        const actualFileName = doc.uploadedFileName || doc.name;
+                                        const fileExtension = actualFileName.split('.').pop()?.toLowerCase() || '';
+                                        
+                                        console.log('Opening document:', {
+                                          name: doc.name,
+                                          uploadedFileName: doc.uploadedFileName,
+                                          actualFileName,
+                                          fileExtension,
+                                          url: doc.url
+                                        });
+                                        
+                                        // For PDFs, open in a new tab to view directly
+                                        if (fileExtension === 'pdf') {
+                                          window.open(doc.url, '_blank');
+                                          return;
+                                        }
+
+                                        // For other files, download with proper filename and extension
+                                        const response = await fetch(doc.url);
+                                        if (!response.ok) {
+                                          throw new Error('Failed to fetch document');
+                                        }
+
+                                        const blob = await response.blob();
+                                        
+                                        // Create a new blob with the correct MIME type
+                                        const mimeTypes: Record<string, string> = {
+                                          'pdf': 'application/pdf',
+                                          'doc': 'application/msword',
+                                          'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                          'xls': 'application/vnd.ms-excel',
+                                          'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                          'jpg': 'image/jpeg',
+                                          'jpeg': 'image/jpeg',
+                                          'png': 'image/png',
+                                          'gif': 'image/gif',
+                                          'txt': 'text/plain',
+                                          'zip': 'application/zip',
+                                        };
+                                        const mimeType = mimeTypes[fileExtension] || 'application/octet-stream';
+                                        const typedBlob = new Blob([blob], { type: mimeType });
+                                        const downloadUrl = window.URL.createObjectURL(typedBlob);
+                                        
+                                        const link = document.createElement('a');
+                                        link.href = downloadUrl;
+                                        link.download = actualFileName; // Use the actual filename with extension
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        
+                                        // Clean up the object URL
+                                        window.URL.revokeObjectURL(downloadUrl);
+                                        
+                                      } catch (error) {
+                                        console.error('Error downloading document:', error);
+                                        // Fallback: open in new tab
+                                        window.open(doc.url, '_blank');
+                                      }
+                                    } else {
+                                      console.error('No URL found for document:', doc);
+                                    }
+                                  }}
                                   className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl"
                                 >
                                   <Download className="h-4 w-4" />
