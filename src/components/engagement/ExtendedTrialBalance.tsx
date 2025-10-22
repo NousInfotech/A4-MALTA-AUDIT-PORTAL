@@ -1,14 +1,31 @@
 // @ts-nocheck
-import type React from "react"
-import { useState, useEffect, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import type React from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
 import {
   Save,
   Calculator,
@@ -22,11 +39,11 @@ import {
   ExternalLink,
   CloudUpload,
   CloudDownload,
-} from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/integrations/supabase/client"
-import { cn } from "@/lib/utils"
-import { EnhancedLoader } from "../ui/enhanced-loader"
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { EnhancedLoader } from "../ui/enhanced-loader";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -36,26 +53,29 @@ import { EnhancedLoader } from "../ui/enhanced-loader"
 const withClientIds = <T extends object>(rows: T[]) =>
   rows.map((r: any, i: number) => ({
     ...r,
-    id: r.id || r._id || `row-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  }))
+    id:
+      r.id ||
+      r._id ||
+      `row-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  }));
 
 interface ETBRow {
-  id: string
-  code: string
-  accountName: string
-  currentYear: number
-  priorYear: number
-  adjustments: number
-  finalBalance: number
-  classification: string
+  id: string;
+  code: string;
+  accountName: string;
+  currentYear: number;
+  priorYear: number;
+  adjustments: number;
+  finalBalance: number;
+  classification: string;
 }
 
 interface ExtendedTrialBalanceProps {
-  engagement: any
-  trialBalanceData: any
-  onClassificationChange: (classifications: string[]) => void
-  onClassificationJump?: (classification: string) => void
-  loadExistingData: any
+  engagement: any;
+  trialBalanceData: any;
+  onClassificationChange: (classifications: string[]) => void;
+  onClassificationJump?: (classification: string) => void;
+  loadExistingData: any;
 }
 
 /* -------------------------------------------------------
@@ -118,16 +138,30 @@ const CLASSIFICATION_OPTIONS = [
   "Expenses > Finance Costs",
   "Expenses > Other > FX Losses",
   "Expenses > Other > Exceptional/Impairment",
-]
+];
 
 const CLASSIFICATION_RULES = [
-  { keywords: ["bank", "cash", "petty"], classification: "Assets > Current > Cash & Cash Equivalents" },
   {
-    keywords: ["trade receivable", "trade debtor", "accounts receivable", "debtors"],
+    keywords: ["bank", "cash", "petty"],
+    classification: "Assets > Current > Cash & Cash Equivalents",
+  },
+  {
+    keywords: [
+      "trade receivable",
+      "trade debtor",
+      "accounts receivable",
+      "debtors",
+    ],
     classification: "Assets > Current > Trade Receivables",
   },
-  { keywords: ["prepayment", "prepaid", "advance"], classification: "Assets > Current > Prepayments" },
-  { keywords: ["inventory", "stock", "raw materials"], classification: "Assets > Current > Inventory" },
+  {
+    keywords: ["prepayment", "prepaid", "advance"],
+    classification: "Assets > Current > Prepayments",
+  },
+  {
+    keywords: ["inventory", "stock", "raw materials"],
+    classification: "Assets > Current > Inventory",
+  },
   {
     keywords: ["vat recoverable", "input vat", "tax receivable"],
     classification: "Assets > Current > Recoverable VAT/Tax",
@@ -140,64 +174,103 @@ const CLASSIFICATION_RULES = [
     keywords: ["trade payable", "creditors", "accounts payable", "supplier"],
     classification: "Liabilities > Current > Trade Payables",
   },
-  { keywords: ["accrual", "accrued"], classification: "Liabilities > Current > Accruals" },
-  { keywords: ["vat payable", "output vat", "tax payable"], classification: "Liabilities > Current > Taxes Payable" },
-  { keywords: ["loan", "borrowing", "mortgage"], classification: "Liabilities > Non-current > Borrowings (Long-term)" },
-  { keywords: ["share capital", "ordinary shares"], classification: "Equity > Share Capital" },
-  { keywords: ["retained earnings", "profit brought forward"], classification: "Equity > Retained Earnings" },
-  { keywords: ["sales", "revenue", "turnover", "income"], classification: "Income > Operating > Revenue (Goods)" },
-  { keywords: ["salary", "wages", "payroll"], classification: "Expenses > Administrative Expenses > Payroll" },
+  {
+    keywords: ["accrual", "accrued"],
+    classification: "Liabilities > Current > Accruals",
+  },
+  {
+    keywords: ["vat payable", "output vat", "tax payable"],
+    classification: "Liabilities > Current > Taxes Payable",
+  },
+  {
+    keywords: ["loan", "borrowing", "mortgage"],
+    classification: "Liabilities > Non-current > Borrowings (Long-term)",
+  },
+  {
+    keywords: ["share capital", "ordinary shares"],
+    classification: "Equity > Share Capital",
+  },
+  {
+    keywords: ["retained earnings", "profit brought forward"],
+    classification: "Equity > Retained Earnings",
+  },
+  {
+    keywords: ["sales", "revenue", "turnover", "income"],
+    classification: "Income > Operating > Revenue (Goods)",
+  },
+  {
+    keywords: ["salary", "wages", "payroll"],
+    classification: "Expenses > Administrative Expenses > Payroll",
+  },
   {
     keywords: ["rent", "utilities", "electricity"],
     classification: "Expenses > Administrative Expenses > Rent & Utilities",
   },
-  { keywords: ["office", "admin", "stationery"], classification: "Expenses > Administrative Expenses > Office/Admin" },
-  { keywords: ["marketing", "advertising"], classification: "Expenses > Administrative Expenses > Marketing" },
-  { keywords: ["insurance", "premium"], classification: "Expenses > Administrative Expenses > Insurance" },
+  {
+    keywords: ["office", "admin", "stationery"],
+    classification: "Expenses > Administrative Expenses > Office/Admin",
+  },
+  {
+    keywords: ["marketing", "advertising"],
+    classification: "Expenses > Administrative Expenses > Marketing",
+  },
+  {
+    keywords: ["insurance", "premium"],
+    classification: "Expenses > Administrative Expenses > Insurance",
+  },
   {
     keywords: ["depreciation", "amortisation"],
-    classification: "Expenses > Administrative Expenses > Depreciation & Amortisation",
+    classification:
+      "Expenses > Administrative Expenses > Depreciation & Amortisation",
   },
-]
+];
 
 /* -------------------------------------------------------
    Classification split helpers
 ------------------------------------------------------- */
 
 const getClassificationLevels = (classification: string) => {
-  const parts = (classification || "").split(" > ")
-  return { level1: parts[0] || "", level2: parts[1] || "", level3: parts[2] || "" }
-}
-const buildClassification = (l1: string, l2: string, l3: string) => [l1, l2, l3].filter(Boolean).join(" > ")
-const getUniqueLevel1 = () => [...new Set(CLASSIFICATION_OPTIONS.map((opt) => opt.split(" > ")[0]))]
+  const parts = (classification || "").split(" > ");
+  return {
+    level1: parts[0] || "",
+    level2: parts[1] || "",
+    level3: parts[2] || "",
+  };
+};
+const buildClassification = (l1: string, l2: string, l3: string) =>
+  [l1, l2, l3].filter(Boolean).join(" > ");
+const getUniqueLevel1 = () => [
+  ...new Set(CLASSIFICATION_OPTIONS.map((opt) => opt.split(" > ")[0])),
+];
 const getUniqueLevel2 = (l1: string) => [
   ...new Set(
     CLASSIFICATION_OPTIONS.filter((opt) => opt.startsWith(l1))
       .map((opt) => opt.split(" > ")[1])
-      .filter(Boolean),
+      .filter(Boolean)
   ),
-]
+];
 const getUniqueLevel3 = (l1: string, l2: string) => [
   ...new Set(
     CLASSIFICATION_OPTIONS.filter((opt) => opt.startsWith(`${l1} > ${l2}`))
       .map((opt) => opt.split(" > ")[2])
-      .filter(Boolean),
+      .filter(Boolean)
   ),
-]
+];
 const formatClassificationForDisplay = (c: string) => {
-  if (!c) return "—"
-  const parts = c.split(" > ")
-  const top = parts[0]
-  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
-  return top
-}
-const hasNonZeroAdjustments = (rows: ETBRow[]) => rows.some((r) => Number(r.adjustments) !== 0)
+  if (!c) return "—";
+  const parts = c.split(" > ");
+  const top = parts[0];
+  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
+  return top;
+};
+const hasNonZeroAdjustments = (rows: ETBRow[]) =>
+  rows.some((r) => Number(r.adjustments) !== 0);
 
 /* -------------------------------------------------------
    Searchable Combobox (shadcn style)
 ------------------------------------------------------- */
 
-type ComboOption = { value: string; label?: string }
+type ComboOption = { value: string; label?: string };
 function SearchableSelect({
   value,
   onChange,
@@ -208,24 +281,26 @@ function SearchableSelect({
   disabled,
   widthClass = "w-32 sm:w-40",
 }: {
-  value: string
-  onChange: (value: string) => void
-  options: string[] | ComboOption[]
-  placeholder?: string
-  className?: string
-  emptyText?: string
-  disabled?: boolean
-  widthClass?: string
+  value: string;
+  onChange: (value: string) => void;
+  options: string[] | ComboOption[];
+  placeholder?: string;
+  className?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  widthClass?: string;
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
   const normalized = useMemo<ComboOption[]>(
     () =>
       (options as any[]).map((o) =>
-        typeof o === "string" ? { value: o, label: o } : ({ value: o.value, label: o.label ?? o.value } as ComboOption),
+        typeof o === "string"
+          ? { value: o, label: o }
+          : ({ value: o.value, label: o.label ?? o.value } as ComboOption)
       ),
-    [options],
-  )
-  const selectedLabel = normalized.find((o) => o.value === value)?.label
+    [options]
+  );
+  const selectedLabel = normalized.find((o) => o.value === value)?.label;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -235,7 +310,11 @@ function SearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("justify-between text-xs sm:text-sm", widthClass, className)}
+          className={cn(
+            "justify-between text-xs sm:text-sm",
+            widthClass,
+            className
+          )}
           disabled={disabled}
         >
           <span className={cn("truncate", !value && "text-muted-foreground")}>
@@ -245,21 +324,32 @@ function SearchableSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className={cn("p-0", widthClass)}>
-        <Command filter={(val, search) => (val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}>
+        <Command
+          filter={(val, search) =>
+            val.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+          }
+        >
           <CommandInput placeholder={placeholder || "Search..."} />
-          <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">{emptyText}</CommandEmpty>
+          <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+            {emptyText}
+          </CommandEmpty>
           <CommandGroup className="max-h-24 w-auto overflow-auto">
             {normalized.map((opt) => (
               <CommandItem
                 key={opt.value}
                 value={opt.label || opt.value}
                 onSelect={() => {
-                  onChange(opt.value)
-                  setOpen(false)
+                  onChange(opt.value);
+                  setOpen(false);
                 }}
                 className="cursor-pointer"
               >
-                <Check className={cn("mr-2 h-4 w-4", value === opt.value ? "opacity-100" : "opacity-0")} />
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    value === opt.value ? "opacity-100" : "opacity-0"
+                  )}
+                />
                 <span className="truncate">{opt.label}</span>
               </CommandItem>
             ))}
@@ -267,7 +357,7 @@ function SearchableSelect({
         </Command>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 /* -------------------------------------------------------
@@ -275,11 +365,12 @@ function SearchableSelect({
 ------------------------------------------------------- */
 
 async function authFetch(url: string, options: RequestInit = {}) {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  const headers = new Headers(options.headers || {})
-  if (data.session?.access_token) headers.set("Authorization", `Bearer ${data.session.access_token}`)
-  return fetch(url, { ...options, headers })
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const headers = new Headers(options.headers || {});
+  if (data.session?.access_token)
+    headers.set("Authorization", `Bearer ${data.session.access_token}`);
+  return fetch(url, { ...options, headers });
 }
 
 /* -------------------------------------------------------
@@ -293,103 +384,119 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   loadExistingData,
   onClassificationJump,
 }) => {
-  const [etbRows, setEtbRows] = useState<ETBRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [excelUrl, setExcelUrl] = useState<string>("")
-  const { toast } = useToast()
+  const [etbRows, setEtbRows] = useState<ETBRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [excelUrl, setExcelUrl] = useState<string>("");
+  const { toast } = useToast();
 
   // stable key per engagement to persist the workbook URL across remounts/prop hiccups
   const storageKey = useMemo(
     () => `etb_excel_url_${engagement?._id || "unknown"}`,
     [engagement?._id]
-  )
+  );
 
   // rehydrate from localStorage on mount/remount
   useEffect(() => {
     if (!excelUrl) {
       try {
-        const cached = localStorage.getItem(storageKey)
-        if (cached) setExcelUrl(cached)
+        const cached = localStorage.getItem(storageKey);
+        if (cached) setExcelUrl(cached);
       } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey])
+  }, [storageKey]);
 
   // seed local url from props only if empty, and persist it
   useEffect(() => {
     if (!excelUrl && engagement?.excelURL) {
-      setExcelUrl(engagement.excelURL)
-      try { localStorage.setItem(storageKey, engagement.excelURL) } catch {}
+      setExcelUrl(engagement.excelURL);
+      try {
+        localStorage.setItem(storageKey, engagement.excelURL);
+      } catch {}
     }
-  }, [engagement?.excelURL, excelUrl, storageKey])
+  }, [engagement?.excelURL, excelUrl, storageKey]);
 
   // effective url drives the UI (prevents flicker if props go undefined temporarily)
-  const effectiveExcelUrl = excelUrl || engagement?.excelURL || ""
-  const hasWorkbook = !!effectiveExcelUrl
+  const effectiveExcelUrl = excelUrl || engagement?.excelURL || "";
+  const hasWorkbook = !!effectiveExcelUrl;
 
   const refreshClassificationSummary = (rows: ETBRow[]) => {
-    const unique = new Set(rows.map((r) => r.classification).filter(Boolean))
-    if (hasNonZeroAdjustments(rows)) unique.add("Adjustments")
-    onClassificationChange([...unique])
-  }
+    const unique = new Set(rows.map((r) => r.classification).filter(Boolean));
+    if (hasNonZeroAdjustments(rows)) unique.add("Adjustments");
+    onClassificationChange([...unique]);
+  };
 
   // init rows once
   useEffect(() => {
-    if (trialBalanceData && etbRows.length === 0) initializeETB()
+    if (trialBalanceData && etbRows.length === 0) initializeETB();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trialBalanceData])
+  }, [trialBalanceData]);
 
   const autoClassify = (accountName: string): string => {
-    const name = (accountName || "").toLowerCase()
+    const name = (accountName || "").toLowerCase();
     for (const rule of CLASSIFICATION_RULES) {
-      if (rule.keywords.some((keyword) => name.includes(keyword))) return rule.classification
+      if (rule.keywords.some((keyword) => name.includes(keyword)))
+        return rule.classification;
     }
-    return ""
-  }
+    return "";
+  };
 
   const initializeETB = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
-      if (!data.session?.access_token) throw new Error("Not authenticated")
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!data.session?.access_token) throw new Error("Not authenticated");
 
-      const etbResponse = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${data.session.access_token}`,
-        },
-      })
+      const etbResponse = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        }
+      );
 
       if (etbResponse.ok) {
-        const existingETB = await etbResponse.json()
+        const existingETB = await etbResponse.json();
         if (existingETB.rows && existingETB.rows.length > 0) {
-          const rowsWithIds = withClientIds(existingETB.rows)
-          setEtbRows(rowsWithIds)
-          refreshClassificationSummary(rowsWithIds)
+          const rowsWithIds = withClientIds(existingETB.rows);
+          setEtbRows(rowsWithIds);
+          refreshClassificationSummary(rowsWithIds);
           // only seed from props if we don't already have one (effect above also handles this)
           if (!excelUrl && engagement?.excelURL) {
-            setExcelUrl(engagement.excelURL)
-            try { localStorage.setItem(storageKey, engagement.excelURL) } catch {}
+            setExcelUrl(engagement.excelURL);
+            try {
+              localStorage.setItem(storageKey, engagement.excelURL);
+            } catch {}
           }
-          setLoading(false)
-          return
+          setLoading(false);
+          return;
         }
       }
 
-      if (!trialBalanceData?.data) return
+      if (!trialBalanceData?.data) return;
 
-      const [headers, ...rows] = trialBalanceData.data
-      const codeIndex = headers.findIndex((h: string) => h.toLowerCase().includes("code"))
-      const nameIndex = headers.findIndex((h: string) => h.toLowerCase().includes("account name"))
-      const currentYearIndex = headers.findIndex((h: string) => h.toLowerCase().includes("current year"))
-      const priorYearIndex = headers.findIndex((h: string) => h.toLowerCase().includes("prior year"))
+      const [headers, ...rows] = trialBalanceData.data;
+      const codeIndex = headers.findIndex((h: string) =>
+        h.toLowerCase().includes("code")
+      );
+      const nameIndex = headers.findIndex((h: string) =>
+        h.toLowerCase().includes("account name")
+      );
+      const currentYearIndex = headers.findIndex((h: string) =>
+        h.toLowerCase().includes("current year")
+      );
+      const priorYearIndex = headers.findIndex((h: string) =>
+        h.toLowerCase().includes("prior year")
+      );
 
       const etbData: ETBRow[] = rows.map((row: any[], index: number) => {
-        const accountName = row[nameIndex] || ""
-        const currentYear = Number(row[currentYearIndex]) || 0
-        const adjustments = 0
+        const accountName = row[nameIndex] || "";
+        const currentYear = Number(row[currentYearIndex]) || 0;
+        const adjustments = 0;
         return {
           id: `row-${index}-${Date.now()}`,
           code: row[codeIndex] || "",
@@ -399,17 +506,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           adjustments,
           finalBalance: currentYear + adjustments,
           classification: autoClassify(accountName),
-        }
-      })
+        };
+      });
 
-      setEtbRows(etbData)
-      refreshClassificationSummary(etbData)
+      setEtbRows(etbData);
+      refreshClassificationSummary(etbData);
     } catch (error) {
-      console.error("Failed to initialize ETB:", error)
+      console.error("Failed to initialize ETB:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const addNewRow = () => {
     const newRow: ETBRow = {
@@ -421,83 +528,110 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       adjustments: 0,
       finalBalance: 0,
       classification: "",
-    }
-    const newRows = [...etbRows, newRow]
-    setEtbRows(newRows)
-    refreshClassificationSummary(newRows)
-  }
+    };
+    const newRows = [...etbRows, newRow];
+    setEtbRows(newRows);
+    refreshClassificationSummary(newRows);
+  };
 
   const deleteRow = (id: string) => {
-    const newRows = etbRows.filter((row) => row.id !== id)
-    setEtbRows(newRows)
-    refreshClassificationSummary(newRows)
-  }
+    const newRows = etbRows.filter((row) => row.id !== id);
+    setEtbRows(newRows);
+    refreshClassificationSummary(newRows);
+  };
 
   const updateRow = (id: string, field: keyof ETBRow, value: any) => {
     const newRows = etbRows.map((row) => {
-      if (row.id !== id) return row
-      const updatedRow = { ...row, [field]: value }
+      if (row.id !== id) return row;
+      const updatedRow = { ...row, [field]: value };
       if (field === "adjustments" || field === "currentYear") {
-        updatedRow.finalBalance = Number(updatedRow.currentYear) + Number(updatedRow.adjustments)
+        updatedRow.finalBalance =
+          Number(updatedRow.currentYear) + Number(updatedRow.adjustments);
       }
-      return updatedRow
-    })
-    setEtbRows(newRows)
-    refreshClassificationSummary(newRows)
-  }
+      return updatedRow;
+    });
+    setEtbRows(newRows);
+    refreshClassificationSummary(newRows);
+  };
 
   // Save ETB (optionally mute toast)
   const saveETB = async (showToast = true) => {
-    setSaving(true)
+    setSaving(true);
     try {
-      const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
-      if (!data.session?.access_token) throw new Error("Not authenticated")
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!data.session?.access_token) throw new Error("Not authenticated");
 
-      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${data.session.access_token}`,
-        },
-        body: JSON.stringify({ rows: etbRows }),
-      })
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ rows: etbRows }),
+        }
+      );
 
-      if (!response.ok) throw new Error("Failed to save Extended Trial Balance")
+      if (!response.ok)
+        throw new Error("Failed to save Extended Trial Balance");
 
-      refreshClassificationSummary(etbRows)
-      if (showToast) toast({ title: "Success", description: "Extended Trial Balance saved successfully" })
+      refreshClassificationSummary(etbRows);
+      if (showToast)
+        toast({
+          title: "Success",
+          description: "Extended Trial Balance saved successfully",
+        });
     } catch (error: any) {
-      console.error("Save error:", error)
-      toast({ title: "Save failed", description: error.message, variant: "destructive" })
+      console.error("Save error:", error);
+      toast({
+        title: "Save failed",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
-      setSaving(false)
-      loadExistingData()
+      setSaving(false);
+      loadExistingData();
       // DO NOT touch excelUrl here; prevents hiding the buttons
     }
-  }
+  };
 
   /* ---------------------------------------------
      Excel Cloud actions (init/open, push, pull)
   --------------------------------------------- */
 
   async function initializeExcelWorkbook() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/init`, {
-        method: "POST",
-      })
-      if (!res.ok) throw new Error("Failed to initialize Excel workbook.")
-      const json = await res.json()
-      if (!json?.url) throw new Error("Server did not return an Excel URL.")
-      setExcelUrl(json.url)
-      try { localStorage.setItem(storageKey, json.url) } catch {}
-      toast({ title: "Excel initialized", description: "Workbook created. You can now open, push, or fetch." })
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/etb/excel/init`,
+        {
+          method: "POST",
+        }
+      );
+      if (!res.ok) throw new Error("Failed to initialize Excel workbook.");
+      const json = await res.json();
+      if (!json?.url) throw new Error("Server did not return an Excel URL.");
+      setExcelUrl(json.url);
+      try {
+        localStorage.setItem(storageKey, json.url);
+      } catch {}
+      toast({
+        title: "Excel initialized",
+        description: "Workbook created. You can now open, push, or fetch.",
+      });
     } catch (e: any) {
-      console.error(e)
-      toast({ title: "Excel init error", description: e.message || "Something went wrong.", variant: "destructive" })
+      console.error(e);
+      toast({
+        title: "Excel init error",
+        description: e.message || "Something went wrong.",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -507,11 +641,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         title: "Workbook not initialized",
         description: "Click “Initialize Excel” first.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    const popup = window.open("", "_blank")
+    const popup = window.open("", "_blank");
     if (popup) {
       popup.document.write(`
         <html>
@@ -528,55 +662,81 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             <div>Opening your Excel workbook...</div>
           </body>
         </html>
-      `)
+      `);
       // navigate using the effective URL (prevents undefined flicker)
-      popup.location.href = effectiveExcelUrl
+      popup.location.href = effectiveExcelUrl;
     }
-    toast({ title: "Excel Online", description: "Workbook opened in a new tab." })
+    toast({
+      title: "Excel Online",
+      description: "Workbook opened in a new tab.",
+    });
   }
 
   async function pushToCloud() {
-    setLoading(true)
+    setLoading(true);
     try {
-      await saveETB(false) // ensure backend has latest ETB
-      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/push`, {
-        method: "POST",
-      })
-      if (!res.ok) throw new Error("Failed to push ETB to Excel.")
-      const json = await res.json()
+      await saveETB(false); // ensure backend has latest ETB
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/etb/excel/push`,
+        {
+          method: "POST",
+        }
+      );
+      if (!res.ok) throw new Error("Failed to push ETB to Excel.");
+      const json = await res.json();
       if (json?.url) {
-        setExcelUrl(json.url)
-        try { localStorage.setItem(storageKey, json.url) } catch {}
+        setExcelUrl(json.url);
+        try {
+          localStorage.setItem(storageKey, json.url);
+        } catch {}
       }
-      toast({ title: "Pushed", description: "ETB uploaded to Excel Online." })
+      toast({ title: "Pushed", description: "ETB uploaded to Excel Online." });
     } catch (e: any) {
-      console.error(e)
-      toast({ title: "Push failed", description: e.message, variant: "destructive" })
+      console.error(e);
+      toast({
+        title: "Push failed",
+        description: e.message,
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function pullFromCloud() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/pull`, {
-        method: "POST",
-      })
-      if (!res.ok) throw new Error("Failed to fetch data from Excel Online.")
-      const etb = await res.json()
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${
+          engagement._id
+        }/etb/excel/pull`,
+        {
+          method: "POST",
+        }
+      );
+      if (!res.ok) throw new Error("Failed to fetch data from Excel Online.");
+      const etb = await res.json();
       const withIds = (etb.rows || []).map((r: any, i: number) => ({
         id: r.id || `row-${i}-${Date.now()}`,
         ...r,
-      }))
-      setEtbRows(withIds)
-      refreshClassificationSummary(withIds)
-      toast({ title: "Fetched", description: "Latest data pulled from Excel into ETB." })
+      }));
+      setEtbRows(withIds);
+      refreshClassificationSummary(withIds);
+      toast({
+        title: "Fetched",
+        description: "Latest data pulled from Excel into ETB.",
+      });
     } catch (e: any) {
-      console.error(e)
-      toast({ title: "Fetch failed", description: e.message, variant: "destructive" })
+      console.error(e);
+      toast({
+        title: "Fetch failed",
+        description: e.message,
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -593,19 +753,23 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           adjustments: acc.adjustments + Number(row.adjustments) || 0,
           finalBalance: acc.finalBalance + Number(row.finalBalance) || 0,
         }),
-        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 },
+        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
       ),
-    [etbRows],
-  )
+    [etbRows]
+  );
 
-  const unclassifiedRows = etbRows.filter((row) => !row.classification)
+  const unclassifiedRows = etbRows.filter((row) => !row.classification);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <EnhancedLoader variant="pulse" size="lg" text="Loading Extended Trial Balance..." />
+        <EnhancedLoader
+          variant="pulse"
+          size="lg"
+          text="Loading Extended Trial Balance..."
+        />
       </div>
-    )
+    );
   }
 
   /* ---------------------------------------------
@@ -613,47 +777,57 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   --------------------------------------------- */
 
   const ClassificationCombos: React.FC<{ row: ETBRow }> = ({ row }) => {
-    const levels = getClassificationLevels(row.classification)
-    const [level1, setLevel1] = useState(levels.level1)
-    const [level2, setLevel2] = useState(levels.level2)
-    const [level3, setLevel3] = useState(levels.level3)
+    const levels = getClassificationLevels(row.classification);
+    const [level1, setLevel1] = useState(levels.level1);
+    const [level2, setLevel2] = useState(levels.level2);
+    const [level3, setLevel3] = useState(levels.level3);
 
     useEffect(() => {
-      const lv = getClassificationLevels(row.classification)
-      setLevel1(lv.level1)
-      setLevel2(lv.level2)
-      setLevel3(lv.level3)
+      const lv = getClassificationLevels(row.classification);
+      setLevel1(lv.level1);
+      setLevel2(lv.level2);
+      setLevel3(lv.level3);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [row.classification])
+    }, [row.classification]);
 
-    const level2Options = useMemo(() => (level1 ? getUniqueLevel2(level1) : []), [level1])
-    const level3Options = useMemo(() => (level1 && level2 ? getUniqueLevel3(level1, level2) : []), [level1, level2])
+    const level2Options = useMemo(
+      () => (level1 ? getUniqueLevel2(level1) : []),
+      [level1]
+    );
+    const level3Options = useMemo(
+      () => (level1 && level2 ? getUniqueLevel3(level1, level2) : []),
+      [level1, level2]
+    );
 
     const onL1 = (v: string) => {
-      setLevel1(v)
-      setLevel2("")
-      setLevel3("")
-      updateRow(row.id, "classification", buildClassification(v, "", ""))
-    }
+      setLevel1(v);
+      setLevel2("");
+      setLevel3("");
+      updateRow(row.id, "classification", buildClassification(v, "", ""));
+    };
     const onL2 = (v: string) => {
-      setLevel2(v)
-      setLevel3("")
-      updateRow(row.id, "classification", buildClassification(level1, v, ""))
-    }
+      setLevel2(v);
+      setLevel3("");
+      updateRow(row.id, "classification", buildClassification(level1, v, ""));
+    };
     const onL3 = (v: string) => {
-      setLevel3(v)
-      updateRow(row.id, "classification", buildClassification(level1, level2, v))
-    }
+      setLevel3(v);
+      updateRow(
+        row.id,
+        "classification",
+        buildClassification(level1, level2, v)
+      );
+    };
 
     return (
-      <div className="flex flex-col items-start sm:items-center gap-1 sm:gap-2">
+      <div className="flex flex-wrap gap-1 sm:gap-2">
         <SearchableSelect
           value={level1}
           onChange={onL1}
           options={getUniqueLevel1()}
           placeholder="Level 1"
           className="max-h-44 overflow-y-auto"
-          widthClass="w-full sm:w-32"
+          widthClass="w-fit"
         />
         {level2Options.length > 0 && (
           <SearchableSelect
@@ -662,7 +836,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             onChange={onL2}
             options={level2Options}
             placeholder="Level 2"
-            widthClass="w-full sm:w-32"
+            widthClass="w-fit"
           />
         )}
         {level3Options.length > 0 && (
@@ -671,13 +845,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             onChange={onL3}
             options={level3Options}
             placeholder="Level 3"
-            className="max-h-44 max-w-32 overflow-y-auto"
-            widthClass="w-full sm:w-40"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
           />
         )}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -713,7 +887,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     className="text-xs sm:text-sm bg-transparent"
                   >
                     <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Open in Excel Online</span>
+                    <span className="hidden sm:inline">
+                      Open in Excel Online
+                    </span>
                     <span className="sm:hidden">Excel</span>
                   </Button>
                   <Button
@@ -755,7 +931,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 )}
                 Save ETB
               </Button>
-              <Button onClick={addNewRow} variant="outline" size="sm" className="text-xs sm:text-sm bg-transparent">
+              <Button
+                onClick={addNewRow}
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm bg-transparent"
+              >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
@@ -769,7 +950,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             <Alert className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                {unclassifiedRows.length} rows are unclassified. You can save the ETB and classify them later.
+                {unclassifiedRows.length} rows are unclassified. You can save
+                the ETB and classify them later.
               </AlertDescription>
             </Alert>
           )}
@@ -780,8 +962,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className=" bg-muted/50">
                   <TableRow>
-                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">Code</TableHead>
-                    <TableHead className="w-48 text-xs border-b border-r font-bold border-secondary sticky top-0 sm:text-sm">Account Name</TableHead>
+                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">
+                      Code
+                    </TableHead>
+                    <TableHead className="w-48 text-xs border-b border-r font-bold border-secondary sticky top-0 sm:text-sm">
+                      Account Name
+                    </TableHead>
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
                     </TableHead>
@@ -794,27 +980,38 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Final Balance
                     </TableHead>
-                    <TableHead className="w-24 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">Classification</TableHead>
-                    <TableHead className="w-20 text-xs border-b border-secondary sticky top-0 font-bold sm:text-sm">Actions</TableHead>
+                    <TableHead className="w-24 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">
+                      Classification
+                    </TableHead>
+                    <TableHead className="w-20 text-xs border-b border-secondary sticky top-0 font-bold sm:text-sm">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {etbRows.map((row, idx) => (
                     <TableRow
                       key={row.id}
-                      className={cn(idx % 2 === 1 && "bg-muted/20", "hover:bg-muted/40 transition-colors")}
+                      className={cn(
+                        idx % 2 === 1 && "bg-muted/20",
+                        "hover:bg-muted/40 transition-colors"
+                      )}
                     >
                       <TableCell className="border border-r-secondary border-b-secondary ">
                         <Input
                           value={row.code}
-                          onChange={(e) => updateRow(row.id, "code", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.id, "code", e.target.value)
+                          }
                           className="w-[4rem] font-mono text-xs sm:text-sm"
                         />
                       </TableCell>
                       <TableCell className="border border-r-secondary border-b-secondary ">
                         <Input
                           value={row.accountName}
-                          onChange={(e) => updateRow(row.id, "accountName", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.id, "accountName", e.target.value)
+                          }
                           className="w-48 text-xs sm:text-sm"
                         />
                       </TableCell>
@@ -822,45 +1019,85 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                         <Input
                           type="number"
                           value={row.currentYear}
-                          onChange={(e) => updateRow(row.id, "currentYear", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const num = val === "" ? "" : Number(val);
+                            updateRow(row.id, "currentYear", num);
+                          }}
+                          // This runs when the input loses focus (user clicks away)
+                          onBlur={() => {
+                            if (
+                              row.currentYear === "" ||
+                              row.currentYear === null
+                            ) {
+                              updateRow(row.id, "currentYear", 0);
+                            }
+                          }}
                           className="w-24 text-start text-xs sm:text-sm"
-                          step="0.01"
+                          step="0.5"
                         />
                       </TableCell>
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <Input
                           type="number"
                           value={row.priorYear}
-                          onChange={(e) => updateRow(row.id, "priorYear", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const num = val === "" ? "" : Number(val);
+                            updateRow(row.id, "priorYear", num);
+                          }}
+                          // This runs when the input loses focus (user clicks away)
+                          onBlur={() => {
+                            if (
+                              row.priorYear === "" ||
+                              row.priorYear === null
+                            ) {
+                              updateRow(row.id, "priorYear", 0);
+                            }
+                          }}
                           className="w-24 text-start text-xs sm:text-sm"
-                          step="0.01"
+                          step="0.5"
                         />
                       </TableCell>
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <Input
                           type="number"
                           value={row.adjustments}
-                          onChange={(e) => updateRow(row.id, "adjustments", Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const num = val === "" ? "" : Number(val);
+                            updateRow(row.id, "adjustments", num);
+                          }}
+                          // This runs when the input loses focus (user clicks away)
+                          onBlur={() => {
+                            if (
+                              row.adjustments === "" ||
+                              row.adjustments === null
+                            ) {
+                              updateRow(row.id, "adjustments", 0);
+                            }
+                          }}
                           className="w-20 text-start text-xs sm:text-sm"
-                          step="0.01"
+                          step="0.5"
                         />
                       </TableCell>
-                      <TableCell className="w-20 border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
+                      <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
                         {Number(row.finalBalance).toLocaleString()}
                       </TableCell>
-                      <TableCell className="border border-r-secondary border-b-secondary ">
-                        <div className="w-24 flex flex-col items-right justify-start gap-1">
-                        
-                          <Badge
+                      <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
+                        <div className="w-fit flex flex-col items-start gap-1">
+                          {/* <Badge
                             variant="outline"
                             className="cursor-pointer text-xs"
                             title="Jump to section"
-                            onClick={() => row.classification && onClassificationJump?.(row.classification)}
+                            onClick={() =>
+                              row.classification &&
+                              onClassificationJump?.(row.classification)
+                            }
                           >
                             {formatClassificationForDisplay(row.classification)}
-                          </Badge>
+                          </Badge> */}
                           <ClassificationCombos row={row} />
-                          
                         </div>
                       </TableCell>
                       <TableCell className="w-20 border border-b-secondary ">
@@ -879,13 +1116,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
-                    <TableCell colSpan={2} className="border font-bold border-r-secondary text-xs sm:text-sm">
+                    <TableCell
+                      colSpan={2}
+                      className="border font-bold border-r-secondary text-xs sm:text-sm"
+                    >
                       TOTALS
                     </TableCell>
                     <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
                       {totals.currentYear.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">{totals.priorYear.toLocaleString()}</TableCell>
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
+                      {totals.priorYear.toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {totals.adjustments.toLocaleString()}
                     </TableCell>
@@ -902,8 +1144,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           {/* Footer actions & summary */}
           <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
-              {[...new Set(etbRows.map((row) => row.classification).filter(Boolean))].map((classification) => {
-                const count = etbRows.filter((row) => row.classification === classification).length
+              {[
+                ...new Set(
+                  etbRows.map((row) => row.classification).filter(Boolean)
+                ),
+              ].map((classification) => {
+                const count = etbRows.filter(
+                  (row) => row.classification === classification
+                ).length;
                 return (
                   <Badge
                     key={classification}
@@ -914,15 +1162,25 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   >
                     {formatClassificationForDisplay(classification)} ({count})
                   </Badge>
-                )
+                );
               })}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={addNewRow} variant="outline" size="sm" className="text-xs sm:text-sm bg-transparent">
+              <Button
+                onClick={addNewRow}
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm bg-transparent"
+              >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
-              <Button onClick={() => saveETB(true)} disabled={saving} size="sm" className="text-xs sm:text-sm">
+              <Button
+                onClick={() => saveETB(true)}
+                disabled={saving}
+                size="sm"
+                className="text-xs sm:text-sm"
+              >
                 {saving ? (
                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
                 ) : (
@@ -935,7 +1193,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         </CardContent>
       </Card>
     </div>
-  )
-}
+  );
+};
 
-export default ExtendedTrialBalance
+export default ExtendedTrialBalance;
