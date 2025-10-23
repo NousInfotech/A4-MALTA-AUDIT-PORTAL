@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "@/components/kyc/KYCDocumentRequestModal";
 import { AddDocumentRequestModal } from "@/components/kyc/AddDocumentRequestModal";
+import { DefaultDocumentRequestPreview } from "@/components/kyc/DefaultDocumentRequestPreview";
+import { DefaultDocument } from "@/data/defaultDocumentRequests";
 
 interface Engagement {
   _id: string;
@@ -291,7 +293,8 @@ export function EngagementKYC() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {engagementId && (
+              {/* Commented out duplicate Create KYC button in top right */}
+              {/* {engagementId && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
                   clientId={engagement?.clientId || ''}
@@ -304,7 +307,7 @@ export function EngagementKYC() {
                     </Button>
                   }
                 />
-              )}
+              )} */}
               <Button
                 variant="outline"
                 onClick={fetchKYCWorkflows}
@@ -327,7 +330,7 @@ export function EngagementKYC() {
               <p className="text-gray-600 mb-4">
                 No KYC workflows have been created for this engagement yet.
               </p>
-              {engagementId && (
+              {engagementId && kycWorkflows.length === 0 && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
                   clientId={engagement?.clientId || ''}
@@ -372,6 +375,7 @@ export function EngagementKYC() {
           )}
         </CardContent>
       </Card>
+
 
       {/* KYC Details Section - Shows details for all workflows */}
       {kycWorkflows.length > 0 && (

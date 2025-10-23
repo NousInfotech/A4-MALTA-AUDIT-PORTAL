@@ -35,6 +35,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { kycApi } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
+import { DefaultDocumentRequestPreview } from "./DefaultDocumentRequestPreview";
+import { DefaultDocument } from "@/data/defaultDocumentRequests";
 
 interface Document {
   name: string;
@@ -307,6 +309,32 @@ export function KYCDocumentRequestModal({
               </div>
             </CardContent>
           </Card>
+
+          {/* Default Document Request Preview */}
+          <DefaultDocumentRequestPreview
+            onAddDocuments={(selectedDocuments: DefaultDocument[]) => {
+              // Add selected documents to the current documents list
+              const newDocs: Document[] = selectedDocuments.map(doc => ({
+                name: doc.name,
+                type: doc.type,
+                description: doc.description,
+                template: doc.type === 'template' ? {
+                  url: doc.url,
+                  instruction: doc.instruction
+                } : undefined,
+                status: 'pending' as const
+              }));
+              
+              setDocuments(prev => [...prev, ...newDocs]);
+              
+              toast({
+                title: "Documents Added",
+                description: `${selectedDocuments.length} document(s) have been added to the KYC workflow.`,
+              });
+            }}
+            engagementId={engagementId}
+            clientId={clientId}
+          />
 
           {/* Add New Document */}
           <Card>
