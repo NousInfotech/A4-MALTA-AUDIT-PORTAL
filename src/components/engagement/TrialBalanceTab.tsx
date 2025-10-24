@@ -17,7 +17,7 @@ import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
 import { ClassificationSection } from "./ClassificationSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
-import TrialBalanceWorkbook from "../audit-workbooks/TrialBalanceWorkbook";
+import TrialBalanceWorkbookApp from "../audit-workbooks/TrialBalanceWorkbookApp";
 
 interface TrialBalanceTabProps {
   engagement: any;
@@ -344,7 +344,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
           </TabsContent>
 
           <TabsContent value="tb-excel" className="flex-1 overflow-hidden">
-            <TrialBalanceWorkbook engagementId={engagement.id}/>
+            <TrialBalanceWorkbookApp engagement={engagement} engagementId={engagement.id} classification="ETB"/>
           </TabsContent>
 
           <TabsContent

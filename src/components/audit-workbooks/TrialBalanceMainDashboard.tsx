@@ -47,7 +47,7 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
       <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-          <h1 className="text-2xl font-bold">Trial&nbsp;Balance</h1>
+          <h1 className="text-2xl font-bold">Audit&nbsp;Work&nbsp;Book</h1>
         </div>
         <div className="flex items-center space-x-4">
           <Avatar>
@@ -61,13 +61,53 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
 
       {/* Main Content */}
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
-        <div className="grid grid-cols-1 gap-6"> {/* Added responsive grid classes */}
-          {/* Upload Area */}
+        <div className="grid grid-cols-1 gap-6">
+          {" "}
+          {/* Added responsive grid classes */}
+          {/* Main sheets */}
           <Card>
+            <CardHeader>
+              <CardTitle>Master Associated Sheets</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {workbooks
+                .filter((wb) => wb.name === "ETB")
+                .map((wb) => (
+                  <div
+                    key={wb.id}
+                    onClick={() => onSelectWorkbook(wb)}
+                    className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <p className="font-medium text-sm text-green-700">
+                      {wb.name}
+                    </p>
+
+                    {/* <p className="text-xs text-gray-500">
+                    v{wb.version} by {wb.lastModifiedBy || "Unknown"}
+                  </p> */}
+                    {/* If you want a delete button, uncomment this and ensure styling is good */}
+                    {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
+                    delete
+                  </button> */}
+                  </div>
+                ))}
+              {workbooks.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No ETB yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* End Main sheets */}
+
+          {/* Upload Area */}
+          
+          {/* <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Upload className="h-5 w-5" />
-                Upload&nbsp;Trial&nbsp;Balance
+                Upload Workbook
               </CardTitle>
               <CardDescription>
                 Add a new Excel file to start mapping.
@@ -87,15 +127,16 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* Recent Workbooks */}
-          <Card>
+
+          {/* <Card>
             <CardHeader>
-              <CardTitle>Recent Trial Balances</CardTitle>
+              <CardTitle>Recent Workbooks</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {workbooks.map((wb) => (
+              {workbooks.filter((wb) => wb.name !== "ETB").map((wb) => (
                 <div
                   key={wb.id}
                   onClick={() => onSelectWorkbook(wb)}
@@ -105,10 +146,10 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
                   <p className="text-xs text-gray-500">
                     v{wb.version} by {wb.lastModifiedBy || "Unknown"}
                   </p>
-                  {/* If you want a delete button, uncomment this and ensure styling is good */}
-                  {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
+                  
+                  <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
                     delete
-                  </button> */}
+                  </button>
                 </div>
               ))}
               {workbooks.length === 0 && (
@@ -117,10 +158,11 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
                 </p>
               )}
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* Recent Activities */}
-          <Card>
+
+          {/* <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -128,15 +170,15 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-4 mb-4"> {/* Added flex-col for better mobile stacking */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                {" "}
                 <Button onClick={onUploadClick}>Upload New Workbook</Button>
                 <Button onClick={onViewHistoryClick} variant="outline">
                   View All Workbook History
                 </Button>
               </div>
 
-              {/* Render actual workbook logs instead of mockActivities */}
-              {isLoading ? ( // Use the isLoading prop for the main dashboard
+              {isLoading ? (
                 <div className="flex justify-center items-center py-4">
                   <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                   <p className="ml-2 text-gray-700">Loading activities...</p>
@@ -146,17 +188,14 @@ export const TrialBalanceMainDashboard: React.FC<MainDashboardProps> = ({
                   No recent activities.
                 </p>
               ) : (
-                allWorkbookLogs.slice(0, 5).map( // Displaying only the first 5 logs for "Recent Activities"
-                  (log, index) => (
-                    <AuditLogEntryDisplay
-                      key={log.id || index}
-                      log={log}
-                    />
-                  )
-                )
+                allWorkbookLogs
+                  .slice(0, 5)
+                  .map((log, index) => (
+                    <AuditLogEntryDisplay key={log.id || index} log={log} />
+                  ))
               )}
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       </main>
     </div>

@@ -13,16 +13,41 @@ export const getWorkingPapersCloudFileId = async (
 
     const data = response.data;
 
-    // setWorkingPapersInitialized(data.initialized);
+    // (data.initialized);
 
-    // setWorkingPapersUrl(data.url || "");
+    // (data.url );
 
-    // setWorkingPapersId(data.spreadsheetId || "");
+    // (data.spreadsheetId);
 
-    // setAvailableSheets(data.sheets || []);
+    // (data.sheets);
 
     return data;
   } catch (error) {
-    console.error("Error checking working papers status:", error);
+    console.error("Error fetching working paper details:", error);
+  }
+};
+
+export const getETBCloudFileId = async (
+  engagementId: string,
+  classification: string
+) => {
+  try {
+    const response = await axiosInstance.get(
+      `/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(
+        classification
+      )}` // /:id/etb/classification/:classification
+    );
+
+    const data = response.data;
+
+    // data.rows
+    // data.spreadsheetUrl
+    // data.spreadsheetId
+    // data.section
+    // data.message
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching ETB details:", error);
   }
 };
