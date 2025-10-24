@@ -76,6 +76,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                   className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                 >
                   <p className="font-medium text-sm text-green-700">{wb.name}</p>
+                  <p><span className="text-xs italic">including lead sheet</span></p>
                   {/* <p className="text-xs text-gray-500">
                     v{wb.version} by {wb.lastModifiedBy || "Unknown"}
                   </p> */}
