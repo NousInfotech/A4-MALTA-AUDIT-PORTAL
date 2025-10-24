@@ -227,7 +227,11 @@ export function KYCDocumentRequestModal({
       });
       setTemplateFile(null);
       setOpen(false);
-      onSuccess?.();
+      
+      // Call onSuccess callback with a small delay to ensure API has processed
+      setTimeout(() => {
+        onSuccess?.();
+      }, 500);
     } catch (error: any) {
       console.error('Error creating KYC workflow:', error);
       toast({

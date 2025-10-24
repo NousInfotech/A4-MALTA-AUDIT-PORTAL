@@ -113,7 +113,7 @@ export function EngagementKYC() {
     }
   };
 
-  const fetchKYCWorkflows = async () => {
+  const fetchKYCWorkflows = async (retryCount = 0) => {
     if (!engagementId) {
       console.error('No engagement ID provided');
       setLoading(false);
@@ -149,6 +149,15 @@ export function EngagementKYC() {
       if (error.message && error.message.includes('404')) {
         console.log('No KYC workflows found for this engagement (404)');
         setKycWorkflows([]);
+        return;
+      }
+      
+      // Retry logic for network errors
+      if (retryCount < 2 && (error.message === 'Request timeout' || error.message.includes('Network'))) {
+        console.log(`Retrying fetchKYCWorkflows (attempt ${retryCount + 1})`);
+        setTimeout(() => {
+          fetchKYCWorkflows(retryCount + 1);
+        }, 1000 * (retryCount + 1)); // Exponential backoff
         return;
       }
       
@@ -310,7 +319,7 @@ export function EngagementKYC() {
               )} */}
               <Button
                 variant="outline"
-                onClick={fetchKYCWorkflows}
+                onClick={() => fetchKYCWorkflows()}
                 className="border-gray-300 hover:bg-gray-100 text-gray-700"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
