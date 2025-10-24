@@ -322,11 +322,11 @@ export const db_WorkbookApi = {
     }
   },
 
-  updateSheets: async ( workbookId:string, sheetData: any) => {
+  updateSheets: async ( workbookId:string, fileData: any) => {
     try {
       const response = await axiosInstance.post(`${BASE_PATH}/${workbookId}/update-sheets`, {
         
-        sheetData
+        fileData
       });
       return response.data;
     } catch (error) {
