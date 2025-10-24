@@ -567,56 +567,56 @@ export const KYCEnhancedManagement = ({
                 {userRole === 'auditor' && (
                   <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
                     <CardHeader>
-                      <CardTitle className="text-gray-900">Status Management</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-gray-900">Status Management</CardTitle>
+                        {getStatusBadge(selectedKYC.status)}
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center gap-4">
-                        {getStatusBadge(selectedKYC.status)}
-                        <div className="flex gap-2">
-                          {selectedKYC.status !== 'active' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStatusUpdate(selectedKYC._id, 'active')}
-                              className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Set Active
-                            </Button>
-                          )}
-                          {selectedKYC.status !== 'in-review' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStatusUpdate(selectedKYC._id, 'in-review')}
-                              className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              Set In Review
-                            </Button>
-                          )}
-                          {selectedKYC.status !== 'completed' && (
-                            <Button
-                              size="sm"
-                              className="bg-gray-800 hover:bg-gray-900 text-white"
-                              onClick={() => handleStatusUpdate(selectedKYC._id, 'completed')}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Mark Completed
-                            </Button>
-                          )}
-                          {selectedKYC.status === 'completed' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleReopenKYC(selectedKYC._id)}
-                              className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                            >
-                              <RotateCcw className="h-4 w-4 mr-1" />
-                              Reopen KYC
-                            </Button>
-                          )}
-                        </div>
+                      <div className="flex gap-2">
+                        {selectedKYC.status !== 'in-review' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStatusUpdate(selectedKYC._id, 'in-review')}
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            In Review
+                          </Button>
+                        )}
+                        {selectedKYC.status !== 'submitted' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStatusUpdate(selectedKYC._id, 'submitted')}
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                          >
+                            <Upload className="h-4 w-4 mr-1" />
+                            Submitted
+                          </Button>
+                        )}
+                        {selectedKYC.status !== 'completed' && (
+                          <Button
+                            size="sm"
+                            className="bg-gray-800 hover:bg-gray-900 text-white"
+                            onClick={() => handleStatusUpdate(selectedKYC._id, 'completed')}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Mark Completed
+                          </Button>
+                        )}
+                        {selectedKYC.status === 'completed' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReopenKYC(selectedKYC._id)}
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Reopen KYC
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

@@ -408,7 +408,22 @@ export function AddDocumentRequestModal({
                       id="templateFile"
                       type="file"
                       accept=".pdf,.doc,.docx,.xls,.xlsx"
-                      onChange={(e) => setCurrentTemplateFile(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setCurrentTemplateFile(file);
+                        
+                        // Auto-fill document name from filename if it's empty
+                        if (file && !newDocument.name?.trim()) {
+                          const fileName = file.name;
+                          // Remove file extension and clean up the name
+                          const cleanName = fileName
+                            .replace(/\.[^/.]+$/, "") // Remove extension
+                            .replace(/[-_]/g, " ") // Replace dashes and underscores with spaces
+                            .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize first letter of each word
+                          
+                          setNewDocument(prev => ({ ...prev, name: cleanName }));
+                        }
+                      }}
                     />
                     <p className="text-xs text-gray-600 mt-1">
                       Upload a template file that clients will download and fill out

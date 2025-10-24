@@ -12,6 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { engagementApi, documentRequestApi } from "@/services/api";
@@ -26,6 +33,8 @@ import {
   User,
   ArrowLeft,
   Paperclip,
+  Search,
+  Filter,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -44,6 +53,8 @@ export const DocumentRequests = () => {
   const [loading, setLoading] = useState(true);
   const [uploadingFiles, setUploadingFiles] = useState({});
   const [uploadComments, setUploadComments] = useState({});
+  const [kycSearchTerm, setKycSearchTerm] = useState("");
+  const [kycDateFilter, setKycDateFilter] = useState("all"); // "all", "recent", "old"
 
   // Get the active tab from URL parameters
   const activeTab = searchParams.get("tab") || "pending";
@@ -58,28 +69,36 @@ export const DocumentRequests = () => {
         );
         setClientEngagements(clientFiltered);
 
+        // Fetch document requests by engagement
         const promises = clientFiltered.map((e) =>
           documentRequestApi.getByEngagement(e._id).catch(() => [])
         );
         const arrays = await Promise.all(promises);
         console.log("allredocreqs", arrays);
-        const allRequests = arrays.flat();
-        console.log("All requests:", allRequests);
-        console.log("KYC requests:", allRequests.filter((r) => r.category === "kyc"));
+        const engagementRequests = arrays.flat();
+        
+        // Also fetch all KYC requests for this client directly
+        let kycRequests = [];
+        try {
+          const allKYCRequests = await documentRequestApi.getAll();
+          kycRequests = allKYCRequests.filter((r) => r.category === "kyc" && r.clientId === user?.id);
+          console.log("Direct KYC requests for client:", kycRequests);
+        } catch (error) {
+          console.log("Could not fetch KYC requests directly:", error);
+        }
+        
+        // Combine both sources and remove duplicates
+        const allRequests = [...engagementRequests, ...kycRequests];
+        const uniqueRequests = allRequests.filter((request, index, self) => 
+          index === self.findIndex(r => r._id === request._id)
+        );
+        console.log("All requests:", uniqueRequests);
+        console.log("KYC requests:", uniqueRequests.filter((r) => r.category === "kyc"));
+        console.log("KYC requests with statuses:", uniqueRequests.filter((r) => r.category === "kyc").map(r => ({ id: r._id, status: r.status, description: r.description })));
         console.log("Client engagements:", clientFiltered);
         console.log("Current user ID:", user?.id);
         
-        // Temporary: Check all KYC requests in the system
-        try {
-          const allKYCRequests = await documentRequestApi.getAll();
-          const kycOnly = allKYCRequests.filter((r) => r.category === "kyc");
-          console.log("ALL KYC requests in system:", kycOnly);
-          console.log("KYC requests by clientId:", kycOnly.map(k => ({ id: k._id, clientId: k.clientId, engagement: k.engagement })));
-        } catch (error) {
-          console.log("Could not fetch all KYC requests:", error);
-        }
-        
-        setAllRequests(allRequests);
+        setAllRequests(uniqueRequests);
       } catch (err) {
         console.error(err);
         toast({
@@ -95,10 +114,71 @@ export const DocumentRequests = () => {
     if (user) fetchClientData();
   }, [user, toast]);
 
+  // Filter requests for different tabs
+  // Pending tab: Show ALL pending requests (including KYC)
   const pendingRequests = allRequests.filter((r) => r.status === "pending");
+  
+  // Completed tab: Show all completed requests (including KYC)
   const completedRequests = allRequests.filter((r) => r.status === "completed");
+  
+  // PBC tab: Show all PBC requests regardless of status
   const pbcRequests = allRequests.filter((r) => r.category === "pbc");
-  const kycRequests = allRequests.filter((r) => r.category === "kyc");
+  
+  // KYC tab: Show all KYC requests with search and date filtering
+  const allKycRequests = allRequests.filter((r) => r.category === "kyc");
+  
+  // Filter KYC requests based on search term and date filter
+  const kycRequests = allKycRequests.filter((request) => {
+    try {
+      // Search filter
+      const matchesSearch = !kycSearchTerm.trim() || (() => {
+        const searchLower = kycSearchTerm.toLowerCase();
+        const engagementTitle = getEngagementTitle(request.engagement) || '';
+        
+        return (
+          (request.description?.toLowerCase().includes(searchLower)) ||
+          (request.name?.toLowerCase().includes(searchLower)) ||
+          (engagementTitle.toLowerCase().includes(searchLower)) ||
+          (request.status?.toLowerCase().includes(searchLower))
+        );
+      })();
+      
+      // Date filter
+      const matchesDateFilter = (() => {
+        if (kycDateFilter === "all") return true;
+        
+        const requestDate = new Date(request.requestedAt || request.createdAt);
+        const now = new Date();
+        
+        // Set time to start of day for accurate date comparisons
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today.getTime() - (24 * 60 * 60 * 1000));
+        const oneWeekAgo = new Date(today.getTime() - (7 * 24 * 60 * 60 * 1000));
+        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+        
+        // Set request date to start of day for comparison
+        const requestDateStart = new Date(requestDate.getFullYear(), requestDate.getMonth(), requestDate.getDate());
+        
+        switch (kycDateFilter) {
+          case "today":
+            return requestDateStart.getTime() === today.getTime();
+          case "yesterday":
+            return requestDateStart.getTime() === yesterday.getTime();
+          case "week":
+            return requestDateStart >= oneWeekAgo;
+          case "30days":
+            return requestDateStart >= thirtyDaysAgo;
+          default:
+            return true;
+        }
+      })();
+      
+      return matchesSearch && matchesDateFilter;
+    } catch (error) {
+      console.error('Error filtering KYC request:', error, request);
+      return true; // Return true to show the request if there's an error
+    }
+  });
 
   const handleFileUpload = async (requestId, files) => {
     if (!files?.length) return;
@@ -236,8 +316,25 @@ export const DocumentRequests = () => {
       </div>
     );
   }
+
+  // Safety check for user
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Authentication Required</h3>
+          <p className="text-gray-600">Please log in to view document requests.</p>
+        </div>
+      </div>
+    );
+  }
   console.log("allRequests", allRequests);
   console.log("PBCRequests", pbcRequests);
+  console.log("kycRequests", kycRequests);
+  console.log("pendingRequests", pendingRequests);
+  console.log("completedRequests", completedRequests);
+  console.log("loading state:", loading);
+  console.log("user:", user);
 
   return (
     <div className="min-h-screen bg-amber-50 p-6">
@@ -636,7 +733,75 @@ export const DocumentRequests = () => {
           </TabsContent>
           {/* New KYC Tab Content */}
           <TabsContent value="kyc" className="space-y-6">
-            <KycUpload
+            {/* KYC Search and Filter Bar */}
+            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Search Input */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                    <Input
+                      placeholder="Search KYC document requests..."
+                      value={kycSearchTerm}
+                      onChange={(e) => {
+                        try {
+                          console.log('Search term changed:', e.target.value);
+                          setKycSearchTerm(e.target.value);
+                        } catch (error) {
+                          console.error('Error updating search term:', error);
+                        }
+                      }}
+                      className="pl-10 w-full border-gray-300 focus:border-gray-500 rounded-xl"
+                    />
+                  </div>
+                </div>
+                
+                {/* Date Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <Select value={kycDateFilter} onValueChange={setKycDateFilter}>
+                    <SelectTrigger className="w-32 border-gray-300 focus:border-gray-500 rounded-xl">
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="week">Past Week</SelectItem>
+                      <SelectItem value="30days">Past 30 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Results Count */}
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="font-medium">
+                    {kycRequests?.length || 0} of {allKycRequests?.length || 0} requests
+                  </span>
+                </div>
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(kycSearchTerm.trim() || kycDateFilter !== "all") && (
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setKycSearchTerm("");
+                      setKycDateFilter("all");
+                    }}
+                    className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-xl"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* KYC Requests Content */}
+            {kycRequests && kycRequests.length > 0 ? (
+              <KycUpload
               kycRequests={kycRequests}
               getEngagementTitle={getEngagementTitle}
               handleFileUpload={handleFileUpload}
@@ -651,11 +816,29 @@ export const DocumentRequests = () => {
                     );
                     setClientEngagements(clientFiltered);
 
+                    // Fetch document requests by engagement
                     const promises = clientFiltered.map((e) =>
                       documentRequestApi.getByEngagement(e._id).catch(() => [])
                     );
                     const arrays = await Promise.all(promises);
-                    setAllRequests(arrays.flat());
+                    const engagementRequests = arrays.flat();
+                    
+                    // Also fetch all KYC requests for this client directly
+                    let kycRequests = [];
+                    try {
+                      const allKYCRequests = await documentRequestApi.getAll();
+                      kycRequests = allKYCRequests.filter((r) => r.category === "kyc" && r.clientId === user?.id);
+                    } catch (error) {
+                      console.log("Could not fetch KYC requests directly:", error);
+                    }
+                    
+                    // Combine both sources and remove duplicates
+                    const allRequests = [...engagementRequests, ...kycRequests];
+                    const uniqueRequests = allRequests.filter((request, index, self) => 
+                      index === self.findIndex(r => r._id === request._id)
+                    );
+                    
+                    setAllRequests(uniqueRequests);
                   } catch (err) {
                     console.error(err);
                   }
@@ -663,6 +846,39 @@ export const DocumentRequests = () => {
                 fetchClientData();
               }}
             />
+            ) : (
+              <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg shadow-gray-300/30">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Search className="h-10 w-10 text-gray-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  {kycSearchTerm.trim() || kycDateFilter !== "all" 
+                    ? 'No matching KYC requests found' 
+                    : 'No KYC requests available'
+                  }
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  {kycSearchTerm.trim() 
+                    ? `No KYC document requests match your search for "${kycSearchTerm}".`
+                    : kycDateFilter !== "all"
+                    ? `No KYC document requests found for the selected time period.`
+                    : 'You have no KYC document requests at the moment.'
+                  }
+                </p>
+                {(kycSearchTerm.trim() || kycDateFilter !== "all") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setKycSearchTerm("");
+                      setKycDateFilter("all");
+                    }}
+                    className="border-gray-300 hover:bg-gray-100 text-gray-700 rounded-xl"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

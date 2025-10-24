@@ -3,55 +3,28 @@ import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Shield,
   Eye,
-  MessageSquare,
-  Calendar,
-  User,
-  Building2,
   CheckCircle,
   Clock,
-  AlertCircle,
-  Search,
-  Filter,
+  Upload,
   RefreshCw,
   FileText,
   Plus,
-  Send,
   Download,
-  Upload,
   FileEdit,
   FileUp,
   RotateCcw,
-  Play,
-  ArrowLeft,
-  Briefcase
+  Play
 } from "lucide-react";
-import { kycApi, documentRequestApi, engagementApi } from "@/services/api";
+import { kycApi, engagementApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "@/components/kyc/KYCDocumentRequestModal";
-import { KYCClientDocumentUpload } from "@/components/kyc/KYCClientDocumentUpload";
 import { AddDocumentRequestModal } from "@/components/kyc/AddDocumentRequestModal";
+import { DefaultDocumentRequestPreview } from "@/components/kyc/DefaultDocumentRequestPreview";
+import { DefaultDocument } from "@/data/defaultDocumentRequests";
 
 interface Engagement {
   _id: string;
@@ -112,12 +85,6 @@ export function EngagementKYC() {
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [kycWorkflows, setKycWorkflows] = useState<KYCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedKYC, setSelectedKYC] = useState<KYCWorkflow | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -207,16 +174,6 @@ export function EngagementKYC() {
     }
   };
 
-  const filteredWorkflows = kycWorkflows.filter(workflow => {
-    const matchesSearch = 
-      workflow.engagement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      workflow.clientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (workflow.documentRequests?.[0]?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-    
-    const matchesStatus = statusFilter === "all" || workflow.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -303,54 +260,7 @@ export function EngagementKYC() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedKYC) return;
-    
-    setSendingMessage(true);
-    try {
-      await kycApi.addDiscussion(selectedKYC._id, {
-        message: newMessage.trim(),
-        documentRef: null
-      });
-      
-      // Refresh discussions
-      const updatedKYC = await kycApi.getById(selectedKYC._id);
-      setSelectedKYC(updatedKYC);
-      setNewMessage('');
-      
-      toast({
-        title: "Message Sent",
-        description: "Your message has been sent",
-      });
-    } catch (error: any) {
-      console.error('Error sending message:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingMessage(false);
-    }
-  };
 
-  const handleViewDetails = async (kyc: KYCWorkflow) => {
-    try {
-      const fullKYC = await kycApi.getById(kyc._id);
-      console.log('Full KYC loaded:', fullKYC);
-      console.log('KYC engagement field:', fullKYC.engagement);
-      console.log('KYC engagement._id:', fullKYC.engagement?._id);
-      setSelectedKYC(fullKYC);
-      setShowDetails(true);
-    } catch (error: any) {
-      console.error('Error fetching KYC details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load KYC details",
-        variant: "destructive",
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -366,7 +276,6 @@ export function EngagementKYC() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -384,7 +293,8 @@ export function EngagementKYC() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {engagementId && (
+              {/* Commented out duplicate Create KYC button in top right */}
+              {/* {engagementId && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
                   clientId={engagement?.clientId || ''}
@@ -397,7 +307,7 @@ export function EngagementKYC() {
                     </Button>
                   }
                 />
-              )}
+              )} */}
               <Button
                 variant="outline"
                 onClick={fetchKYCWorkflows}
@@ -409,443 +319,246 @@ export function EngagementKYC() {
             </div>
           </div>
         </CardHeader>
+
         <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-                <Input
-                  placeholder="Search by client ID or category..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full border-gray-300 focus:border-gray-500"
-                />
+          {kycWorkflows.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-gray-600" />
               </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
+              <p className="text-gray-600 mb-4">
+                No KYC workflows have been created for this engagement yet.
+              </p>
+              {engagementId && kycWorkflows.length === 0 && (
+                <KYCDocumentRequestModal
+                  engagementId={engagementId}
+                  clientId={engagement?.clientId || ''}
+                  engagementName={engagement?.title}
+                  onSuccess={fetchKYCWorkflows}
+                  trigger={
+                    <Button className="bg-gray-800 hover:bg-gray-900 text-white">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First KYC Workflow
+                    </Button>
+                  }
+                />
+              )}
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full lg:w-48 border-gray-300 focus:border-gray-500">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="in-review">In Review</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="reopened">Reopened</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              {kycWorkflows.map((workflow) => (
+                <div key={workflow._id} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                        <FileText className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">KYC Workflow</h3>
+                        <p className="text-sm text-gray-600">
+                          Client: {workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
+                        </p>
+                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                          <span>{workflow.documentRequests?.length || 0} Document Requests</span>
+                          <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.length || 0), 0) || 0} Total Documents</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getStatusBadge(workflow.status)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Engagement Info */}
-      {engagement && (
+
+      {/* KYC Details Section - Shows details for all workflows */}
+      {kycWorkflows.length > 0 && (
         <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg">
-                <Briefcase className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">{engagement.title}</h3>
-                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                  <span>Client: {engagement.clientId}</span>
-                  <span>Year End: {format(new Date(engagement.yearEndDate), "MMM dd, yyyy")}</span>
-                  <Badge variant="outline" className="text-gray-600 border-gray-600 bg-gray-50">
-                    {engagement.status}
-                  </Badge>
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-gray-900">KYC Workflow Details</CardTitle>
+                  <CardDescription className="text-gray-700">
+                    Manage document requests and workflow status
+                  </CardDescription>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* KYC Workflows */}
-      {filteredWorkflows.length === 0 ? (
-        <Card className="text-center py-12 bg-white border border-gray-200 rounded-2xl shadow-lg">
-          <CardContent>
-            <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-              <Shield className="h-8 w-8 text-gray-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
-            <p className="text-gray-600 mb-4">
-              {searchTerm || statusFilter !== "all"
-                ? "No KYC workflows found matching your criteria."
-                : "No KYC workflows have been created for this engagement yet."}
-            </p>
-            {engagementId && (
-              <KYCDocumentRequestModal
-                engagementId={engagementId}
-                clientId={engagement?.clientId || ''}
-                engagementName={engagement?.title}
-                onSuccess={fetchKYCWorkflows}
-                trigger={
-                  <Button className="bg-gray-800 hover:bg-gray-900 text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First KYC Workflow
-                  </Button>
-                }
-              />
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6">
-          {filteredWorkflows.map((workflow) => (
-            <Card key={workflow._id} className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg">
-                      <FileText className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl text-gray-900">KYC Workflow</CardTitle>
-                      <p className="text-sm text-gray-700">
-                        Client: {workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(workflow.status)}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewDetails(workflow)}
-                      className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Details
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Engagement Details</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Calendar className="h-4 w-4 text-gray-500" />
-                        <span>Year End: {format(new Date(workflow.engagement.yearEndDate), "MMM dd, yyyy")}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Building2 className="h-4 w-4 text-gray-500" />
-                        <span>Client ID: {workflow.clientId}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Documents</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>Requests</span>
-                        <span>{workflow.documentRequests?.length || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>Total Docs</span>
-                        <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.length || 0), 0) || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>Uploaded</span>
-                        <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.filter(d => d.status === 'uploaded' || d.status === 'approved').length || 0), 0) || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Communication</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>Discussions</span>
-                        <span>{workflow.discussions?.length || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <span>Last Updated</span>
-                        <span>{format(new Date(workflow.updatedAt), "MMM dd, yyyy")}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* KYC Details Modal */}
-      {showDetails && selectedKYC && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">KYC Workflow Details</h2>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {engagementId && (
                   <AddDocumentRequestModal
-                    kycId={selectedKYC._id}
-                    engagementId={typeof selectedKYC.engagement === 'object' ? selectedKYC.engagement._id : selectedKYC.engagement}
-                    clientId={selectedKYC.clientId}
-                    onSuccess={async () => {
-                      await fetchKYCWorkflows();
-                      const updatedKYC = await kycApi.getById(selectedKYC._id);
-                      setSelectedKYC(updatedKYC);
-                    }}
+                    kycId={kycWorkflows[0]._id}
+                    engagementId={engagementId}
+                    clientId={kycWorkflows[0].clientId}
+                    onSuccess={fetchKYCWorkflows}
                     trigger={
-                      <Button 
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => {
-                          console.log('=== Opening Add Document Request Modal ===');
-                          console.log('Selected KYC:', selectedKYC);
-                          console.log('KYC ID:', selectedKYC._id);
-                          console.log('Engagement (raw):', selectedKYC.engagement);
-                          console.log('Engagement ID to use:', typeof selectedKYC.engagement === 'object' ? selectedKYC.engagement._id : selectedKYC.engagement);
-                          console.log('Client ID:', selectedKYC.clientId);
-                        }}
-                      >
+                      <Button className="bg-gray-800 hover:bg-gray-900 text-white">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Document Request
                       </Button>
                     }
                   />
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowDetails(false)}
-                    className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="space-y-6">
-                {/* Status Management */}
-                <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900">Status Management</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-4">
-                      {getStatusBadge(selectedKYC.status)}
-                      <div className="flex gap-2">
-                        {selectedKYC.status !== 'active' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusUpdate(selectedKYC._id, 'active')}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                          >
-                            <Play className="h-4 w-4 mr-1" />
-                            Set Active
-                          </Button>
-                        )}
-                        {selectedKYC.status !== 'in-review' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusUpdate(selectedKYC._id, 'in-review')}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Set In Review
-                          </Button>
-                        )}
-                        {selectedKYC.status !== 'completed' && (
-                          <Button
-                            size="sm"
-                            className="bg-gray-800 hover:bg-gray-900 text-white"
-                            onClick={() => handleStatusUpdate(selectedKYC._id, 'completed')}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Mark Completed
-                          </Button>
-                        )}
-                        {selectedKYC.status === 'completed' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleReopenKYC(selectedKYC._id)}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Reopen KYC
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Document Requests */}
-                {selectedKYC.documentRequests && selectedKYC.documentRequests.length > 0 && (
-                  <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-gray-900">Document Requests ({selectedKYC.documentRequests.length})</CardTitle>
-                        <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
-                          {selectedKYC.documentRequests.length} Request{selectedKYC.documentRequests.length !== 1 ? 's' : ''}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-6">
-                        {selectedKYC.documentRequests.map((docRequest, index) => (
-                          <div key={docRequest._id || index} className="pb-6 last:pb-0 border-b last:border-b-0">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                                  <span className="text-sm font-bold text-blue-600">{index + 1}</span>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-gray-900">{docRequest.name || `Document Request ${index + 1}`}</h4>
-                                  {docRequest.description && (
-                                    <p className="text-sm text-gray-600">{docRequest.description}</p>
-                                  )}
-                                </div>
-                              </div>
-                              <Badge variant="outline" className="text-gray-600 border-gray-600 bg-gray-50">
-                                {docRequest.status}
-                              </Badge>
-                            </div>
-                            
-                            {docRequest.documents && docRequest.documents.length > 0 ? (
-                              <div className="space-y-3">
-                                {docRequest.documents.map((doc, docIndex) => (
-                                  <div key={docIndex} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                      {doc.type === 'template' ? (
-                                        <FileEdit className="h-5 w-5 text-blue-600" />
-                                      ) : (
-                                        <FileUp className="h-5 w-5 text-green-600" />
-                                      )}
-                                      <div>
-                                        <p className="font-medium text-gray-900">{doc.name}</p>
-                                        {doc.description && (
-                                          <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
-                                        )}
-                                        <div className="flex items-center gap-2 mt-1">
-                                          {doc.type === 'template' ? (
-                                            <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
-                                              Template
-                                            </Badge>
-                                          ) : (
-                                            <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
-                                              Direct
-                                            </Badge>
-                                          )}
-                                          <Badge variant="outline" className="text-gray-600 border-gray-300">
-                                            {doc.status}
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {doc.url && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            console.log('Opening document:', {
-                                              name: doc.name,
-                                              url: doc.url,
-                                              type: doc.type,
-                                              description: doc.description
-                                            });
-                                            window.open(doc.url, '_blank');
-                                          }}
-                                          className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center py-4 text-gray-500 text-sm">
-                                No documents in this request yet
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
                 )}
-
-                {/* Discussions - COMMENTED OUT */}
-                {/*
-                <Card className="border-0 shadow-lg bg-white/80 border border-white/50 rounded-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-gray-900">Discussions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {selectedKYC.discussions?.length > 0 ? (
-                        selectedKYC.discussions.map((discussion) => (
-                          <div key={discussion._id} className={`p-4 rounded-xl ${
-                            discussion.role === 'auditor' 
-                              ? 'bg-gray-100 border-l-4 border-gray-800' 
-                              : 'bg-white/80 backdrop-blur-sm border-l-4 border-gray-500'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={discussion.role === 'auditor' ? 'default' : 'secondary'} className={discussion.role === 'auditor' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}>
-                                {discussion.role === 'auditor' ? 'Auditor' : 'Client'}
-                              </Badge>
-                              <span className="text-sm text-gray-700">
-                                {format(new Date(discussion.createdAt), "MMM dd, yyyy HH:mm")}
-                              </span>
-                            </div>
-                            <p className="text-gray-900">{discussion.message}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-600">No discussions yet.</p>
-                      )}
-                      
-                      <div className="border-t pt-4">
-                        <div className="space-y-3">
-                          <Label htmlFor="newMessage" className="text-gray-800">Send Message to Client</Label>
-                          <Textarea
-                            id="newMessage"
-                            placeholder="Type your message here..."
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            rows={3}
-                            className="border-2 border-gray-200 focus:border-gray-400 rounded-xl bg-white/80 backdrop-blur-sm"
-                          />
-                          <Button
-                            onClick={handleSendMessage}
-                            disabled={!newMessage.trim() || sendingMessage}
-                            className="bg-gray-800 hover:bg-gray-900 text-white"
-                          >
-                            {sendingMessage ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Send Message
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                */}
               </div>
             </div>
-          </div>
-        </div>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-6">
+            {kycWorkflows.map((workflow) => (
+              <div key={workflow._id} className="space-y-4">
+                {/* Status Management */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900">Status Management</h3>
+                    {getStatusBadge(workflow.status)}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {workflow.status !== 'active' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStatusUpdate(workflow._id, 'active')}
+                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        Set Active
+                      </Button>
+                    )}
+                    {workflow.status !== 'in-review' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStatusUpdate(workflow._id, 'in-review')}
+                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        Set In Review
+                      </Button>
+                    )}
+                    {workflow.status !== 'completed' && (
+                      <Button
+                        size="sm"
+                        className="bg-gray-800 hover:bg-gray-900 text-white"
+                        onClick={() => handleStatusUpdate(workflow._id, 'completed')}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Mark Completed
+                      </Button>
+                    )}
+                    {workflow.status === 'completed' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReopenKYC(workflow._id)}
+                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reopen KYC
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Document Requests */}
+                {workflow.documentRequests && workflow.documentRequests.length > 0 ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
+                      <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
+                        {workflow.documentRequests.length} Request{workflow.documentRequests.length !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+                    <div className="space-y-4">
+                      {workflow.documentRequests.map((docRequest, index) => (
+                        <div key={docRequest._id || index} className="bg-gray-50 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <span className="text-sm font-bold text-gray-600">{index + 1}</span>
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900">{docRequest.name || `Document Request ${index + 1}`}</h4>
+                                {docRequest.description && (
+                                  <p className="text-sm text-gray-600">{docRequest.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-gray-600 border-gray-600 bg-white">
+                              {docRequest.status}
+                            </Badge>
+                          </div>
+                          
+                          {docRequest.documents && docRequest.documents.length > 0 ? (
+                            <div className="space-y-2">
+                              {docRequest.documents.map((doc, docIndex) => (
+                                <div key={docIndex} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                  <div className="flex items-center gap-3">
+                                    {doc.type === 'template' ? (
+                                      <FileEdit className="h-5 w-5 text-gray-600" />
+                                    ) : (
+                                      <FileUp className="h-5 w-5 text-gray-600" />
+                                    )}
+                                    <div>
+                                      <p className="font-medium text-gray-900">{doc.name}</p>
+                                      {doc.description && (
+                                        <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
+                                      )}
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {doc.type === 'template' ? (
+                                          <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
+                                            Template
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
+                                            Direct
+                                          </Badge>
+                                        )}
+                                        <Badge variant="outline" className="text-gray-600 border-gray-300">
+                                          {doc.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {doc.url && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(doc.url, '_blank')}
+                                      className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500 text-sm bg-white rounded-lg">
+                              No documents in this request yet
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No document requests yet
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
