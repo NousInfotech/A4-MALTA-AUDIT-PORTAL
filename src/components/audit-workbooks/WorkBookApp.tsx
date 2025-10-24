@@ -208,11 +208,9 @@ const mockAuditLogs: AuditLogEntry[] = [
 ];
 
 export default function WorkBookApp({
-  engagement,
   engagementId,
   classification,
 }: {
-  engagement: any;
   engagementId: string;
   classification: string;
 }) {
@@ -749,204 +747,204 @@ export default function WorkBookApp({
   };
 
   // Create a utility function to process sheet data (to avoid code duplication)
-const processSheetData = (rawSheetData: any[][], address?: string) => {
-  // Parse the address to get the starting row and column
-  const {
-    start: { row: startExcelRow, col: startZeroCol },
-  } = parseExcelRange(address || "A1");
+  const processSheetData = (rawSheetData: any[][], address?: string) => {
+    // Parse the address to get the starting row and column
+    const {
+      start: { row: startExcelRow, col: startZeroCol },
+    } = parseExcelRange(address || "A1");
 
-  // Determine actual data dimensions
-  let maxDataRows = rawSheetData.length;
-  let maxDataCols = 0;
-  if (rawSheetData && rawSheetData.length > 0) {
-    rawSheetData.forEach((row) => {
-      if (row.length > maxDataCols) {
-        maxDataCols = row.length;
-      }
-    });
-  }
-
-  // These are the *display* dimensions, including potential empty space before the data starts.
-  // minDisplayRows/Cols ensure a minimum grid size.
-  const minDisplayRows = 20;
-  const minDisplayCols = 10;
-
-  // Calculate the total number of rows and columns needed for the display grid.
-  // This should accommodate the data, starting from its actual Excel position.
-  const totalDisplayRows = Math.max(
-    minDisplayRows,
-    startExcelRow + maxDataRows - 1
-  ); // Adjusted based on data's end row
-  const totalDisplayCols = Math.max(
-    minDisplayCols,
-    startZeroCol + maxDataCols
-  ); // Adjusted based on data's end col
-
-  // Construct the header row (empty corner, A, B, C...)
-  const headerRow: string[] = [""];
-  for (let i = 0; i < totalDisplayCols; i++) {
-    headerRow.push(zeroIndexToExcelCol(i));
-  }
-
-  const excelLikeData: string[][] = [headerRow];
-
-  // Construct the data rows (1, 2, 3... | cell data)
-  for (let i = 0; i < totalDisplayRows; i++) {
-    const newRow: string[] = [(i + 1).toString()]; // Prepend row number (1-indexed)
-
-    for (let j = 0; j < totalDisplayCols; j++) {
-      // Calculate the corresponding index in rawSheetData
-      const dataRowIndex = i - (startExcelRow - 1); // Adjust for 0-indexed array vs 1-indexed Excel row
-      const dataColIndex = j - startZeroCol; // Adjust for 0-indexed array vs 0-indexed Excel column
-
-      let cellValue = "";
-      if (
-        dataRowIndex >= 0 &&
-        dataRowIndex < maxDataRows &&
-        dataColIndex >= 0 &&
-        dataColIndex < maxDataCols &&
-        rawSheetData[dataRowIndex] &&
-        rawSheetData[dataRowIndex][dataColIndex] !== undefined
-      ) {
-        cellValue = String(rawSheetData[dataRowIndex][dataColIndex]);
-      }
-      newRow.push(cellValue);
-    }
-    excelLikeData.push(newRow);
-  }
-
-  return excelLikeData;
-};
-
-// Update the updateSheetsInWorkbook function
-const updateSheetsInWorkbook = async (
-  cloudFileId: string,
-  workbookId: string
-) => {
-  setIsUpdatingSheets(true);
-  
-  try {
-    // Show a toast to indicate the process has started
-    toast({
-      title: "Updating Sheets",
-      description: "Fetching the latest data from the cloud...",
-    });
-
-    // Fetch the sheet names from the cloud storage
-    const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
-      cloudFileId
-    );
-
-    if (!listSheetsResponse.success) {
-      throw new Error(
-        listSheetsResponse.error ||
-          "Failed to list worksheets from cloud storage."
-      );
-    }
-
-    const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
-    const processedFileData: SheetData = {};
-    let processedSheets = 0;
-
-    // Update the toast to show progress
-    const progressToast = toast({
-      title: "Processing Sheets",
-      description: `Processed 0 of ${sheetNames.length} sheets...`,
-    });
-
-    // Process each sheet
-    for (const sheetName of sheetNames) {
-      try {
-        const readSheetResponse = await msDriveworkbookApi.readSheet(
-          cloudFileId,
-          sheetName
-        );
-        
-        if (!readSheetResponse.success) {
-          console.warn(
-            `Failed to read data for sheet '${sheetName}'. Skipping.`
-          );
-          processedFileData[sheetName] = [["Error reading sheet"]];
-        } else {
-          const { values: rawSheetData, address } = readSheetResponse.data;
-          processedFileData[sheetName] = processSheetData(rawSheetData, address);
+    // Determine actual data dimensions
+    let maxDataRows = rawSheetData.length;
+    let maxDataCols = 0;
+    if (rawSheetData && rawSheetData.length > 0) {
+      rawSheetData.forEach((row) => {
+        if (row.length > maxDataCols) {
+          maxDataCols = row.length;
         }
-        
-        // Update progress
-        processedSheets++;
-        toast({
-          
-          title: "Processing Sheets",
-          description: `Processed ${processedSheets} of ${sheetNames.length} sheets...`,
-        });
-      } catch (sheetError) {
-        console.error(`Error processing sheet ${sheetName}:`, sheetError);
-        processedFileData[sheetName] = [["Error processing sheet"]];
+      });
+    }
+
+    // These are the *display* dimensions, including potential empty space before the data starts.
+    // minDisplayRows/Cols ensure a minimum grid size.
+    const minDisplayRows = 20;
+    const minDisplayCols = 10;
+
+    // Calculate the total number of rows and columns needed for the display grid.
+    // This should accommodate the data, starting from its actual Excel position.
+    const totalDisplayRows = Math.max(
+      minDisplayRows,
+      startExcelRow + maxDataRows - 1
+    ); // Adjusted based on data's end row
+    const totalDisplayCols = Math.max(
+      minDisplayCols,
+      startZeroCol + maxDataCols
+    ); // Adjusted based on data's end col
+
+    // Construct the header row (empty corner, A, B, C...)
+    const headerRow: string[] = [""];
+    for (let i = 0; i < totalDisplayCols; i++) {
+      headerRow.push(zeroIndexToExcelCol(i));
+    }
+
+    const excelLikeData: string[][] = [headerRow];
+
+    // Construct the data rows (1, 2, 3... | cell data)
+    for (let i = 0; i < totalDisplayRows; i++) {
+      const newRow: string[] = [(i + 1).toString()]; // Prepend row number (1-indexed)
+
+      for (let j = 0; j < totalDisplayCols; j++) {
+        // Calculate the corresponding index in rawSheetData
+        const dataRowIndex = i - (startExcelRow - 1); // Adjust for 0-indexed array vs 1-indexed Excel row
+        const dataColIndex = j - startZeroCol; // Adjust for 0-indexed array vs 0-indexed Excel column
+
+        let cellValue = "";
+        if (
+          dataRowIndex >= 0 &&
+          dataRowIndex < maxDataRows &&
+          dataColIndex >= 0 &&
+          dataColIndex < maxDataCols &&
+          rawSheetData[dataRowIndex] &&
+          rawSheetData[dataRowIndex][dataColIndex] !== undefined
+        ) {
+          cellValue = String(rawSheetData[dataRowIndex][dataColIndex]);
+        }
+        newRow.push(cellValue);
       }
+      excelLikeData.push(newRow);
     }
 
-    // Update the sheets in the database
-    toast({
-      
-      title: "Saving to Database",
-      description: "Updating the workbook in the database...",
-    });
+    return excelLikeData;
+  };
 
-    const updatedSheetsResponse = await db_WorkbookApi.updateSheets(
-      workbookId,
-      processedFileData
-    );
+  // Update the updateSheetsInWorkbook function
+  const updateSheetsInWorkbook = async (
+    cloudFileId: string,
+    workbookId: string
+  ) => {
+    setIsUpdatingSheets(true);
 
-    if (!updatedSheetsResponse.success || !updatedSheetsResponse.data) {
-      throw new Error(
-        updatedSheetsResponse.error ||
-          "Failed to save workbook data to database."
+    try {
+      // Show a toast to indicate the process has started
+      toast({
+        title: "Updating Sheets",
+        description: "Fetching the latest data from the cloud...",
+      });
+
+      // Fetch the sheet names from the cloud storage
+      const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
+        cloudFileId
       );
+
+      if (!listSheetsResponse.success) {
+        throw new Error(
+          listSheetsResponse.error ||
+            "Failed to list worksheets from cloud storage."
+        );
+      }
+
+      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
+      const processedFileData: SheetData = {};
+      let processedSheets = 0;
+
+      // Update the toast to show progress
+      const progressToast = toast({
+        title: "Processing Sheets",
+        description: `Processed 0 of ${sheetNames.length} sheets...`,
+      });
+
+      // Process each sheet
+      for (const sheetName of sheetNames) {
+        try {
+          const readSheetResponse = await msDriveworkbookApi.readSheet(
+            cloudFileId,
+            sheetName
+          );
+
+          if (!readSheetResponse.success) {
+            console.warn(
+              `Failed to read data for sheet '${sheetName}'. Skipping.`
+            );
+            processedFileData[sheetName] = [["Error reading sheet"]];
+          } else {
+            const { values: rawSheetData, address } = readSheetResponse.data;
+            processedFileData[sheetName] = processSheetData(
+              rawSheetData,
+              address
+            );
+          }
+
+          // Update progress
+          processedSheets++;
+          toast({
+            title: "Processing Sheets",
+            description: `Processed ${processedSheets} of ${sheetNames.length} sheets...`,
+          });
+        } catch (sheetError) {
+          console.error(`Error processing sheet ${sheetName}:`, sheetError);
+          processedFileData[sheetName] = [["Error processing sheet"]];
+        }
+      }
+
+      // Update the sheets in the database
+      toast({
+        title: "Saving to Database",
+        description: "Updating the workbook in the database...",
+      });
+
+      const updatedSheetsResponse = await db_WorkbookApi.updateSheets(
+        workbookId,
+        processedFileData
+      );
+
+      if (!updatedSheetsResponse.success || !updatedSheetsResponse.data) {
+        throw new Error(
+          updatedSheetsResponse.error ||
+            "Failed to save workbook data to database."
+        );
+      }
+
+      // Get the updated workbook from the response
+      const newWorkbookFromDB = updatedSheetsResponse.data.workbook;
+      newWorkbookFromDB.fileData = processedFileData;
+
+      // Update both the selected workbook and the workbooks list
+      setSelectedWorkbook(newWorkbookFromDB);
+      setWorkbooks((prev) =>
+        prev.map((wb) => (wb.id === workbookId ? newWorkbookFromDB : wb))
+      );
+
+      // Set the selected sheet
+      if (
+        newWorkbookFromDB.fileData &&
+        Object.keys(newWorkbookFromDB.fileData).length > 0
+      ) {
+        setViewerSelectedSheet(Object.keys(newWorkbookFromDB.fileData)[0]);
+      } else {
+        setViewerSelectedSheet("Sheet1");
+      }
+
+      // Show success message
+      toast({
+        title: "Sheets Updated Successfully",
+        description: `Updated ${sheetNames.length} sheets from the cloud.`,
+      });
+
+      // Navigate to the viewer and refresh data
+      setCurrentView("viewer");
+      setRefreshWorkbooksTrigger((prev) => prev + 1);
+    } catch (error) {
+      console.error("Error updating sheets:", error);
+      toast({
+        variant: "destructive",
+        title: "Sheets Update Failed",
+        description: `Failed to update sheets: ${
+          error instanceof Error ? error.message : "Unknown error."
+        }`,
+      });
+    } finally {
+      setIsUpdatingSheets(false);
     }
-
-    // Get the updated workbook from the response
-    const newWorkbookFromDB = updatedSheetsResponse.data.workbook;
-    newWorkbookFromDB.fileData = processedFileData;
-
-    // Update both the selected workbook and the workbooks list
-    setSelectedWorkbook(newWorkbookFromDB);
-    setWorkbooks((prev) =>
-      prev.map((wb) => (wb.id === workbookId ? newWorkbookFromDB : wb))
-    );
-
-    // Set the selected sheet
-    if (
-      newWorkbookFromDB.fileData &&
-      Object.keys(newWorkbookFromDB.fileData).length > 0
-    ) {
-      setViewerSelectedSheet(Object.keys(newWorkbookFromDB.fileData)[0]);
-    } else {
-      setViewerSelectedSheet("Sheet1");
-    }
-
-    // Show success message
-    toast({
-      title: "Sheets Updated Successfully",
-      description: `Updated ${sheetNames.length} sheets from the cloud.`,
-    });
-
-    // Navigate to the viewer and refresh data
-    setCurrentView("viewer");
-    setRefreshWorkbooksTrigger((prev) => prev + 1);
-    
-  } catch (error) {
-    console.error("Error updating sheets:", error);
-    toast({
-      variant: "destructive",
-      title: "Sheets Update Failed",
-      description: `Failed to update sheets: ${
-        error instanceof Error ? error.message : "Unknown error."
-      }`,
-    });
-  } finally {
-    setIsUpdatingSheets(false);
-  }
-};
+  };
 
   const handleLinkFieldClick = (selection: Selection) => {
     setPendingSelection(selection);
@@ -1496,21 +1494,25 @@ const updateSheetsInWorkbook = async (
     }
   };
 
-  if (isLoadingWorkbooks || isLoadingAllWorkbookLogs || isUploadingWorkingPaper || isUpdatingSheets) {
-  return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-      <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-      <span className="ml-3 text-lg text-gray-700">
-        {isUploadingWorkingPaper 
-          ? "Loading Working Paper..." 
-          : isUpdatingSheets
-          ? "Updating Sheets..."
-          : "Loading Workbooks..."
-        }
-      </span>
-    </div>
-  );
-}
+  if (
+    isLoadingWorkbooks ||
+    isLoadingAllWorkbookLogs ||
+    isUploadingWorkingPaper ||
+    isUpdatingSheets
+  ) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+        <span className="ml-3 text-lg text-gray-700">
+          {isUploadingWorkingPaper
+            ? "Loading Working Paper..."
+            : isUpdatingSheets
+            ? "Updating Sheets..."
+            : "Loading Workbooks..."}
+        </span>
+      </div>
+    );
+  }
 
   if (isLoadingWorkbookData) {
     return (
