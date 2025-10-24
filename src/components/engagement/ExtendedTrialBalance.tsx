@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
+import EditableText from "../ui/editable-text";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -385,8 +386,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   onClassificationJump,
 }) => {
   useEffect(() => {
-    console.log("CUREENT-Engagement",engagement)
-  }, [engagement])
+    console.log("CUREENT-Engagement", engagement);
+  }, [engagement]);
   const [etbRows, setEtbRows] = useState<ETBRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1001,91 +1002,63 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       )}
                     >
                       <TableCell className="border border-r-secondary border-b-secondary ">
-                        <Input
+                        <EditableText
                           value={row.code}
-                          onChange={(e) =>
-                            updateRow(row.id, "code", e.target.value)
-                          }
-                          className="w-[4rem] font-mono text-xs sm:text-sm"
+                          onChange={(val) => {
+                            console.log("New value:", val); // 👈 Logs the updated text or number
+                            updateRow(row.id, "code", val);
+                          }}
+                          className="font-mono text-xs sm:text-sm"
                         />
                       </TableCell>
                       <TableCell className="border border-r-secondary border-b-secondary ">
-                        <Input
+                        <EditableText
                           value={row.accountName}
-                          onChange={(e) =>
-                            updateRow(row.id, "accountName", e.target.value)
+                          onChange={(val) =>
+                            updateRow(row.id, "accountName", val)
                           }
                           className="w-48 text-xs sm:text-sm"
+                          placeholder="-"
                         />
                       </TableCell>
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <Input
+                        <EditableText
                           type="number"
+                          step={1}
                           value={row.currentYear}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const num = val === "" ? "" : Number(val);
-                            updateRow(row.id, "currentYear", num);
-                          }}
-                          // This runs when the input loses focus (user clicks away)
-                          onBlur={() => {
-                            if (
-                              row.currentYear === "" ||
-                              row.currentYear === null
-                            ) {
-                              updateRow(row.id, "currentYear", 0);
-                            }
-                          }}
-                          className="w-24 text-start text-xs sm:text-sm"
-                          step="0.5"
+                          onChange={(val) =>
+                            updateRow(row.id, "currentYear", val)
+                          }
+                          placeholder="0"
+                          className="text-start text-xs sm:text-sm"
                         />
                       </TableCell>
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <Input
+                        <EditableText
                           type="number"
                           value={row.priorYear}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const num = val === "" ? "" : Number(val);
-                            updateRow(row.id, "priorYear", num);
+                          onChange={(val) => {
+                            updateRow(row.id, "priorYear", val);
                           }}
-                          // This runs when the input loses focus (user clicks away)
-                          onBlur={() => {
-                            if (
-                              row.priorYear === "" ||
-                              row.priorYear === null
-                            ) {
-                              updateRow(row.id, "priorYear", 0);
-                            }
-                          }}
-                          className="w-24 text-start text-xs sm:text-sm"
-                          step="0.5"
+                          placeholder="0"
+                          className="text-start text-xs sm:text-sm"
+                          step={1}
                         />
                       </TableCell>
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <Input
+                        <EditableText
                           type="number"
                           value={row.adjustments}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const num = val === "" ? "" : Number(val);
-                            updateRow(row.id, "adjustments", num);
+                          onChange={(val) => {
+                            updateRow(row.id, "adjustments", val);
                           }}
-                          // This runs when the input loses focus (user clicks away)
-                          onBlur={() => {
-                            if (
-                              row.adjustments === "" ||
-                              row.adjustments === null
-                            ) {
-                              updateRow(row.id, "adjustments", 0);
-                            }
-                          }}
-                          className="w-20 text-start text-xs sm:text-sm"
-                          step="0.5"
+                          placeholder="0"
+                          className="text-start text-xs sm:text-sm"
+                          step={1}
                         />
                       </TableCell>
                       <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
-                        {Number(row.finalBalance).toLocaleString()}
+                        {Math.round(Number(row.finalBalance)).toLocaleString()}
                       </TableCell>
                       <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
                         <div className="w-fit flex flex-col items-start gap-1">
@@ -1126,16 +1099,16 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       TOTALS
                     </TableCell>
                     <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
-                      {totals.currentYear.toLocaleString()}
+                      {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
-                      {totals.priorYear.toLocaleString()}
+                      {Math.round(totals.priorYear).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
-                      {totals.adjustments.toLocaleString()}
+                      {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start border border-r-secondary  font-bold text-xs sm:text-sm">
-                      {totals.finalBalance.toLocaleString()}
+                      {Math.round(totals.finalBalance).toLocaleString()}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>
