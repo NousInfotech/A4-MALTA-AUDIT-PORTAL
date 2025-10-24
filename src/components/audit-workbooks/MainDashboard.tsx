@@ -62,32 +62,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       {/* Main Content */}
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
         <div className="grid grid-cols-1 gap-6"> {/* Added responsive grid classes */}
-          {/* Upload Area */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Upload Workbook
-              </CardTitle>
-              <CardDescription>
-                Add a new Excel file to start mapping.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div
-                onClick={onUploadClick}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
-              >
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
-                  Drag & drop an .xlsx file here, or
-                </p>
-                <Button variant="link" className="mt-1 p-0 h-auto">
-                  Browse Files
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+
           {/* Main sheets */}
           <Card>
             <CardHeader>
@@ -117,7 +92,36 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               )}
             </CardContent>
           </Card>
-          {/* End Main sheet */}
+          {/* End Main sheets */}
+
+
+          {/* Upload Area */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Upload Workbook
+              </CardTitle>
+              <CardDescription>
+                Add a new Excel file to start mapping.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div
+                onClick={onUploadClick}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
+              >
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-600">
+                  Drag & drop an .xlsx file here, or
+                </p>
+                <Button variant="link" className="mt-1 p-0 h-auto">
+                  Browse Files
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
 
           {/* Recent Workbooks */}
           <Card>
