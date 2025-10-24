@@ -238,7 +238,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const [editingMapping, setEditingMapping] = useState<Mapping | null>(null);
   const [newMappingDestinationField, setNewMappingDestinationField] =
     useState("");
-  const [newMappingTransform, setNewMappingTransform] = useState("sum");
+  const [newMappingTransform, setNewMappingTransform] = useState("map");
 
   useEffect(() => {
     console.log(namedRanges);
@@ -1825,6 +1825,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   <SelectValue placeholder="Select transform" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="map">Map</SelectItem>
                   <SelectItem value="sum">Sum</SelectItem>
                   <SelectItem value="average">Average</SelectItem>
                   <SelectItem value="count">Count</SelectItem>
@@ -1882,6 +1883,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   <SelectValue placeholder="Select transform" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="map">Map</SelectItem>
                   <SelectItem value="sum">Sum</SelectItem>
                   <SelectItem value="average">Average</SelectItem>
                   <SelectItem value="count">Count</SelectItem>
