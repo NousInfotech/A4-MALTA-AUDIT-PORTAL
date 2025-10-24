@@ -49,6 +49,7 @@ import ReviewPage from "./pages/ReviewPage";
 import MockApideckHome from "./mockdata/MockApideckHome";
 import { PromptManagement } from "./pages/admin/PromptManagement";
 import WorkBookApp from "./components/audit-workbooks/WorkBookApp";
+import { EditClient } from "./pages/employee/EditClient";
 
 
 
@@ -101,6 +102,7 @@ const App = () => (
               >
                 <Route index element={<EmployeeDashboard />} />
                 <Route path="clients" element={<ClientManagement />} />
+                <Route path="clients/edit/:id" element={<EditClient />} />
                 <Route path="clients/:id" element={<ClientDetail />} />
                 <Route path="clients/new" element={<AddClient />} />
                 <Route path="engagements" element={<EngagementManagement />} />
