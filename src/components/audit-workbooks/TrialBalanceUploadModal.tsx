@@ -178,6 +178,7 @@ export const TrialBalanceUploadModal: React.FC<UploadModalProps> = ({
 
         // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
         const workbookMetadataForDB = {
+          cloudFileId,
           name: cloudFileName,
           webUrl: webUrl,
           engagementId: engagementId,

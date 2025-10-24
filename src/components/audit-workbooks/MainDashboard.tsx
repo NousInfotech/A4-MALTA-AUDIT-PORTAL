@@ -62,6 +62,40 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       {/* Main Content */}
       <main className="flex-1 p-4 lg:p-8 overflow-auto">
         <div className="grid grid-cols-1 gap-6"> {/* Added responsive grid classes */}
+
+          {/* Main sheets */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Master Associated Sheets</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              { workbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
+                <div
+                  key={wb.id}
+                  onClick={() => onSelectWorkbook(wb)}
+                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-medium text-sm text-green-700">{wb.name}</p>
+                  <p><span className="text-xs italic">including lead sheet</span></p>
+                  {/* <p className="text-xs text-gray-500">
+                    v{wb.version} by {wb.lastModifiedBy || "Unknown"}
+                  </p> */}
+                  {/* If you want a delete button, uncomment this and ensure styling is good */}
+                  {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
+                    delete
+                  </button> */}
+                </div>
+              ))}
+              {workbooks.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No working paper yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          {/* End Main sheets */}
+
+
           {/* Upload Area */}
           <Card>
             <CardHeader>
@@ -88,6 +122,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
+          
 
           {/* Recent Workbooks */}
           <Card>
@@ -95,7 +130,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               <CardTitle>Recent Workbooks</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {workbooks.map((wb) => (
+              {workbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
                 <div
                   key={wb.id}
                   onClick={() => onSelectWorkbook(wb)}
