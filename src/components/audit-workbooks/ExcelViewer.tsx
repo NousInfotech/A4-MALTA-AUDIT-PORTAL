@@ -2110,6 +2110,8 @@ interface ExcelViewerProps {
     row: number;
     col: number;
   } | null>;
+  workingPaperCloudInfo:any;
+  updateSheetsInWorkbook?:(cloudFileId:string, workbookId:string) => void;
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -2139,6 +2141,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   isSelecting: propIsSelecting,
   setIsSelecting: propSetIsSelecting,
   anchorSelectionStart: propAnchorSelectionStart,
+  workingPaperCloudInfo,
+  updateSheetsInWorkbook,
 }) => {
   const { toast } = useToast();
   const sheetData: SheetData = workbook?.fileData || {};
@@ -2185,6 +2189,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const [newMappingDestinationField, setNewMappingDestinationField] =
     useState("");
   const [newMappingTransform, setNewMappingTransform] = useState("sum");
+
+  
 
   useEffect(() => {
     console.log(namedRanges);

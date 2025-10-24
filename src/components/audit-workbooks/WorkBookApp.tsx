@@ -27,6 +27,8 @@ import {
 } from "@/lib/api/workbookApi";
 import { parseExcelRange, zeroIndexToExcelCol } from "./utils";
 import { WorkbookHistory } from "@/components/audit-workbooks/WorkbookHistory"; // NEW: Import WorkbookHistory
+import { useAuth } from "@/contexts/AuthContext";
+import { getWorkingPapersCloudFileId } from "@/lib/api/engagement";
 
 type View =
   | "dashboard"
@@ -41,7 +43,7 @@ type View =
 
 // --- MOCK DATA ---
 
-const mockWorkbooks: Workbook[] = [
+const mockWorkbooks: any[] = [
   {
     id: "1",
     name: "FY2023_Financial_Statements.xlsx",
@@ -206,13 +208,15 @@ const mockAuditLogs: AuditLogEntry[] = [
 ];
 
 export default function WorkBookApp({
+  engagement,
   engagementId,
   classification,
 }: {
+  engagement: any;
   engagementId: string;
   classification: string;
 }) {
-  // --- INITIALIZE STATE WITH MOCK DATA ---
+  const { user, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedWorkbook, setSelectedWorkbook] = useState<any | null>(
     null // Start with no workbook selected
@@ -236,8 +240,30 @@ export default function WorkBookApp({
   const [allWorkbookLogs, setAllWorkbookLogs] = useState<AuditLogEntry[]>([]); // NEW STATE for all logs
   const [isLoadingAllWorkbookLogs, setIsLoadingAllWorkbookLogs] =
     useState(false); // NEW STATE for logs loading
+  const [workingPaperCloudInfo, setWorkingPaperCloudInfo] = useState(null);
+  const [hasAttemptedWorkingPaperUpload, setHasAttemptedWorkingPaperUpload] =
+    useState(false);
+  const [isUploadingWorkingPaper, setIsUploadingWorkingPaper] = useState(false);
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    setHasAttemptedWorkingPaperUpload(false);
+  }, [engagementId, classification]);
+
+  useEffect(() => {
+    if (engagementId && classification) {
+      const fetchData = async () => {
+        const data = await getWorkingPapersCloudFileId(
+          engagementId,
+          classification
+        );
+        setWorkingPaperCloudInfo(data);
+      };
+
+      fetchData();
+    }
+  }, [engagementId, classification]);
 
   useEffect(() => {
     if (selectedWorkbook) {
@@ -267,6 +293,187 @@ export default function WorkBookApp({
     }
   }, [selectedWorkbook]);
 
+  const handleWorkingPaperUpload = (newWorkbookFromUploadModal: Workbook) => {
+    setWorkbooks((prev) => {
+      const existingIndex = prev.findIndex(
+        (wb: any) => wb.id === newWorkbookFromUploadModal.id
+      );
+      if (existingIndex > -1) {
+        const updatedWorkbooks = [...prev];
+        updatedWorkbooks[existingIndex] = newWorkbookFromUploadModal;
+        return updatedWorkbooks;
+      } else {
+        return [...prev, newWorkbookFromUploadModal];
+      }
+    });
+
+    toast({
+      title: "Working Paper",
+      description: `Successfully loaded ${newWorkbookFromUploadModal.name}`,
+    });
+
+    setSelectedWorkbook(newWorkbookFromUploadModal);
+
+    if (
+      newWorkbookFromUploadModal.fileData &&
+      Object.keys(newWorkbookFromUploadModal.fileData).length > 0
+    ) {
+      setViewerSelectedSheet(
+        Object.keys(newWorkbookFromUploadModal.fileData)[0]
+      );
+    } else {
+      setViewerSelectedSheet("Sheet1");
+    }
+
+    setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger refresh after upload
+  };
+
+  const getExcelDatafromCloudAndUploadToDB = async (
+    workingPaperCloudInfo: any
+  ) => {
+    setIsLoadingWorkbooks(true);
+    try {
+      const cloudFileId = workingPaperCloudInfo.spreadsheetId;
+      const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
+        cloudFileId
+      );
+
+      if (!listSheetsResponse.success) {
+        throw new Error(
+          listSheetsResponse.error ||
+            "Failed to list worksheets from uploaded file."
+        );
+      }
+
+      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
+      const processedFileData: SheetData = {};
+
+      // 3. For each sheet, read its data
+      for (const sheetName of sheetNames) {
+        const readSheetResponse = await msDriveworkbookApi.readSheet(
+          cloudFileId,
+          sheetName
+        );
+        if (!readSheetResponse.success) {
+          console.warn(
+            `Failed to read data for sheet '${sheetName}'. Skipping.`
+          );
+          processedFileData[sheetName] = [["Error reading sheet"]]; // Placeholder for error
+        } else {
+          // --- MODIFIED LOGIC START ---
+          const { values: rawSheetData, address } = readSheetResponse.data; // Destructure values and address
+
+          // Parse the address to get the starting row and column
+          const {
+            start: { row: startExcelRow, col: startZeroCol },
+          } = parseExcelRange(address || `${sheetName}!A1`);
+
+          // Determine actual data dimensions
+          let maxDataRows = rawSheetData.length;
+          let maxDataCols = 0;
+          if (rawSheetData && rawSheetData.length > 0) {
+            rawSheetData.forEach((row) => {
+              if (row.length > maxDataCols) {
+                maxDataCols = row.length;
+              }
+            });
+          }
+
+          // These are the *display* dimensions, including potential empty space before the data starts.
+          // minDisplayRows/Cols ensure a minimum grid size.
+          const minDisplayRows = 20;
+          const minDisplayCols = 10;
+
+          // Calculate the total number of rows and columns needed for the display grid.
+          // This should accommodate the data, starting from its actual Excel position.
+          const totalDisplayRows = Math.max(
+            minDisplayRows,
+            startExcelRow + maxDataRows - 1
+          ); // Adjusted based on data's end row
+          const totalDisplayCols = Math.max(
+            minDisplayCols,
+            startZeroCol + maxDataCols
+          ); // Adjusted based on data's end col
+
+          // Construct the header row (empty corner, A, B, C...)
+          const headerRow: string[] = [""];
+          for (let i = 0; i < totalDisplayCols; i++) {
+            headerRow.push(zeroIndexToExcelCol(i));
+          }
+
+          const excelLikeData: string[][] = [headerRow];
+
+          // Construct the data rows (1, 2, 3... | cell data)
+          for (let i = 0; i < totalDisplayRows; i++) {
+            const newRow: string[] = [(i + 1).toString()]; // Prepend row number (1-indexed)
+
+            for (let j = 0; j < totalDisplayCols; j++) {
+              // Calculate the corresponding index in rawSheetData
+              const dataRowIndex = i - (startExcelRow - 1); // Adjust for 0-indexed array vs 1-indexed Excel row
+              const dataColIndex = j - startZeroCol; // Adjust for 0-indexed array vs 0-indexed Excel column
+
+              let cellValue = "";
+              if (
+                dataRowIndex >= 0 &&
+                dataRowIndex < maxDataRows &&
+                dataColIndex >= 0 &&
+                dataColIndex < maxDataCols &&
+                rawSheetData[dataRowIndex] &&
+                rawSheetData[dataRowIndex][dataColIndex] !== undefined
+              ) {
+                cellValue = String(rawSheetData[dataRowIndex][dataColIndex]);
+              }
+              newRow.push(cellValue);
+            }
+            excelLikeData.push(newRow);
+          }
+          processedFileData[sheetName] = excelLikeData;
+          // --- MODIFIED LOGIC END ---
+        }
+      }
+
+      // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
+      const workbookMetadataForDB = {
+        cloudFileId,
+        name: "Working Paper",
+        webUrl: workingPaperCloudInfo.url,
+        engagementId: engagementId,
+        classification: classification,
+        uploadedDate: new Date().toISOString(),
+        version: "v1", // You might have a better versioning strategy
+        uploadedBy: user?.id,
+        lastModifiedBy: user?.id,
+      };
+
+      console.log(processedFileData);
+      console.log(workbookMetadataForDB);
+
+      const saveToDbResponse = await db_WorkbookApi.saveProcessedWorkbook(
+        workbookMetadataForDB,
+        processedFileData
+      );
+
+      if (!saveToDbResponse.success || !saveToDbResponse.data) {
+        throw new Error(
+          saveToDbResponse.error || "Failed to save workbook data to database."
+        );
+      }
+
+      // The backend should return the full Workbook object (with _id, populated sheets if needed)
+      // from the database, which you can then pass to onUploadSuccess.
+      const newWorkbookFromDB = saveToDbResponse.data.workbook;
+
+      // Ensure fileData is populated for frontend display immediately
+      newWorkbookFromDB.fileData = processedFileData;
+
+      handleWorkingPaperUpload(newWorkbookFromDB);
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsLoadingWorkbooks(false);
+    }
+  };
+
   // NEW: Memoize the fetchWorkbooks function using useCallback
   const fetchWorkbooks = useCallback(async () => {
     setIsLoadingWorkbooks(true);
@@ -279,6 +486,7 @@ export default function WorkBookApp({
       if (response.success && response.data) {
         const fetchedWorkbooks: Workbook[] = response.data.map((item: any) => ({
           id: item._id || item.id,
+          cloudFileId: item.cloudFileId,
           name: item.name,
           webUrl: item.webUrl,
           uploadedDate: item.uploadedDate
@@ -315,57 +523,117 @@ export default function WorkBookApp({
     }
   }, [engagementId, classification, toast]);
 
+  // to upload working papaer to db
+
   // NEW useEffect to fetch all workbook logs
   useEffect(() => {
     const fetchAllWorkbookLogs = async () => {
-      if (!engagementId || !classification) return;
+      if (!engagementId || !classification || !workingPaperCloudInfo) return;
 
       setIsLoadingAllWorkbookLogs(true);
       try {
         const fetchedWorkbooks = await fetchWorkbooks();
 
-        const allLogs: AuditLogEntry[] = [];
-        for (const workbook of fetchedWorkbooks) {
-          try {
-            const logsResponse = await db_WorkbookApi.getWorkbookLogs(
-              workbook.id
-            );
-            if (logsResponse.success && logsResponse.data) {
-              const workbookSpecificLogs = logsResponse.data.map(
-                (log: any) => ({
-                  // Use 'any' to initially handle different log structures
-                  id: log._id || Date.now().toString() + Math.random(), // Ensure unique ID
-                  timestamp: log.timestamp,
-                  user: log.actor || "Unknown User", // Map actor ID to name, or use ID
-                  action: log.type, // Map 'type' to 'action'
-                  details: log.details?.name // Accessing nested detail for workbook name, adjust as needed for other details
-                    ? `Workbook: ${log.details.name}, Version: ${
-                        log.version || "N/A"
-                      }, Action: ${log.type}`
-                    : log.details?.message || JSON.stringify(log.details), // Fallback to message or stringified details
-                  workbookName: workbook.name, // Add workbook name for display
-                })
+        let workingpaperUploadExist = fetchedWorkbooks.find(
+          (wb) => wb.cloudFileId === workingPaperCloudInfo?.spreadsheetId
+        );
+
+        // Only attempt upload if we haven't tried before and the workbook doesn't exist
+        if (!workingpaperUploadExist && !hasAttemptedWorkingPaperUpload) {
+          setHasAttemptedWorkingPaperUpload(true);
+          setIsUploadingWorkingPaper(true); // Start showing loading state
+          await getExcelDatafromCloudAndUploadToDB(workingPaperCloudInfo);
+          setIsUploadingWorkingPaper(false); // Stop showing loading state
+
+          // After upload, fetch workbooks again to get the updated list
+          const updatedWorkbooks = await fetchWorkbooks();
+
+          // Now fetch the logs for all workbooks including the newly uploaded one
+          const allLogs: AuditLogEntry[] = [];
+          for (const workbook of updatedWorkbooks) {
+            try {
+              const logsResponse = await db_WorkbookApi.getWorkbookLogs(
+                workbook.id
               );
-              allLogs.push(...workbookSpecificLogs);
-            } else {
-              console.warn(
-                `Failed to fetch logs for workbook ${workbook.name}:`,
-                logsResponse.error
+              if (logsResponse.success && logsResponse.data) {
+                const workbookSpecificLogs = logsResponse.data.map(
+                  (log: any) => ({
+                    id: log._id || Date.now().toString() + Math.random(),
+                    timestamp: log.timestamp,
+                    user: log.actor || "Unknown User",
+                    action: log.type,
+                    details: log.details?.name
+                      ? `Workbook: ${log.details.name}, Version: ${
+                          log.version || "N/A"
+                        }, Action: ${log.type}`
+                      : log.details?.message || JSON.stringify(log.details),
+                    workbookName: workbook.name,
+                  })
+                );
+                allLogs.push(...workbookSpecificLogs);
+              } else {
+                console.warn(
+                  `Failed to fetch logs for workbook ${workbook.name}:`,
+                  logsResponse.error
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Error fetching logs for workbook ${workbook.name}:`,
+                error
               );
             }
-          } catch (error) {
-            console.error(
-              `Error fetching logs for workbook ${workbook.name}:`,
-              error
-            );
           }
+
+          allLogs.sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setAllWorkbookLogs(allLogs);
+        } else {
+          // If working paper already exists, just fetch logs normally
+          const allLogs: AuditLogEntry[] = [];
+          for (const workbook of fetchedWorkbooks) {
+            try {
+              const logsResponse = await db_WorkbookApi.getWorkbookLogs(
+                workbook.id
+              );
+              if (logsResponse.success && logsResponse.data) {
+                const workbookSpecificLogs = logsResponse.data.map(
+                  (log: any) => ({
+                    id: log._id || Date.now().toString() + Math.random(),
+                    timestamp: log.timestamp,
+                    user: log.actor || "Unknown User",
+                    action: log.type,
+                    details: log.details?.name
+                      ? `Workbook: ${log.details.name}, Version: ${
+                          log.version || "N/A"
+                        }, Action: ${log.type}`
+                      : log.details?.message || JSON.stringify(log.details),
+                    workbookName: workbook.name,
+                  })
+                );
+                allLogs.push(...workbookSpecificLogs);
+              } else {
+                console.warn(
+                  `Failed to fetch logs for workbook ${workbook.name}:`,
+                  logsResponse.error
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Error fetching logs for workbook ${workbook.name}:`,
+                error
+              );
+            }
+          }
+
+          allLogs.sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setAllWorkbookLogs(allLogs);
         }
-        // Sort logs by timestamp, newest first
-        allLogs.sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-        setAllWorkbookLogs(allLogs);
       } catch (error) {
         console.error("Error fetching all workbook logs:", error);
         toast({
@@ -375,6 +643,7 @@ export default function WorkBookApp({
             error instanceof Error ? error.message : "Unknown error."
           }`,
         });
+        setIsUploadingWorkingPaper(false); // Make sure to stop loading on error
       } finally {
         setIsLoadingAllWorkbookLogs(false);
       }
@@ -387,6 +656,8 @@ export default function WorkBookApp({
     refreshWorkbooksTrigger,
     fetchWorkbooks,
     toast,
+    workingPaperCloudInfo,
+    hasAttemptedWorkingPaperUpload,
   ]);
 
   // Modify useEffect to depend on refreshWorkbooksTrigger
@@ -473,6 +744,155 @@ export default function WorkBookApp({
       });
     } finally {
       setIsLoadingWorkbookData(false);
+    }
+  };
+
+  const updateSheetsInWorkbook = async (
+    cloudFileId: string,
+    workbookId: string
+  ) => {
+    try {
+      // 2. After successful upload, fetch the sheet names from the uploaded workbook (from the cloud storage not from the db backend)
+      const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
+        cloudFileId
+      );
+
+      if (!listSheetsResponse.success) {
+        throw new Error(
+          listSheetsResponse.error ||
+            "Failed to list worksheets from uploaded file."
+        );
+      }
+
+      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
+      const processedFileData: SheetData = {};
+
+      // 3. For each sheet, read its data
+      for (const sheetName of sheetNames) {
+        const readSheetResponse = await msDriveworkbookApi.readSheet(
+          cloudFileId,
+          sheetName
+        );
+        if (!readSheetResponse.success) {
+          console.warn(
+            `Failed to read data for sheet '${sheetName}'. Skipping.`
+          );
+          processedFileData[sheetName] = [["Error reading sheet"]]; // Placeholder for error
+        } else {
+          // --- MODIFIED LOGIC START ---
+          const { values: rawSheetData, address } = readSheetResponse.data; // Destructure values and address
+
+          // Parse the address to get the starting row and column
+          const {
+            start: { row: startExcelRow, col: startZeroCol },
+          } = parseExcelRange(address || `${sheetName}!A1`);
+
+          // Determine actual data dimensions
+          let maxDataRows = rawSheetData.length;
+          let maxDataCols = 0;
+          if (rawSheetData && rawSheetData.length > 0) {
+            rawSheetData.forEach((row) => {
+              if (row.length > maxDataCols) {
+                maxDataCols = row.length;
+              }
+            });
+          }
+
+          // These are the *display* dimensions, including potential empty space before the data starts.
+          // minDisplayRows/Cols ensure a minimum grid size.
+          const minDisplayRows = 20;
+          const minDisplayCols = 10;
+
+          // Calculate the total number of rows and columns needed for the display grid.
+          // This should accommodate the data, starting from its actual Excel position.
+          const totalDisplayRows = Math.max(
+            minDisplayRows,
+            startExcelRow + maxDataRows - 1
+          ); // Adjusted based on data's end row
+          const totalDisplayCols = Math.max(
+            minDisplayCols,
+            startZeroCol + maxDataCols
+          ); // Adjusted based on data's end col
+
+          // Construct the header row (empty corner, A, B, C...)
+          const headerRow: string[] = [""];
+          for (let i = 0; i < totalDisplayCols; i++) {
+            headerRow.push(zeroIndexToExcelCol(i));
+          }
+
+          const excelLikeData: string[][] = [headerRow];
+
+          // Construct the data rows (1, 2, 3... | cell data)
+          for (let i = 0; i < totalDisplayRows; i++) {
+            const newRow: string[] = [(i + 1).toString()]; // Prepend row number (1-indexed)
+
+            for (let j = 0; j < totalDisplayCols; j++) {
+              // Calculate the corresponding index in rawSheetData
+              const dataRowIndex = i - (startExcelRow - 1); // Adjust for 0-indexed array vs 1-indexed Excel row
+              const dataColIndex = j - startZeroCol; // Adjust for 0-indexed array vs 0-indexed Excel column
+
+              let cellValue = "";
+              if (
+                dataRowIndex >= 0 &&
+                dataRowIndex < maxDataRows &&
+                dataColIndex >= 0 &&
+                dataColIndex < maxDataCols &&
+                rawSheetData[dataRowIndex] &&
+                rawSheetData[dataRowIndex][dataColIndex] !== undefined
+              ) {
+                cellValue = String(rawSheetData[dataRowIndex][dataColIndex]);
+              }
+              newRow.push(cellValue);
+            }
+            excelLikeData.push(newRow);
+          }
+          processedFileData[sheetName] = excelLikeData;
+          // --- MODIFIED LOGIC END ---
+        }
+      }
+
+      // --- NEW STEP: update the sheets by workbookId  ---
+
+      console.log(processedFileData);
+
+      const updatedSheetsResponse = await db_WorkbookApi.updateSheets(
+        workbookId,
+        processedFileData
+      );
+
+      if (!updatedSheetsResponse.success || !updatedSheetsResponse.data) {
+        throw new Error(
+          updatedSheetsResponse.error ||
+            "Failed to save workbook data to database."
+        );
+      }
+
+      // The backend should return the full Workbook object (with _id, populated sheets if needed)
+      // from the database, which you can then pass to onUploadSuccess.
+      const newWorkbookFromDB = updatedSheetsResponse.data.workbook;
+
+      // Ensure fileData is populated for frontend display immediately
+      newWorkbookFromDB.fileData = processedFileData;
+
+      setSelectedWorkbook(newWorkbookFromDB);
+      if (
+        newWorkbookFromDB.fileData &&
+        Object.keys(newWorkbookFromDB.fileData).length > 0
+      ) {
+        setViewerSelectedSheet(Object.keys(newWorkbookFromDB.fileData)[0]);
+      } else {
+        setViewerSelectedSheet("Sheet1");
+      }
+
+      setCurrentView("viewer");
+      setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger refresh after upload
+    } catch (error) {
+      console.log(error);
+      toast({
+        title: "Sheets Reload Failed",
+        description: `Failed to reload sheets`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -816,7 +1236,7 @@ export default function WorkBookApp({
   const handleUploadWorkbook = (newWorkbookFromUploadModal: Workbook) => {
     setWorkbooks((prev) => {
       const existingIndex = prev.findIndex(
-        (wb) => wb.id === newWorkbookFromUploadModal.id
+        (wb: any) => wb.id === newWorkbookFromUploadModal.id
       );
       if (existingIndex > -1) {
         const updatedWorkbooks = [...prev];
@@ -946,6 +1366,8 @@ export default function WorkBookApp({
             isLoadingWorkbookData={isLoadingWorkbookData}
             selectedSheet={viewerSelectedSheet}
             setSelectedSheet={setViewerSelectedSheet}
+            workingPaperCloudInfo={workingPaperCloudInfo}
+            updateSheetsInWorkbook={updateSheetsInWorkbook}
           />
         ) : null;
       case "audit-log":
@@ -1022,18 +1444,26 @@ export default function WorkBookApp({
     }
   };
 
-  if (isLoadingWorkbooks || isLoadingAllWorkbookLogs) {
+  if (
+    isLoadingWorkbooks ||
+    isLoadingAllWorkbookLogs ||
+    isUploadingWorkingPaper
+  ) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
         <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-        <span className="ml-3 text-lg text-gray-700">Loading Workbooks...</span>
+        <span className="ml-3 text-lg text-gray-700">
+          {isUploadingWorkingPaper
+            ? "Loading Working Paper..."
+            : "Loading Workbooks..."}
+        </span>
       </div>
     );
   }
 
   if (isLoadingWorkbookData) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 bg-gray-50 rounded-lg shadow">
+      <div className="flex flex-col items-center justify-center h-48 bg-gray-50 rounded-lg border-none">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         <p className="mt-2 text-gray-700">Loading sheet data...</p>
       </div>

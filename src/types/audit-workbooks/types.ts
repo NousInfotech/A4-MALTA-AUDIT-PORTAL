@@ -2,13 +2,14 @@ import { MappingCoordinates } from "@/lib/api/workbookApi";
 
 export interface Workbook {
   id: string;
+  cloudFileId:string;
   name: string;
+  webUrl?: string;
   uploadedDate: string;
   version: string;
   lastModified?: string;
   lastModifiedBy?: string;
-  webUrl?: string; // Add this line
-  previousVersion?: string; // If you track previous versions
+  previousVersion?: string;
   fileData?: any;
 }
 
@@ -22,16 +23,7 @@ export interface Selection {
   end: { row: number; col: number };
 }
 
-// export interface Mapping {
-//   _id: string; // or _id
-//   sheet: string;
-//   start: MappingCoordinates;
-//   end?: MappingCoordinates; // <-- 'end' might be optional in some cases
-//   destinationField: string;
-//   transform: string;
-//   color: string;
-//   // ... other properties
-// }
+
 
 export interface Mapping {
   _id: string; // Add _id since your backend returns it

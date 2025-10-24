@@ -322,6 +322,24 @@ export const db_WorkbookApi = {
     }
   },
 
+  updateSheets: async ( workbookId:string, sheetData: any) => {
+    try {
+      const response = await axiosInstance.post(`${BASE_PATH}/${workbookId}/update-sheets`, {
+        
+        sheetData
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating sheets at the workbook:", error);
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to update the sheets on workbook.",
+      };
+    }
+  },
+
   deleteWorkbook: async (workbookId: string) => {
     try {
       // axiosInstance already has 'Content-Type' and potentially 'Authorization' headers configured
@@ -504,15 +522,23 @@ export const db_WorkbookApi = {
     classification: string,
     fileName: string,
     workbookData: any[],
-    webUrl?: string
+    cloudFileId: string,
+    webUrl?: string,
+    category?: string 
   ) => {
     try {
+      if (!cloudFileId) { // 🌟 ADDED: Client-side validation
+        throw new Error("cloudFileId is required for uploading workbook data.");
+      }
+
       const response = await axiosInstance.post(`${BASE_PATH}/work-bookdata`, {
-        engagementId,
+         engagementId,
         classification,
         fileName,
         workbookData,
         webUrl,
+        cloudFileId, 
+        category,
       });
       return response.data;
     } catch (error) {
@@ -531,16 +557,20 @@ export const db_WorkbookApi = {
     workbookId: string,
     workbookName: string,
     sheetData: any,
+    workbookcloudFileId: string,
     metadata?: any,
-    savedByUserId?: string
+    savedByUserId?: string,
+    category?: string
   ) => {
     try {
       const response = await axiosInstance.post(`${BASE_PATH}/save-workbook`, {
         workbookId,
         workbookName,
         sheetData,
+        workbookcloudFileId,
         metadata,
         savedByUserId,
+        category,
       });
       return response.data;
     } catch (error) {

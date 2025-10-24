@@ -88,6 +88,36 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               </div>
             </CardContent>
           </Card>
+          {/* Main sheets */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Master Associated Sheets</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              { workbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
+                <div
+                  key={wb.id}
+                  onClick={() => onSelectWorkbook(wb)}
+                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-medium text-sm text-green-700">{wb.name}</p>
+                  {/* <p className="text-xs text-gray-500">
+                    v{wb.version} by {wb.lastModifiedBy || "Unknown"}
+                  </p> */}
+                  {/* If you want a delete button, uncomment this and ensure styling is good */}
+                  {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
+                    delete
+                  </button> */}
+                </div>
+              ))}
+              {workbooks.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No working paper yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          {/* End Main sheet */}
 
           {/* Recent Workbooks */}
           <Card>
@@ -95,7 +125,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               <CardTitle>Recent Workbooks</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {workbooks.map((wb) => (
+              {workbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
                 <div
                   key={wb.id}
                   onClick={() => onSelectWorkbook(wb)}
