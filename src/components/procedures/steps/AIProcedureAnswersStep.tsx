@@ -550,6 +550,7 @@ const AIProcedureAnswersStep: React.FC<{
                     })}
                   </CardContent>
                 </Card>
+              ))}
             </div>
           )}
 
