@@ -1398,6 +1398,12 @@ export default function WorkBookApp({
         console.log("WorkBookApp: Current mappings state:", mappings);
         console.log("WorkBookApp: Current namedRanges state:", namedRanges);
 
+        console.log("WorkBookApp: About to render ExcelViewerWithFullscreen with props:", {
+          engagementId,
+          classification,
+          selectedWorkbook: selectedWorkbook?.name
+        });
+
         return selectedWorkbook ? (
           <ExcelViewerWithFullscreen
             workbook={selectedWorkbook}
@@ -1416,10 +1422,10 @@ export default function WorkBookApp({
             onUpdateNamedRange={handleUpdateNamedRange}
             onDeleteNamedRange={handleDeleteNamedRange}
             isLoadingWorkbookData={isLoadingWorkbookData}
-            selectedSheet={viewerSelectedSheet}
-            setSelectedSheet={setViewerSelectedSheet}
             workingPaperCloudInfo={workingPaperCloudInfo}
             updateSheetsInWorkbook={updateSheetsInWorkbook}
+            engagementId={engagementId}
+            classification={classification}
           />
         ) : null;
       case "audit-log":

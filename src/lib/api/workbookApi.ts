@@ -637,8 +637,6 @@ export const db_WorkbookApi = {
       sheet: string;
       start: MappingCoordinates; // Updated type
       end: MappingCoordinates; // Updated type
-      destinationField: string;
-      transform: string;
       color: string;
     }
   ) => {
@@ -669,8 +667,6 @@ export const db_WorkbookApi = {
       sheet?: string;
       start?: MappingCoordinates; // Updated type
       end?: MappingCoordinates; // Updated type
-      destinationField?: string;
-      transform?: string;
       color?: string;
     }
   ) => {

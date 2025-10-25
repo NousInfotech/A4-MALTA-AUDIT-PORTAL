@@ -31,6 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -79,6 +80,19 @@ import {
   msDriveworkbookApi,
 } from "@/lib/api/workbookApi";
 import { excelColToZeroIndex } from "./utils";
+import {
+  getExtendedTrialBalanceWithMappings,
+  addMappingToRow,
+  updateMapping,
+  removeMappingFromRow,
+  type ETBData,
+  type ETBRow,
+  type CreateMappingRequest,
+  type UpdateMappingRequest,
+} from "@/lib/api/extendedTrialBalanceApi";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const generateColor = () => {
   const colors = [
@@ -120,8 +134,6 @@ interface ExcelViewerProps {
       sheet: string;
       start: MappingCoordinates;
       end: MappingCoordinates;
-      destinationField: string;
-      transform: string;
       color: string;
     }
   ) => void;
@@ -129,8 +141,6 @@ interface ExcelViewerProps {
     workbookId: string,
     mappingId: string,
     updatedMappingDetails: {
-      destinationField?: string;
-      transform?: string;
       color?: string;
       sheet?: string;
       start?: MappingCoordinates;
@@ -148,20 +158,78 @@ interface ExcelViewerProps {
   isFullscreenMode?: boolean;
   onToggleFullscreen?: () => void;
   isLoadingWorkbookData?: boolean;
-  selectedSheet?: string;
-  setSelectedSheet?: (sheetName: string) => void;
-  // Add new props for selection state
-  selections?: Selection[];
-  setSelections?: Dispatch<SetStateAction<Selection[]>>;
+  workingPaperCloudInfo: any;
+  updateSheetsInWorkbook?: (cloudFileId: string, workbookId: string) => void;
 
-  isSelecting?: boolean;
-  setIsSelecting?: (selecting: boolean) => void;
-  anchorSelectionStart?: React.MutableRefObject<{
+  // ETB related props
+  engagementId?: string;
+  classification?: string;
+
+  // All state props from parent
+  selectedSheet: string;
+  setSelectedSheet: (sheetName: string) => void;
+  selections: Selection[];
+  setSelections: Dispatch<SetStateAction<Selection[]>>;
+  isSelecting: boolean;
+  setIsSelecting: (selecting: boolean) => void;
+  anchorSelectionStart: React.MutableRefObject<{
     row: number;
     col: number;
   } | null>;
-  workingPaperCloudInfo: any;
-  updateSheetsInWorkbook?: (cloudFileId: string, workbookId: string) => void;
+
+  // Save dialog states
+  isSaveDialogOpen: boolean;
+  setIsSaveDialogOpen: (open: boolean) => void;
+  saveType: "workbook" | "sheet";
+  setSaveType: (type: "workbook" | "sheet") => void;
+  isSaving: boolean;
+  setIsSaving: (saving: boolean) => void;
+
+  // Named ranges states
+  isNamedRangesDialogOpen: boolean;
+  setIsNamedRangesDialogOpen: (open: boolean) => void;
+  isCreateNamedRangeOpen: boolean;
+  setIsCreateNamedRangeOpen: (open: boolean) => void;
+  isEditNamedRangeOpen: boolean;
+  setIsEditNamedRangeOpen: (open: boolean) => void;
+  editingNamedRange: any | null;
+  setEditingNamedRange: (range: any | null) => void;
+  newNamedRangeName: string;
+  setNewNamedRangeName: (name: string) => void;
+  newNamedRangeRange: string;
+  setNewNamedRangeRange: (range: string) => void;
+
+  // ETB Mappings states
+  isETBMappingsDialogOpen: boolean;
+  setIsETBMappingsDialogOpen: (open: boolean) => void;
+  isCreateETBMappingOpen: boolean;
+  setIsCreateETBMappingOpen: (open: boolean) => void;
+  isEditETBMappingOpen: boolean;
+  setIsEditETBMappingOpen: (open: boolean) => void;
+  editingETBMapping: any | null;
+  setEditingETBMapping: (mapping: any | null) => void;
+  selectedETBRow: ETBRow | null;
+  setSelectedETBRow: (row: ETBRow | null) => void;
+  isCreatingETBMapping: boolean;
+  setIsCreatingETBMapping: (creating: boolean) => void;
+
+  // Workbook Mappings states
+  isWorkbookMappingsDialogOpen: boolean;
+  setIsWorkbookMappingsDialogOpen: (open: boolean) => void;
+  isCreateWorkbookMappingOpen: boolean;
+  setIsCreateWorkbookMappingOpen: (open: boolean) => void;
+  isEditWorkbookMappingOpen: boolean;
+  setIsEditWorkbookMappingOpen: (open: boolean) => void;
+  editingWorkbookMapping: Mapping | null;
+  setEditingWorkbookMapping: (mapping: Mapping | null) => void;
+  isCreatingWorkbookMapping: boolean;
+  setIsCreatingWorkbookMapping: (creating: boolean) => void;
+
+  // ETB props
+  etbData: ETBData | null;
+  etbLoading: boolean;
+  etbError: string | null;
+  onRefreshETBData?: () => void;
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -183,74 +251,105 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   isFullscreenMode = false,
   onToggleFullscreen,
   isLoadingWorkbookData = false,
-  selectedSheet,
-  setSelectedSheet,
-  // Add new props with default values for backward compatibility
-  selections: propSelections,
-  setSelections: propSetSelections,
-  isSelecting: propIsSelecting,
-  setIsSelecting: propSetIsSelecting,
-  anchorSelectionStart: propAnchorSelectionStart,
   workingPaperCloudInfo,
   updateSheetsInWorkbook,
+
+  // ETB related props
+  engagementId,
+  classification,
+
+  // All state props from parent
+  selectedSheet,
+  setSelectedSheet,
+  selections,
+  setSelections,
+  isSelecting,
+  setIsSelecting,
+  anchorSelectionStart,
+
+  // Save dialog states
+  isSaveDialogOpen,
+  setIsSaveDialogOpen,
+  saveType,
+  setSaveType,
+  isSaving,
+  setIsSaving,
+
+  // Named ranges states
+  isNamedRangesDialogOpen,
+  setIsNamedRangesDialogOpen,
+  isCreateNamedRangeOpen,
+  setIsCreateNamedRangeOpen,
+  isEditNamedRangeOpen,
+  setIsEditNamedRangeOpen,
+  editingNamedRange,
+  setEditingNamedRange,
+  newNamedRangeName,
+  setNewNamedRangeName,
+  newNamedRangeRange,
+  setNewNamedRangeRange,
+
+  // ETB Mappings states
+  isETBMappingsDialogOpen,
+  setIsETBMappingsDialogOpen,
+  isCreateETBMappingOpen,
+  setIsCreateETBMappingOpen,
+  isEditETBMappingOpen,
+  setIsEditETBMappingOpen,
+  editingETBMapping,
+  setEditingETBMapping,
+  selectedETBRow,
+  setSelectedETBRow,
+  isCreatingETBMapping,
+  setIsCreatingETBMapping,
+
+  // Workbook Mappings states
+  isWorkbookMappingsDialogOpen,
+  setIsWorkbookMappingsDialogOpen,
+  isCreateWorkbookMappingOpen,
+  setIsCreateWorkbookMappingOpen,
+  isEditWorkbookMappingOpen,
+  setIsEditWorkbookMappingOpen,
+  editingWorkbookMapping,
+  setEditingWorkbookMapping,
+  isCreatingWorkbookMapping,
+  setIsCreatingWorkbookMapping,
+
+  // ETB props
+  etbData,
+  etbLoading,
+  etbError,
+  onRefreshETBData,
 }) => {
   const { toast } = useToast();
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
 
-  // cell selection states
-  const [localSelections, setLocalSelections] = useState<Selection[]>([]);
-  const [localIsSelecting, setLocalIsSelecting] = useState(false);
-  const localAnchorSelectionStart = useRef<{ row: number; col: number } | null>(
-    null
-  );
-
-  const selections =
-    propSelections !== undefined ? propSelections : localSelections;
-  const setSelections =
-    propSetSelections !== undefined ? propSetSelections : setLocalSelections;
-  const isSelecting =
-    propIsSelecting !== undefined ? propIsSelecting : localIsSelecting;
-  const setIsSelecting =
-    propSetIsSelecting !== undefined ? propSetIsSelecting : setLocalIsSelecting;
-  const anchorSelectionStart =
-    propAnchorSelectionStart !== undefined
-      ? propAnchorSelectionStart
-      : localAnchorSelectionStart;
-
-  // Save dialog states
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-  const [saveType, setSaveType] = useState<"workbook" | "sheet">("workbook");
-  const [isSaving, setIsSaving] = useState(false);
-
-  // State for managing named ranges
-  const [isNamedRangesDialogOpen, setIsNamedRangesDialogOpen] = useState(false); // New: for displaying all named ranges
-  const [isCreateNamedRangeOpen, setIsCreateNamedRangeOpen] = useState(false);
-  const [isEditNamedRangeOpen, setIsEditNamedRangeOpen] = useState(false);
-  const [editingNamedRange, setEditingNamedRange] = useState<any | null>(null);
-  const [newNamedRangeName, setNewNamedRangeName] = useState("");
-  const [newNamedRangeRange, setNewNamedRangeRange] = useState("");
-
-  // State for managing mappings
-  const [isMappingsDialogOpen, setIsMappingsDialogOpen] = useState(false); // New: for displaying all mappings
-  const [isCreateMappingOpen, setIsCreateMappingOpen] = useState(false);
-  const [isEditMappingOpen, setIsEditMappingOpen] = useState(false);
-  const [editingMapping, setEditingMapping] = useState<Mapping | null>(null);
-  const [newMappingDestinationField, setNewMappingDestinationField] =
-    useState("");
-  const [newMappingTransform, setNewMappingTransform] = useState("map");
+  // Combine workbook mappings with ETB mappings for display
+  const allMappings = React.useMemo(() => {
+    const workbookMappings = mappings || [];
+    const etbMappings = etbData?.rows?.flatMap(row => 
+      row.mappings?.map(mapping => ({
+        ...mapping,
+        // Ensure the mapping has the correct structure for display
+        details: mapping.details,
+        color: mapping.color,
+        isActive: mapping.isActive !== false
+      })) || []
+    ) || [];
+    
+    return [...workbookMappings, ...etbMappings];
+  }, [mappings, etbData]);
 
   useEffect(() => {
-    console.log(namedRanges);
-    console.log(workbook);
   }, [namedRanges, workbook]);
 
   useEffect(() => {
     if (!selectedSheet || !sheetNames.includes(selectedSheet)) {
       if (sheetNames.length > 0) {
-        setSelectedSheet?.(sheetNames[0]);
+        setSelectedSheet(sheetNames[0]);
       } else {
-        setSelectedSheet?.("Sheet1");
+        setSelectedSheet("Sheet1");
       }
     }
   }, [workbook.id, sheetNames, selectedSheet, setSelectedSheet]);
@@ -532,8 +631,16 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   };
 
   const handleMouseUp = useCallback(() => {
+    if (isSelecting && selections.length > 0) {
+      // Check if we have a valid selection and trigger mapping creation
+      const lastSelection = selections[selections.length - 1];
+      if (lastSelection && lastSelection.sheet === selectedSheet) {
+        // Open ETB mapping creation dialog
+        setIsCreateETBMappingOpen(true);
+      }
+    }
     setIsSelecting(false);
-  }, [setIsSelecting]);
+  }, [isSelecting, selections, selectedSheet, setIsCreateETBMappingOpen, setIsSelecting]);
 
   useEffect(() => {
     window.addEventListener("mouseup", handleMouseUp);
@@ -594,7 +701,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       }
 
       // FIX: Add defensive checks for mapping.end before accessing its properties
-      const mapping = mappings.find((m) => {
+      const mapping = allMappings.find((m) => {
         // Add defensive check for m.details
         if (!m.details) return false;
 
@@ -633,7 +740,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       }
       return className;
     },
-    [selections, selectedSheet, mappings]
+    [selections, selectedSheet, allMappings]
   );
 
   // Updated getSelectionText to work with the last selection in the array
@@ -703,7 +810,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   };
 
   const handleCreateNamedRange = () => {
-    console.log(workbook._id);
     const currentSelection =
       selections.length > 0 ? selections[selections.length - 1] : null;
 
@@ -767,60 +873,213 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     onDeleteNamedRange(workbook.id, namedRangeId);
   };
 
-  const handleCreateMapping = () => {
-    // Act on the last selection
-    const currentSelection =
-      selections.length > 0 ? selections[selections.length - 1] : null;
-    if (!currentSelection || !newMappingDestinationField) return;
+  const handleDeleteETBMapping = async (mappingId: string, rowCode: string) => {
+    if (!engagementId) {
+      toast({
+        title: "Error",
+        description: "Engagement ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const newMapping = {
-      destinationField: newMappingDestinationField,
-      transform: newMappingTransform,
-      color: generateColor(),
-      sheet: currentSelection.sheet,
-      start: currentSelection.start,
-      end: currentSelection.end,
-    };
+    try {
+      await removeMappingFromRow(engagementId, rowCode, mappingId);
+      
+      // Refresh ETB data if callback is provided
+      if (onRefreshETBData) {
+        onRefreshETBData();
+      }
 
-    onCreateMapping(workbook.id, newMapping); // Pass the newMapping directly
-    setNewMappingDestinationField("");
-    setNewMappingTransform("sum");
-    setIsCreateMappingOpen(false);
-    setIsMappingsDialogOpen(false); // Close mappings dialog if open
+      toast({
+        title: "Success",
+        description: "ETB mapping deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting ETB mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete ETB mapping",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleEditMapping = (mapping: Mapping) => {
-    setEditingMapping(mapping);
-    setNewMappingDestinationField(mapping.destinationField);
-    setNewMappingTransform(mapping.transform);
-    setIsEditMappingOpen(true);
+  const handleUpdateETBMapping = async (mappingId: string, currentRowCode: string, newRowCode: string, updateData: UpdateMappingRequest) => {
+    if (!engagementId) {
+      toast({
+        title: "Error",
+        description: "Engagement ID is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // If the row changed, we need to first delete from old row and then add to new row
+      if (newRowCode !== currentRowCode) {
+        // First, delete from old row
+        await removeMappingFromRow(engagementId, currentRowCode, mappingId);
+        
+        // Get the mapping details
+        const mapping = editingETBMapping;
+        if (mapping && updateData.details) {
+          // Create a new mapping with updated details in the new row
+          const mappingData: CreateMappingRequest = {
+            workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
+            color: mapping.color,
+            details: updateData.details
+          };
+          await addMappingToRow(engagementId, newRowCode, mappingData);
+        }
+      } else {
+        // Just update the existing mapping
+        await updateMapping(engagementId, currentRowCode, mappingId, updateData);
+      }
+      
+      // Refresh ETB data if callback is provided
+      if (onRefreshETBData) {
+        onRefreshETBData();
+      }
+
+      // Reset editing state
+      setEditingETBMapping(null);
+      setIsEditETBMappingOpen(false);
+
+      toast({
+        title: "Success",
+        description: "ETB mapping updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating ETB mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update ETB mapping",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUpdateMapping = () => {
-    if (!editingMapping || !newMappingDestinationField) return;
+  const handleCreateETBMapping = async () => {
+    if (!selectedETBRow || !engagementId) {
+      toast({
+        title: "Error",
+        description: "Please select an ETB row",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    onUpdateMapping(workbook.id, editingMapping._id, {
-      destinationField: newMappingDestinationField,
-      transform: newMappingTransform,
-    });
+    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    if (!currentSelection) {
+      toast({
+        title: "Error",
+        description: "Please select a range in the sheet",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setEditingMapping(null);
-    setNewMappingDestinationField("");
-    setNewMappingTransform("sum");
-    setIsEditMappingOpen(false);
+    setIsCreatingETBMapping(true);
+
+    try {
+      const mappingData: CreateMappingRequest = {
+        workbookId: workbook.id,
+        color: generateColor(),
+        details: {
+          sheet: currentSelection.sheet,
+          start: {
+            row: currentSelection.start.row,
+            col: currentSelection.start.col,
+          },
+          end: {
+            row: currentSelection.end.row,
+            col: currentSelection.end.col,
+          },
+        },
+      };
+
+      // Use the _id if available, otherwise use the code as a fallback
+      const rowId = selectedETBRow._id || selectedETBRow.code;
+      await addMappingToRow(engagementId, rowId, mappingData);
+
+      // Refresh ETB data if callback is provided
+      if (onRefreshETBData) {
+        onRefreshETBData();
+      }
+
+      // Reset form
+      setSelectedETBRow(null);
+      setIsCreateETBMappingOpen(false);
+
+      toast({
+        title: "Success",
+        description: "ETB mapping created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating ETB mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create ETB mapping",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingETBMapping(false);
+    }
   };
 
-  const handleDeleteMapping = (id: string) => {
-    onDeleteMapping(workbook.id, id);
+  const handleCreateWorkbookMapping = async () => {
+    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    if (!currentSelection) {
+      toast({
+        title: "Error",
+        description: "Please select a range in the sheet",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    setIsCreatingWorkbookMapping(true);
+  
+    try {
+      // Fix: Access props correctly
+      onCreateMapping(workbook.id, {
+        sheet: currentSelection.sheet,
+        start: {
+          row: currentSelection.start.row,
+          col: currentSelection.start.col,
+        },
+        end: {
+          row: currentSelection.end.row,
+          col: currentSelection.end.col,
+        },
+        color: generateColor(),
+      });
+  
+      // Reset form
+      setIsCreateWorkbookMappingOpen(false);
+  
+      toast({
+        title: "Success",
+        description: "Workbook mapping created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating workbook mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create workbook mapping",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingWorkbookMapping(false);
+    }
   };
 
   const renderHeader = () => (
     <header className="bg-white shadow-sm border-b px-4 py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
       <div className="w-full flex flex-col space-y-5">
         <div className="flex items-center space-x-2 lg:space-x-4 flex-grow-0 mb-2 md:mb-0">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+
           <div>
             <h1 className="text-lg font-semibold">{workbook.name}</h1>
             <p className="text-xs text-gray-500">
@@ -917,7 +1176,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsMappingsDialogOpen(true)}
+            onClick={() => setIsETBMappingsDialogOpen(true)}
           >
             <Code className="h-4 w-4 mr-2" /> Mappings
           </Button>
@@ -1083,107 +1342,172 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     </Dialog>
   );
 
-  // Mappings Dialog Content
-  const renderMappingsDialog = () => (
-    <Dialog open={isMappingsDialogOpen} onOpenChange={setIsMappingsDialogOpen}>
-      <DialogContent className="max-w-md">
+  // Old mappings dialog removed - now using separate ETB and Workbook dialogs
+
+  // ETB Mappings Dialog Content
+  const renderETBMappingsDialog = () => (
+    <Dialog open={isETBMappingsDialogOpen} onOpenChange={setIsETBMappingsDialogOpen}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Manage Mappings</DialogTitle>
+          <DialogTitle>ETB Mappings</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="flex-1 overflow-auto">
+          {etbLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-sm text-gray-500">Loading ETB mappings...</div>
+            </div>
+          ) : etbError ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-sm text-red-500">Error: {etbError}</div>
+            </div>
+          ) : !etbData || etbData.rows.length === 0 ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-sm text-gray-500">No ETB data available</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {etbData.rows.map((row) => (
+                <div key={row._id || row.code} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-semibold text-lg">{row.code} - {row.accountName}</h3>
+                      <p className="text-sm text-gray-600">Classification: {row.classification}</p>
+                    </div>
+                    <Badge variant="outline">{row.mappings?.length || 0} mapping(s)</Badge>
+                  </div>
+
+                  {!row.mappings || row.mappings.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No mappings for this row</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {row.mappings.map((mapping) => (
+                        <div
+                          key={mapping._id}
+                          className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                {mapping.isActive === false && <Badge variant="destructive">Inactive</Badge>}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
+                                {mapping.details?.end &&
+                                  (mapping.details.end.row !== mapping.details.start.row ||
+                                    mapping.details.end.col !== mapping.details.start.col) &&
+                                  `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
+                                }
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Workbook: {mapping.workbookId?.name || 'Unknown'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 ml-2">
           <Button
+                                variant="ghost"
             size="sm"
-            className="w-full"
             onClick={() => {
-              setIsCreateMappingOpen(true);
-              setIsMappingsDialogOpen(false); // Close parent dialog to show child
+                                  setEditingETBMapping(mapping);
+                                  setIsEditETBMappingOpen(true);
+                                  setIsETBMappingsDialogOpen(false);
             }}
-            disabled={selections.length === 0}
           >
-            <Plus className="h-4 w-4 mr-2" /> Create New Mapping (Current
-            Selection)
+                                Edit
           </Button>
-          {selections.length === 0 && (
-            <p className="text-sm text-gray-500 text-center">
-              Select a range in the sheet to create a new mapping.
-            </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  // TODO: Implement delete ETB mapping
+                                  handleDeleteETBMapping(mapping._id, row.code);
+                                }}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsETBMappingsDialogOpen(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+  // Workbook Mappings Dialog Content
+  const renderWorkbookMappingsDialog = () => (
+    <Dialog open={isWorkbookMappingsDialogOpen} onOpenChange={setIsWorkbookMappingsDialogOpen}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Workbook Mappings</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-auto">
             {mappings.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center">
-                No mappings defined.
-              </p>
-            ) : (
-              mappings
-                .filter((map) => map && map.details && map.details.start) // <--- FIX: Check map.details and map.details.start
-                .map((map, index) => {
-                  // FIX: Access details for sheet, start, end
-                  const { sheet, start, end } = map.details;
-
-                  const hasValidEnd =
-                    end &&
-                    typeof end.row === "number" &&
-                    typeof end.col === "number";
-
-                  return (
-                    <div
-                      key={map._id || index} // Use _id as key
-                      className={`p-2 text-xs rounded border-l-4 ${map.color} group`}
+            <div className="flex justify-center items-center py-8">
+              <div className="text-sm text-gray-500">No workbook mappings available</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mappings.map((mapping) => (
+                <div
+                  key={mapping._id}
+                  className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
                     >
                       <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium">{map.destinationField}</p>
-                          {/* Defensive check for map.details.end */}
-                          <p className="text-gray-600">
-                            {`${sheet}!${zeroIndexToExcelCol(start.col)}${
-                              start.row
-                            }${
-                              hasValidEnd &&
-                              (end.row !== start.row || end.col !== start.col)
-                                ? `:${zeroIndexToExcelCol(end.col)}${end.row}`
-                                : ""
-                            }`}
-                          </p>
-                          {map.transform && (
-                            <p className="text-gray-500">
-                              Transform: {map.transform}
-                            </p>
-                          )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
+                        {mapping.details?.end &&
+                          (mapping.details.end.row !== mapping.details.start.row ||
+                            mapping.details.end.col !== mapping.details.start.col) &&
+                          `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
+                        }
+                      </p>
                         </div>
-                        <div className="flex gap-1">
+                    <div className="flex gap-1 ml-2">
                           <Button
-                            size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0"
+                        size="sm"
                             onClick={() => {
-                              handleEditMapping(map);
-                              setIsMappingsDialogOpen(false); // Close parent dialog
+                          setEditingWorkbookMapping(mapping);
+                          setIsEditWorkbookMappingOpen(true);
+                          setIsWorkbookMappingsDialogOpen(false);
                             }}
                           >
-                            <Edit className="h-3 w-3" />
+                        Edit
                           </Button>
                           <Button
-                            size="sm"
                             variant="ghost"
-                            className="h-6 w-6 p-0"
-                            onClick={() => handleDeleteMapping(map._id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
+                        size="sm"
+                        onClick={() => {
+                          onDeleteMapping(workbook.id, mapping._id);
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Delete
                           </Button>
                         </div>
                       </div>
                     </div>
-                  );
-                })
+              ))}
+            </div>
             )}
-          </div>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsMappingsDialogOpen(false)}
-          >
+          <Button variant="outline" onClick={() => setIsWorkbookMappingsDialogOpen(false)}>
             Close
           </Button>
         </DialogFooter>
@@ -1315,6 +1639,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     const dataRows = currentSheetData.slice(1);
 
     return (
+      <>
+
       <div className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1">
         <Table className="border-collapse">
           <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
@@ -1339,7 +1665,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                     const isHeaderCell =
                       excelGridColIndex === 0 || excelGridRowIndex === 0;
 
-                    const mapping = mappings.find(
+                      const mapping = allMappings.find(
                       (m) =>
                         m.details &&
                         m.details.sheet === selectedSheet &&
@@ -1391,7 +1717,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                 transformOrigin: "top left",
                               }} // Smaller text size
                             >
-                              {mapping.destinationField}
+                              Mapping
                             </span>
                           )}
 
@@ -1411,7 +1737,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                   transformOrigin: "top left",
                                 }} // Smaller text size
                               >
-                                {mapping.destinationField}
+                                Mapping
                               </span>
                             </div>
                           )}
@@ -1420,7 +1746,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                         {/* The small blue dot can remain or be removed, depending on preference */}
                         {excelGridColIndex > 0 &&
                           excelGridRowIndex > 0 &&
-                          mappings.find(
+                            allMappings.find(
                             (m) =>
                               m.details &&
                               m.details.sheet === selectedSheet &&
@@ -1438,6 +1764,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           </TableBody>
         </Table>
       </div>
+      </>
     );
   };
 
@@ -1462,7 +1789,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setIsCreateMappingOpen(true)}
+                  onClick={() => setIsCreateETBMappingOpen(true)}
           >
             Create Mapping
           </Button>
@@ -1479,14 +1806,197 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     );
   };
 
+  const renderETBTable = () => {
+    if (!engagementId || !classification) {
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header - Conditionally rendered */}
-      {!isFullscreenMode && renderHeader()}
-      <div className="flex flex-1 overflow-hidden">
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Extended Trial Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert>
+              <AlertDescription>
+                Missing engagementId or classification. engagementId: {engagementId || 'undefined'}, classification: {classification || 'undefined'}
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (etbLoading) {
+      return (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Extended Trial Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (etbError) {
+      return (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Extended Trial Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertDescription>{etbError}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (!etbData || etbData.rows.length === 0) {
+      return (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Extended Trial Balance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Alert>
+              <AlertDescription>
+                No Extended Trial Balance data found for this classification.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const formatCurrency = (value: number) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+      }).format(value);
+    };
+
+    return (
+      <Card className="mb-4">
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Lead Sheet
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsETBMappingsDialogOpen(true)}>
+              Lead Sheet Mappings
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsCreateETBMappingOpen(true)}>
+              Map to Lead Sheet
+            </Button>
+            {/* <Button variant="outline" size="sm" onClick={() => setIsWorkbookMappingsDialogOpen(true)}>
+              Workbook Mappings
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsCreateWorkbookMappingOpen(true)}>
+              Map to Workbook
+            </Button> */}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-x-auto">
+            <div className="min-w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap min-w-[80px]">Code</TableHead>
+                    <TableHead className="whitespace-nowrap min-w-[200px]">Account Name</TableHead>
+                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Current Year</TableHead>
+                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Prior Year</TableHead>
+                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Adjustments</TableHead>
+                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Final Balance</TableHead>
+                    <TableHead className="w-[120px] whitespace-nowrap min-w-[120px]">Mappings</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {etbData.rows.map((row) => (
+                    <TableRow key={row._id || row.code}>
+                      <TableCell className="font-medium whitespace-nowrap">{row.code}</TableCell>
+                      <TableCell className="whitespace-nowrap">{row.accountName}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(row.currentYear)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(row.priorYear)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(row.adjustments)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium whitespace-nowrap">
+                        {formatCurrency(row.finalBalance)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge variant="outline">
+                          {row.mappings?.length || 0} mapping{(row.mappings?.length || 0) !== 1 ? 's' : ''}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow className="font-semibold">
+                    <TableCell colSpan={2} className="whitespace-nowrap">TOTALS</TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.currentYear, 0))}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.priorYear, 0))}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.adjustments, 0))}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.finalBalance, 0))}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap"></TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="flex flex-col h-auto">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="h-4 w-4 py-5 px-2" />
+        Back
+      </Button>
+      {/* ETB Table at the top */}
+      {renderETBTable()}
+
+      {renderHeader()}
+      <div className="flex flex-1">
         {/* Main content area */}
-        <main className="flex-1 p-4 bg-gray-50 flex flex-col w-full overflow-hidden">
-          <div className="flex-grow overflow-auto relative">
+        <main className="flex-1 p-4 bg-gray-50 flex flex-col w-full">
+
+
+          <div className="flex-grow relative">
             {" "}
             {/* Added relative to parent for absolute positioning of title */}
             {renderSpreadsheet()}
@@ -1639,7 +2149,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   size="sm"
                   variant="ghost"
                   onClick={() =>
-                    selections.length > 0 && setIsCreateMappingOpen(true)
+                    selections.length > 0 && setIsCreateETBMappingOpen(true)
                   }
                   disabled={selections.length === 0}
                 >
@@ -1647,7 +2157,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 </Button>
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {mappings
+                {allMappings
                   .filter((m) => m.details && m.details.sheet === selectedSheet) // <--- FIX: Access m.details.sheet
                   .map((map, index) => {
                     // Add defensive check for map.details - THIS IS THE FIX
@@ -1671,30 +2181,34 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="font-medium">
-                              {map.destinationField}
+                              Mapping
                             </p>
                             <p className="text-gray-600">
-                              {`${sheet}!${zeroIndexToExcelCol(start.col)}${
-                                start.row
-                              }${
-                                hasValidEnd &&
+                              {`${sheet}!${zeroIndexToExcelCol(start.col)}${start.row
+                                }${hasValidEnd &&
                                 (end.row !== start.row || end.col !== start.col)
                                   ? `:${zeroIndexToExcelCol(end.col)}${end.row}`
                                   : ""
                               }`}
                             </p>
-                            {map.transform && (
-                              <p className="text-gray-500">
-                                Transform: {map.transform}
-                              </p>
-                            )}
                           </div>
                           <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-6 w-6 p-0"
-                              onClick={() => handleEditMapping(map)}
+                              onClick={() => {
+                                // Check if this is an ETB mapping or workbook mapping
+                                if ('workbookId' in map) {
+                                  // This is an ETB mapping
+                                  setEditingETBMapping(map);
+                                  setIsEditETBMappingOpen(true);
+                                } else {
+                                  // This is a workbook mapping
+                                  setEditingWorkbookMapping(map);
+                                  setIsEditWorkbookMappingOpen(true);
+                                }
+                              }}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -1702,7 +2216,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               size="sm"
                               variant="ghost"
                               className="h-6 w-6 p-0"
-                              onClick={() => handleDeleteMapping(map._id)}
+                              onClick={() => onDeleteMapping(workbook.id, map._id)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -1718,7 +2232,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       </Sheet>
       {renderSaveDialog()}
       {renderNamedRangesDialog()} {/* Render the Named Ranges Dialog */}
-      {renderMappingsDialog()} {/* Render the Mappings Dialog */}
+      {/* Old mappings dialog removed - now using separate ETB and Workbook dialogs */}
+      {renderETBMappingsDialog()} {/* Render the ETB Mappings Dialog */}
+      {renderWorkbookMappingsDialog()} {/* Render the Workbook Mappings Dialog */}
       {/* Create Named Range Dialog */}
       <Dialog
         open={isCreateNamedRangeOpen}
@@ -1799,44 +2315,53 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Create Mapping Dialog */}
-      <Dialog open={isCreateMappingOpen} onOpenChange={setIsCreateMappingOpen}>
+      {/* Old create mapping dialog removed - now using separate ETB and Workbook dialogs */}
+      {/* Create ETB Mapping Dialog */}
+      <Dialog open={isCreateETBMappingOpen} onOpenChange={setIsCreateETBMappingOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Mapping</DialogTitle>
+            <DialogTitle>Create ETB Mapping</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="destination">Destination Field</Label>
-              <Input
-                id="destination"
-                value={newMappingDestinationField}
-                onChange={(e) => setNewMappingDestinationField(e.target.value)}
-                placeholder="Enter destination field name"
-              />
+              <Label htmlFor="etbRow">ETB Row</Label>
+              {!etbData ? (
+                <div className="p-2 text-sm text-gray-500 bg-gray-100 rounded">
+                  Loading ETB data...
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="transform">Transform</Label>
-              <Select
-                value={newMappingTransform}
-                onValueChange={setNewMappingTransform}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select transform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="map">Map</SelectItem>
-                  <SelectItem value="sum">Sum</SelectItem>
-                  <SelectItem value="average">Average</SelectItem>
-                  <SelectItem value="count">Count</SelectItem>
-                  <SelectItem value="max">Max</SelectItem>
-                  <SelectItem value="min">Min</SelectItem>
-                  <SelectItem value="first">First</SelectItem>
-                  <SelectItem value="last">Last</SelectItem>
-                  <SelectItem value="concat">Concatenate</SelectItem>
-                </SelectContent>
-              </Select>
+              ) : !etbData.rows || etbData.rows.length === 0 ? (
+                <div className="p-2 text-sm text-gray-500 bg-gray-100 rounded">
+                  No ETB rows available.
+                </div>
+              ) : (
+                <>
+                  <Select
+                    value={selectedETBRow?._id || selectedETBRow?.code || ""}
+                    onValueChange={(value) => {
+                      const row = etbData?.rows.find(r =>
+                        (r._id && r._id === value) || r.code === value
+                      );
+                      setSelectedETBRow(row || null);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select ETB row" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {etbData.rows.map((row) => (
+                        <SelectItem
+                          key={row._id || row.code}
+                          value={row._id || row.code}
+                        >
+                          {row.code} - {row.accountName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
+
             {selections.length > 0 && (
               <div className="p-2 bg-gray-100 rounded">
                 <p className="text-sm font-medium">Selected Range:</p>
@@ -1849,70 +2374,31 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsCreateMappingOpen(false)}
+              onClick={() => setIsCreateETBMappingOpen(false)}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateMapping}>Create</Button>
+            <Button
+              onClick={handleCreateETBMapping}
+              disabled={!selectedETBRow || isCreatingETBMapping}
+            >
+              {isCreatingETBMapping ? "Creating..." : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Edit Mapping Dialog */}
-      <Dialog open={isEditMappingOpen} onOpenChange={setIsEditMappingOpen}>
+      {/* Create Workbook Mapping Dialog */}
+      <Dialog open={isCreateWorkbookMappingOpen} onOpenChange={setIsCreateWorkbookMappingOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Mapping</DialogTitle>
+            <DialogTitle>Create Workbook Mapping</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-destination">Destination Field</Label>
-              <Input
-                id="edit-destination"
-                value={newMappingDestinationField}
-                onChange={(e) => setNewMappingDestinationField(e.target.value)}
-                placeholder="Enter destination field name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-transform">Transform</Label>
-              <Select
-                value={newMappingTransform}
-                onValueChange={setNewMappingTransform}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select transform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="map">Map</SelectItem>
-                  <SelectItem value="sum">Sum</SelectItem>
-                  <SelectItem value="average">Average</SelectItem>
-                  <SelectItem value="count">Count</SelectItem>
-                  <SelectItem value="max">Max</SelectItem>
-                  <SelectItem value="min">Min</SelectItem>
-                  <SelectItem value="first">First</SelectItem>
-                  <SelectItem value="last">Last</SelectItem>
-                  <SelectItem value="concat">Concatenate</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {editingMapping && (
+            {selections.length > 0 && (
               <div className="p-2 bg-gray-100 rounded">
-                <p className="text-sm font-medium">Mapped Range:</p>
+                <p className="text-sm font-medium">Selected Range:</p>
                 <p className="text-sm">
-                  {/* FIX: Access details object */}
-                  {editingMapping.details.end &&
-                  typeof editingMapping.details.end.row === "number" &&
-                  typeof editingMapping.details.end.col === "number"
-                    ? `${editingMapping.details.sheet}!${zeroIndexToExcelCol(
-                        editingMapping.details.start.col
-                      )}${
-                        editingMapping.details.start.row
-                      }:${zeroIndexToExcelCol(editingMapping.details.end.col)}${
-                        editingMapping.details.end.row
-                      }`
-                    : `${editingMapping.details.sheet}!${zeroIndexToExcelCol(
-                        editingMapping.details.start.col
-                      )}${editingMapping.details.start.row}`}
+                  {getSelectionText(selections[selections.length - 1])}
                 </p>
               </div>
             )}
@@ -1920,11 +2406,143 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditMappingOpen(false)}
+              onClick={() => setIsCreateWorkbookMappingOpen(false)}
             >
               Cancel
             </Button>
-            <Button onClick={handleUpdateMapping}>Update</Button>
+            <Button
+              onClick={handleCreateWorkbookMapping}
+              disabled={isCreatingWorkbookMapping}
+            >
+              {isCreatingWorkbookMapping ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Edit ETB Mapping Dialog */}
+      <Dialog open={isEditETBMappingOpen} onOpenChange={setIsEditETBMappingOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit ETB Mapping</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {editingETBMapping && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-etb-row">ETB Row</Label>
+                  <select
+                    id="edit-etb-row"
+                    value={editingETBMapping.tempRowCode || (() => {
+                      const row = etbData?.rows.find(r => r.mappings?.some(m => m._id === editingETBMapping._id));
+                      return row?.code || '';
+                    })()}
+                    onChange={(e) => {
+                      if (editingETBMapping) {
+                        setEditingETBMapping({
+                          ...editingETBMapping,
+                          tempRowCode: e.target.value
+                        } as any);
+                      }
+                    }}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select ETB Row</option>
+                    {etbData?.rows.map((row) => (
+                      <option key={row.code} value={row.code}>
+                        {row.code} - {row.accountName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Selected Range</Label>
+                  <Input
+                    placeholder="e.g., Sheet1!A1:B10"
+                    value={(() => {
+                      const details = editingETBMapping.tempDetails || editingETBMapping.details;
+                      if (!details) return '';
+                      const sheet = details.sheet;
+                      const start = `${zeroIndexToExcelCol(details.start.col)}${details.start.row + 1}`;
+                      const end = details.end && 
+                        (details.end.row !== details.start.row || details.end.col !== details.start.col)
+                        ? `${zeroIndexToExcelCol(details.end.col)}${details.end.row + 1}`
+                        : '';
+                      return `${sheet}!${start}${end ? `:${end}` : ''}`;
+                    })()}
+                    onChange={(e) => {
+                      // Parse the range input
+                      const match = e.target.value.match(/^([^!]+)!(.+)$/);
+                      if (match && editingETBMapping) {
+                        const [, sheet, range] = match;
+                        const [start, end] = range.split(':');
+                        
+                        // Parse start
+                        const startMatch = start.match(/^([A-Z]+)(\d+)$/);
+                        if (startMatch) {
+                          const [, colStr, rowStr] = startMatch;
+                          const col = excelColToZeroIndex(colStr);
+                          const row = parseInt(rowStr, 10) - 1;
+                          
+                          let endCol = col, endRow = row;
+                          if (end) {
+                            const endMatch = end.match(/^([A-Z]+)(\d+)$/);
+                            if (endMatch) {
+                              const [, endColStr, endRowStr] = endMatch;
+                              endCol = excelColToZeroIndex(endColStr);
+                              endRow = parseInt(endRowStr, 10) - 1;
+                            }
+                          }
+                          
+                          const tempDetails = {
+                            sheet,
+                            start: { row, col },
+                            end: { row: endRow, col: endCol },
+                          };
+                          setEditingETBMapping({
+                            ...editingETBMapping,
+                            tempDetails
+                          } as any);
+                        }
+                      }
+                    }}
+                    className="font-mono"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingETBMapping(null);
+                setIsEditETBMappingOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!editingETBMapping?.tempDetails && !editingETBMapping?.details}
+              onClick={() => {
+                if (editingETBMapping && etbData) {
+                  const currentRow = etbData.rows.find(r => 
+                    r.mappings?.some(m => m._id === editingETBMapping._id)
+                  );
+                  const newRowCode = editingETBMapping.tempRowCode || currentRow?.code;
+                  const updatedDetails = editingETBMapping.tempDetails || editingETBMapping.details;
+                  
+                  if (newRowCode && currentRow && updatedDetails) {
+                    const updateData: UpdateMappingRequest = {
+                      details: updatedDetails,
+                    };
+                    handleUpdateETBMapping(editingETBMapping._id, currentRow.code, newRowCode, updateData);
+                  }
+                }
+              }}
+            >
+              Update
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1932,36 +2550,230 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   );
 };
 
-export const ExcelViewerWithFullscreen: React.FC<ExcelViewerProps> = (
-  props
-) => {
+export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
+  'selectedSheet' | 'setSelectedSheet' | 'selections' | 'setSelections' | 'isSelecting' | 'setIsSelecting' | 'anchorSelectionStart' |
+  'isSaveDialogOpen' | 'setIsSaveDialogOpen' | 'saveType' | 'setSaveType' | 'isSaving' | 'setIsSaving' |
+  'isNamedRangesDialogOpen' | 'setIsNamedRangesDialogOpen' | 'isCreateNamedRangeOpen' | 'setIsCreateNamedRangeOpen' |
+  'isEditNamedRangeOpen' | 'setIsEditNamedRangeOpen' | 'editingNamedRange' | 'setEditingNamedRange' |
+  'newNamedRangeName' | 'setNewNamedRangeName' | 'newNamedRangeRange' | 'setNewNamedRangeRange' |
+  'isETBMappingsDialogOpen' | 'setIsETBMappingsDialogOpen' | 'isCreateETBMappingOpen' | 'setIsCreateETBMappingOpen' |
+  'isEditETBMappingOpen' | 'setIsEditETBMappingOpen' | 'editingETBMapping' | 'setEditingETBMapping' |
+  'selectedETBRow' | 'setSelectedETBRow' | 'isCreatingETBMapping' | 'setIsCreatingETBMapping' |
+  'isWorkbookMappingsDialogOpen' | 'setIsWorkbookMappingsDialogOpen' | 'isCreateWorkbookMappingOpen' | 'setIsCreateWorkbookMappingOpen' |
+  'isEditWorkbookMappingOpen' | 'setIsEditWorkbookMappingOpen' | 'editingWorkbookMapping' | 'setEditingWorkbookMapping' |
+  'isCreatingWorkbookMapping' | 'setIsCreatingWorkbookMapping' |
+  'etbData' | 'etbLoading' | 'etbError' | 'onRefreshETBData'
+>> = (props) => {
+  const { toast } = useToast();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Move selection state here
+  // Sheet selection state
+  const [selectedSheet, setSelectedSheet] = useState<string>("");
+
+  // Cell selection states
   const [selections, setSelections] = useState<Selection[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
-  const anchorSelectionStart = useRef<{ row: number; col: number } | null>(
-    null
-  );
+  const anchorSelectionStart = useRef<{ row: number; col: number } | null>(null);
 
-  // Reset selection when workbook changes
+  // Save dialog states
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveType, setSaveType] = useState<"workbook" | "sheet">("workbook");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Named ranges states
+  const [isNamedRangesDialogOpen, setIsNamedRangesDialogOpen] = useState(false);
+  const [isCreateNamedRangeOpen, setIsCreateNamedRangeOpen] = useState(false);
+  const [isEditNamedRangeOpen, setIsEditNamedRangeOpen] = useState(false);
+  const [editingNamedRange, setEditingNamedRange] = useState<any | null>(null);
+  const [newNamedRangeName, setNewNamedRangeName] = useState("");
+  const [newNamedRangeRange, setNewNamedRangeRange] = useState("");
+
+  // ETB Mappings states
+  const [isETBMappingsDialogOpen, setIsETBMappingsDialogOpen] = useState(false);
+  const [isCreateETBMappingOpen, setIsCreateETBMappingOpen] = useState(false);
+  const [isEditETBMappingOpen, setIsEditETBMappingOpen] = useState(false);
+  const [editingETBMapping, setEditingETBMapping] = useState<any | null>(null);
+  const [selectedETBRow, setSelectedETBRow] = useState<ETBRow | null>(null);
+  const [isCreatingETBMapping, setIsCreatingETBMapping] = useState(false);
+
+  // Workbook Mappings states
+  const [isWorkbookMappingsDialogOpen, setIsWorkbookMappingsDialogOpen] = useState(false);
+  const [isCreateWorkbookMappingOpen, setIsCreateWorkbookMappingOpen] = useState(false);
+  const [isEditWorkbookMappingOpen, setIsEditWorkbookMappingOpen] = useState(false);
+  const [editingWorkbookMapping, setEditingWorkbookMapping] = useState<Mapping | null>(null);
+  const [isCreatingWorkbookMapping, setIsCreatingWorkbookMapping] = useState(false);
+
+  // ETB states
+  const [etbData, setEtbData] = useState<ETBData | null>(null);
+  const [etbLoading, setEtbLoading] = useState(false);
+  const [etbError, setEtbError] = useState<string | null>(null);
+
+  // Reset states when workbook changes
   useEffect(() => {
     setSelections([]);
     setIsSelecting(false);
     anchorSelectionStart.current = null;
+    setIsSaveDialogOpen(false);
+    setIsNamedRangesDialogOpen(false);
+    setIsCreateNamedRangeOpen(false);
+    setIsEditNamedRangeOpen(false);
+    setEditingNamedRange(null);
+    setNewNamedRangeName("");
+    setNewNamedRangeRange("");
+    // Reset ETB mapping states
+    setIsETBMappingsDialogOpen(false);
+    setIsCreateETBMappingOpen(false);
+    setIsEditETBMappingOpen(false);
+    setEditingETBMapping(null);
+    setSelectedETBRow(null);
+    
+    // Reset Workbook mapping states
+    setIsWorkbookMappingsDialogOpen(false);
+    setIsCreateWorkbookMappingOpen(false);
+    setIsEditWorkbookMappingOpen(false);
+    setEditingWorkbookMapping(null);
   }, [props.workbook.id]);
+
+  // Fetch ETB data when engagementId or classification changes
+  const fetchETBData = async () => {
+    if (!props.engagementId || !props.classification) {
+      setEtbData(null);
+      return;
+    }
+
+    try {
+      setEtbLoading(true);
+      setEtbError(null);
+      const result = await getExtendedTrialBalanceWithMappings(props.engagementId, props.classification);
+      setEtbData(result);
+    } catch (err) {
+      console.error('ETB API error:', err);
+      setEtbError(err instanceof Error ? err.message : 'Failed to fetch ETB data');
+    } finally {
+      setEtbLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchETBData();
+  }, [props.engagementId, props.classification]);
+
+  const handleCreateETBMapping = async () => {
+    if (!selectedETBRow || !props.engagementId) {
+      toast({
+        title: "Error",
+        description: "Please select an ETB row",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    if (!currentSelection) {
+      toast({
+        title: "Error",
+        description: "Please select a range in the sheet",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingETBMapping(true);
+
+    try {
+      const mappingData: CreateMappingRequest = {
+        workbookId: props.workbook.id,
+        color: generateColor(),
+        details: {
+          sheet: currentSelection.sheet,
+          start: {
+            row: currentSelection.start.row,
+            col: currentSelection.start.col,
+          },
+          end: {
+            row: currentSelection.end.row,
+            col: currentSelection.end.col,
+          },
+        },
+      };
+
+      // Use the _id if available, otherwise use the code as a fallback
+      const rowId = selectedETBRow._id || selectedETBRow.code;
+      await addMappingToRow(props.engagementId, rowId, mappingData);
+
+      // Refresh ETB data
+      const result = await getExtendedTrialBalanceWithMappings(props.engagementId, props.classification);
+      setEtbData(result);
+
+      // Reset form
+      setSelectedETBRow(null);
+      setIsCreateETBMappingOpen(false);
+
+      toast({
+        title: "Success",
+        description: "ETB mapping created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating ETB mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create ETB mapping",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingETBMapping(false);
+    }
+  };
+
+  const handleCreateWorkbookMapping = async () => {
+    const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
+    if (!currentSelection) {
+      toast({
+        title: "Error",
+        description: "Please select a range in the sheet",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    setIsCreatingWorkbookMapping(true);
+  
+    try {
+      // Use the destructured props directly instead of props.onCreateMapping
+      props.onCreateMapping(props.workbook.id, {
+        sheet: currentSelection.sheet,
+        start: {
+          row: currentSelection.start.row,
+          col: currentSelection.start.col,
+        },
+        end: {
+          row: currentSelection.end.row,
+          col: currentSelection.end.col,
+        },
+        color: generateColor(),
+      });
+  
+      // Reset form
+      setIsCreateWorkbookMappingOpen(false);
+  
+      toast({
+        title: "Success",
+        description: "Workbook mapping created successfully",
+      });
+    } catch (error) {
+      console.error('Error creating workbook mapping:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create workbook mapping",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingWorkbookMapping(false);
+    }
+  };
 
   const handleToggleFullscreen = () => {
     setIsFullscreen(true);
-  };
-
-  // Create handlers for selection that will be passed to both ExcelViewer instances
-  const handleSelectionChange = (newSelections: Selection[]) => {
-    setSelections(newSelections);
-  };
-
-  const handleSelectingChange = (selecting: boolean) => {
-    setIsSelecting(selecting);
   };
 
   return (
@@ -1969,27 +2781,129 @@ export const ExcelViewerWithFullscreen: React.FC<ExcelViewerProps> = (
       <ExcelViewer
         {...props}
         onToggleFullscreen={handleToggleFullscreen}
-        // Pass selection state and handlers
+        // Pass all state props
+        selectedSheet={selectedSheet}
+        setSelectedSheet={setSelectedSheet}
         selections={selections}
-        setSelections={handleSelectionChange}
+        setSelections={setSelections}
         isSelecting={isSelecting}
-        setIsSelecting={handleSelectingChange}
+        setIsSelecting={setIsSelecting}
         anchorSelectionStart={anchorSelectionStart}
+        isSaveDialogOpen={isSaveDialogOpen}
+        setIsSaveDialogOpen={setIsSaveDialogOpen}
+        saveType={saveType}
+        setSaveType={setSaveType}
+        isSaving={isSaving}
+        setIsSaving={setIsSaving}
+        isNamedRangesDialogOpen={isNamedRangesDialogOpen}
+        setIsNamedRangesDialogOpen={setIsNamedRangesDialogOpen}
+        isCreateNamedRangeOpen={isCreateNamedRangeOpen}
+        setIsCreateNamedRangeOpen={setIsCreateNamedRangeOpen}
+        isEditNamedRangeOpen={isEditNamedRangeOpen}
+        setIsEditNamedRangeOpen={setIsEditNamedRangeOpen}
+        editingNamedRange={editingNamedRange}
+        setEditingNamedRange={setEditingNamedRange}
+        newNamedRangeName={newNamedRangeName}
+        setNewNamedRangeName={setNewNamedRangeName}
+        newNamedRangeRange={newNamedRangeRange}
+        setNewNamedRangeRange={setNewNamedRangeRange}
+        // ETB Mappings states
+        isETBMappingsDialogOpen={isETBMappingsDialogOpen}
+        setIsETBMappingsDialogOpen={setIsETBMappingsDialogOpen}
+        isCreateETBMappingOpen={isCreateETBMappingOpen}
+        setIsCreateETBMappingOpen={setIsCreateETBMappingOpen}
+        isEditETBMappingOpen={isEditETBMappingOpen}
+        setIsEditETBMappingOpen={setIsEditETBMappingOpen}
+        editingETBMapping={editingETBMapping}
+        setEditingETBMapping={setEditingETBMapping}
+        selectedETBRow={selectedETBRow}
+        setSelectedETBRow={setSelectedETBRow}
+        isCreatingETBMapping={isCreatingETBMapping}
+        setIsCreatingETBMapping={setIsCreatingETBMapping}
+
+        // Workbook Mappings states
+        isWorkbookMappingsDialogOpen={isWorkbookMappingsDialogOpen}
+        setIsWorkbookMappingsDialogOpen={setIsWorkbookMappingsDialogOpen}
+        isCreateWorkbookMappingOpen={isCreateWorkbookMappingOpen}
+        setIsCreateWorkbookMappingOpen={setIsCreateWorkbookMappingOpen}
+        isEditWorkbookMappingOpen={isEditWorkbookMappingOpen}
+        setIsEditWorkbookMappingOpen={setIsEditWorkbookMappingOpen}
+        editingWorkbookMapping={editingWorkbookMapping}
+        setEditingWorkbookMapping={setEditingWorkbookMapping}
+        isCreatingWorkbookMapping={isCreatingWorkbookMapping}
+        setIsCreatingWorkbookMapping={setIsCreatingWorkbookMapping}
+        // ETB props
+        etbData={etbData}
+        etbLoading={etbLoading}
+        etbError={etbError}
+        onRefreshETBData={fetchETBData}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
-          {/* Render ExcelViewer inside the fullscreen dialog, passing the same selection state */}
+          <div className="flex-1 overflow-auto">
+            {/* Render ExcelViewer inside the fullscreen dialog, passing the same state */}
           <ExcelViewer
             {...props}
             isFullscreenMode={true}
             onToggleFullscreen={() => setIsFullscreen(false)}
-            // Pass the same selection state and handlers
+              // Pass the same state props
+              selectedSheet={selectedSheet}
+              setSelectedSheet={setSelectedSheet}
             selections={selections}
-            setSelections={handleSelectionChange}
+              setSelections={setSelections}
             isSelecting={isSelecting}
-            setIsSelecting={handleSelectingChange}
+              setIsSelecting={setIsSelecting}
             anchorSelectionStart={anchorSelectionStart}
-          />
+              isSaveDialogOpen={isSaveDialogOpen}
+              setIsSaveDialogOpen={setIsSaveDialogOpen}
+              saveType={saveType}
+              setSaveType={setSaveType}
+              isSaving={isSaving}
+              setIsSaving={setIsSaving}
+              isNamedRangesDialogOpen={isNamedRangesDialogOpen}
+              setIsNamedRangesDialogOpen={setIsNamedRangesDialogOpen}
+              isCreateNamedRangeOpen={isCreateNamedRangeOpen}
+              setIsCreateNamedRangeOpen={setIsCreateNamedRangeOpen}
+              isEditNamedRangeOpen={isEditNamedRangeOpen}
+              setIsEditNamedRangeOpen={setIsEditNamedRangeOpen}
+              editingNamedRange={editingNamedRange}
+              setEditingNamedRange={setEditingNamedRange}
+              newNamedRangeName={newNamedRangeName}
+              setNewNamedRangeName={setNewNamedRangeName}
+              newNamedRangeRange={newNamedRangeRange}
+              setNewNamedRangeRange={setNewNamedRangeRange}
+              // ETB Mappings states
+              isETBMappingsDialogOpen={isETBMappingsDialogOpen}
+              setIsETBMappingsDialogOpen={setIsETBMappingsDialogOpen}
+              isCreateETBMappingOpen={isCreateETBMappingOpen}
+              setIsCreateETBMappingOpen={setIsCreateETBMappingOpen}
+              isEditETBMappingOpen={isEditETBMappingOpen}
+              setIsEditETBMappingOpen={setIsEditETBMappingOpen}
+              editingETBMapping={editingETBMapping}
+              setEditingETBMapping={setEditingETBMapping}
+              selectedETBRow={selectedETBRow}
+              setSelectedETBRow={setSelectedETBRow}
+              isCreatingETBMapping={isCreatingETBMapping}
+              setIsCreatingETBMapping={setIsCreatingETBMapping}
+
+              // Workbook Mappings states
+              isWorkbookMappingsDialogOpen={isWorkbookMappingsDialogOpen}
+              setIsWorkbookMappingsDialogOpen={setIsWorkbookMappingsDialogOpen}
+              isCreateWorkbookMappingOpen={isCreateWorkbookMappingOpen}
+              setIsCreateWorkbookMappingOpen={setIsCreateWorkbookMappingOpen}
+              isEditWorkbookMappingOpen={isEditWorkbookMappingOpen}
+              setIsEditWorkbookMappingOpen={setIsEditWorkbookMappingOpen}
+              editingWorkbookMapping={editingWorkbookMapping}
+              setEditingWorkbookMapping={setEditingWorkbookMapping}
+              isCreatingWorkbookMapping={isCreatingWorkbookMapping}
+              setIsCreatingWorkbookMapping={setIsCreatingWorkbookMapping}
+              // ETB props
+              etbData={etbData}
+              etbLoading={etbLoading}
+              etbError={etbError}
+              onRefreshETBData={fetchETBData}
+            />
+          </div>
           <div className="absolute top-4 right-4 z-50">
             <Button
               variant="outline"
