@@ -341,18 +341,18 @@ export const AIPlanningQuestionsStep: React.FC<{
 
       {/* Navigation Dropdown */}
       <div className="flex justify-start mb-6">
-  <div className="w-full max-w-md">
-    <Select onValueChange={(value) => scrollToSection(value)}>
-      <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
-        <SelectValue placeholder="Jump to section..." />
-      </SelectTrigger>
+        <div className="w-full max-w-md">
+          <Select onValueChange={(value) => scrollToSection(value)}>
+            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+              <SelectValue placeholder="Jump to section..." />
+            </SelectTrigger>
 
-      <SelectContent className="bg-white text-black border border-gray-200">
-        {PLANNING_SECTIONS.map((section) => (
-          <SelectItem
-            key={section.sectionId}
-            value={section.sectionId}
-            className="
+            <SelectContent className="bg-white text-black border border-gray-200">
+              {PLANNING_SECTIONS.map((section) => (
+                <SelectItem
+                  key={section.sectionId}
+                  value={section.sectionId}
+                  className="
               bg-white 
                
               data-[state=checked]:bg-gray-900
@@ -360,14 +360,14 @@ export const AIPlanningQuestionsStep: React.FC<{
               [&>svg]:text-white
               cursor-pointer
             "
-          >
-            {section.title}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
-</div>
+                >
+                  {section.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
 
 
