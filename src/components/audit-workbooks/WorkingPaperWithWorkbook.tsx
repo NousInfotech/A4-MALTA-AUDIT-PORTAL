@@ -211,7 +211,7 @@ export default function WorkingPaperWithWorkbook({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Lead Sheets with Linked Files</CardTitle>
+          <CardTitle>Working Papers with Linked Files</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
