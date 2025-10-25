@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "@/components/kyc/KYCDocumentRequestModal";
 import { AddDocumentRequestModal } from "@/components/kyc/AddDocumentRequestModal";
+import { ManualUploadModal } from "@/components/kyc/ManualUploadModal";
 import { DefaultDocumentRequestPreview } from "@/components/kyc/DefaultDocumentRequestPreview";
 import { DefaultDocument } from "@/data/defaultDocumentRequests";
 
@@ -403,6 +404,20 @@ export function EngagementKYC() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {engagementId && (
+                  <ManualUploadModal
+                    kycId={kycWorkflows[0]._id}
+                    engagementId={engagementId}
+                    clientId={kycWorkflows[0].clientId}
+                    onSuccess={fetchKYCWorkflows}
+                    trigger={
+                      <Button variant="outline" className="border-blue-300 hover:bg-blue-50 text-blue-700">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Manual Upload
+                      </Button>
+                    }
+                  />
+                )}
                 {engagementId && (
                   <AddDocumentRequestModal
                     kycId={kycWorkflows[0]._id}

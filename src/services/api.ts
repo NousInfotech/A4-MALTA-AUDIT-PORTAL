@@ -197,7 +197,7 @@ export const documentRequestApi = {
   },
 
   uploadSingleDocument: async (id: string, formData: FormData) => {
-    return apiCall(`/api/document-requests/${id}/documents/single`, {
+    return apiCall(`/api/document-requests/${id}/document`, {
       method: 'POST',
       body: formData,
     });
