@@ -32,13 +32,13 @@ import { useToast } from "@/hooks/use-toast";
 
 // Import the AuditLogEntryDisplay component
 import { AuditLogEntryDisplay } from "./AuditLogEntryDisplay"; // Adjust path as needed
-import WorkingPaperWithWorkbook from "./WorkingPaperWithWorkbook";
-import { 
-  getWorkingPapersWithLinkedFiles,
-  updateLinkedExcelFiles,
-  type WorkingPaperData,
-  type WorkingPaperRow
-} from "@/lib/api/workingpapaperApi";
+import ExtendedTBWithWorkbook from "./ExtendedTBWithWorkbook";
+import {
+  getExtendedTBWithLinkedFiles,
+  updateLinkedExcelFilesInExtendedTB,
+  type ETBData,
+  type ETBRow
+} from "@/lib/api/extendedTrialBalanceApi";
 
 interface MainDashboardProps {
   workbooks: Workbook[];
@@ -64,32 +64,43 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   classification,
 }) => {
   const { toast } = useToast();
-  const [workingPaperData, setWorkingPaperData] = useState<WorkingPaperData | null>(null);
+  const [etbData, setEtbData] = useState<ETBData | null>(null);
   const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Fetch working paper data when component mounts
+  // Debug useEffect to track state changes
   useEffect(() => {
-    const fetchWorkingPaperData = async () => {
+    console.log("MainDashboard state changed:", {
+      selectedRowId,
+      isLinking,
+      isDialogOpen,
+      etbDataRows: etbData?.rows.length,
+      selectedWorkbook: selectedWorkbook?.name
+    });
+  }, [selectedRowId, isLinking, isDialogOpen, etbData, selectedWorkbook]);
+
+  // Fetch ETB data when component mounts
+  useEffect(() => {
+    const fetchETBData = async () => {
       if (!engagementId || !classification) return;
-      
+
       try {
-        const data = await getWorkingPapersWithLinkedFiles(engagementId, classification);
-        setWorkingPaperData(data);
+        const data = await getExtendedTBWithLinkedFiles(engagementId, classification);
+        setEtbData(data);
       } catch (error) {
-        console.error("Error fetching working paper data:", error);
+        console.error("Error fetching ETB data:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch working paper data",
+          description: "Failed to fetch Extended Trial Balance data",
           variant: "destructive",
         });
       }
     };
 
-    fetchWorkingPaperData();
+    fetchETBData();
   }, [engagementId, classification, toast]);
 
   const deleteWorkbook = (e: React.MouseEvent, id: string, name: string) => {
@@ -97,12 +108,37 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
     onDeleteWorkbook(id, name);
   };
 
-  const handleLinkToField = (workbook: Workbook) => {
+  const handleLinkToField = async (workbook: Workbook) => {
     setSelectedWorkbook(workbook);
+
+    // Ensure ETB data is loaded before opening dialog
+    if (!etbData) {
+      try {
+        const data = await getExtendedTBWithLinkedFiles(engagementId, classification);
+        setEtbData(data);
+      } catch (error) {
+        console.error("Error fetching ETB data for linking:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load field data for linking",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsDialogOpen(true);
   };
 
   const handleSubmitLink = async () => {
+    console.log("handleSubmitLink called with:", {
+      selectedWorkbook: selectedWorkbook?.name,
+      selectedRowId,
+      engagementId,
+      classification,
+      etbDataRows: etbData?.rows.length
+    });
+
     if (!selectedWorkbook || !selectedRowId || !engagementId || !classification) {
       toast({
         title: "Error",
@@ -112,18 +148,39 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       return;
     }
 
+    if (!etbData || etbData.rows.length === 0) {
+      toast({
+        title: "Error",
+        description: "No field data available for linking",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLinking(true);
     try {
-      // First, get the current working paper data to find existing linked files
-      const currentData = await getWorkingPapersWithLinkedFiles(engagementId, classification);
-      
+      // First, get the current ETB data to find existing linked files
+      const currentData = await getExtendedTBWithLinkedFiles(engagementId, classification);
+
       // Find the selected row to get its current linked files
-      const selectedRow = currentData.rows.find(row => row.id === selectedRowId);
+      const selectedRow = currentData.rows.find(row => 
+        row._id === selectedRowId || row.code === selectedRowId
+      );
+      
+      console.log("Debug linking process:", {
+        selectedRowId,
+        selectedRowIdType: typeof selectedRowId,
+        totalRows: currentData.rows.length,
+        firstRowId: currentData.rows[0]?._id,
+        firstRowIdType: typeof currentData.rows[0]?._id,
+        allRowIds: currentData.rows.map(row => ({ id: row._id, type: typeof row._id }))
+      });
       
       if (!selectedRow) {
+        console.error("Selected row not found. Available rows:", currentData.rows.map(row => row._id));
         toast({
           title: "Error",
-          description: "Selected row not found",
+          description: `Selected row not found. Row ID: ${selectedRowId}`,
           variant: "destructive",
         });
         return;
@@ -131,7 +188,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
 
       // Get existing linked file IDs (convert Workbook objects to IDs)
       const existingLinkedFileIds = selectedRow.linkedExcelFiles.map(workbook => workbook._id);
-      
+
       // Check if the workbook is already linked to this row
       if (existingLinkedFileIds.includes(selectedWorkbook.id)) {
         toast({
@@ -145,8 +202,14 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       // Append the new workbook ID to existing linked files
       const updatedLinkedFiles = [...existingLinkedFileIds, selectedWorkbook.id];
 
+      console.log("Updating linked files:", {
+        rowId: selectedRowId,
+        existingFiles: existingLinkedFileIds,
+        newFiles: updatedLinkedFiles
+      });
+
       // Update with the combined array
-      await updateLinkedExcelFiles(
+      await updateLinkedExcelFilesInExtendedTB(
         engagementId,
         classification,
         selectedRowId,
@@ -158,11 +221,11 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         description: `Workbook "${selectedWorkbook.name}" linked to field successfully`,
       });
 
-      // Refresh working paper data
-      const updatedData = await getWorkingPapersWithLinkedFiles(engagementId, classification);
-      setWorkingPaperData(updatedData);
+      // Refresh ETB data
+      const updatedData = await getExtendedTBWithLinkedFiles(engagementId, classification);
+      setEtbData(updatedData);
 
-      // Trigger refresh of WorkingPaperWithWorkbook component
+      // Trigger refresh of ExtendedTBWithWorkbook component
       setRefreshTrigger(prev => prev + 1);
 
       // Close dialog and reset state
@@ -184,8 +247,8 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   return (
     <>
       <div>
-        <WorkingPaperWithWorkbook 
-          engagementId={engagementId} 
+        <ExtendedTBWithWorkbook
+          engagementId={engagementId}
           classification={classification}
           refreshTrigger={refreshTrigger}
         />
@@ -281,7 +344,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                     key={wb.id}
                     className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    <div 
+                    <div
                       onClick={() => onSelectWorkbook(wb)}
                       className="cursor-pointer"
                     >
@@ -357,6 +420,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       </div>
 
       {/* Link to Field Dialog */}
+      {/* Link to Field Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -370,18 +434,33 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               <Label htmlFor="field-select" className="text-right">
                 Field
               </Label>
-              <Select value={selectedRowId} onValueChange={setSelectedRowId}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a field" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workingPaperData?.rows.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.code} - {row.accountName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="col-span-3">
+                {!etbData || etbData.rows.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-2">
+                    Loading field data...
+                  </div>
+                ) : (
+                   <select
+                     value={selectedRowId}
+                     onChange={(e) => {
+                       console.log("Select changed to:", e.target.value);
+                       console.log("Select value type:", typeof e.target.value);
+                       setSelectedRowId(e.target.value);
+                     }}
+                     className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                   >
+                     <option value="" disabled>Select a field</option>
+                     {etbData?.rows.map((row) => {
+                       console.log("Rendering option for row:", row);
+                       return (
+                         <option key={row._id || row.code} value={row._id || row.code}>
+                           {row.code} - {row.accountName}
+                         </option>
+                       );
+                     })}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
