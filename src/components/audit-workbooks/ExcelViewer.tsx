@@ -2001,7 +2001,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             {/* Added relative to parent for absolute positioning of title */}
             {renderSpreadsheet()}
           </div>
-          {renderSelectionFooter()}
+          {/* {renderSelectionFooter()} */}
         </main>
       </div>
       {/* Mobile Menu Sheet */}
@@ -2918,3 +2918,6 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     </>
   );
 };
+
+
+
