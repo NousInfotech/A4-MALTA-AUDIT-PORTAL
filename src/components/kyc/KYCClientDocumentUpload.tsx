@@ -341,14 +341,6 @@ export function KYCClientDocumentUpload({
                           <span className="text-sm font-medium text-blue-800">Template-based Document</span>
                         </div>
                         
-                        {/* Debug Information */}
-                        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                          <strong>Debug Info:</strong><br/>
-                          Template exists: {doc.template ? 'Yes' : 'No'}<br/>
-                          Template URL: {doc.template?.url || 'Missing'}<br/>
-                          Template instruction: {doc.template?.instruction || 'Missing'}<br/>
-                          Full template object: {JSON.stringify(doc.template)}
-                        </div>
                         
                         {doc.template?.instruction && (
                           <p className="text-sm text-blue-700 mb-2">
@@ -425,8 +417,8 @@ export function KYCClientDocumentUpload({
                       </div>
                     )}
 
-                    {/* Upload Section */}
-                    {doc.status === 'pending' && (
+                    {/* Upload Section - Only show if document hasn't been uploaded yet */}
+                    {doc.status === 'pending' && !doc.url && (
                       <div className="space-y-3">
                         <div>
                           <Label htmlFor={`comment-${index}`}>Upload Comment (Optional)</Label>
