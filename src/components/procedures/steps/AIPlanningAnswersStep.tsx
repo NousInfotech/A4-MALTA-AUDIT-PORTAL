@@ -422,7 +422,7 @@ const AIPlanningAnswersStep: React.FC<{
         <div className="w-full max-w-md">
           <Select onValueChange={(value) => scrollToSection(value)}>
             <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
-              <SelectValue placeholder="Jump to section..." />
+              <SelectValue placeholder={PLANNING_SECTIONS[0].title}/>
             </SelectTrigger>
 
             <SelectContent className="bg-white text-black border border-gray-200">
