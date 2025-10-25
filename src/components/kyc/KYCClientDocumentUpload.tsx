@@ -33,7 +33,7 @@ interface Document {
   };
   url?: string;
   uploadedAt?: string;
-  status: 'pending' | 'uploaded' | 'in-review' | 'approved' | 'rejected';
+  status: 'pending' | 'uploaded' | 'completed' | 'in-review' | 'approved' | 'rejected';
   comment?: string;
 }
 
@@ -192,6 +192,8 @@ export function KYCClientDocumentUpload({
     switch (status) {
       case 'uploaded':
         return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case 'completed':
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'approved':
         return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'rejected':
@@ -207,6 +209,8 @@ export function KYCClientDocumentUpload({
     switch (status) {
       case 'uploaded':
         return <Badge variant="default" className="bg-green-100 text-green-800">Uploaded</Badge>;
+      case 'completed':
+        return <Badge variant="default" className="bg-green-100 text-green-800">Completed</Badge>;
       case 'approved':
         return <Badge variant="default" className="bg-green-100 text-green-800">Approved</Badge>;
       case 'rejected':
@@ -241,7 +245,7 @@ export function KYCClientDocumentUpload({
   };
 
   const uploadedCount = documentRequest?.documents.filter(doc => 
-    doc.status === 'uploaded' || doc.status === 'approved'
+    doc.status === 'uploaded' || doc.status === 'approved' || doc.status === 'completed'
   ).length || 0;
   const totalCount = documentRequest?.documents.length || 0;
   const progressPercentage = totalCount > 0 ? (uploadedCount / totalCount) * 100 : 0;
