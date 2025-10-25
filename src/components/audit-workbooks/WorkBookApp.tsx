@@ -1385,6 +1385,8 @@ export default function WorkBookApp({
             onViewHistoryClick={() => setCurrentView("history")} // NEW: Add prop
             allWorkbookLogs={allWorkbookLogs}
             isLoading={isLoadingAllWorkbookLogs}
+            engagementId={engagementId}
+            classification={classification}
           />
         );
       case "viewer":
@@ -1489,6 +1491,8 @@ export default function WorkBookApp({
             onViewHistoryClick={() => setCurrentView("history")} // NEW: Add prop
             allWorkbookLogs={allWorkbookLogs}
             isLoading={isLoadingAllWorkbookLogs}
+            engagementId={engagementId}
+            classification={classification}
           />
         );
     }

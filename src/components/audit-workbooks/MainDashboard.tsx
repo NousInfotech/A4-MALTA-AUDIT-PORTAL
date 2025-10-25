@@ -1,5 +1,5 @@
 // src/components/audit-workbooks/MainDashboard.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -9,13 +9,36 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Upload, FileSpreadsheet, Activity, User, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Activity, User, Loader2, Link } from "lucide-react";
 import { AuditLogEntry, Workbook } from "../../types/audit-workbooks/types"; // Adjust path as needed
-// import { db_WorkbookApi } from "@/lib/api/workbookApi"; // Not directly used in render, can be removed if not needed elsewhere in this file
-// import { toast } from "sonner"; // Not directly used in render, can be removed if not needed elsewhere in this file
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 // Import the AuditLogEntryDisplay component
 import { AuditLogEntryDisplay } from "./AuditLogEntryDisplay"; // Adjust path as needed
+import WorkingPaperWithWorkbook from "./WorkingPaperWithWorkbook";
+import { 
+  getWorkingPapersWithLinkedFiles,
+  updateLinkedExcelFiles,
+  type WorkingPaperData,
+  type WorkingPaperRow
+} from "@/lib/api/workingpapaperApi";
 
 interface MainDashboardProps {
   workbooks: Workbook[];
@@ -25,6 +48,8 @@ interface MainDashboardProps {
   onViewHistoryClick: () => void;
   allWorkbookLogs: (AuditLogEntry & { workbookName?: string })[]; // This is the prop we'll use
   isLoading: boolean; // This prop likely refers to loading workbooks or initial data for the dashboard
+  engagementId: string;
+  classification: string;
 }
 
 export const MainDashboard: React.FC<MainDashboardProps> = ({
@@ -35,165 +60,357 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   onViewHistoryClick,
   allWorkbookLogs, // Destructure the prop here
   isLoading, // Destructure the prop here
+  engagementId,
+  classification,
 }) => {
+  const { toast } = useToast();
+  const [workingPaperData, setWorkingPaperData] = useState<WorkingPaperData | null>(null);
+  const [selectedWorkbook, setSelectedWorkbook] = useState<Workbook | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string>("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Fetch working paper data when component mounts
+  useEffect(() => {
+    const fetchWorkingPaperData = async () => {
+      if (!engagementId || !classification) return;
+      
+      try {
+        const data = await getWorkingPapersWithLinkedFiles(engagementId, classification);
+        setWorkingPaperData(data);
+      } catch (error) {
+        console.error("Error fetching working paper data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch working paper data",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchWorkingPaperData();
+  }, [engagementId, classification, toast]);
+
   const deleteWorkbook = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     onDeleteWorkbook(id, name);
   };
 
+  const handleLinkToField = (workbook: Workbook) => {
+    setSelectedWorkbook(workbook);
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmitLink = async () => {
+    if (!selectedWorkbook || !selectedRowId || !engagementId || !classification) {
+      toast({
+        title: "Error",
+        description: "Please select a field to link the workbook to",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLinking(true);
+    try {
+      // First, get the current working paper data to find existing linked files
+      const currentData = await getWorkingPapersWithLinkedFiles(engagementId, classification);
+      
+      // Find the selected row to get its current linked files
+      const selectedRow = currentData.rows.find(row => row.id === selectedRowId);
+      
+      if (!selectedRow) {
+        toast({
+          title: "Error",
+          description: "Selected row not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get existing linked file IDs (convert Workbook objects to IDs)
+      const existingLinkedFileIds = selectedRow.linkedExcelFiles.map(workbook => workbook._id);
+      
+      // Check if the workbook is already linked to this row
+      if (existingLinkedFileIds.includes(selectedWorkbook.id)) {
+        toast({
+          title: "Warning",
+          description: `Workbook "${selectedWorkbook.name}" is already linked to this field`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Append the new workbook ID to existing linked files
+      const updatedLinkedFiles = [...existingLinkedFileIds, selectedWorkbook.id];
+
+      // Update with the combined array
+      await updateLinkedExcelFiles(
+        engagementId,
+        classification,
+        selectedRowId,
+        updatedLinkedFiles
+      );
+
+      toast({
+        title: "Success",
+        description: `Workbook "${selectedWorkbook.name}" linked to field successfully`,
+      });
+
+      // Refresh working paper data
+      const updatedData = await getWorkingPapersWithLinkedFiles(engagementId, classification);
+      setWorkingPaperData(updatedData);
+
+      // Trigger refresh of WorkingPaperWithWorkbook component
+      setRefreshTrigger(prev => prev + 1);
+
+      // Close dialog and reset state
+      setIsDialogOpen(false);
+      setSelectedWorkbook(null);
+      setSelectedRowId("");
+    } catch (error) {
+      console.error("Error linking workbook to field:", error);
+      toast({
+        title: "Error",
+        description: "Failed to link workbook to field",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <FileSpreadsheet className="h-8 w-8 text-blue-600" />
-          <h1 className="text-2xl font-bold">Audit&nbsp;Work&nbsp;Book</h1>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Avatar>
-            <AvatarFallback>
-              <User className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-          <span className="hidden sm:block text-sm font-medium">Auditor</span>
-        </div>
-      </header>
+    <>
+      <div>
+        <WorkingPaperWithWorkbook 
+          engagementId={engagementId} 
+          classification={classification}
+          refreshTrigger={refreshTrigger}
+        />
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 overflow-auto">
-        <div className="grid grid-cols-1 gap-6"> {/* Added responsive grid classes */}
+      <div className="flex flex-col h-screen">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+            <h1 className="text-2xl font-bold">Audit&nbsp;Work&nbsp;Book</h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Button onClick={onViewHistoryClick} variant="outline">
+              View All Workbook History
+            </Button>
+          </div>
+        </header>
 
-          {/* Main sheets */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Master Associated Sheets</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              { workbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
-                <div
-                  key={wb.id}
-                  onClick={() => onSelectWorkbook(wb)}
-                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                >
-                  <p className="font-medium text-sm text-green-700">{wb.name}</p>
-                  <p><span className="text-xs italic">including lead sheet</span></p>
-                  {/* <p className="text-xs text-gray-500">
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8 overflow-auto">
+          <div className="grid grid-cols-1 gap-6"> {/* Added responsive grid classes */}
+
+            {/* Main sheets */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Master Associated Sheets</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {workbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
+                  <div
+                    key={wb.id}
+                    onClick={() => onSelectWorkbook(wb)}
+                    className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <p className="font-medium text-sm text-green-700">{wb.name}</p>
+                    <p><span className="text-xs italic">including lead sheet</span></p>
+                    {/* <p className="text-xs text-gray-500">
                     v{wb.version} by {wb.lastModifiedBy || "Unknown"}
                   </p> */}
-                  {/* If you want a delete button, uncomment this and ensure styling is good */}
-                  {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
+                    {/* If you want a delete button, uncomment this and ensure styling is good */}
+                    {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
                     delete
                   </button> */}
-                </div>
-              ))}
-              {workbooks.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No working paper yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          {/* End Main sheets */}
-
-
-          {/* Upload Area */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Upload Workbook
-              </CardTitle>
-              <CardDescription>
-                Add a new Excel file to start mapping.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div
-                onClick={onUploadClick}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
-              >
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
-                  Drag & drop an .xlsx file here, or
-                </p>
-                <Button variant="link" className="mt-1 p-0 h-auto">
-                  Browse Files
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          
-
-          {/* Recent Workbooks */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Workbooks</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {workbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
-                <div
-                  key={wb.id}
-                  onClick={() => onSelectWorkbook(wb)}
-                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                >
-                  <p className="font-medium text-sm">{wb.name}</p>
-                  <p className="text-xs text-gray-500">
-                    v{wb.version} by {wb.lastModifiedBy || "Unknown"}
+                  </div>
+                ))}
+                {workbooks.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No working paper yet.
                   </p>
-                  {/* If you want a delete button, uncomment this and ensure styling is good */}
-                  {/* <button onClick={(e) => deleteWorkbook(e, wb.id, wb.name)}>
-                    delete
-                  </button> */}
-                </div>
-              ))}
-              {workbooks.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No workbooks uploaded yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+            {/* End Main sheets */}
 
-          {/* Recent Activities */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Recent Activities
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-4 mb-4"> {/* Added flex-col for better mobile stacking */}
-                <Button onClick={onUploadClick}>Upload New Workbook</Button>
-                <Button onClick={onViewHistoryClick} variant="outline">
-                  View All Workbook History
-                </Button>
-              </div>
 
-              {/* Render actual workbook logs instead of mockActivities */}
-              {isLoading ? ( // Use the isLoading prop for the main dashboard
-                <div className="flex justify-center items-center py-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  <p className="ml-2 text-gray-700">Loading activities...</p>
+            {/* Upload Area */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Upload Workbook
+                </CardTitle>
+                <CardDescription>
+                  Add a new Excel file to start mapping.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div
+                  onClick={onUploadClick}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
+                >
+                  <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-600">
+                    Drag & drop an .xlsx file here, or
+                  </p>
+                  <Button variant="link" className="mt-1 p-0 h-auto">
+                    Browse Files
+                  </Button>
                 </div>
-              ) : allWorkbookLogs.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No recent activities.
-                </p>
-              ) : (
-                allWorkbookLogs.slice(0, 5).map( // Displaying only the first 5 logs for "Recent Activities"
-                  (log, index) => (
-                    <AuditLogEntryDisplay
-                      key={log.id || index}
-                      log={log}
-                    />
+              </CardContent>
+            </Card>
+
+
+            {/* Recent Workbooks */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Workbooks</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {workbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
+                  <div
+                    key={wb.id}
+                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div 
+                      onClick={() => onSelectWorkbook(wb)}
+                      className="cursor-pointer"
+                    >
+                      <p className="font-medium text-sm">{wb.name}</p>
+                      <p className="text-xs text-gray-500">
+                        v{wb.version} by {wb.lastModifiedBy || "Unknown"}
+                      </p>
+                    </div>
+                    <div className="flex justify-end mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLinkToField(wb);
+                        }}
+                        className="h-8 px-3"
+                      >
+                        <Link className="h-4 w-4 mr-2" />
+                        Link to Field
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {workbooks.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No workbooks uploaded yet.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Activities */}
+            {/* <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Recent Activities
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                  <Button onClick={onUploadClick}>Upload New Workbook</Button>
+                  <Button onClick={onViewHistoryClick} variant="outline">
+                    View All Workbook History
+                  </Button>
+                </div>
+
+                
+                {isLoading ? (
+                  <div className="flex justify-center items-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                    <p className="ml-2 text-gray-700">Loading activities...</p>
+                  </div>
+                ) : allWorkbookLogs.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No recent activities.
+                  </p>
+                ) : (
+                  allWorkbookLogs.slice(0, 5).map(
+                    (log, index) => (
+                      <AuditLogEntryDisplay
+                        key={log.id || index}
+                        log={log}
+                      />
+                    )
                   )
-                )
+                )}
+              </CardContent>
+            </Card> */}
+          </div>
+        </main>
+      </div>
+
+      {/* Link to Field Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Link Workbook to Field</DialogTitle>
+            <DialogDescription>
+              Select a field to link the workbook "{selectedWorkbook?.name}" to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="field-select" className="text-right">
+                Field
+              </Label>
+              <Select value={selectedRowId} onValueChange={setSelectedRowId}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workingPaperData?.rows.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.code} - {row.accountName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDialogOpen(false);
+                setSelectedWorkbook(null);
+                setSelectedRowId("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitLink}
+              disabled={!selectedRowId || isLinking}
+            >
+              {isLinking ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Linking...
+                </>
+              ) : (
+                "Link Workbook"
               )}
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

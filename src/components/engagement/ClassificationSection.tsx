@@ -3554,7 +3554,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               className="flex-1 flex flex-col"
 
             >
+              <>
+              {/* <div className="my-5">
+                {renderDataTable()}
+              </div> */}
               <WorkBookApp engagement={engagement} engagementId={engagement.id} classification={classification}/>
+              </>
             </TabsContent>
 
           </Tabs>
