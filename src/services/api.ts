@@ -411,26 +411,6 @@ export const kycApi = {
   getMyKYCs: async () => {
     return apiCall('/api/kyc/my');
   },
-
-  updateStatus: async (id: string, status: string) => {
-    return apiCall(`/api/kyc/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-  },
-
-  addDiscussion: async (id: string, data: {
-    message: string;
-    documentRef?: {
-      documentRequestId: string;
-      documentIndex: number;
-    } | null;
-  }) => {
-    return apiCall(`/api/kyc/${id}/discussions`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
 };
 
 // Employee Log API
@@ -1086,15 +1066,6 @@ export const isqmApi = {
     });
   },
 
-  // Add section note
-  addSectionNote: async (questionnaireId: string, sectionIndex: number, data: { note: string }) => {
-    console.log('📝 Adding section note:', { questionnaireId, sectionIndex, data });
-    return apiCall(`/api/isqm/questionnaires/${questionnaireId}/sections/${sectionIndex}/notes`, {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-  },
-
   // Delete section
   deleteSection: async (questionnaireId: string, sectionIndex: number) => {
     console.log('🗑️ Deleting section:', { questionnaireId, sectionIndex });
@@ -1198,21 +1169,6 @@ export const isqmApi = {
   }) => {
     console.log('🤖 Generating compliance checklist:', questionnaireId, data);
     return apiCall(`/api/isqm/questionnaires/${questionnaireId}/generate/compliance-checklist`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  generateAllDocuments: async (parentId: string, data: {
-    firmDetails: {
-      size: string;
-      specializations: string[];
-      jurisdiction: string;
-      additionalInfo?: string;
-    }
-  }) => {
-    console.log('🤖 Generating all documents for parent:', parentId, data);
-    return apiCall(`/api/isqm/parents/${parentId}/generate-documents`, {
       method: 'POST',
       body: JSON.stringify(data),
     });

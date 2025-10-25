@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Loader2, Sparkles, Edit3, Save, Trash2, CheckCircle, ChevronUp, ChevronDown } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -53,7 +54,6 @@ const AIProcedureQuestionsStep: React.FC<{
   onBack: () => void
 }> = ({ engagement, stepData, onComplete, onBack }) => {
   const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
   const [generatingClassifications, setGeneratingClassifications] = useState<Set<string>>(new Set())
 
   const [questions, setQuestions] = useState<any[]>(
@@ -114,7 +114,6 @@ const AIProcedureQuestionsStep: React.FC<{
   }, [sectionIds]);
 
   const generateQuestionsForClassification = async (classification: string) => {
-    setLoading(true)
     setGeneratingClassifications(prev => {
       const newSet = new Set(prev)
       newSet.add(classification)
@@ -159,7 +158,6 @@ const AIProcedureQuestionsStep: React.FC<{
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
-      setLoading(false)
       setGeneratingClassifications(prev => {
         const newSet = new Set(prev)
         newSet.delete(classification)
@@ -218,7 +216,7 @@ const AIProcedureQuestionsStep: React.FC<{
             AI — Generate Questions
           </CardTitle>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={saveDraft} disabled={loading}>
+            <Button variant="secondary" onClick={saveDraft}>
               <Save className="h-4 w-4 mr-2" />
               Save Draft
             </Button>
@@ -232,7 +230,7 @@ const AIProcedureQuestionsStep: React.FC<{
               <Button
                 key={classification}
                 onClick={() => generateQuestionsForClassification(classification)}
-                disabled={loading || generatingClassifications.has(classification)}
+                disabled={generatingClassifications.has(classification)}
                 className="flex items-center justify-center"
               >
                 {generatingClassifications.has(classification) ? (
@@ -245,10 +243,40 @@ const AIProcedureQuestionsStep: React.FC<{
             ))}
           </div>
 
+          {/* Navigation Dropdown */}
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-md">
+              <Select onValueChange={(value) => scrollToSection(value)}>
+                <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                   <SelectValue placeholder={Object.keys(groups)[0] || "Select Section"}/>
+                </SelectTrigger>
+
+                <SelectContent className="bg-white text-black border border-gray-200">
+                  {Object.keys(groups).map((bucket, index) => (
+                    <SelectItem
+                      key={`section-${index}`}
+                      value={`section-${index}`}
+                      className="
+                bg-white 
+                 
+                data-[state=checked]:bg-gray-900
+                data-[state=checked]:text-white 
+                [&>svg]:text-white
+                cursor-pointer
+              "
+                    >
+                      {formatClassificationForDisplay(bucket)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {questions.length === 0 ? (
             <p className="text-sm text-muted-foreground">No questions yet. Select a classification to generate questions.</p>
           ) : (
-            <>
+            <div className="space-y-4 h-[60vh] overflow-y-scroll">
               {Object.entries(groups).map(([bucket, items], index) => (
                 <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 shadow-sm relative">
                   <CardHeader>
@@ -257,29 +285,6 @@ const AIProcedureQuestionsStep: React.FC<{
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{formatClassificationForDisplay(bucket)}</Badge>
                           <Badge variant="secondary">{items.length} item{items.length > 1 ? "s" : ""}</Badge>
-                          {/* Section Navigation Buttons */}
-                          <div className="flex justify-between">
-                            {index > 0 && (
-                              <Button
-                                variant="outline"
-                                onClick={() => scrollToSection(sectionIds[index - 1])}
-                                className="flex items-center gap-2"
-                              >
-                                <ChevronUp className="h-4 w-4" />
-                                Previous Section
-                              </Button>
-                            )}
-                            {index < sectionIds.length - 1 && (
-                              <Button
-                                variant="outline"
-                                onClick={() => scrollToSection(sectionIds[index + 1])}
-                                className="flex items-center gap-2 ml-auto"
-                              >
-                                Next Section
-                                <ChevronDown className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
                         </div>
                         {recTextFor(bucket) ? (
                           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
@@ -335,6 +340,8 @@ const AIProcedureQuestionsStep: React.FC<{
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
 
               <div className="flex justify-end">
                 <Button
@@ -349,8 +356,6 @@ const AIProcedureQuestionsStep: React.FC<{
                   Continue
                 </Button>
               </div>
-            </>
-          )}
         </CardContent>
       </Card>
     </div>
