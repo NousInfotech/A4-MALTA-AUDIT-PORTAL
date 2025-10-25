@@ -294,8 +294,8 @@ export function ManualUploadModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Document Request Info */}
-          <Card className="bg-white shadow-sm border-slate-200">
+          {/* Document Request Info - Hidden as requested */}
+          {/* <Card className="bg-white shadow-sm border-slate-200">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-blue-600" />
@@ -327,7 +327,7 @@ export function ManualUploadModal({
                 />
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
 
           {/* File Upload */}
           <Card className="bg-white shadow-sm border-slate-200">
