@@ -10,6 +10,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, ChevronUp, ChevronDown } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 const withUids = (procedures: any[]) =>
@@ -107,7 +108,6 @@ export const AICompletionQuestionsStep: React.FC<{
   onComplete: (data: any) => void
   onBack: () => void
 }> = ({ engagement, mode, stepData, onComplete, onBack }) => {
-  const [loading, setLoading] = useState(false)
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
   const [procedures, setProcedures] = useState<any[]>(() => {
     const existingProcedures = withUids(stepData.procedures || []);
@@ -172,7 +172,6 @@ export const AICompletionQuestionsStep: React.FC<{
   }, [])
 
   const handleGenerateSectionQuestions = async (sectionId: string) => {
-    setLoading(true)
     setGeneratingSections(prev => {
       const newSet = new Set(prev)
       newSet.add(sectionId)
@@ -199,7 +198,6 @@ export const AICompletionQuestionsStep: React.FC<{
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
-      setLoading(false)
       setGeneratingSections(prev => {
         const newSet = new Set(prev)
         newSet.delete(sectionId)
@@ -330,7 +328,39 @@ export const AICompletionQuestionsStep: React.FC<{
         Step-1: Generate questions for each completion section separately. You can freely <b>edit / add / remove</b> questions here before moving to the next step.
       </div>
 
-      <div className="space-y-4">
+      
+
+      {/* Navigation Dropdown */}
+      <div className="flex justify-start mb-6">
+        <div className="w-full max-w-md">
+          <Select onValueChange={(value) => scrollToSection(value)}>
+            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+               <SelectValue placeholder={COMPLETION_SECTIONS[0].title}/>
+            </SelectTrigger>
+
+            <SelectContent className="bg-white text-black border border-gray-200">
+              {COMPLETION_SECTIONS.map((section) => (
+                <SelectItem
+                  key={section.sectionId}
+                  value={section.sectionId}
+                  className="
+              bg-white 
+               
+              data-[state=checked]:bg-gray-900
+              data-[state=checked]:text-white 
+              [&>svg]:text-white
+              cursor-pointer
+            "
+                >
+                  {section.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-4 h-[60vh] overflow-y-scroll">
         {COMPLETION_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
@@ -352,7 +382,7 @@ export const AICompletionQuestionsStep: React.FC<{
                 <div className="flex justify-between gap-2">
                   <Button
                     onClick={() => handleGenerateSectionQuestions(section.sectionId)}
-                    disabled={loading || generatingSections.has(section.sectionId)}
+                    disabled={generatingSections.has(section.sectionId)}
                     className="flex items-center justify-center"
                   >
                     {generatingSections.has(section.sectionId) ? (
@@ -360,25 +390,6 @@ export const AICompletionQuestionsStep: React.FC<{
                     ) : null}
                     {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
                   </Button>
-                  {index > 0 && (
-                    <Button
-                      variant="outline"
-                      onClick={() => scrollToSection(COMPLETION_SECTIONS[index - 1].sectionId)}
-                      className="flex items-center gap-2"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                      Previous Section
-                    </Button>
-                  )}
-                  {index < COMPLETION_SECTIONS.length - 1 && (
-                    <Button
-                      onClick={() => scrollToSection(COMPLETION_SECTIONS[index + 1].sectionId)}
-                      className="flex items-center gap-2 ml-auto"
-                    >
-                      Next Section
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  )}
                 </div>
               </div>
 

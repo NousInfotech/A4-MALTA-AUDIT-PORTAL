@@ -21,6 +21,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession();
@@ -201,7 +202,6 @@ const AIProcedureAnswersStep: React.FC<{
   }, [sectionIds]);
 
   const fillAnswersForClassification = async (classification: string) => {
-    setLoading(true);
     setGeneratingClassifications(prev => {
       const newSet = new Set(prev);
       newSet.add(classification);
@@ -274,7 +274,6 @@ const AIProcedureAnswersStep: React.FC<{
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
       setGeneratingClassifications(prev => {
         const newSet = new Set(prev);
         newSet.delete(classification);
@@ -371,10 +370,40 @@ const AIProcedureAnswersStep: React.FC<{
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={saveDraft} disabled={loading}>
+            <Button variant="secondary" onClick={saveDraft}>
               <Save className="h-4 w-4 mr-2" />
               Save Draft
             </Button>
+          </div>
+
+          {/* Navigation Dropdown */}
+          <div className="flex justify-start mb-6">
+            <div className="w-full max-w-md">
+              <Select onValueChange={(value) => scrollToSection(value)}>
+                <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                   <SelectValue placeholder={Object.keys(grouped)[0] || "Select Section"}/>
+                </SelectTrigger>
+
+                <SelectContent className="bg-white text-black border border-gray-200">
+                  {Object.keys(grouped).map((bucket, index) => (
+                    <SelectItem
+                      key={`section-${index}`}
+                      value={`section-${index}`}
+                      className="
+                bg-white 
+                 
+                data-[state=checked]:bg-gray-900
+                data-[state=checked]:text-white 
+                [&>svg]:text-white
+                cursor-pointer
+              "
+                    >
+                      {formatClassificationForDisplay(bucket)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {questions.length === 0 ? (
@@ -385,7 +414,7 @@ const AIProcedureAnswersStep: React.FC<{
               </AlertDescription>
             </Alert>
           ) : (
-            <>
+            <div className="space-y-4 h-[60vh] overflow-y-scroll">
               {Object.entries(grouped).map(([bucket, items], index) => (
                 <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -397,29 +426,6 @@ const AIProcedureAnswersStep: React.FC<{
                         <Badge variant="secondary">
                           {items.length} item{items.length > 1 ? "s" : ""}
                         </Badge>
-                        {/* Section Navigation Buttons */}
-                        <div className="flex justify-between">
-                          {index > 0 && (
-                            <Button
-                              variant="outline"
-                              onClick={() => scrollToSection(sectionIds[index - 1])}
-                              className="flex items-center gap-2"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                              Previous Section
-                            </Button>
-                          )}
-                          {index < sectionIds.length - 1 && (
-                            <Button
-                              variant="outline"
-                              onClick={() => scrollToSection(sectionIds[index + 1])}
-                              className="flex items-center gap-2 ml-auto"
-                            >
-                              Next Section
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatClassificationForDisplay(bucket)} — review and
@@ -430,7 +436,7 @@ const AIProcedureAnswersStep: React.FC<{
                       <Button
                         size="sm"
                         onClick={() => fillAnswersForClassification(bucket)}
-                        disabled={loading || generatingClassifications.has(bucket)}
+                        disabled={generatingClassifications.has(bucket)}
                       >
                         {generatingClassifications.has(bucket) ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-1" />
@@ -544,8 +550,7 @@ const AIProcedureAnswersStep: React.FC<{
                     })}
                   </CardContent>
                 </Card>
-              ))}
-            </>
+            </div>
           )}
 
           <div className="flex items-center justify-end gap-2">

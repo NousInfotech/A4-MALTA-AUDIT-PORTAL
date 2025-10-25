@@ -10,6 +10,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -196,7 +197,6 @@ const AICompletionAnswersStep: React.FC<{
   onBack: () => void
 }> = ({ engagement, mode, stepData, onComplete, onBack }) => {
   const [procedures, setProcedures] = useState<any[]>(stepData.procedures || [])
-  const [loading, setLoading] = useState(false)
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
   const fileInput = useRef<HTMLInputElement>(null)
   const [sectionRecommendations, setSectionRecommendations] = useState<Record<string, any[]>>({});
@@ -253,7 +253,6 @@ const AICompletionAnswersStep: React.FC<{
   }, [])
 
   const fillAnswersForSection = async (sectionId: string) => {
-    setLoading(true)
     setGeneratingSections(prev => {
       const newSet = new Set(prev)
       newSet.add(sectionId)
@@ -320,7 +319,6 @@ const AICompletionAnswersStep: React.FC<{
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
-      setLoading(false)
       setGeneratingSections(prev => {
         const newSet = new Set(prev)
         newSet.delete(sectionId)
@@ -331,7 +329,6 @@ const AICompletionAnswersStep: React.FC<{
 
   const handleSave = async () => {
     try {
-      setLoading(true)
 
       const form = new FormData();
 
@@ -380,8 +377,6 @@ const AICompletionAnswersStep: React.FC<{
       });
     } catch (e: any) {
       toast({ title: "Failed to Proceed", description: e.message, variant: "destructive" });
-    } finally {
-      setLoading(false)
     }
   };
 
@@ -396,7 +391,7 @@ const AICompletionAnswersStep: React.FC<{
     ))
   }
 
-  if (loading) {
+  if (false) {
     return (
       <div className="flex items-center justify-center h-64">
         <EnhancedLoader variant="pulse" size="lg" text="Loading..." />
@@ -410,7 +405,37 @@ const AICompletionAnswersStep: React.FC<{
         Step-2: Generate answers for each completion section separately, then edit as needed. You can also upload files to store in the engagement library (Completion).
       </div>
 
-      <div className="space-y-4">
+      {/* Navigation Dropdown */}
+      <div className="flex justify-start mb-6">
+        <div className="w-full max-w-md">
+          <Select onValueChange={(value) => scrollToSection(value)}>
+            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+               <SelectValue placeholder={COMPLETION_SECTIONS[0].title}/>
+            </SelectTrigger>
+
+            <SelectContent className="bg-white text-black border border-gray-200">
+              {COMPLETION_SECTIONS.map((section) => (
+                <SelectItem
+                  key={section.sectionId}
+                  value={section.sectionId}
+                  className="
+              bg-white 
+               
+              data-[state=checked]:bg-gray-900
+              data-[state=checked]:text-white 
+              [&>svg]:text-white
+              cursor-pointer
+            "
+                >
+                  {section.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-4 h-[60vh] overflow-y-scroll">
         {COMPLETION_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
@@ -431,7 +456,7 @@ const AICompletionAnswersStep: React.FC<{
                 </div>
                 <Button
                   onClick={() => fillAnswersForSection(section.sectionId)}
-                  disabled={loading || generatingSections.has(section.sectionId) || !hasQuestions}
+                  disabled={generatingSections.has(section.sectionId) || !hasQuestions}
                   className="flex items-center justify-center"
                 >
                   {generatingSections.has(section.sectionId) ? (
@@ -439,27 +464,6 @@ const AICompletionAnswersStep: React.FC<{
                   ) : null}
                   Generate Answers
                 </Button>
-                <div className="flex justify-between pt-4 border-t">
-                  {index > 0 && (
-                    <Button
-                      variant="outline"
-                      onClick={() => scrollToSection(COMPLETION_SECTIONS[index - 1].sectionId)}
-                      className="flex items-center gap-2"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                      Previous Section
-                    </Button>
-                  )}
-                  {index < COMPLETION_SECTIONS.length - 1 && (
-                    <Button
-                      onClick={() => scrollToSection(COMPLETION_SECTIONS[index + 1].sectionId)}
-                      className="flex items-center gap-2 ml-auto"
-                    >
-                      Next Section
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
               </div>
 
               {hasQuestions ? (
