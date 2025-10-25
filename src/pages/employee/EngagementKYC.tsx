@@ -286,7 +286,8 @@ export function EngagementKYC() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
+      {/* Commented out top section - Global KYC Workflow Overview */}
+      {/* <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -303,21 +304,6 @@ export function EngagementKYC() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Commented out duplicate Create KYC button in top right */}
-              {/* {engagementId && (
-                <KYCDocumentRequestModal
-                  engagementId={engagementId}
-                  clientId={engagement?.clientId || ''}
-                  engagementName={engagement?.title}
-                  onSuccess={fetchKYCWorkflows}
-                  trigger={
-                    <Button className="bg-gray-800 hover:bg-gray-900 text-white">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create KYC
-                    </Button>
-                  }
-                />
-              )} */}
               <Button
                 variant="outline"
                 onClick={() => fetchKYCWorkflows()}
@@ -384,11 +370,10 @@ export function EngagementKYC() {
             </div>
           )}
         </CardContent>
-      </Card>
-
+      </Card> */}
 
       {/* KYC Details Section - Shows details for all workflows */}
-      {kycWorkflows.length > 0 && (
+      {kycWorkflows.length > 0 ? (
         <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -404,6 +389,14 @@ export function EngagementKYC() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => fetchKYCWorkflows()}
+                  className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
                 {engagementId && (
                   <ManualUploadModal
                     kycId={kycWorkflows[0]._id}
@@ -581,6 +574,34 @@ export function EngagementKYC() {
                 )}
               </div>
             ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
+              <p className="text-gray-600 mb-4">
+                No KYC workflows have been created for this engagement yet.
+              </p>
+              {engagementId && (
+                <KYCDocumentRequestModal
+                  engagementId={engagementId}
+                  clientId={engagement?.clientId || ''}
+                  engagementName={engagement?.title}
+                  onSuccess={fetchKYCWorkflows}
+                  trigger={
+                    <Button className="bg-gray-800 hover:bg-gray-900 text-white">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First KYC Workflow
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
