@@ -2034,7 +2034,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             </div>
 
             {/* Actions Section for Mobile */}
-            <div className="pt-4 border-t">
+            {/* <div className="pt-4 border-t">
               <h3 className="text-sm font-semibold text-gray-600 mb-2">
                 Actions
               </h3>
@@ -2071,10 +2071,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
                 </Button>
               </div>
-            </div>
+            </div> */}
 
             {/* Named Ranges Section for Mobile */}
-            <div className="pt-4 border-t">
+            {/* <div className="pt-4 border-t">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-semibold text-gray-600">
                   Named Ranges
@@ -2137,7 +2137,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   ))
                 )}
               </div>
-            </div>
+            </div> */}
 
             {/* Mappings Section for Mobile */}
             <div className="pt-4 border-t">
