@@ -347,88 +347,10 @@ export default function WorkBookApp({
       const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
       const processedFileData: SheetData = {};
 
-      // 3. For each sheet, read its data
+      // 3. Create minimal fileData - just sheet names for metadata
       for (const sheetName of sheetNames) {
-        const readSheetResponse = await msDriveworkbookApi.readSheet(
-          cloudFileId,
-          sheetName
-        );
-        if (!readSheetResponse.success) {
-          console.warn(
-            `Failed to read data for sheet '${sheetName}'. Skipping.`
-          );
-          processedFileData[sheetName] = [["Error reading sheet"]]; // Placeholder for error
-        } else {
-          // --- MODIFIED LOGIC START ---
-          const { values: rawSheetData, address } = readSheetResponse.data; // Destructure values and address
-
-          // Parse the address to get the starting row and column
-          const {
-            start: { row: startExcelRow, col: startZeroCol },
-          } = parseExcelRange(address || `${sheetName}!A1`);
-
-          // Determine actual data dimensions
-          let maxDataRows = rawSheetData.length;
-          let maxDataCols = 0;
-          if (rawSheetData && rawSheetData.length > 0) {
-            rawSheetData.forEach((row) => {
-              if (row.length > maxDataCols) {
-                maxDataCols = row.length;
-              }
-            });
-          }
-
-          // These are the *display* dimensions, including potential empty space before the data starts.
-          // minDisplayRows/Cols ensure a minimum grid size.
-          const minDisplayRows = 20;
-          const minDisplayCols = 10;
-
-          // Calculate the total number of rows and columns needed for the display grid.
-          // This should accommodate the data, starting from its actual Excel position.
-          const totalDisplayRows = Math.max(
-            minDisplayRows,
-            startExcelRow + maxDataRows - 1
-          ); // Adjusted based on data's end row
-          const totalDisplayCols = Math.max(
-            minDisplayCols,
-            startZeroCol + maxDataCols
-          ); // Adjusted based on data's end col
-
-          // Construct the header row (empty corner, A, B, C...)
-          const headerRow: string[] = [""];
-          for (let i = 0; i < totalDisplayCols; i++) {
-            headerRow.push(zeroIndexToExcelCol(i));
-          }
-
-          const excelLikeData: string[][] = [headerRow];
-
-          // Construct the data rows (1, 2, 3... | cell data)
-          for (let i = 0; i < totalDisplayRows; i++) {
-            const newRow: string[] = [(i + 1).toString()]; // Prepend row number (1-indexed)
-
-            for (let j = 0; j < totalDisplayCols; j++) {
-              // Calculate the corresponding index in rawSheetData
-              const dataRowIndex = i - (startExcelRow - 1); // Adjust for 0-indexed array vs 1-indexed Excel row
-              const dataColIndex = j - startZeroCol; // Adjust for 0-indexed array vs 0-indexed Excel column
-
-              let cellValue = "";
-              if (
-                dataRowIndex >= 0 &&
-                dataRowIndex < maxDataRows &&
-                dataColIndex >= 0 &&
-                dataColIndex < maxDataCols &&
-                rawSheetData[dataRowIndex] &&
-                rawSheetData[dataRowIndex][dataColIndex] !== undefined
-              ) {
-                cellValue = String(rawSheetData[dataRowIndex][dataColIndex]);
-              }
-              newRow.push(cellValue);
-            }
-            excelLikeData.push(newRow);
-          }
-          processedFileData[sheetName] = excelLikeData;
-          // --- MODIFIED LOGIC END ---
-        }
+        // Empty placeholder - actual data will be loaded on-demand from MS Drive
+        processedFileData[sheetName] = [[]]; 
       }
 
       // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
@@ -444,9 +366,10 @@ export default function WorkBookApp({
         lastModifiedBy: user?.id,
       };
 
-      console.log(processedFileData);
-      console.log(workbookMetadataForDB);
+      console.log("Saving workbook with sheet names only:", sheetNames);
+      console.log("Workbook metadata:", workbookMetadataForDB);
 
+      // Save to DB with minimal data (no sheet cell data)
       const saveToDbResponse = await db_WorkbookApi.saveProcessedWorkbook(
         workbookMetadataForDB,
         processedFileData
@@ -666,6 +589,32 @@ export default function WorkBookApp({
     }
   }, [engagementId, classification, fetchWorkbooks, refreshWorkbooksTrigger]); // Add refreshWorkbooksTrigger here
 
+  // Add state for sheet data cache
+  const [sheetDataCache, setSheetDataCache] = useState<Map<string, any>>(new Map());
+
+  // Function to load sheet data on-demand
+  const loadSheetData = async (workbookId: string, cloudFileId: string, sheetName: string) => {
+    const cacheKey = `${workbookId}-${sheetName}`;
+    
+    // Check cache first
+    if (sheetDataCache.has(cacheKey)) {
+      return sheetDataCache.get(cacheKey);
+    }
+
+    // If not in cache, fetch from backend
+    try {
+      const sheetData = await db_WorkbookApi.fetchSheetData(workbookId, sheetName);
+      if (sheetData.success) {
+        // Update cache
+        setSheetDataCache(prev => new Map(prev).set(cacheKey, sheetData.data));
+        return sheetData.data;
+      }
+    } catch (error) {
+      console.error(`Failed to load sheet ${sheetName}:`, error);
+      return null;
+    }
+  };
+
   const handleSelectWorkbook = async (workbook: Workbook) => {
     setIsLoadingWorkbookData(true);
     try {
@@ -691,8 +640,10 @@ export default function WorkBookApp({
       let sheetNamesToProcess: string[] = [];
 
       if (fullWorkbookFromDB.sheets && fullWorkbookFromDB.sheets.length > 0) {
-        fullWorkbookFromDB.sheets.forEach((sheet) => {
-          fetchedFileData[sheet.name] = sheet.data;
+        // OPTIMIZATION: Don't store sheet.data (it's metadata now)
+        // Instead, just extract sheet names and create empty placeholders
+        fullWorkbookFromDB.sheets.forEach((sheet: any) => {
+          fetchedFileData[sheet.name] = [[]]; // Empty placeholder
           sheetNamesToProcess.push(sheet.name);
         });
       } else {
