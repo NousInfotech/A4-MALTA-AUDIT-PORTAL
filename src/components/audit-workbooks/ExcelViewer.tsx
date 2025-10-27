@@ -6,6 +6,8 @@ import React, {
   Dispatch,
   SetStateAction,
 } from "react"; // Added useRef
+import { db_WorkbookApi } from "@/lib/api/workbookApi";
+import { parseExcelRange, zeroIndexToExcelCol } from "./utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -105,18 +107,7 @@ const generateColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const zeroIndexToExcelCol = (colIndex: number): string => {
-  let colLetter = "";
-  let tempColIndex = colIndex;
-
-  do {
-    const remainder = tempColIndex % 26;
-    colLetter = String.fromCharCode(65 + remainder) + colLetter;
-    tempColIndex = Math.floor(tempColIndex / 26) - 1;
-  } while (tempColIndex >= 0);
-
-  return colLetter;
-};
+// zeroIndexToExcelCol is now imported from utils, removed duplicate declaration
 
 interface ExcelViewerProps {
   workbook: any;
@@ -230,6 +221,12 @@ interface ExcelViewerProps {
   etbLoading: boolean;
   etbError: string | null;
   onRefreshETBData?: () => void;
+  
+  // Sheet data cache (for lazy loading)
+  sheetDataCache?: Map<string, any[][]>;
+  
+  // Loading state for sheets
+  loadingSheets?: Set<string>;
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -320,10 +317,21 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   etbLoading,
   etbError,
   onRefreshETBData,
+  
+  // Sheet data cache
+  sheetDataCache = new Map(),
+  
+  // Loading state
+  loadingSheets = new Set(),
 }) => {
   const { toast } = useToast();
+  
+  // Use workbook.fileData as fallback, but will be populated with cache
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
+  
+  // Get cached sheet data from parent (ExcelViewerWithFullscreen will pass this)
+  const sheetDataCacheProp = sheetDataCache;
 
   // Combine workbook mappings with ETB mappings for display
   const allMappings = React.useMemo(() => {
@@ -367,7 +375,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   }, [isCreateNamedRangeOpen, selections]);
 
   // currentSheetData now includes the prepended column letters and row numbers
-  const currentSheetData = sheetData[selectedSheet] || [];
+  // Try to get from cache first, then fall back to sheetData
+  const cachedSheetData = sheetDataCacheProp.get(selectedSheet);
+  const currentSheetData = cachedSheetData && cachedSheetData.length > 0 
+    ? cachedSheetData 
+    : sheetData[selectedSheet] || [];
 
   /**
    * Save entire workbook to backend
@@ -969,7 +981,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
       return;
     }
-
+  
     const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
     if (!currentSelection) {
       toast({
@@ -979,12 +991,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
       return;
     }
-
+  
     setIsCreatingETBMapping(true);
-
+  
     try {
       const mappingData: CreateMappingRequest = {
-        workbookId: workbook.id,
+        workbookId: workbook.id, // Fix: Use workbook directly instead of props.workbook
         color: generateColor(),
         details: {
           sheet: currentSelection.sheet,
@@ -998,20 +1010,20 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           },
         },
       };
-
+  
       // Use the _id if available, otherwise use the code as a fallback
       const rowId = selectedETBRow._id || selectedETBRow.code;
       await addMappingToRow(engagementId, rowId, mappingData);
-
-      // Refresh ETB data if callback is provided
+  
+      // Fix: Use onRefreshETBData instead of setEtbData
       if (onRefreshETBData) {
         onRefreshETBData();
       }
-
+  
       // Reset form
       setSelectedETBRow(null);
       setIsCreateETBMappingOpen(false);
-
+  
       toast({
         title: "Success",
         description: "ETB mapping created successfully",
@@ -1617,8 +1629,21 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     </Dialog>
   );
 
+  // Check if sheet is currently loading
+  const isSheetLoading = (sheetDataCacheProp as Map<string, any>).size > 0 && !currentSheetData?.length;
+
   const renderSpreadsheet = () => {
     if (isLoadingWorkbookData) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full bg-gray-50 rounded-lg shadow">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="mt-2 text-gray-700">Loading workbook...</p>
+        </div>
+      );
+    }
+
+    // Check if sheet is loading from cache
+    if (loadingSheets.has(selectedSheet)) {
       return (
         <div className="flex flex-col items-center justify-center h-full bg-gray-50 rounded-lg shadow">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -1627,7 +1652,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       );
     }
 
-    if (!currentSheetData || currentSheetData.length === 0) {
+    if (!currentSheetData || currentSheetData.length === 0 || currentSheetData[0]?.length === 0) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg shadow">
           <p className="text-gray-500">No data available for this sheet.</p>
@@ -1983,9 +2008,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   return (
     <div className="flex flex-col h-auto">
-      <Button variant="ghost" size="sm" onClick={onBack}>
+      <Button variant="default" size="sm" onClick={onBack}>
         <ArrowLeft className="h-4 w-4 py-5 px-2" />
-        Back
+        Back To Workbooks
       </Button>
       {/* ETB Table at the top */}
       {renderETBTable()}
@@ -2608,6 +2633,106 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   const [etbLoading, setEtbLoading] = useState(false);
   const [etbError, setEtbError] = useState<string | null>(null);
 
+  // Add sheet data loading states
+  const [sheetDataCache, setSheetDataCache] = useState<Map<string, any[][]>>(new Map());
+  const [loadingSheets, setLoadingSheets] = useState<Set<string>>(new Set());
+
+  // Function to load sheet data on-demand from MS Drive
+  const loadSheetDataOnDemand = useCallback(async (sheetName: string) => {
+    // Check if already in cache
+    if (sheetDataCache.has(sheetName)) {
+      return sheetDataCache.get(sheetName);
+    }
+
+    // Check if already loading
+    if (loadingSheets.has(sheetName)) {
+      return null; // Wait for existing load to complete
+    }
+
+    try {
+      setLoadingSheets(prev => new Set(prev).add(sheetName));
+      
+      // Use the proper API function from workbookApi
+      const response = await db_WorkbookApi.fetchSheetData(props.workbook?.id, sheetName);
+      
+      if (response.success && response.data) {
+        // Backend returns: { metadata: {...}, values: [...], address: "Sheet1!A1:D10" }
+        const processedData = processSheetDataForDisplay(response.data.values, response.data.address);
+        setSheetDataCache(prev => new Map(prev).set(sheetName, processedData));
+        return processedData;
+      }
+      
+      // Fallback: try to get from workbook.fileData if available
+      if (props.workbook.fileData && props.workbook.fileData[sheetName]) {
+        const data = props.workbook.fileData[sheetName];
+        setSheetDataCache(prev => new Map(prev).set(sheetName, data));
+        return data;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`Error loading sheet ${sheetName}:`, error);
+      return null;
+    } finally {
+      setLoadingSheets(prev => {
+        const next = new Set(prev);
+        next.delete(sheetName);
+        return next;
+      });
+    }
+  }, [props.workbook, sheetDataCache, loadingSheets]);
+
+  // Helper function to process sheet data for display
+  const processSheetDataForDisplay = (rawData: any[][], address?: string) => {
+    if (!rawData || rawData.length === 0) {
+      return [[""]];
+    }
+
+    try {
+      // Use provided utils to process
+      const { start: { row: startRow, col: startCol } } = parseExcelRange(address || "A1");
+      
+      const maxRows = rawData.length;
+      const maxCols = Math.max(...rawData.map(r => r.length), 0);
+      const totalRows = Math.max(20, startRow + maxRows - 1);
+      const totalCols = Math.max(10, startCol + maxCols);
+
+      const headerRow = [""];
+      for (let i = 0; i < totalCols; i++) {
+        headerRow.push(zeroIndexToExcelCol(i));
+      }
+
+      const result = [headerRow];
+      for (let i = 0; i < totalRows; i++) {
+        const row = [(i + 1).toString()];
+        for (let j = 0; j < totalCols; j++) {
+          const dataRowIdx = i - (startRow - 1);
+          const dataColIdx = j - startCol;
+          
+          let cellValue = "";
+          if (dataRowIdx >= 0 && dataRowIdx < maxRows && 
+              dataColIdx >= 0 && dataColIdx < maxCols &&
+              rawData[dataRowIdx]?.[dataColIdx] !== undefined) {
+            cellValue = String(rawData[dataRowIdx][dataColIdx]);
+          }
+          row.push(cellValue);
+        }
+        result.push(row);
+      }
+      return result;
+    } catch (error) {
+      console.error("Error processing sheet data:", error);
+      return [[""]];
+    }
+  };
+
+  // Load sheet data when selectedSheet changes
+  useEffect(() => {
+    if (selectedSheet && props.workbook?.id) {
+      loadSheetDataOnDemand(selectedSheet);
+    }
+  }, [selectedSheet, props.workbook?.id, loadSheetDataOnDemand]);
+
   // Reset states when workbook changes
   useEffect(() => {
     setSelections([]);
@@ -2634,9 +2759,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     setEditingWorkbookMapping(null);
   }, [props.workbook.id]);
 
+  // Get engagementId and classification from props if needed
+  const engagementId = (props as any).engagementId;
+  const classification = (props as any).classification;
+  
   // Fetch ETB data when engagementId or classification changes
   const fetchETBData = async () => {
-    if (!props.engagementId || !props.classification) {
+    if (!engagementId || !classification) {
       setEtbData(null);
       return;
     }
@@ -2644,7 +2773,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     try {
       setEtbLoading(true);
       setEtbError(null);
-      const result = await getExtendedTrialBalanceWithMappings(props.engagementId, props.classification);
+      const result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
       setEtbData(result);
     } catch (err) {
       console.error('ETB API error:', err);
@@ -2656,10 +2785,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
   useEffect(() => {
     fetchETBData();
-  }, [props.engagementId, props.classification]);
+  }, [engagementId, classification]);
 
   const handleCreateETBMapping = async () => {
-    if (!selectedETBRow || !props.engagementId) {
+    if (!selectedETBRow || !engagementId) {
       toast({
         title: "Error",
         description: "Please select an ETB row",
@@ -2667,7 +2796,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       });
       return;
     }
-
+  
     const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
     if (!currentSelection) {
       toast({
@@ -2677,12 +2806,12 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       });
       return;
     }
-
+  
     setIsCreatingETBMapping(true);
-
+  
     try {
       const mappingData: CreateMappingRequest = {
-        workbookId: props.workbook.id,
+        workbookId: props.workbook.id, // Fix: Use props.workbook instead of workbook
         color: generateColor(),
         details: {
           sheet: currentSelection.sheet,
@@ -2696,19 +2825,19 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           },
         },
       };
-
+  
       // Use the _id if available, otherwise use the code as a fallback
       const rowId = selectedETBRow._id || selectedETBRow.code;
-      await addMappingToRow(props.engagementId, rowId, mappingData);
-
+      await addMappingToRow(engagementId, rowId, mappingData);
+  
       // Refresh ETB data
-      const result = await getExtendedTrialBalanceWithMappings(props.engagementId, props.classification);
+      const result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
       setEtbData(result);
-
+  
       // Reset form
       setSelectedETBRow(null);
       setIsCreateETBMappingOpen(false);
-
+  
       toast({
         title: "Success",
         description: "ETB mapping created successfully",
@@ -2739,7 +2868,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     setIsCreatingWorkbookMapping(true);
   
     try {
-      // Use the destructured props directly instead of props.onCreateMapping
+      // Fix: Access props correctly
       props.onCreateMapping(props.workbook.id, {
         sheet: currentSelection.sheet,
         start: {
@@ -2837,6 +2966,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         etbLoading={etbLoading}
         etbError={etbError}
         onRefreshETBData={fetchETBData}
+        sheetDataCache={sheetDataCache}
+        loadingSheets={loadingSheets}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
@@ -2902,6 +3033,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               etbLoading={etbLoading}
               etbError={etbError}
               onRefreshETBData={fetchETBData}
+              sheetDataCache={sheetDataCache}
+              loadingSheets={loadingSheets}
             />
           </div>
           <div className="absolute top-4 right-4 z-50">

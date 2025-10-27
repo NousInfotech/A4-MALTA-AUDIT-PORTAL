@@ -92,7 +92,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
         const processedFileData: SheetData = {};
 
-        // 3. For each sheet, read its data
+        // 3. OPTIMIZATION: Don't read sheet data - just get sheet names
+        // Sheet data will be loaded on-demand when user views the sheet
+        for (const sheetName of sheetNames) {
+          // Skip reading data - just create empty placeholder
+          processedFileData[sheetName] = [[]];
+        }
+
+        /* OLD CODE - Reading all sheets was too slow for large files
         for (const sheetName of sheetNames) {
           const readSheetResponse = await msDriveworkbookApi.readSheet(
             cloudFileId,
@@ -175,6 +182,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             // --- MODIFIED LOGIC END ---
           }
         }
+        */
 
         // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
         const workbookMetadataForDB = {

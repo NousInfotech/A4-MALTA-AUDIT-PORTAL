@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Upload, FileSpreadsheet, Activity, User, Loader2, Link } from "lucide-react";
+import { Upload, FileSpreadsheet, Activity, User, Loader2, Link, Trash2 } from "lucide-react";
 import { AuditLogEntry, Workbook } from "../../types/audit-workbooks/types"; // Adjust path as needed
 import {
   Dialog,
@@ -346,14 +346,14 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                   >
                     <div
                       onClick={() => onSelectWorkbook(wb)}
-                      className="cursor-pointer"
+                      className="cursor-pointer bg-gray-50 rounded-lg p-2 hover:bg-gray-300 transition-colors"
                     >
                       <p className="font-medium text-sm">{wb.name}</p>
                       <p className="text-xs text-gray-500">
                         v{wb.version} by {wb.lastModifiedBy || "Unknown"}
                       </p>
                     </div>
-                    <div className="flex justify-end mt-2">
+                    <div className="flex justify-end gap-2 mt-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -366,6 +366,18 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                         <Link className="h-4 w-4 mr-2" />
                         Link to Field
                       </Button>
+                      {/* <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteWorkbook(wb.id, wb.name);
+                        }}
+                        className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button> */}
                     </div>
                   </div>
                 ))}

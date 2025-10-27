@@ -171,6 +171,21 @@ export const msDriveworkbookApi = {
     }
   },
 
+  // Fetch sheet data on-demand (for lazy loading)
+  fetchSheetData: async (workbookId: string, sheetName: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_PATH}/${workbookId}/sheets/${encodeURIComponent(sheetName)}/data`
+      );
+      return { success: true, data: response.data.data };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as any).response?.data?.error || (error as any).message,
+      };
+    }
+  },
+
 
 
   // New functions for Trial Balance (not classification-aware in the URL)
