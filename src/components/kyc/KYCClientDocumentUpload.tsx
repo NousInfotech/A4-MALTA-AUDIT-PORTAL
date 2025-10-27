@@ -393,9 +393,14 @@ export function KYCClientDocumentUpload({
                     {/* Uploaded Document Info */}
                     {doc.url && (
                       <div className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-2">
                           <CheckCircle className="h-4 w-4 text-green-600" />
                           <span className="text-sm font-medium text-green-800">Document Uploaded</span>
+                          {doc.uploadedAt && (
+                            <span className="text-xs text-green-600 ml-auto">
+                              {format(new Date(doc.uploadedAt), "MMM dd, yyyy HH:mm")}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -405,13 +410,41 @@ export function KYCClientDocumentUpload({
                             className="text-green-600 border-green-200 hover:bg-green-50"
                           >
                             <Eye className="h-4 w-4 mr-1" />
-                            View Document
+                            View
                           </Button>
-                          {doc.uploadedAt && (
-                            <span className="text-xs text-green-600">
-                              Uploaded: {format(new Date(doc.uploadedAt), "MMM dd, yyyy HH:mm")}
-                            </span>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(doc.url!);
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = doc.name;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(url);
+                                toast({
+                                  title: "Downloaded",
+                                  description: `${doc.name} has been downloaded`,
+                                });
+                              } catch (error) {
+                                console.error('Download error:', error);
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to download document",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
                         </div>
                         {doc.comment && (
                           <p className="text-sm text-green-700 mt-2">
