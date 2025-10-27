@@ -530,22 +530,23 @@ export function EngagementKYC() {
                 {/* Document Requests */}
                 {workflow.documentRequests && workflow.documentRequests.length > 0 ? (
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
-                      <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                        {workflow.documentRequests.length} Request{workflow.documentRequests.length !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-                    <div className="space-y-4">
-                      {workflow.documentRequests.map((docRequest, index) => (
+                    {(() => {
+                      const requestsWithDocuments = workflow.documentRequests.filter((docRequest) => docRequest.documents && docRequest.documents.length > 0);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
+                            <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
+                              {requestsWithDocuments.length} Request{requestsWithDocuments.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <div className="space-y-4">
+                            {requestsWithDocuments.map((docRequest, index) => (
                         <div key={docRequest._id || index} className="bg-gray-50 rounded-xl p-4">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <span className="text-sm font-bold text-gray-600">{index + 1}</span>
-                              </div>
                               <div>
-                                <h4 className="font-semibold text-gray-900">{docRequest.name || `Document Request ${index + 1}`}</h4>
+                                <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
                                 {docRequest.description && (
                                   <p className="text-sm text-gray-600">{docRequest.description}</p>
                                 )}
@@ -660,7 +661,10 @@ export function EngagementKYC() {
                           )}
                         </div>
                       ))}
-                    </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
