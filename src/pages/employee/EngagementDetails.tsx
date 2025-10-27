@@ -19,6 +19,8 @@ import {
   BarChart3,
   Shield,
   BookOpenText,
+  Delete,
+  Pencil,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +37,7 @@ import { useActivityLogger } from "@/hooks/useActivityLogger";
 import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
 import { UpdateEngagementDialog } from "@/components/engagement/UpdateEngagementDialog";
 import { useEngagements } from "@/hooks/useEngagements";
+import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -85,7 +88,8 @@ export const EngagementDetails = () => {
         setLoading(true);
         const engagementData = await engagementApi.getById(id);
         setEngagement(engagementData);
-
+       console.log(engagement);
+       
         // Log engagement view
         logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
 
@@ -227,20 +231,43 @@ export const EngagementDetails = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
-              <div className="flex-1">
-                <h1 className="text-3xl font-semibold text-gray-900">{engagement.title}</h1>
-                <p className="text-gray-700">Engagement Details</p>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 break-words">{engagement.title}</h1>
+                <p className="text-sm sm:text-base text-gray-700"></p>
               </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
                 onClick={() => setIsUpdateDialogOpen(true)}
-                className="rounded-xl"
-              >
+                className="rounded-xl w-full sm:w-auto"
+                size="sm"
+              > 
+              <Pencil/>
                 Update Engagement
               </Button>
+              
+              <DeleteClientConfirmation
+                clientName={engagement.title}
+                onConfirm={() => {
+                  // No logic, just show popup
+                  console.log("Delete confirmed for:", engagement.title);
+                }}
+                isLoading={false}
+              >
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 rounded-xl w-full sm:w-auto"
+                >
+                  <Delete className="h-4 w-4 mr-2" />
+                  Delete Engagement
+                </Button>
+              </DeleteClientConfirmation>
+              </div>
             </div>
           </div>
         </div>

@@ -237,7 +237,7 @@ export const ClientEngagements = () => {
                     </div>
                   </div>
 
-                  {engagement.trialBalanceUrl ? (
+                  {engagement.trialBalanceUrl  ? (
                     <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <FileText className="h-4 w-4 text-gray-800" />
                       <span className="text-sm text-gray-700 font-medium">
