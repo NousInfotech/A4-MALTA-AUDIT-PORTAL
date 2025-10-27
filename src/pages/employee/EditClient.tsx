@@ -1,7 +1,6 @@
 // @ts-nocheck
-import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react"; // Added useEffect
-import { useNavigate, useParams } from "react-router-dom"; // Added useParams
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -26,17 +25,14 @@ import {
   Building2,
   Loader2,
   Users,
-  Mail,
   Globe,
   FileText,
-  Sparkles,
-  EyeOff,
-  Eye,
   Edit,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
+
 const industries = [
   "Technology",
   "Healthcare",
@@ -56,7 +52,7 @@ export const EditClient = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { logCreateClient, logUpdateClient } = useActivityLogger();
+  const { logUpdateClient } = useActivityLogger();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -68,15 +64,17 @@ export const EditClient = () => {
     summary: "",
     customValue: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Fetch client email from API
   const getClientEmail = async (userId: string): Promise<string> => {
     try {
       const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      if (error) throw "Error fetching client email";
+
       const response = await fetch(
         `${import.meta.env.VITE_APIURL}/api/users/email/${userId}`,
         {
@@ -87,22 +85,24 @@ export const EditClient = () => {
           },
         }
       );
+
       if (!response.ok) throw new Error("Failed to fetch client email");
       const res = await response.json();
       return res.clientData.email;
     } catch (error) {
       console.error("Error fetching client email:", error);
-
       return "Email not available";
     }
   };
 
+  // Fetch client data from Supabase + API
   useEffect(() => {
     const fetchClientData = async () => {
       if (!id) {
         navigate("/employee/clients");
         return;
       }
+
       try {
         setIsLoading(true);
 
@@ -116,12 +116,7 @@ export const EditClient = () => {
 
         if (profileError) throw profileError;
 
-        let email = "Email not available";
-        try {
-          email = await getClientEmail(id);
-        } catch (emailError) {
-          console.warn("Could not fetch email during edit:", emailError);
-        }
+        let email = await getClientEmail(id);
 
         const industryValue = industries.includes(profileData.industry)
           ? profileData.industry
@@ -131,13 +126,13 @@ export const EditClient = () => {
 
         setFormData({
           name: profileData.name || "",
-          email: email,
+          email,
           password: "",
           companyName: profileData.company_name || "",
           companyNumber: profileData.company_number || "",
           industry: industryValue,
           summary: profileData.company_summary || "",
-          customValue: customValue,
+          customValue,
         });
       } catch (err: any) {
         console.error("Error fetching client for edit:", err);
@@ -155,6 +150,12 @@ export const EditClient = () => {
     fetchClientData();
   }, [id, navigate, toast]);
 
+  // Handle input changes
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -178,6 +179,7 @@ export const EditClient = () => {
           },
           body: JSON.stringify({
             name,
+            email,
             companyName,
             companyNumber,
             industry,
@@ -187,10 +189,7 @@ export const EditClient = () => {
       );
 
       const res = await response.json();
-
-      if (!response.ok) {
-        throw new Error(res.error || "Failed to update client");
-      }
+      if (!response.ok) throw new Error(res.error || "Failed to update client");
 
       logUpdateClient(`Updated client details for: ${companyName}`);
 
@@ -198,6 +197,7 @@ export const EditClient = () => {
         title: "Client Updated",
         description: `Details for ${companyName} have been successfully updated.`,
       });
+
       navigate(`/employee/clients/${id}`);
     } catch (err: any) {
       console.error("Error updating client:", err);
@@ -205,10 +205,6 @@ export const EditClient = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   if (isLoading) {
@@ -248,31 +244,24 @@ export const EditClient = () => {
           </div>
         </div>
 
-        <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <div className="bg-gray-50 border-b border-gray-200 p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  Client Information
-                </h2>
-                <p className="text-gray-600">
-                  Update the contact and company information below
-                </p>
-              </div>
-            </div>
-          </div>
+        <Card className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30">
+          <CardHeader className="bg-gray-50 border-b border-gray-200 p-6">
+            <CardTitle>Client Information</CardTitle>
+            <CardDescription>
+              Update the contact and company information below
+            </CardDescription>
+          </CardHeader>
 
-          <div className="p-8">
+          <CardContent className="p-8">
             {error && (
               <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
                 {error}
               </div>
             )}
+
             <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="space-y-6">
+              {/* Basic Info */}
+              <section className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Users className="h-4 w-4 text-white" />
@@ -283,79 +272,45 @@ export const EditClient = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="name"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Client Name *
-                    </Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => handleChange("name", e.target.value)}
-                      placeholder="Enter Client's name"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="companyName"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Company Name *
-                    </Label>
-                    <Input
-                      id="companyName"
-                      value={formData.companyName}
-                      onChange={(e) =>
-                        handleChange("companyName", e.target.value)
-                      }
-                      placeholder="Enter company name"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="companyNumber"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Company Number *
-                    </Label>
-                    <Input
-                      id="companyNumber"
-                      value={formData.companyNumber}
-                      onChange={(e) =>
-                        handleChange("companyNumber", e.target.value)
-                      }
-                      placeholder="Enter company registration number"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="email"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Company Email (Read Only)
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      disabled
-                      placeholder="contact@company.com"
-                      className="h-12 border-gray-200 rounded-xl text-lg bg-gray-100 cursor-not-allowed"
-                    />
-                  </div>
+                  <InputGroup
+                    id="name"
+                    label="Client Name *"
+                    value={formData.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
+                    placeholder="Enter Client's name"
+                  />
+                  <InputGroup
+                    id="companyName"
+                    label="Company Name *"
+                    value={formData.companyName}
+                    onChange={(e) =>
+                      handleChange("companyName", e.target.value)
+                    }
+                    placeholder="Enter company name"
+                  />
+                  <InputGroup
+                    id="companyNumber"
+                    label="Company Number *"
+                    value={formData.companyNumber}
+                    onChange={(e) =>
+                      handleChange("companyNumber", e.target.value)
+                    }
+                    placeholder="Enter company registration number"
+                  />
+                  <InputGroup
+                    id="email"
+                    type="email"
+                    label="Company Email *"
+                    value={formData.email}
+                    onChange={(e) => handleChange("email", e.target.value)}
+                    placeholder="contact@company.com"
+                    required
+                  />
                 </div>
-              </div>
+              </section>
 
               {/* Industry */}
-              <div className="space-y-6">
+              <section className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <Globe className="h-4 w-4 text-white" />
@@ -367,26 +322,17 @@ export const EditClient = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <Label
-                      htmlFor="industry"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Industry *
-                    </Label>
+                    <Label>Industry *</Label>
                     <Select
                       value={formData.industry}
                       onValueChange={(value) => handleChange("industry", value)}
                     >
-                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                      <SelectTrigger className="h-12 rounded-xl text-lg">
                         <SelectValue placeholder="Select industry" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 rounded-xl">
+                      <SelectContent>
                         {industries.map((industry) => (
-                          <SelectItem
-                            key={industry}
-                            value={industry}
-                            className="rounded-lg"
-                          >
+                          <SelectItem key={industry} value={industry}>
                             {industry}
                           </SelectItem>
                         ))}
@@ -394,29 +340,21 @@ export const EditClient = () => {
                     </Select>
                   </div>
                   {formData.industry === "Other" && (
-                    <div className="space-y-3">
-                      <Label
-                        htmlFor="customValue"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Please Specify The Industry
-                      </Label>
-                      <Input
-                        id="customValue"
-                        value={formData.customValue}
-                        onChange={(e) =>
-                          handleChange("customValue", e.target.value)
-                        }
-                        placeholder="Enter your custom value"
-                        className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                      />
-                    </div>
+                    <InputGroup
+                      id="customValue"
+                      label="Please Specify The Industry"
+                      value={formData.customValue}
+                      onChange={(e) =>
+                        handleChange("customValue", e.target.value)
+                      }
+                      placeholder="Enter your custom value"
+                    />
                   )}
                 </div>
-              </div>
+              </section>
 
               {/* Summary */}
-              <div className="space-y-6">
+              <section className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
                     <FileText className="h-4 w-4 text-white" />
@@ -426,29 +364,22 @@ export const EditClient = () => {
                   </h3>
                 </div>
 
-                <div className="space-y-3">
-                  <Label
-                    htmlFor="summary"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Company Summary
-                  </Label>
-                  <Textarea
-                    id="summary"
-                    value={formData.summary}
-                    onChange={(e) => handleChange("summary", e.target.value)}
-                    placeholder="Brief description of what the company does..."
-                    rows={4}
-                    className="border-gray-200 focus:border-gray-400 rounded-xl text-lg resize-none"
-                  />
-                </div>
-              </div>
+                <Textarea
+                  id="summary"
+                  value={formData.summary}
+                  onChange={(e) => handleChange("summary", e.target.value)}
+                  placeholder="Brief description of what the company does..."
+                  rows={4}
+                  className="border-gray-200 rounded-xl text-lg resize-none"
+                />
+              </section>
 
+              {/* Actions */}
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -461,15 +392,29 @@ export const EditClient = () => {
                   type="button"
                   variant="outline"
                   onClick={() => navigate(-1)}
-                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   Cancel
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 };
+
+// Small reusable input group
+const InputGroup = ({ id, label, ...props }) => (
+  <div className="space-y-3">
+    <Label htmlFor={id} className="text-sm font-medium text-gray-700">
+      {label}
+    </Label>
+    <Input
+      id={id}
+      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+      {...props}
+    />
+  </div>
+);

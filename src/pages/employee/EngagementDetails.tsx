@@ -33,6 +33,8 @@ import { EngagementKYC } from "./EngagementKYC";
 import PbcDialog from "@/components/pbc/PbcDialog";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
+import { UpdateEngagementDialog } from "@/components/engagement/UpdateEngagementDialog";
+import { useEngagements } from "@/hooks/useEngagements";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -61,8 +63,10 @@ export const EngagementDetails = () => {
   } = useTrialBalance();
   const { requests, createRequest } = useDocumentRequests(id);
   const { toast } = useToast();
+  const { updateEngagement } = useEngagements();
 
   const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false);
 
   const handleOpenPBC = () => {
     // setSelectedEngagement(engagement);
@@ -223,14 +227,20 @@ export const EngagementDetails = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-3xl font-semibold text-gray-900">{engagement.title}</h1>
                 <p className="text-gray-700">Engagement Details</p>
               </div>
+              <Button
+                onClick={() => setIsUpdateDialogOpen(true)}
+                className="rounded-xl"
+              >
+                Update Engagement
+              </Button>
             </div>
           </div>
         </div>
@@ -353,6 +363,19 @@ export const EngagementDetails = () => {
           onClosePBC={handleClosePBC}
         />
       )}
+
+      <UpdateEngagementDialog
+        open={isUpdateDialogOpen}
+        onOpenChange={setIsUpdateDialogOpen}
+        engagement={engagement}
+        onUpdate={async (id, data) => {
+          const updated = await updateEngagement(id, data);
+          setEngagement(updated);
+          // Refetch engagement data to ensure consistency
+          const engagementData = await engagementApi.getById(id);
+          setEngagement(engagementData);
+        }}
+      />
       </div>
     </div>
   );
