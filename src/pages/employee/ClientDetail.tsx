@@ -25,6 +25,7 @@ import { useEngagements } from "@/hooks/useEngagements";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
+import { CompanyList } from "@/components/client/CompanyList";
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -358,6 +359,11 @@ export const ClientDetail: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Companies Section */}
+        <div className="space-y-6 mt-8">
+          <CompanyList clientId={client.id} />
         </div>
 
         {/* Engagements Section */}
