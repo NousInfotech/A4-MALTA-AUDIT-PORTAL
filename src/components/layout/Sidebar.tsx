@@ -168,6 +168,9 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
   const location = useLocation();
   const { user } = useAuth();
   const { stats, loading } = useSidebarStats(user?.role || '');
+  const isClientPortal= location.pathname.startsWith("/client");
+  const isEmployeePortal= location.pathname.startsWith("/employee");
+  const isAdminPortal= location.pathname.startsWith("/admin");
 
   if (!user) return null;
 
@@ -250,9 +253,9 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
           </div>
         </button>
       </div>
-
+     
       {/* Quick Stats */}
-      {!isCollapsed && (
+      {!isCollapsed && !isClientPortal && !isAdminPortal && isEmployeePortal && (
         <div className="px-4 py-3 border-b border-gray-800">
           <div className="bg-gray-900 rounded-2xl p-3 border border-gray-700">
             <div className="flex items-center justify-between">

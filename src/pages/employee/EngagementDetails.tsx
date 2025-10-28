@@ -3,6 +3,8 @@ import { useTrialBalance } from "@/hooks/useTrialBalance";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,6 +51,9 @@ export const EngagementDetails = () => {
   }, []);
 
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = searchParams.get("section") || "overview";
   const [engagement, setEngagement] = useState<any>(null);
   const [trialBalanceUrl, setTrialBalanceUrl] = useState("");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
@@ -80,6 +85,17 @@ export const EngagementDetails = () => {
     setIsPBCModalOpen(false);
   };
   const { logViewEngagement, logUploadDocument, logUpdateEngagement } = useActivityLogger();
+
+  useEffect(() => {
+    if (!searchParams.get("section")) {
+      setSearchParams({ section: "overview" }, { replace: true });
+    }
+
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ section: value }, { replace: false });
+  };
 
   useEffect(() => {
     const fetchEngagement = async () => {
@@ -223,13 +239,17 @@ export const EngagementDetails = () => {
             <Button
               variant="outline"
               size="icon"
-              asChild
               className="rounded-xl border-gray-200 hover:bg-gray-50"
               aria-label="Back to engagements"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(`/employee/engagements?section=${section}`);
+                }
+              }}
             >
-              <Link to="/employee/engagements">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
               <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -274,7 +294,7 @@ export const EngagementDetails = () => {
 
         {/* Tabs Section */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs value={section} onValueChange={handleTabChange} className="space-y-6">
             <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between">
               <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none">
                 <TabsList className="min-w-max sm:min-w-0 bg-white border border-gray-200 rounded-xl p-1">
