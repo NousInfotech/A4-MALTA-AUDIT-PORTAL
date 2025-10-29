@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight, User, Bot, Users } from "lucide-react"
 
@@ -17,6 +17,9 @@ interface ProcedureGenerationProps {
   engagement: any
   existingProcedure?: any
   onComplete: (procedure: any) => void
+  onBack?: () => void
+  updateProcedureParams?: (updates: Record<string, string | null>, replace?: boolean) => void
+  searchParams?: URLSearchParams | null
 }
 
 type GenerationMode = "manual" | "ai" | "hybrid"
@@ -35,10 +38,30 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
   engagement,
   existingProcedure,
   onComplete,
+  onBack,
+  updateProcedureParams,
+  searchParams,
 }) => {
-  const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(null)
-  const [currentStep, setCurrentStep] = useState(0)
+  // Initialize state from URL parameters to support browser back/forward navigation
+  const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
+  const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+  
+  const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(modeFromUrl)
+  const [currentStep, setCurrentStep] = useState(stepFromUrl !== null ? stepFromUrl : 0)
   const [stepData, setStepData] = useState<any>({})
+
+  // Sync state with URL parameters when they change (browser back/forward)
+  useEffect(() => {
+    const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
+    const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+    
+    if (modeFromUrl !== selectedMode) {
+      setSelectedMode(modeFromUrl)
+    }
+    if (stepFromUrl !== null && stepFromUrl !== currentStep) {
+      setCurrentStep(stepFromUrl)
+    }
+  }, [searchParams])
 
   const modes = [
     {
@@ -70,8 +93,17 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
   const onStepDone = (patch: any) => {
     setStepData((prev: any) => ({ ...prev, ...patch }))
     if (currentStep < steps.length - 1) {
-      setCurrentStep((s) => s + 1)
+      const nextStep = currentStep + 1
+      setCurrentStep(nextStep)
+      // Update URL with new step (create new history entry for browser back button)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: nextStep.toString() }, false)
+      }
     } else {
+      // Procedure complete - clear URL params (will be handled by parent)
+      if (updateProcedureParams) {
+        updateProcedureParams({ mode: null, step: null }, false)
+      }
       onComplete({
         ...stepData,
         ...patch,
@@ -82,9 +114,26 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
     }
   }
 
-  const onBack = () => {
-    if (currentStep > 0) setCurrentStep((s) => s - 1)
-    else setSelectedMode(null)
+  const handleBack = () => {
+    if (currentStep > 0) {
+      const prevStep = currentStep - 1
+      setCurrentStep(prevStep)
+      // Update URL with previous step (create new history entry)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: prevStep.toString() }, false)
+      }
+    } else {
+      // Go back to mode selection
+      setSelectedMode(null)
+      // Clear mode and step from URL (create new history entry)
+      if (updateProcedureParams) {
+        updateProcedureParams({ mode: null, step: null }, false)
+      }
+      // Call parent's onBack if provided
+      if (onBack) {
+        onBack()
+      }
+    }
   }
 
   const steps: StepDef[] = React.useMemo(() => {
@@ -289,6 +338,10 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
                   setSelectedMode(m.id)
                   setCurrentStep(0)
                   setStepData({})
+                  // Update URL with selected mode and reset step (create new history entry)
+                  if (updateProcedureParams) {
+                    updateProcedureParams({ mode: m.id, step: "0" }, false)
+                  }
                 }}
               >
                 <CardHeader className="pb-4">
@@ -330,7 +383,7 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
       </div>
 
       {StepBody
-        ? StepBody({ stepData, setStepData, onStepDone, onBack })
+        ? StepBody({ stepData, setStepData, onStepDone, onBack: handleBack })
         : <div className="text-muted-foreground">No step.</div>}
     </div>
   )

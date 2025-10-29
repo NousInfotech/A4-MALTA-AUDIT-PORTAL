@@ -1,6 +1,7 @@
 // @ts-nocheck
 import type React from "react"
 import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -33,12 +34,30 @@ async function authFetch(url: string, options: RequestInit = {}) {
 interface ProceduresTabProps { engagement: any }
 
 export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
-  const [activeTab, setActiveTab] = useState("generate")
-  const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Read navigation state from URL query parameters
+  // Format: ?section=procedures&procedureTab=generate&procedureType=planning&mode=ai&step=2
+  const activeTab = searchParams.get("procedureTab") || "generate"
+  const selectedProcedureType = (searchParams.get("procedureType") as "planning" | "fieldwork" | "completion") || null
+  
   const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null)
   const [completionProcedure, setCompletionProcedure] = useState<any>(null)
   const [planningProcedure, setPlanningProcedure] = useState<any>(null)
   const { toast } = useToast()
+
+  // Helper function to update URL parameters while preserving other params (like section)
+  const updateProcedureParams = (updates: Record<string, string | null>, replace = false) => {
+    const newParams = new URLSearchParams(searchParams)
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined) {
+        newParams.delete(key)
+      } else {
+        newParams.set(key, value)
+      }
+    })
+    setSearchParams(newParams, { replace })
+  }
 
   useEffect(() => {
     if (!engagement?._id) return;
@@ -46,6 +65,9 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
     loadPlanning();
     loadCompletion();
   }, [engagement?._id]);
+
+  // Note: Navigation state is automatically synced from URL parameters via searchParams
+  // This enables proper browser back/forward navigation through procedure steps
 
 
   const base = import.meta.env.VITE_APIURL
@@ -84,18 +106,50 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const handleProcedureComplete = (procedureData: any) => {
     if (procedureData?.procedureType === "planning") {
       setPlanningProcedure(procedureData)
-    } else if (procedureData?.procedureType === "flieldwork") {
+    } else if (procedureData?.procedureType === "fieldwork" || procedureData?.procedureType === "procedures") {
       setFieldworkProcedure(procedureData)
     } else {
       setCompletionProcedure(procedureData)
     }
-    setActiveTab("view")
+    // Navigate to view tab and clear procedure generation params
+    updateProcedureParams({ 
+      procedureTab: "view",
+      procedureType: procedureData?.procedureType === "procedures" ? "fieldwork" : procedureData?.procedureType || null,
+      mode: null,
+      step: null
+    }, false) // Create new history entry
     toast({ title: "Procedures Generated", description: "Saved successfully." })
   }
 
   const handleRegenerate = () => {
-    setSelectedProcedureType(null)
-    setActiveTab("generate")
+    // Clear procedure generation params, stay on generate tab
+    updateProcedureParams({ 
+      procedureType: null,
+      mode: null,
+      step: null
+    }, false) // Create new history entry
+  }
+
+  const handleTabChange = (tab: string) => {
+    updateProcedureParams({ procedureTab: tab }, false) // Create new history entry
+  }
+
+  const handleProcedureTypeSelect = (type: "planning" | "fieldwork" | "completion") => {
+    // Set procedure type and clear mode/step (will be set by the generation component)
+    updateProcedureParams({ 
+      procedureType: type,
+      mode: null,
+      step: null
+    }, false) // Create new history entry
+  }
+
+  const handleProcedureTypeBack = () => {
+    // Clear procedure type and all nested params
+    updateProcedureParams({ 
+      procedureType: null,
+      mode: null,
+      step: null
+    }, false) // Create new history entry
   }
 
   const getProcedureStatusBadge = () => {
@@ -155,7 +209,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
 
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="generate" className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" /> Generate Procedures
@@ -167,34 +221,40 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
 
         <TabsContent value="generate" className="flex-1 mt-6">
           {!selectedProcedureType ? (
-            <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to generate"} />
+            <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to generate"} />
           ) : selectedProcedureType === "planning" ? (
             <PlanningProcedureGeneration
               engagement={engagement}
               existingProcedure={planningProcedure}
               onComplete={handleProcedureComplete}
-              onBack={() => setSelectedProcedureType(null)}
+              onBack={handleProcedureTypeBack}
+              updateProcedureParams={updateProcedureParams}
+              searchParams={searchParams}
             />
           ) : selectedProcedureType === "fieldwork" ? (
             <ProcedureGeneration
               engagement={engagement}
               existingProcedure={fieldworkProcedure}
-              onBack={() => setSelectedProcedureType(null)}
+              onBack={handleProcedureTypeBack}
               onComplete={handleProcedureComplete}
+              updateProcedureParams={updateProcedureParams}
+              searchParams={searchParams}
             />
           ) : (
             <CompletionProcedureGeneration
               engagement={engagement}
-              onBack={() => setSelectedProcedureType(null)}
+              onBack={handleProcedureTypeBack}
               existingProcedure={completionProcedure}
               onComplete={handleProcedureComplete}
+              updateProcedureParams={updateProcedureParams}
+              searchParams={searchParams}
             />
           )}
         </TabsContent>
 
         <TabsContent value="view" className="flex-1 mt-6">
           {!selectedProcedureType ? (
-            <ProcedureTypeSelection onTypeSelect={setSelectedProcedureType} title={"Choose the type of audit procedures you want to view"} />
+            <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
             planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (
