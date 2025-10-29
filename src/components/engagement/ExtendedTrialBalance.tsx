@@ -1,6 +1,6 @@
 // @ts-nocheck
 import type React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -302,7 +302,7 @@ function SearchableSelect({
     [options]
   );
   const selectedLabel = normalized.find((o) => o.value === value)?.label;
-
+  
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -391,12 +391,23 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [etbRows, setEtbRows] = useState<ETBRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pushing, setPushing] = useState(false);
   const [excelUrl, setExcelUrl] = useState<string>("");
+  const [hasBeenPushed, setHasBeenPushed] = useState<boolean>(false);
+  const [forceUpdate, setForceUpdate] = useState(0); // Force re-render mechanism
+  const isPushingRef = useRef(false); // Track if push operation is in progress to protect state
+  const pushingIntervalRef = useRef<NodeJS.Timeout | null>(null); // Store interval for cleanup
   const { toast } = useToast();
 
   // stable key per engagement to persist the workbook URL across remounts/prop hiccups
   const storageKey = useMemo(
     () => `etb_excel_url_${engagement?._id || "unknown"}`,
+    [engagement?._id]
+  );
+
+  // key for tracking whether data has been pushed
+  const pushedKey = useMemo(
+    () => `etb_excel_pushed_${engagement?._id || "unknown"}`,
     [engagement?._id]
   );
 
@@ -408,8 +419,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         if (cached) setExcelUrl(cached);
       } catch {}
     }
+    // Restore hasBeenPushed state from localStorage
+    try {
+      const pushedState = localStorage.getItem(pushedKey);
+      if (pushedState === "true") setHasBeenPushed(true);
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [storageKey, pushedKey]);
 
   // seed local url from props only if empty, and persist it
   useEffect(() => {
@@ -424,6 +440,167 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // effective url drives the UI (prevents flicker if props go undefined temporarily)
   const effectiveExcelUrl = excelUrl || engagement?.excelURL || "";
   const hasWorkbook = !!effectiveExcelUrl;
+  
+  // Check localStorage directly to ensure button visibility persists
+  // Include forceUpdate to recalculate when we force a re-render
+  const checkHasBeenPushed = useMemo(() => {
+    try {
+      return localStorage.getItem(pushedKey) === "true";
+    } catch {
+      return hasBeenPushed;
+    }
+  }, [hasBeenPushed, pushedKey, forceUpdate]);
+  
+  // Direct check for button visibility - reads localStorage on every render
+  // This ensures button appears even if state hasn't updated yet
+  const shouldShowFetchButton = (() => {
+    try {
+      return localStorage.getItem(pushedKey) === "true" || hasBeenPushed;
+    } catch {
+      return hasBeenPushed || checkHasBeenPushed;
+    }
+  })();
+
+  // Sync state with localStorage to ensure button visibility
+  // This runs whenever forceUpdate changes or when component needs to sync
+  useEffect(() => {
+    try {
+      const pushedState = localStorage.getItem(pushedKey);
+      if (pushedState === "true" && !hasBeenPushed) {
+        setHasBeenPushed(true);
+        setForceUpdate((prev) => prev + 1); // Trigger re-render
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasBeenPushed, pushedKey, forceUpdate]);
+  
+  // Critical: Restore state when engagement prop changes (happens after loadExistingData)
+  // This prevents hasBeenPushed from being lost during re-renders caused by saveETB
+  useEffect(() => {
+    // If we've pushed before (tracked in localStorage), restore the state
+    // This runs whenever engagement object reference changes (which happens after loadExistingData)
+    try {
+      const pushedState = localStorage.getItem(pushedKey);
+      if (pushedState === "true") {
+        setHasBeenPushed((prev) => {
+          if (!prev) {
+            setForceUpdate((f) => f + 1);
+            return true;
+          }
+          return prev;
+        });
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engagement]); // Re-check when engagement changes (happens after loadExistingData updates props)
+  
+  // Additional effect to watch for localStorage changes (in case of re-renders from loadExistingData)
+  // This is critical to restore state after re-renders caused by saveETB/loadExistingData
+  useEffect(() => {
+    const checkAndSync = () => {
+      // Always check localStorage and sync state, especially during/after push operations
+      try {
+        const pushedState = localStorage.getItem(pushedKey);
+        if (pushedState === "true") {
+          setHasBeenPushed((prev) => {
+            // Always restore from localStorage if it's true, even during push
+            if (!prev) {
+              setForceUpdate((f) => f + 1);
+              return true;
+            }
+            return prev;
+          });
+          // Force update regardless
+          setForceUpdate((prev) => prev + 1);
+        }
+      } catch {}
+    };
+    
+    // Check immediately
+    checkAndSync();
+    
+    // Check multiple times to catch any re-renders from loadExistingData
+    const timeoutId1 = setTimeout(checkAndSync, 50);
+    const timeoutId2 = setTimeout(checkAndSync, 100);
+    const timeoutId3 = setTimeout(checkAndSync, 200);
+    const timeoutId4 = setTimeout(checkAndSync, 500);
+    const timeoutId5 = setTimeout(checkAndSync, 1000);
+    
+    return () => {
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
+      clearTimeout(timeoutId3);
+      clearTimeout(timeoutId4);
+      clearTimeout(timeoutId5);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceUpdate, hasBeenPushed, pushing]); // Re-check when these change
+  
+  // Poll localStorage periodically to catch changes immediately
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      try {
+        const pushedState = localStorage.getItem(pushedKey);
+        if (pushedState === "true" && !hasBeenPushed) {
+          setHasBeenPushed(true);
+          setForceUpdate((prev) => prev + 1);
+        }
+      } catch {}
+    }, 100); // Check every 100ms
+    
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasBeenPushed, pushedKey]);
+  
+  // CRITICAL: useLayoutEffect runs SYNCHRONOUSLY before paint
+  // This ensures state is restored before the browser renders, preventing flicker
+  useLayoutEffect(() => {
+    if (isPushingRef.current && !pushing) {
+      // State was reset - restore IMMEDIATELY before render
+      setPushing(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushing]); // Watch pushing state - restore if ref is true but state is false
+  
+  // CRITICAL: Protect pushing state from being reset by re-renders (e.g., when Alert appears)
+  // This runs whenever anything that might cause re-renders changes, including:
+  // - Alert appearing/disappearing (unclassifiedRows changes)
+  // - Rows updating (etbRows changes)
+  // - Pushing state itself
+  useEffect(() => {
+    // If ref says we're pushing but state is false, Alert or other re-render reset it
+    if (isPushingRef.current && !pushing) {
+      // State was reset unexpectedly - restore it immediately
+      setPushing(true);
+      setForceUpdate((prev) => prev + 1);
+      
+      // Also ensure the interval is running
+      if (!pushingIntervalRef.current) {
+        pushingIntervalRef.current = setInterval(() => {
+          if (isPushingRef.current) {
+            setPushing((prev) => {
+              if (!prev) {
+                return true;
+              }
+              return prev;
+            });
+          }
+        }, 25);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushing, etbRows]); // Watch for changes that might cause re-renders (Alert is part of etbRows)
+  
+  // Additional protection: Watch for any state changes that might reset pushing
+  // This catches Alert rendering specifically
+  useEffect(() => {
+    if (isPushingRef.current && !pushing) {
+      // Alert or other re-render reset pushing - restore immediately
+      setPushing(true);
+      setForceUpdate((prev) => prev + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushing]); // Watch pushing state itself - if it becomes false while ref is true, restore it
 
   const refreshClassificationSummary = (rows: ETBRow[]) => {
     const unique = new Set(rows.map((r) => r.classification).filter(Boolean));
@@ -515,6 +692,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       setEtbRows(etbData);
       refreshClassificationSummary(etbData);
+      
+      // Auto-save the newly initialized ETB data to database (only if rows exist)
+      if (etbData && etbData.length > 0) {
+        await saveETB(false, etbData);
+      }
     } catch (error) {
       console.error("Failed to initialize ETB:", error);
     } finally {
@@ -558,8 +740,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     refreshClassificationSummary(newRows);
   };
 
-  // Save ETB (optionally mute toast)
-  const saveETB = async (showToast = true) => {
+  // Save ETB (optionally mute toast, optionally pass custom rows)
+  const saveETB = async (showToast = true, customRows?: ETBRow[]) => {
+    const rowsToSave = customRows || etbRows;
+    
     setSaving(true);
     try {
       const { data, error } = await supabase.auth.getSession();
@@ -574,14 +758,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${data.session.access_token}`,
           },
-          body: JSON.stringify({ rows: etbRows }),
+          body: JSON.stringify({ rows: rowsToSave }),
         }
       );
 
       if (!response.ok)
         throw new Error("Failed to save Extended Trial Balance");
 
-      refreshClassificationSummary(etbRows);
+      refreshClassificationSummary(rowsToSave);
       if (showToast)
         toast({
           title: "Success",
@@ -589,11 +773,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         });
     } catch (error: any) {
       console.error("Save error:", error);
-      toast({
-        title: "Save failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Save failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(false);
       loadExistingData();
@@ -620,12 +806,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const json = await res.json();
       if (!json?.url) throw new Error("Server did not return an Excel URL.");
       setExcelUrl(json.url);
+      setHasBeenPushed(false); // Reset push state for new workbook
       try {
         localStorage.setItem(storageKey, json.url);
+        localStorage.setItem(pushedKey, "false");
       } catch {}
       toast({
         title: "Excel initialized",
-        description: "Workbook created. You can now open, push, or fetch.",
+        description: "Workbook created. You can now push your data.",
       });
     } catch (e: any) {
       console.error(e);
@@ -677,9 +865,95 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   }
 
   async function pushToCloud() {
-    setLoading(true);
+    // CRITICAL: Set pushing state IMMEDIATELY and synchronously
+    // Use direct assignment pattern to ensure state updates immediately
+    isPushingRef.current = true;
+    
+    // Set state multiple times to ensure React processes it
+    setPushing(true);
+    setPushing(true); // Double-set to ensure it sticks
+    
+    // Force immediate re-render
+    setForceUpdate((prev) => prev + 1);
+    
+    // Use a small timeout to ensure React has processed the state update
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    
+    // Clear any existing interval first
+    if (pushingIntervalRef.current) {
+      clearInterval(pushingIntervalRef.current);
+      pushingIntervalRef.current = null;
+    }
+    
     try {
-      await saveETB(false); // ensure backend has latest ETB
+      // Start interval IMMEDIATELY to protect pushing state from the start
+      // This protects against Alert rendering that happens during saveETB
+      pushingIntervalRef.current = setInterval(() => {
+        if (isPushingRef.current) {
+          setPushing((prev) => {
+            // Always restore if ref says we're pushing (catches Alert re-renders)
+            if (!prev) {
+              return true;
+            }
+            return prev;
+          });
+        }
+      }, 25); // Check every 25ms - very aggressive to catch Alert re-renders
+      
+      // Save ETB first - this might trigger loadExistingData which causes re-renders
+      // The Alert about unclassified rows might appear here, causing a re-render
+      await saveETB(false);
+      
+      // After saveETB, IMMEDIATELY restore pushing state (Alert might have caused re-render)
+      // This must happen right after saveETB to catch any re-renders
+      isPushingRef.current = true;
+      setPushing(true);
+      setPushing(true); // Double-set again
+      
+      // Use multiple timeouts to continuously restore pushing state
+      // This catches re-renders from Alert appearing/disappearing
+      const restorePushing = () => {
+        if (isPushingRef.current) {
+          setPushing(true);
+        }
+      };
+      
+      // Schedule multiple restorations to catch any re-renders
+      setTimeout(restorePushing, 0);
+      setTimeout(restorePushing, 10);
+      setTimeout(restorePushing, 25);
+      setTimeout(restorePushing, 50);
+      setTimeout(restorePushing, 100);
+      setTimeout(restorePushing, 150);
+      
+      // Wait for loadExistingData re-renders (Alert might appear here)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      
+      // Ensure loader is still showing after any re-renders
+      restorePushing();
+      setPushing((prev) => {
+        if (!prev) {
+          isPushingRef.current = true;
+          return true;
+        }
+        return prev;
+      });
+      
+      // Ensure interval is still running
+      if (!pushingIntervalRef.current && isPushingRef.current) {
+        pushingIntervalRef.current = setInterval(() => {
+          if (isPushingRef.current) {
+            setPushing((prev) => {
+              if (!prev) {
+                return true;
+              }
+              return prev;
+            });
+          }
+        }, 25);
+      }
+      
+      // Push to cloud API call
       const res = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/engagements/${
           engagement._id
@@ -688,7 +962,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           method: "POST",
         }
       );
+      
       if (!res.ok) throw new Error("Failed to push ETB to Excel.");
+      
       const json = await res.json();
       if (json?.url) {
         setExcelUrl(json.url);
@@ -696,16 +972,100 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           localStorage.setItem(storageKey, json.url);
         } catch {}
       }
+      
+      // CRITICAL: Update localStorage FIRST - button visibility depends on this
+      try {
+        localStorage.setItem(pushedKey, "true");
+      } catch (e) {
+        console.error("Failed to set localStorage:", e);
+      }
+      
+      // Update state with multiple strategies to ensure it works
+      setHasBeenPushed(true);
+      setHasBeenPushed(true); // Double-set
+      
+      // Force multiple re-renders with delays to ensure button appears
+      setForceUpdate((prev) => prev + 1);
+      
+      // Schedule multiple updates to catch React's render cycles
+      requestAnimationFrame(() => {
+        setForceUpdate((prev) => prev + 1);
+        setHasBeenPushed(true);
+      });
+      
+      setTimeout(() => {
+        setForceUpdate((prev) => prev + 1);
+        setHasBeenPushed(true);
+      }, 10);
+      
+      setTimeout(() => {
+        setForceUpdate((prev) => prev + 1);
+        try {
+          if (localStorage.getItem(pushedKey) === "true") {
+            setHasBeenPushed(true);
+          }
+        } catch {}
+      }, 50);
+      
+      // Show toast - loader still showing
       toast({ title: "Pushed", description: "ETB uploaded to Excel Online." });
+      
+      // Continue forcing updates while toast is visible
+      setTimeout(() => {
+        setForceUpdate((prev) => prev + 1);
+        try {
+          if (localStorage.getItem(pushedKey) === "true") {
+            setHasBeenPushed(true);
+          }
+        } catch {}
+      }, 200);
+      
+      // Keep loader visible until after all updates are complete
+      setTimeout(() => {
+        // One more state sync
+        try {
+          if (localStorage.getItem(pushedKey) === "true") {
+            setHasBeenPushed(true);
+          }
+        } catch {}
+        setForceUpdate((prev) => prev + 1);
+        
+        // Hide loader
+        setTimeout(() => {
+          // Clear the interval that was protecting pushing state
+          if (pushingIntervalRef.current) {
+            clearInterval(pushingIntervalRef.current);
+            pushingIntervalRef.current = null;
+          }
+          
+          setPushing(false);
+          isPushingRef.current = false;
+          
+          // Final state check
+          try {
+            if (localStorage.getItem(pushedKey) === "true") {
+              setHasBeenPushed(true);
+              setForceUpdate((prev) => prev + 1);
+            }
+          } catch {}
+        }, 300);
+      }, 500);
     } catch (e: any) {
-      console.error(e);
+      console.error("Push to cloud error:", e);
+      
+      // Clear interval on error too
+      if (pushingIntervalRef.current) {
+        clearInterval(pushingIntervalRef.current);
+        pushingIntervalRef.current = null;
+      }
+      
+      isPushingRef.current = false;
+      setPushing(false);
       toast({
         title: "Push failed",
-        description: e.message,
+        description: e.message || "Unknown error occurred",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -763,6 +1123,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   );
 
   const unclassifiedRows = etbRows.filter((row) => !row.classification);
+
+  // CRITICAL: Derive actual pushing state from both state and ref
+  // If ref says we're pushing, always show loader (even if state was reset)
+  // This ensures loader persists through Alert re-renders
+  const actualPushing = pushing || isPushingRef.current;
 
   if (loading) {
     return (
@@ -900,24 +1265,38 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     size="sm"
                     variant="outline"
                     onClick={pushToCloud}
+                    disabled={actualPushing}
                     title="Overwrite Excel from current ETB"
                     className="text-xs sm:text-sm bg-transparent"
                   >
-                    <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    {actualPushing ? (
+                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                    ) : (
+                      <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    )}
                     <span className="hidden sm:inline">Push to Cloud</span>
                     <span className="sm:hidden">Push</span>
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={pullFromCloud}
-                    title="Fetch Excel back into ETB"
-                    className="text-xs sm:text-sm bg-transparent"
-                  >
-                    <CloudDownload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">Fetch from Cloud</span>
-                    <span className="sm:hidden">Fetch</span>
-                  </Button>
+                  {/* Read directly from localStorage on every render - no memoization */}
+                  {(hasBeenPushed || checkHasBeenPushed || (() => {
+                    try {
+                      return localStorage.getItem(pushedKey) === "true";
+                    } catch {
+                      return false;
+                    }
+                  })()) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={pullFromCloud}
+                      title="Fetch Excel back into ETB"
+                      className="text-xs sm:text-sm bg-transparent"
+                    >
+                      <CloudDownload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Fetch from Cloud</span>
+                      <span className="sm:hidden">Fetch</span>
+                    </Button>
+                  )}
                 </>
               )}
 
@@ -1004,10 +1383,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       <TableCell className="border border-r-secondary border-b-secondary ">
                         <EditableText
                           value={row.code}
-                          onChange={(val) => {
-                            console.log("New value:", val); // 👈 Logs the updated text or number
-                            updateRow(row.id, "code", val);
-                          }}
+                          onChange={(val) => updateRow(row.id, "code", val)}
                           className="font-mono text-xs sm:text-sm"
                         />
                       </TableCell>
