@@ -40,6 +40,7 @@ import { DocumentRequests } from "@/pages/client/DocumentRequests";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { ClientDetail } from "./pages/employee/ClientDetail";
+import { CompanyDetail } from "./pages/employee/CompanyDetail";
 
 import RoleBasedAccountDataTab from "./components/accounts-integration/RoleBasedAccountDataTab";
 
@@ -104,9 +105,10 @@ const App = () => (
               >
                 <Route index element={<EmployeeDashboard />} />
                 <Route path="clients" element={<ClientManagement />} />
-                <Route path="clients/edit/:id" element={<EditClient />} />
-                <Route path="clients/:id" element={<ClientDetail />} />
                 <Route path="clients/new" element={<AddClient />} />
+                <Route path="clients/edit/:id" element={<EditClient />} />
+                <Route path="clients/:clientId/company/:companyId" element={<CompanyDetail />} />
+                <Route path="clients/:id" element={<ClientDetail />} />
                 <Route path="engagements" element={<EngagementManagement />} />
                 <Route path="engagements/new" element={<CreateEngagement />} />
                 <Route path="engagements/:id" element={<EngagementDetails />} />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,6 @@ import { Building2, Plus, Edit, Trash2, Users, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CreateCompanyModal } from "./CreateCompanyModal";
-import { CompanyDetailModal } from "./CompanyDetailModal";
 import { DeleteCompanyConfirmation } from "./DeleteCompanyConfirmation";
 
 interface Person {
@@ -46,11 +46,10 @@ interface CompanyListProps {
 }
 
 export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -139,8 +138,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
   };
 
   const handleViewDetails = (company: Company) => {
-    setSelectedCompany(company);
-    setIsDetailModalOpen(true);
+    navigate(`/employee/clients/${clientId}/company/${company._id}`);
   };
 
   if (isLoading) {
@@ -182,8 +180,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
             {companies.map((company) => (
               <Card
                 key={company._id}
-                className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 hover:bg-white/70 transition-all cursor-pointer"
-                onClick={() => handleViewDetails(company)}
+                className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 hover:bg-white/70 transition-all"
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -298,18 +295,6 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
         }}
         clientId={clientId}
         existingCompanies={companies}
-      />
-
-      {/* Company Detail Modal */}
-      <CompanyDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setSelectedCompany(null);
-        }}
-        company={selectedCompany as any}
-        clientId={clientId}
-        onUpdate={fetchCompanies}
       />
 
       {/* Delete Company Confirmation Dialog */}
