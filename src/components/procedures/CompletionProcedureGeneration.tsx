@@ -16,6 +16,8 @@ interface CompletionProcedureGenerationProps {
   existingProcedure?: any
   onComplete: (procedure: any) => void
   onBack: () => void
+  updateProcedureParams?: (updates: Record<string, string | null>, replace?: boolean) => void
+  searchParams?: URLSearchParams | null
 }
 
 type GenerationMode = "manual" | "ai" | "hybrid"
@@ -32,11 +34,60 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
   existingProcedure,
   onComplete,
   onBack,
+  updateProcedureParams,
+  searchParams,
 }) => {
-  const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(null)
-  const [currentStep, setCurrentStep] = useState(0)
+  // Initialize state from URL parameters to support browser back/forward navigation
+  const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
+  const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+  
+  const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(modeFromUrl)
+  const [currentStep, setCurrentStep] = useState(stepFromUrl !== null ? stepFromUrl : 0)
   const [stepData, setStepData] = useState<StepData>({})
   const [steps, setSteps] = useState<any[]>([])
+
+  // Initialize steps array when mode is available
+  useEffect(() => {
+    if (!selectedMode || steps.length > 0) return
+    
+    // Build steps array based on mode (without updating URL)
+    if (selectedMode === "ai") {
+      setSteps([
+        { title: "Set Materiality", component: CompletionMaterialityStep },
+        { title: "Select Sections", component: CompletionClassificationStep },
+        { title: "Generate Questions", component: AICompletionQuestionsStep },
+        { title: "Generate Answers", component: AICompletionAnswersStep },
+        { title: "Recommendations", component: CompletionRecommendationsStep },
+      ])
+    } else if (selectedMode === "hybrid") {
+      setSteps([
+        { title: "Set Materiality", component: CompletionMaterialityStep },
+        { title: "Select Sections", component: CompletionClassificationStep },
+        { title: "Generate Procedures", component: HybridCompletionProceduresStep },
+        { title: "Recommendations", component: CompletionRecommendationsStep },
+      ])
+    } else {
+      setSteps([
+        { title: "Set Materiality", component: CompletionMaterialityStep },
+        { title: "Select Sections", component: CompletionClassificationStep },
+        { title: "Completion Procedures", component: CompletionProceduresStep },
+        { title: "Recommendations", component: CompletionRecommendationsStep },
+      ])
+    }
+  }, [selectedMode, steps.length])
+
+  // Sync state with URL parameters when they change (browser back/forward)
+  useEffect(() => {
+    const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
+    const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+    
+    if (modeFromUrl !== selectedMode) {
+      setSelectedMode(modeFromUrl)
+    }
+    if (stepFromUrl !== null && stepFromUrl !== currentStep) {
+      setCurrentStep(stepFromUrl)
+    }
+  }, [searchParams])
 
   const modes = [
     {
@@ -80,7 +131,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     },
   ]
 
-  const handleModeSelect = (mode: GenerationMode) => {
+  const handleModeSelect = (mode: GenerationMode, updateUrl = true) => {
     setSelectedMode(mode)
     if (mode === "ai") {
       setSteps([
@@ -107,6 +158,10 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     }
     setCurrentStep(0)
     setStepData({})
+    // Update URL with selected mode and reset step (create new history entry)
+    if (updateUrl && updateProcedureParams) {
+      updateProcedureParams({ mode: mode, step: "0" }, false)
+    }
   }
 
   const handleStepComplete = (data: any) => {
@@ -136,8 +191,17 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     }));
     
     if (currentStep < steps.length - 1) {
-      setCurrentStep((prev) => prev + 1)
+      const nextStep = currentStep + 1
+      setCurrentStep(nextStep)
+      // Update URL with new step (create new history entry for browser back button)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: nextStep.toString() }, false)
+      }
     } else {
+      // Procedure complete - clear URL params (will be handled by parent)
+      if (updateProcedureParams) {
+        updateProcedureParams({ mode: null, step: null }, false)
+      }
       onComplete({
         mode: selectedMode,
         procedureType: "completion",
@@ -151,9 +215,19 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
 
   const handleStepBack = () => {
     if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1)
+      const prevStep = currentStep - 1
+      setCurrentStep(prevStep)
+      // Update URL with previous step (create new history entry)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: prevStep.toString() }, false)
+      }
     } else {
+      // Go back to mode selection
       setSelectedMode(null)
+      // Clear mode and step from URL (create new history entry)
+      if (updateProcedureParams) {
+        updateProcedureParams({ mode: null, step: null }, false)
+      }
     }
   }
 
@@ -172,7 +246,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
               <Card
                 key={mode.id}
                 className="relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-105 border-2 hover:border-primary/20"
-                onClick={() => handleModeSelect(mode.id)}
+                onClick={() => handleModeSelect(mode.id, true)}
               >
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between mb-3">
