@@ -17,12 +17,15 @@ import {
   Clock,
   TrendingUp,
   Edit,
+  Delete,
 } from "lucide-react"; // Added Edit icon
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagements } from "@/hooks/useEngagements";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
+import { CompanyList } from "@/components/client/CompanyList";
 
 const getStatusStyle = (status: string) => {
   switch (status) {
@@ -178,6 +181,8 @@ export const ClientDetail: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <div>
             <Button
               variant="default"
               size="sm"
@@ -189,6 +194,27 @@ export const ClientDetail: React.FC = () => {
                 Edit Client
               </Link>
             </Button>
+            
+            <DeleteClientConfirmation
+              clientName={client.companyName}
+              onConfirm={() => {
+                // No logic, just show popup
+                console.log("Delete confirmed for:", client.companyName);
+              }}
+              isLoading={false}
+            >
+              <Button
+                variant="default"
+                size="sm"
+                className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto ml-4"
+              >
+                <Delete className="h-4 w-4 mr-2" />
+                Delete Client
+              </Button>
+            </DeleteClientConfirmation>
+            </div>
+
+
           </div>
         </div>
 
@@ -333,6 +359,11 @@ export const ClientDetail: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Companies Section */}
+        <div className="space-y-6 mt-8">
+          <CompanyList clientId={client.id} />
         </div>
 
         {/* Engagements Section */}

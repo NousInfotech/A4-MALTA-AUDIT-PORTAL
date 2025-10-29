@@ -327,7 +327,7 @@ export const EngagementManagement = () => {
                       </h3>
                       <p className="text-sm text-gray-600 flex items-center gap-2 min-w-0 mt-1">
                         <Building2 className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{client?.companyName || 'Unknown Client'}</span>
+                        <span className="truncate font-bold">{client?.companyName || 'Unknown Client'}</span>
                       </p>
                     </div>
                     <Badge variant="outline" className={`rounded-xl px-3 py-1 text-sm font-semibold ${
@@ -349,7 +349,7 @@ export const EngagementManagement = () => {
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                       <FileText className="h-5 w-5 text-gray-600" />
                       <span className="text-sm text-gray-700 font-medium">
-                        Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
+                        Trial Balance: {engagement.trialBalanceUrl || engagement.excelURL ? 'Uploaded' : 'Not Uploaded'}
                       </span>
                     </div>
                   </div>

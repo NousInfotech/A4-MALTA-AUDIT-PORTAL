@@ -133,7 +133,41 @@ const [clients, setClients] = useState<User[]>([])
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'clientId') {
+      // When client is selected, update the title with company name
+      const selectedClient = clients.find(client => client.id === value);
+      if (selectedClient && selectedClient.companyName) {
+        setFormData(prev => ({ 
+          ...prev, 
+          clientId: value,
+          title: selectedClient.companyName 
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, clientId: value }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+  };
+
+  const handleYearEndDateChange = (value: string) => {
+    // Extract year from date string (format: YYYY-MM-DD)
+    const year = value.split('-')[0];
+    
+    // Get the current title (should be the company name)
+    const currentTitle = formData.title;
+    
+    // If we have a title and it doesn't already end with the year, append it
+    if (currentTitle && year) {
+      const titleWithoutYear = currentTitle.replace(/\s*,?\s*\d{4}$/, '').trim(); // Remove any existing year and comma
+      setFormData(prev => ({ 
+        ...prev, 
+        yearEndDate: value,
+        title: `${titleWithoutYear}, ${year}`
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, yearEndDate: value }));
+    }
   };
 
   return (
@@ -226,6 +260,20 @@ const [clients, setClients] = useState<User[]>([])
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             
+              
+                  <div className="space-y-3">
+                    <Label htmlFor="yearEndDate" className="text-sm font-medium text-gray-700">Year End Date *</Label>
+                <Input
+                  id="yearEndDate"
+                  type="date"
+                  value={formData.yearEndDate}
+                  onChange={(e) => handleYearEndDateChange(e.target.value)}
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                  required
+                />
+                  </div>
+
                   <div className="space-y-3">
                     <Label htmlFor="title" className="text-sm font-medium text-gray-700">Engagement Title *</Label>
                 <Input
@@ -237,18 +285,6 @@ const [clients, setClients] = useState<User[]>([])
                   required
                 />
               </div>
-              
-                  <div className="space-y-3">
-                    <Label htmlFor="yearEndDate" className="text-sm font-medium text-gray-700">Year End Date *</Label>
-                <Input
-                  id="yearEndDate"
-                  type="date"
-                  value={formData.yearEndDate}
-                  onChange={(e) => handleChange('yearEndDate', e.target.value)}
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                  required
-                />
-                  </div>
                 </div>
               </div>
 

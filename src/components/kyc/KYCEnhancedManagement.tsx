@@ -52,8 +52,19 @@ import {
   FileUp,
   RotateCcw,
   Play,
-  X
+  X,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { kycApi, documentRequestApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -128,6 +139,12 @@ export const KYCEnhancedManagement = ({
   const [showDetails, setShowDetails] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    documentRequestId?: string;
+    documentIndex?: number;
+    documentName?: string;
+  }>({ open: false });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -262,6 +279,34 @@ export const KYCEnhancedManagement = ({
       toast({
         title: "Error",
         description: error?.message || "Failed to reopen KYC",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!deleteDialog.documentRequestId || deleteDialog.documentIndex === undefined) return;
+    
+    try {
+      await documentRequestApi.deleteDocument(
+        deleteDialog.documentRequestId,
+        deleteDialog.documentIndex
+      );
+      await fetchKYCWorkflows();
+      if (selectedKYC) {
+        const updatedKYC = await kycApi.getById(selectedKYC._id);
+        setSelectedKYC(updatedKYC);
+      }
+      toast({
+        title: "Document Deleted",
+        description: "Document has been deleted successfully",
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document",
         variant: "destructive",
       });
     }
@@ -693,6 +738,11 @@ export const KYCEnhancedManagement = ({
                                         <Badge variant="outline" className="text-gray-600 border-gray-300">
                                           {doc.status}
                                         </Badge>
+                                        {doc.uploadedAt && (
+                                          <span className="text-xs text-gray-500">
+                                            Uploaded: {format(new Date(doc.uploadedAt), "MMM dd, yyyy HH:mm")}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -736,14 +786,62 @@ export const KYCEnhancedManagement = ({
                                       </Button>
                                     )}
                                     {doc.url && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => window.open(doc.url, '_blank')}
-                                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => window.open(doc.url, '_blank')}
+                                          className="border-blue-300 hover:bg-blue-50 text-blue-700"
+                                          title="View Document"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={async () => {
+                                            try {
+                                              const response = await fetch(doc.url);
+                                              const blob = await response.blob();
+                                              const url = window.URL.createObjectURL(blob);
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.download = doc.name;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                              window.URL.revokeObjectURL(url);
+                                            } catch (error) {
+                                              console.error('Download error:', error);
+                                              toast({
+                                                title: "Error",
+                                                description: "Failed to download document",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                          className="border-green-300 hover:bg-green-50 text-green-700"
+                                          title="Download Document"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setDeleteDialog({
+                                              open: true,
+                                              documentRequestId: docRequest._id,
+                                              documentIndex: docIndex,
+                                              documentName: doc.name,
+                                            });
+                                          }}
+                                          className="border-red-300 hover:bg-red-50 text-red-700"
+                                          title="Delete Document"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
                                     )}
                                   </div>
                                 </div>
@@ -840,6 +938,30 @@ export const KYCEnhancedManagement = ({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              Delete Document
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteDialog.documentName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDocument}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

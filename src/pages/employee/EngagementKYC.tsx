@@ -16,11 +16,23 @@ import {
   FileEdit,
   FileUp,
   RotateCcw,
-  Play
+  Play,
+  Trash2,
+  AlertCircle
 } from "lucide-react";
-import { kycApi, engagementApi } from "@/services/api";
+import { kycApi, engagementApi, documentRequestApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { KYCDocumentRequestModal } from "@/components/kyc/KYCDocumentRequestModal";
 import { AddDocumentRequestModal } from "@/components/kyc/AddDocumentRequestModal";
 import { ManualUploadModal } from "@/components/kyc/ManualUploadModal";
@@ -86,6 +98,12 @@ export function EngagementKYC() {
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [kycWorkflows, setKycWorkflows] = useState<KYCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    documentRequestId?: string;
+    documentIndex?: number;
+    documentName?: string;
+  }>({ open: false });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -265,6 +283,30 @@ export function EngagementKYC() {
       toast({
         title: "Error",
         description: error?.message || "Failed to reopen KYC",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!deleteDialog.documentRequestId || deleteDialog.documentIndex === undefined) return;
+    
+    try {
+      await documentRequestApi.deleteDocument(
+        deleteDialog.documentRequestId,
+        deleteDialog.documentIndex
+      );
+      await fetchKYCWorkflows();
+      toast({
+        title: "Document Deleted",
+        description: "Document has been deleted successfully",
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document",
         variant: "destructive",
       });
     }
@@ -488,22 +530,23 @@ export function EngagementKYC() {
                 {/* Document Requests */}
                 {workflow.documentRequests && workflow.documentRequests.length > 0 ? (
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
-                      <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                        {workflow.documentRequests.length} Request{workflow.documentRequests.length !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-                    <div className="space-y-4">
-                      {workflow.documentRequests.map((docRequest, index) => (
+                    {(() => {
+                      const requestsWithDocuments = workflow.documentRequests.filter((docRequest) => docRequest.documents && docRequest.documents.length > 0);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
+                            <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
+                              {requestsWithDocuments.length} Request{requestsWithDocuments.length !== 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                          <div className="space-y-4">
+                            {requestsWithDocuments.map((docRequest, index) => (
                         <div key={docRequest._id || index} className="bg-gray-50 rounded-xl p-4">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <span className="text-sm font-bold text-gray-600">{index + 1}</span>
-                              </div>
                               <div>
-                                <h4 className="font-semibold text-gray-900">{docRequest.name || `Document Request ${index + 1}`}</h4>
+                                <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
                                 {docRequest.description && (
                                   <p className="text-sm text-gray-600">{docRequest.description}</p>
                                 )}
@@ -542,19 +585,72 @@ export function EngagementKYC() {
                                         <Badge variant="outline" className="text-gray-600 border-gray-300">
                                           {doc.status}
                                         </Badge>
+                                        {doc.uploadedAt && (
+                                          <span className="text-xs text-gray-500">
+                                            Uploaded: {format(new Date(doc.uploadedAt), "MMM dd, yyyy HH:mm")}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
-                                  {doc.url && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => window.open(doc.url, '_blank')}
-                                      className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                  )}
+                                   {doc.url && (
+                                     <div className="flex items-center gap-1">
+                                       <Button
+                                         size="sm"
+                                         variant="outline"
+                                         onClick={() => window.open(doc.url, '_blank')}
+                                         className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 w-8 p-0"
+                                         title="View Document"
+                                       >
+                                         <Eye className="h-4 w-4" />
+                                       </Button>
+                                       <Button
+                                         size="sm"
+                                         variant="outline"
+                                         onClick={async () => {
+                                           try {
+                                             const response = await fetch(doc.url!);
+                                             const blob = await response.blob();
+                                             const url = window.URL.createObjectURL(blob);
+                                             const link = document.createElement('a');
+                                             link.href = url;
+                                             link.download = doc.name;
+                                             document.body.appendChild(link);
+                                             link.click();
+                                             document.body.removeChild(link);
+                                             window.URL.revokeObjectURL(url);
+                                           } catch (error) {
+                                             console.error('Download error:', error);
+                                             toast({
+                                               title: "Error",
+                                               description: "Failed to download document",
+                                               variant: "destructive",
+                                             });
+                                           }
+                                         }}
+                                         className="border-green-300 hover:bg-green-50 text-green-700 h-8 w-8 p-0"
+                                         title="Download Document"
+                                       >
+                                         <Download className="h-4 w-4" />
+                                       </Button>
+                                       <Button
+                                         size="sm"
+                                         variant="outline"
+                                         onClick={() => {
+                                           setDeleteDialog({
+                                             open: true,
+                                             documentRequestId: docRequest._id,
+                                             documentIndex: docIndex,
+                                             documentName: doc.name,
+                                           });
+                                         }}
+                                         className="border-red-300 hover:bg-red-50 text-red-700 h-8 w-8 p-0"
+                                         title="Delete Document"
+                                       >
+                                         <Trash2 className="h-4 w-4" />
+                                       </Button>
+                                     </div>
+                                   )}
                                 </div>
                               ))}
                             </div>
@@ -565,7 +661,10 @@ export function EngagementKYC() {
                           )}
                         </div>
                       ))}
-                    </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -605,6 +704,30 @@ export function EngagementKYC() {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              Delete Document
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteDialog.documentName}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDocument}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

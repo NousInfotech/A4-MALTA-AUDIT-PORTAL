@@ -248,6 +248,12 @@ export const documentRequestApi = {
     }
     
     return response.blob();
+  },
+
+  deleteDocument: async (id: string, documentIndex: number) => {
+    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}`, {
+      method: 'DELETE',
+    });
   }
 };
 

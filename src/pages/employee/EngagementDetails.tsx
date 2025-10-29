@@ -3,6 +3,8 @@ import { useTrialBalance } from "@/hooks/useTrialBalance";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +21,8 @@ import {
   BarChart3,
   Shield,
   BookOpenText,
+  Delete,
+  Pencil,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +39,7 @@ import { useActivityLogger } from "@/hooks/useActivityLogger";
 import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
 import { UpdateEngagementDialog } from "@/components/engagement/UpdateEngagementDialog";
 import { useEngagements } from "@/hooks/useEngagements";
+import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -46,6 +51,9 @@ export const EngagementDetails = () => {
   }, []);
 
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section = searchParams.get("section") || "overview";
   const [engagement, setEngagement] = useState<any>(null);
   const [trialBalanceUrl, setTrialBalanceUrl] = useState("");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
@@ -79,13 +87,25 @@ export const EngagementDetails = () => {
   const { logViewEngagement, logUploadDocument, logUpdateEngagement } = useActivityLogger();
 
   useEffect(() => {
+    if (!searchParams.get("section")) {
+      setSearchParams({ section: "overview" }, { replace: true });
+    }
+
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ section: value }, { replace: false });
+  };
+
+  useEffect(() => {
     const fetchEngagement = async () => {
       if (!id) return;
       try {
         setLoading(true);
         const engagementData = await engagementApi.getById(id);
         setEngagement(engagementData);
-
+       console.log(engagement);
+       
         // Log engagement view
         logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
 
@@ -219,35 +239,62 @@ export const EngagementDetails = () => {
             <Button
               variant="outline"
               size="icon"
-              asChild
               className="rounded-xl border-gray-200 hover:bg-gray-50"
               aria-label="Back to engagements"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate(`/employee/engagements?section=${section}`);
+                }
+              }}
             >
-              <Link to="/employee/engagements">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
+              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
-              <div className="flex-1">
-                <h1 className="text-3xl font-semibold text-gray-900">{engagement.title}</h1>
-                <p className="text-gray-700">Engagement Details</p>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 break-words">{engagement.title}</h1>
+                <p className="text-sm sm:text-base text-gray-700"></p>
               </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <Button
                 onClick={() => setIsUpdateDialogOpen(true)}
-                className="rounded-xl"
-              >
+                className="rounded-xl w-full sm:w-auto"
+                size="sm"
+              > 
+              <Pencil/>
                 Update Engagement
               </Button>
+              
+              <DeleteClientConfirmation
+                clientName={engagement.title}
+                onConfirm={() => {
+                  // No logic, just show popup
+                  console.log("Delete confirmed for:", engagement.title);
+                }}
+                isLoading={false}
+              >
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 rounded-xl w-full sm:w-auto"
+                >
+                  <Delete className="h-4 w-4 mr-2" />
+                  Delete Engagement
+                </Button>
+              </DeleteClientConfirmation>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Tabs Section */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs value={section} onValueChange={handleTabChange} className="space-y-6">
             <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between">
               <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none">
                 <TabsList className="min-w-max sm:min-w-0 bg-white border border-gray-200 rounded-xl p-1">
