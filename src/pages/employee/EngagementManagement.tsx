@@ -349,7 +349,7 @@ export const EngagementManagement = () => {
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                       <FileText className="h-5 w-5 text-gray-600" />
                       <span className="text-sm text-gray-700 font-medium">
-                        Trial Balance: {engagement.trialBalanceUrl ? 'Uploaded' : 'Not Uploaded'}
+                        Trial Balance: {engagement.trialBalanceUrl || engagement.excelURL ? 'Uploaded' : 'Not Uploaded'}
                       </span>
                     </div>
                   </div>
