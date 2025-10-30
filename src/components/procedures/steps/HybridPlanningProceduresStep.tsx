@@ -837,7 +837,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                           <div
                             key={field.key}
                             className={clsx(
-                              "space-y-3 p-4 rounded-md border bg-card shadow-sm",
+                              "space-y-3 p-4 rounded-md border border-[hsl(0deg,0%,68.03%)] bg-card shadow-sm",
                               invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5",
                               isFieldDisabled && "opacity-60",
                             )}
@@ -1149,7 +1149,7 @@ function getPredefinedSection(sectionId: string) {
           key: "engagement_letter",
           type: "file",
           label: "Engagement Letter (signed)",
-          required: true,
+          required: false,
           help: "Documents scope, responsibilities, reporting framework, and limitations per ISA 210."
         },
         {
@@ -1164,7 +1164,7 @@ function getPredefinedSection(sectionId: string) {
           key: "due_diligence_upload",
           type: "file",
           label: "Due Diligence Checklist (new client)",
-          required: true,
+          required: false,
           visibleIf: { engagement_type: ["New Acceptance"] },
           help: "Attach due diligence, including KYC/UBO/AML, for new client acceptance."
         },
@@ -1172,7 +1172,7 @@ function getPredefinedSection(sectionId: string) {
           key: "prior_year_review",
           type: "file",
           label: "Prior-year Reappointment Review",
-          required: true,
+          required: false,
           visibleIf: { engagement_type: ["Continuation"] },
           help: "Attach documentation of prior issues or changes when continuing client."
         },
@@ -1195,7 +1195,7 @@ function getPredefinedSection(sectionId: string) {
           key: "follow_up_evidence",
           type: "file",
           label: "Follow-up due diligence evidence",
-          required: true,
+          required: false,
           visibleIf: { kyc_screening_completed: [false] },
           help: "Provide documentation if any screening flags were raised."
         },
@@ -1203,7 +1203,7 @@ function getPredefinedSection(sectionId: string) {
           key: "acceptance_decision_memo",
           type: "file",
           label: "Acceptance / Continuance Decision Memo",
-          required: true,
+          required: false,
           help: "Document decision rationale per ISA 210/ISQM 1."
         },
         {
@@ -1295,7 +1295,7 @@ function getPredefinedSection(sectionId: string) {
           key: "independence_register",
           type: "file",
           label: "Independence & Ethics Summary Register",
-          required: true,
+          required: false,
           help: "Upload register/documentation of independence compliance."
         },
         {
@@ -1348,7 +1348,7 @@ function getPredefinedSection(sectionId: string) {
           key: "eq_plan",
           type: "file",
           label: "Engagement Quality Plan (document)",
-          required: true,
+          required: false,
           help: "Upload plan evidencing partner's oversight and quality procedures."
         }
       ],
