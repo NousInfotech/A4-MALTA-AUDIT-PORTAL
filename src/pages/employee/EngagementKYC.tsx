@@ -104,6 +104,10 @@ export function EngagementKYC() {
     documentIndex?: number;
     documentName?: string;
   }>({ open: false });
+  const [uploadingDocument, setUploadingDocument] = useState<{
+    documentRequestId?: string;
+    documentIndex?: number;
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -117,6 +121,45 @@ export function EngagementKYC() {
       setLoading(false);
     }
   }, [engagementId]);
+
+  // Auto-update document request statuses after workflows are fetched (only once per workflow load)
+  useEffect(() => {
+    if (kycWorkflows.length === 0 || loading) return;
+
+    const updateStatuses = async () => {
+      let hasUpdates = false;
+      for (const workflow of kycWorkflows) {
+        if (workflow.documentRequests) {
+          for (const docRequest of workflow.documentRequests) {
+            const calculatedStatus = calculateDocumentRequestStatus(docRequest);
+            if (docRequest.status !== calculatedStatus) {
+              hasUpdates = true;
+              try {
+                await documentRequestApi.update(docRequest._id, {
+                  status: calculatedStatus
+                });
+              } catch (error) {
+                console.error('Error auto-updating status:', error);
+              }
+            }
+          }
+        }
+      }
+      // Only refresh if there were updates
+      if (hasUpdates) {
+        setTimeout(() => {
+          fetchKYCWorkflows();
+        }, 500);
+      }
+    };
+
+    // Small delay to prevent immediate re-run
+    const timer = setTimeout(() => {
+      updateStatuses();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [kycWorkflows.length, loading]); // Only run when workflows are first loaded
 
   const fetchEngagementDetails = async () => {
     try {
@@ -309,6 +352,101 @@ export function EngagementKYC() {
         description: error?.message || "Failed to delete document",
         variant: "destructive",
       });
+    }
+  };
+
+  // Calculate document request status based on document completion
+  const calculateDocumentRequestStatus = (docRequest: any): string => {
+    if (!docRequest.documents || docRequest.documents.length === 0) {
+      return 'pending';
+    }
+    
+    const totalDocuments = docRequest.documents.length;
+    const completedDocuments = docRequest.documents.filter((doc: any) => 
+      doc.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
+    ).length;
+    
+    if (completedDocuments === 0) {
+      return 'pending';
+    } else if (completedDocuments === totalDocuments) {
+      return 'completed';
+    } else {
+      return 'submitted'; // Partially completed
+    }
+  };
+
+  // Update document request status
+  const updateDocumentRequestStatus = async (documentRequestId: string) => {
+    try {
+      // Get current document request
+      const docRequest = kycWorkflows
+        .flatMap(w => w.documentRequests || [])
+        .find(req => req._id === documentRequestId);
+      
+      if (!docRequest) return;
+
+      const newStatus = calculateDocumentRequestStatus(docRequest);
+      
+      // Only update if status changed
+      if (docRequest.status !== newStatus) {
+        await documentRequestApi.update(documentRequestId, {
+          status: newStatus
+        });
+        await fetchKYCWorkflows();
+      }
+    } catch (error: any) {
+      console.error('Error updating document request status:', error);
+      // Don't show toast for this as it's an automatic update
+    }
+  };
+
+  // Handle document upload
+  const handleDocumentUpload = async (
+    documentRequestId: string,
+    documentIndex: number,
+    file: File
+  ) => {
+    try {
+      setUploadingDocument({ documentRequestId, documentIndex });
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Upload the document
+      await documentRequestApi.uploadSingleDocument(documentRequestId, formData);
+      
+      // Refresh workflows to get the updated document with URL
+      await fetchKYCWorkflows();
+      
+      // Wait a bit for the backend to process, then update status
+      setTimeout(async () => {
+        try {
+          // Update document status to uploaded
+          await documentRequestApi.updateDocumentStatus(documentRequestId, documentIndex, 'uploaded');
+          
+          // Refresh again and update document request status
+          await fetchKYCWorkflows();
+          
+          // Update document request status
+          await updateDocumentRequestStatus(documentRequestId);
+        } catch (error) {
+          console.error('Error updating document status:', error);
+        }
+      }, 1000);
+      
+      toast({
+        title: "Document Uploaded",
+        description: `${file.name} has been uploaded successfully`,
+      });
+    } catch (error: any) {
+      console.error('Error uploading document:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to upload document",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingDocument(null);
     }
   };
 
@@ -541,19 +679,53 @@ export function EngagementKYC() {
                             </Badge>
                           </div>
                           <div className="space-y-4">
-                            {requestsWithDocuments.map((docRequest, index) => (
+                            {requestsWithDocuments.map((docRequest, index) => {
+                              // Calculate progress
+                              const totalDocs = docRequest.documents?.length || 0;
+                              const completedDocs = docRequest.documents?.filter((doc: any) => 
+                                doc.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
+                              ).length || 0;
+                              const progressPercentage = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+                              const calculatedStatus = calculateDocumentRequestStatus(docRequest);
+                              
+                              return (
                         <div key={docRequest._id || index} className="bg-gray-50 rounded-xl p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div>
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="flex-1">
                                 <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
                                 {docRequest.description && (
                                   <p className="text-sm text-gray-600">{docRequest.description}</p>
                                 )}
+                                {/* Progress Bar */}
+                                <div className="mt-3 space-y-1">
+                                  <div className="flex items-center justify-between text-xs text-gray-600">
+                                    <span>Progress: {completedDocs} / {totalDocs} documents</span>
+                                    <span>{Math.round(progressPercentage)}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                      className={`h-2 rounded-full transition-all ${
+                                        progressPercentage === 100 
+                                          ? 'bg-green-600' 
+                                          : progressPercentage > 0 
+                                          ? 'bg-blue-600' 
+                                          : 'bg-gray-300'
+                                      }`}
+                                      style={{ width: `${progressPercentage}%` }}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-gray-600 border-gray-600 bg-white">
-                              {docRequest.status}
+                            <Badge variant="outline" className={`ml-4 ${
+                              calculatedStatus === 'completed' 
+                                ? 'text-green-700 border-green-600 bg-green-50' 
+                                : calculatedStatus === 'submitted'
+                                ? 'text-blue-700 border-blue-600 bg-blue-50'
+                                : 'text-gray-600 border-gray-600 bg-white'
+                            }`}>
+                              {calculatedStatus}
                             </Badge>
                           </div>
                           
@@ -593,64 +765,104 @@ export function EngagementKYC() {
                                       </div>
                                     </div>
                                   </div>
-                                   {doc.url && (
-                                     <div className="flex items-center gap-1">
-                                       <Button
-                                         size="sm"
-                                         variant="outline"
-                                         onClick={() => window.open(doc.url, '_blank')}
-                                         className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 w-8 p-0"
-                                         title="View Document"
-                                       >
-                                         <Eye className="h-4 w-4" />
-                                       </Button>
-                                       <Button
-                                         size="sm"
-                                         variant="outline"
-                                         onClick={async () => {
-                                           try {
-                                             const response = await fetch(doc.url!);
-                                             const blob = await response.blob();
-                                             const url = window.URL.createObjectURL(blob);
-                                             const link = document.createElement('a');
-                                             link.href = url;
-                                             link.download = doc.name;
-                                             document.body.appendChild(link);
-                                             link.click();
-                                             document.body.removeChild(link);
-                                             window.URL.revokeObjectURL(url);
-                                           } catch (error) {
-                                             console.error('Download error:', error);
-                                             toast({
-                                               title: "Error",
-                                               description: "Failed to download document",
-                                               variant: "destructive",
-                                             });
-                                           }
-                                         }}
-                                         className="border-green-300 hover:bg-green-50 text-green-700 h-8 w-8 p-0"
-                                         title="Download Document"
-                                       >
-                                         <Download className="h-4 w-4" />
-                                       </Button>
-                                       <Button
-                                         size="sm"
-                                         variant="outline"
-                                         onClick={() => {
-                                           setDeleteDialog({
-                                             open: true,
-                                             documentRequestId: docRequest._id,
-                                             documentIndex: docIndex,
-                                             documentName: doc.name,
-                                           });
-                                         }}
-                                         className="border-red-300 hover:bg-red-50 text-red-700 h-8 w-8 p-0"
-                                         title="Delete Document"
-                                       >
-                                         <Trash2 className="h-4 w-4" />
-                                       </Button>
-                                     </div>
-                                   )}
+                                  <div className="flex items-center gap-1">
+                                    {!doc.url ? (
+                                      <label className="cursor-pointer">
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              handleDocumentUpload(docRequest._id, docIndex, file);
+                                            }
+                                            e.target.value = ''; // Reset input
+                                          }}
+                                          disabled={uploadingDocument?.documentRequestId === docRequest._id && 
+                                                   uploadingDocument?.documentIndex === docIndex}
+                                        />
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 px-3"
+                                          title="Upload Document"
+                                          disabled={uploadingDocument?.documentRequestId === docRequest._id && 
+                                                   uploadingDocument?.documentIndex === docIndex}
+                                          asChild
+                                        >
+                                          <span>
+                                            {uploadingDocument?.documentRequestId === docRequest._id && 
+                                             uploadingDocument?.documentIndex === docIndex ? (
+                                              <RefreshCw className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <>
+                                                <Upload className="h-4 w-4 mr-1" />
+                                                Upload
+                                              </>
+                                            )}
+                                          </span>
+                                        </Button>
+                                      </label>
+                                    ) : (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => window.open(doc.url, '_blank')}
+                                          className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 w-8 p-0"
+                                          title="View Document"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={async () => {
+                                            try {
+                                              const response = await fetch(doc.url!);
+                                              const blob = await response.blob();
+                                              const url = window.URL.createObjectURL(blob);
+                                              const link = document.createElement('a');
+                                              link.href = url;
+                                              link.download = doc.name;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                              window.URL.revokeObjectURL(url);
+                                            } catch (error) {
+                                              console.error('Download error:', error);
+                                              toast({
+                                                title: "Error",
+                                                description: "Failed to download document",
+                                                variant: "destructive",
+                                              });
+                                            }
+                                          }}
+                                          className="border-green-300 hover:bg-green-50 text-green-700 h-8 w-8 p-0"
+                                          title="Download Document"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setDeleteDialog({
+                                          open: true,
+                                          documentRequestId: docRequest._id,
+                                          documentIndex: docIndex,
+                                          documentName: doc.name,
+                                        });
+                                      }}
+                                      className="border-red-300 hover:bg-red-50 text-red-700 h-8 w-8 p-0"
+                                      title="Delete Document"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -660,7 +872,8 @@ export function EngagementKYC() {
                             </div>
                           )}
                         </div>
-                      ))}
+                      );
+                      })}
                             </div>
                           </>
                         );

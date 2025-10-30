@@ -89,6 +89,18 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     }
   }, [searchParams])
 
+  // Clamp currentStep to valid range whenever steps change or URL drives out-of-range value
+  useEffect(() => {
+    if (!steps || steps.length === 0) return
+    if (currentStep < 0 || currentStep >= steps.length) {
+      const safeStep = Math.max(0, Math.min(currentStep, steps.length - 1))
+      setCurrentStep(safeStep)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: safeStep.toString() }, true)
+      }
+    }
+  }, [steps, currentStep])
+
   const modes = [
     {
       id: "manual" as GenerationMode,
@@ -285,7 +297,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     )
   }
 
-  const CurrentStepComponent = steps[currentStep].component
+  const CurrentStepComponent = steps[currentStep]?.component
 
   return (
     <div className="space-y-6">
@@ -296,10 +308,10 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
             {React.createElement(modes.find((m) => m.id === selectedMode)?.icon || FileText, { className: "h-4 w-4" })}
             {selectedMode?.toUpperCase()} Mode
           </Badge>
-          <h3 className="font-heading text-xl text-foreground">{steps[currentStep].title}</h3>
+          <h3 className="font-heading text-xl text-foreground">{steps[currentStep]?.title || ""}</h3>
         </div>
         <div className="text-sm text-muted-foreground font-body">
-          Step {currentStep + 1} of {steps.length}
+          Step {Math.min(currentStep + 1, Math.max(steps.length, 1))} of {steps.length}
         </div>
       </div>
 
@@ -312,13 +324,17 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
       </div>
 
       {/* Step Content */}
-      <CurrentStepComponent
-        engagement={engagement}
-        mode={selectedMode}
-        stepData={stepData}
-        onComplete={handleStepComplete}
-        onBack={handleStepBack}
-      />
+      {CurrentStepComponent ? (
+        <CurrentStepComponent
+          engagement={engagement}
+          mode={selectedMode}
+          stepData={stepData}
+          onComplete={handleStepComplete}
+          onBack={handleStepBack}
+        />
+      ) : (
+        <div className="text-muted-foreground">Preparing step…</div>
+      )}
     </div>
   )
 }
