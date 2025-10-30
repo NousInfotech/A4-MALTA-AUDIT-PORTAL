@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -217,6 +218,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("")
 
   // for smooth scroll to first invalid field
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -275,6 +277,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
     if (!ids.length) {
       setProcedures([])
       setIsLoading(false)
+      setSelectedSectionId("")
       return
     }
 
@@ -305,6 +308,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
     setProcedures(next)
     setIsLoading(false)
+    setSelectedSectionId(next[0]?.sectionId || "")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(stepData.selectedSections)])
 
@@ -465,19 +469,40 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card className="relative overflow-hidden">
+      <Card className="relative">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 md:justify-between">
             <CardTitle className="font-heading text-xl text-foreground flex items-center gap-2">
               Planning Procedures (Manual)
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
               <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className="flex items-center gap-2">
                 <Save className="h-4 w-4" />
                 {saving ? "Saving..." : "Save Progress"}
               </Button>
             </div>
           </div>
+
+          {(Array.isArray(procedures) ? procedures : []).length > 0 && (
+            <div className="w-auto">
+              <Select value={selectedSectionId} onValueChange={(value) => { setSelectedSectionId(value); scrollToSection(value) }}>
+                <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                  <SelectValue placeholder={(Array.isArray(procedures) ? procedures : [])[0]?.title || "Select section"} />
+                </SelectTrigger>
+                <SelectContent className="bg-white text-black border border-gray-200">
+                  {(Array.isArray(procedures) ? procedures : []).map((p) => (
+                    <SelectItem
+                      key={p.sectionId}
+                      value={p.sectionId}
+                      className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                    >
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {totalMissing > 0 && (
             <Alert className="mt-3 flex items-start gap-3 border-destructive/30">
@@ -493,7 +518,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
         </CardHeader>
 
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-6 h-[60vh] overflow-y-scroll">
 
             {(Array.isArray(procedures) ? procedures : []).map((procedure, index) => {
               const answersMap = getAnswersMap(procedure)
@@ -508,8 +533,8 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                     <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                       {procedure.title}
                       <Badge variant="outline">{procedure.sectionId}</Badge>
-                      {/* Navigation buttons */}
-                      <div className="flex justify-between">
+                        {/* Navigation buttons */}
+                        {/* <div className="flex justify-between">
                         {index > 0 && (
                           <Button
                             variant="outline"
@@ -539,7 +564,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         )}
-                      </div>
+                      </div> */}
                     </CardTitle>
                     {procedure.standards?.length ? (
                       <div className="text-xs text-muted-foreground">Standards: {procedure.standards.join(", ")}</div>
@@ -556,7 +581,10 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                         return (
                           <div
                             key={field.key}
-                            className={clsx("space-y-2 p-2 rounded-md", invalid && "bg-destructive/5")}
+                            className={clsx(
+                              "space-y-3 p-4 rounded-md border border-[hsl(0,0%,68.03%)] bg-card shadow-sm",
+                              invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5"
+                            )}
                             ref={(el) => (fieldRefs.current[fieldKey] = el)}
                           >
                             <div className="flex items-start gap-2">
@@ -564,8 +592,8 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                 {field.label ?? field.key}
                                 {required && <span className="text-destructive ml-1">*</span>}
                               </Label>
-                              {/* Navigation buttons */}
-                              <div className="flex items-center justify-between">
+                                 {/* Navigation buttons */}
+                                 {/* <div className="flex items-center justify-between">
                                 {index > 0 && (
                                   <Button
                                     variant="outline"
@@ -595,7 +623,7 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
                                     <ChevronDown className="h-4 w-4" />
                                   </Button>
                                 )}
-                              </div>
+                              </div> */}
                               {field.help && (
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -783,11 +811,11 @@ export const PlanningProceduresStep: React.FC<PlanningProceduresStepProps> = ({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
+      <div className="flex items-end justify-end">
+        {/* <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
           <ArrowLeft className="h-4 w-4" />
           Back to Sections
-        </Button>
+        </Button> */}
         <Button
           onClick={handleProceed}
           disabled={isLoading}

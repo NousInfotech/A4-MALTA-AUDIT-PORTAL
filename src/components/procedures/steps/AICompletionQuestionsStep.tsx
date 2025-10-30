@@ -331,10 +331,10 @@ export const AICompletionQuestionsStep: React.FC<{
       
 
       {/* Navigation Dropdown */}
-      <div className="flex justify-start mb-6">
-        <div className="w-full max-w-md">
+ 
+        <div className="w-auto">
           <Select onValueChange={(value) => scrollToSection(value)}>
-            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+            <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
                <SelectValue placeholder={COMPLETION_SECTIONS[0].title}/>
             </SelectTrigger>
 
@@ -358,7 +358,7 @@ export const AICompletionQuestionsStep: React.FC<{
             </SelectContent>
           </Select>
         </div>
-      </div>
+     
 
       <div className="space-y-4 h-[60vh] overflow-y-scroll">
         {COMPLETION_SECTIONS.map((section, index) => {
@@ -447,7 +447,7 @@ export const AICompletionQuestionsStep: React.FC<{
           Continue to Next Step (Answers)
         </Button>
         <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+           {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
       </div>
     </div>
   )

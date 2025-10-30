@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, Bot, Sparkles, PlusCircle, Loader2, ChevronUp, ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -249,6 +250,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
   const [answersGenerated, setAnswersGenerated] = useState(false)
   const { toast } = useToast()
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("")
 
   // for smooth scroll to first invalid field
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -314,6 +316,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
     if (!ids.length) {
       setProcedures([])
       setIsLoading(false)
+      setSelectedSectionId("")
       return
     }
 
@@ -349,6 +352,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
 
     setProcedures(next)
     setIsLoading(false)
+    setSelectedSectionId(next[0]?.sectionId || "")
   }, [JSON.stringify(stepData.selectedSections)])
   const handleGenerateSectionQuestions = async (sectionId: string) => {
     setGeneratingQuestionsSections(prev => {
@@ -665,13 +669,13 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
 
   return (
     <div className="space-y-6">
-      <Card className="relative overflow-hidden">
+      <Card className="relative">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 md:justify-between">
             <CardTitle className="font-heading text-xl text-foreground flex items-center gap-2">
               Planning Procedures (Hybrid)
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
               <Button
                 variant="outline"
                 size="sm"
@@ -703,6 +707,27 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
             )}
           </div>
 
+          {(Array.isArray(procedures) ? procedures : []).length > 0 && (
+            <div className="w-auto mt-5">
+              <Select value={selectedSectionId} onValueChange={(value) => { setSelectedSectionId(value); scrollToSection(value) }}>
+                <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                  <SelectValue placeholder={(Array.isArray(procedures) ? procedures : [])[0]?.title || "Select section"} />
+                </SelectTrigger>
+                <SelectContent className="bg-white text-black border border-gray-200">
+                  {(Array.isArray(procedures) ? procedures : []).map((p) => (
+                    <SelectItem
+                      key={p.sectionId}
+                      value={p.sectionId}
+                      className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                    >
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {totalMissing > 0 && answersGenerated && (
             <Alert className="mt-3 flex items-start gap-3 border-destructive/30">
               <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
@@ -717,7 +742,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
         </CardHeader>
 
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-6 h-[60vh] overflow-y-scroll">
             {(Array.isArray(procedures) ? procedures : []).map((procedure, index) => {
               const answersMap = getAnswersMap(procedure)
               return (
@@ -762,8 +787,8 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                     <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                       {procedure.title}
                       <Badge variant="outline">{procedure.sectionId}</Badge>
-                      {/* Navigation buttons */}
-                      <div className="flex justify-between">
+                          {/* Navigation buttons */}
+                          {/* <div className="flex justify-between">
                         {index > 0 && (
                           <Button
                             variant="outline"
@@ -793,7 +818,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         )}
-                      </div>
+                      </div> */}
                     </CardTitle>
                     {procedure.standards?.length ? (
                       <div className="text-xs text-muted-foreground">Standards: {procedure.standards.join(", ")}</div>
@@ -812,8 +837,8 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                           <div
                             key={field.key}
                             className={clsx(
-                              "space-y-2 p-2 rounded-md",
-                              invalid && "bg-destructive/5",
+                              "space-y-3 p-4 rounded-md border bg-card shadow-sm",
+                              invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5",
                               isFieldDisabled && "opacity-60",
                             )}
                             ref={(el) => (fieldRefs.current[fieldKey] = el)}
@@ -834,8 +859,8 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                                   <span className="text-xs text-muted-foreground ml-2">(Manual upload required)</span>
                                 )}
                               </Label>
-                              {/* Navigation buttons */}
-                              <div className="flex items-center justify-between">
+                               {/* Navigation buttons */}
+                               {/* <div className="flex items-center justify-between">
                                 {index > 0 && (
                                   <Button
                                     variant="outline"
@@ -865,7 +890,7 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
                                     <ChevronDown className="h-4 w-4" />
                                   </Button>
                                 )}
-                              </div>
+                              </div> */}
                               {field.help && (
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -1076,11 +1101,11 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
+      <div className="flex items-end justify-end">
+        {/* <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
           <ArrowLeft className="h-4 w-4" />
           Back to Sections
-        </Button>
+        </Button> */}
         <Button onClick={handleProceed} disabled={false} className="flex items-center gap-2">
           Proceed to Recommendations
           <ArrowRight className="h-4 w-4" />

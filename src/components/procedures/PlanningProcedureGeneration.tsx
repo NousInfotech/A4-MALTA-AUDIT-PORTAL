@@ -280,14 +280,14 @@ const handleStepComplete = (data: any) => {
           })}
         </div>
 
-        <div className="flex justify-start">
+        {/* <div className="flex justify-start">
           <button
             onClick={onBack}
             className="text-muted-foreground hover:text-foreground transition-colors font-body text-sm"
           >
             ← Back to Procedure Types
           </button>
-        </div>
+        </div> */}
       </div>
     )
   }

@@ -472,7 +472,7 @@ const AICompletionAnswersStep: React.FC<{
                     const t = normalizeType(f.type)
                     const isTable = t === "table"
                     return (
-                      <div key={f.key} className="border rounded p-3 space-y-2">
+                      <div key={f.key} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
                         <div className="text-sm font-medium">{f.label} {f.required ? <span className="text-red-500">*</span> : null}</div>
                         {f.help ? <div className="text-xs text-muted-foreground">{f.help}</div> : null}
 
@@ -566,7 +566,7 @@ const AICompletionAnswersStep: React.FC<{
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => handleSave()}>Save Draft</Button>
         <Button onClick={() => handleSave()}>Proceed to Recommendations</Button>
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+        {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
       </div>
     </div>
   )

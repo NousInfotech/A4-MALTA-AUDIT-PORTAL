@@ -272,7 +272,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
             )
           })}
         </div>
-
+{/* 
         <div className="flex justify-start">
           <button
             onClick={onBack}
@@ -280,7 +280,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
           >
             ← Back to Procedure Types
           </button>
-        </div>
+        </div> */}
       </div>
     )
   }

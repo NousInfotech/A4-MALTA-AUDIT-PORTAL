@@ -329,11 +329,11 @@ export const CompletionClassificationStep: React.FC<CompletionClassificationStep
         </Alert>
       )}
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-end justify-end">
+        {/* <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
+          <ArrowLeft className="h-4 w-4" />     
           Back to Materiality
-        </Button>
+        </Button> */}
         <Button
           onClick={handleProceed}
           disabled={selectedClassifications.length === 0}

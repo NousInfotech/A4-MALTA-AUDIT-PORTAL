@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowRight, ArrowLeft, Save, HelpCircle, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
@@ -467,6 +468,27 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                         </div>
                     </div>
 
+                    {(Array.isArray(procedures) ? procedures : []).length > 0 && (
+                        <div className="w-auto">
+                            <Select onValueChange={(value) => scrollToSection(value)}>
+                                <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                                    <SelectValue placeholder={(Array.isArray(procedures) ? procedures : [])[0]?.title || "Select section"} />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white text-black border border-gray-200">
+                                    {(Array.isArray(procedures) ? procedures : []).map((p) => (
+                                        <SelectItem
+                                            key={p.sectionId}
+                                            value={p.sectionId}
+                                            className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                                        >
+                                            {p.title}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
                     {totalMissing > 0 && (
                         <Alert className="mt-3 flex items-start gap-3 border-destructive/30">
                             <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive" />
@@ -481,7 +503,7 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                 </CardHeader>
 
                 <CardContent>
-                    <div className="space-y-6">
+                    <div className="space-y-6 h-[60vh] overflow-y-scroll">
                         {(Array.isArray(procedures) ? procedures : []).map((procedure, index) => {
                             const answersMap = getAnswersMap(procedure)
                             return (
@@ -495,7 +517,8 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                         <CardTitle className="font-heading text-lg text-foreground flex items-center gap-2">
                                             {procedure.title}
                                             <Badge variant="outline">{procedure.sectionId}</Badge>
-                                            <div className="flex justify-between">
+                                            {/* Navigation buttons */}
+                                            {/* <div className="flex justify-between">
                                                 {index > 0 && (
                                                     <Button
                                                         variant="outline"
@@ -525,7 +548,7 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                                         <ChevronDown className="h-4 w-4" />
                                                     </Button>
                                                 )}
-                                            </div>
+                                            </div> */}
                                         </CardTitle>
                                         {procedure.standards?.length ? (
                                             <div className="text-xs text-muted-foreground">Standards: {procedure.standards.join(", ")}</div>
@@ -542,15 +565,19 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                                 return (
                                                     <div
                                                         key={field.key}
-                                                        className={clsx("space-y-2 p-2 rounded-md", invalid && "bg-destructive/5")}
+                                                        className={clsx(
+                                                            "space-y-3 p-4 rounded-md border bg-card shadow-sm",
+                                                            invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5"
+                                                        )}
                                                         ref={(el) => (fieldRefs.current[fieldKey] = el)}
                                                     >
-                                                        <div className="flex items-start gap-2">
+                                                            <div className="flex items-start gap-2">
                                                             <Label className={clsx("font-body-semibold text-foreground flex-1", invalid && "text-destructive")}>
                                                                 {field.label ?? field.key}
                                                                 {required && <span className="text-destructive ml-1">*</span>}
                                                             </Label>
-                                                            <div className="flex items-center justify-between">
+                                                            {/* Navigation buttons */}
+                                                            {/* <div className="flex items-center justify-between">
                                                                 {index > 0 && (
                                                                     <Button
                                                                         variant="outline"
@@ -580,7 +607,7 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                                                         <ChevronDown className="h-4 w-4" />
                                                                     </Button>
                                                                 )}
-                                                            </div>
+                                                            </div> */}
                                                             {field.help && (
                                                                 <div className="group relative">
                                                                     <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -767,11 +794,11 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                 </CardContent>
             </Card>
 
-            <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
+            <div className="flex items-end justify-end">
+                {/* <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Sections
-                </Button>
+                </Button> */}
                 <Button
                     onClick={handleProceed}
                     disabled={isLoading}

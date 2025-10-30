@@ -150,10 +150,10 @@ export const MaterialityStep: React.FC<MaterialityStepProps> = ({ engagement, mo
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={onBack} className="bg-transparent">
-          Back to Mode Selection
-        </Button>
+      <div className="flex items-end justify-end">
+          {/* <Button variant="outline" onClick={onBack} className="bg-transparent">
+            Back to Mode Selection
+          </Button> */}
         <Button onClick={handleProceed} disabled={!isValid} className="flex items-center gap-2">
           Proceed to Classifications
           <ArrowRight className="h-4 w-4" />

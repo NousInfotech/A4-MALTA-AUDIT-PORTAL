@@ -3,6 +3,7 @@ import type React from "react";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -512,15 +513,39 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
           <span className="text-sm text-muted-foreground">Review & refine your procedures</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack}>
+          {/* <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
-          </Button>
+          </Button> */}
           <Button size="sm" onClick={handleProceed}>
             Continue <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
       </div>
+
+      {/* Section dropdown navigation */}
+      {Object.keys(groups).length > 0 && (
+        <div className="flex justify-start">
+          <div className="w-auto">
+            <Select onValueChange={(value) => scrollToSection(value)}>
+              <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                <SelectValue placeholder={formatClassificationForDisplay(Object.keys(groups)[0])} />
+              </SelectTrigger>
+              <SelectContent className="bg-white text-black border border-gray-200">
+                {Object.keys(groups).map((bucket, index) => (
+                  <SelectItem
+                    key={bucket}
+                    value={`section-${index}`}
+                    className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                  >
+                    {formatClassificationForDisplay(bucket)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {/* empty state */}
       {questions.length === 0 ? (
@@ -535,6 +560,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
       ) : (
         <>
           {/* grouped cards */}
+          <div className="h-[60vh] overflow-y-scroll space-y-5">
           {Object.entries(groups).map(([bucket, items], index) => (
             <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
               <CardHeader>
@@ -550,7 +576,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                   </div>
                   <div className="flex gap-2">
                     {/* Section Navigation Buttons */}
-                    <div className="flex justify-between">
+                    {/* <div className="flex justify-between">
                       {index > 0 && (
                         <Button
                           variant="outline"
@@ -570,7 +596,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                           <ChevronDown className="h-4 w-4" />
                         </Button>
                       )}
-                    </div>
+                    </div> */}
                     <Button size="sm" variant="outline" onClick={() => addItem(bucket)}>
                       <Plus className="h-4 w-4 mr-1" /> Add
                     </Button>
@@ -582,7 +608,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                   const isEditing = editingUid === q.__uid;
                   const badge = formatClassificationForDisplay(q.classification);
                   return (
-                    <motion.div key={q.__uid} variants={itemVariants} className="rounded border p-3">
+                    <motion.div key={q.__uid} variants={itemVariants} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{badge}</Badge>
@@ -594,7 +620,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                         </div>
                         <div className="flex items-center gap-2">
                           {/* Section Navigation Buttons */}
-                          <div className="flex justify-between">
+                          {/* <div className="flex justify-between">
                             {index > 0 && (
                               <Button
                                 variant="outline"
@@ -614,7 +640,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                                 <ChevronDown className="h-4 w-4" />
                               </Button>
                             )}
-                          </div>
+                          </div> */}
                           <Button size="sm" variant="outline" onClick={() => toggleRequired(q.__uid)}>
                             {q.isRequired ? "Mark Optional" : "Mark Required"}
                           </Button>
@@ -673,6 +699,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
               </CardContent>
             </Card>
           ))}
+          </div>
         </>
       )}
     </motion.div>
