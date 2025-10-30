@@ -608,7 +608,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                   const isEditing = editingUid === q.__uid;
                   const badge = formatClassificationForDisplay(q.classification);
                   return (
-                    <motion.div key={q.__uid} variants={itemVariants} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
+                    <motion.div key={q.__uid} variants={itemVariants} className="space-y-3 p-4 rounded-md border border-[hsl(0deg,0%,68.03%)] bg-card shadow-sm">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{badge}</Badge>

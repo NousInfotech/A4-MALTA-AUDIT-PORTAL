@@ -472,7 +472,7 @@ const AICompletionAnswersStep: React.FC<{
                     const t = normalizeType(f.type)
                     const isTable = t === "table"
                     return (
-                      <div key={f.key} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
+                      <div key={f.key} className="space-y-3 p-4 rounded-md border border-[hsl(0deg,0%,68.03%)] bg-card shadow-sm">
                         <div className="text-sm font-medium">{f.label} {f.required ? <span className="text-red-500">*</span> : null}</div>
                         {f.help ? <div className="text-xs text-muted-foreground">{f.help}</div> : null}
 

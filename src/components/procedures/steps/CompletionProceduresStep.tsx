@@ -566,7 +566,7 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                                     <div
                                                         key={field.key}
                                                         className={clsx(
-                                                            "space-y-3 p-4 rounded-md border bg-card shadow-sm",
+                                                            "space-y-3 p-4 rounded-md border bg-card shadow-sm border-[hsl(0deg,0%,68.03%)]",
                                                             invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5"
                                                         )}
                                                         ref={(el) => (fieldRefs.current[fieldKey] = el)}

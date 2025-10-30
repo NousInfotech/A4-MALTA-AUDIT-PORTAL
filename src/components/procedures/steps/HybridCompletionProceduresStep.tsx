@@ -774,7 +774,7 @@ export const HybridCompletionProceduresStep: React.FC<HybridCompletionProcedures
                       <div
                         key={field.key}
                         className={clsx(
-                          "space-y-3 p-4 rounded-md border bg-card shadow-sm",
+                          "space-y-3 p-4 rounded-md border bg-card shadow-sm border-[hsl(0deg,0%,68.03%)]",
                           invalid && "border-destructive/60 ring-1 ring-destructive/30 bg-destructive/5",
                           isFieldDisabled && "opacity-60",
                         )}
