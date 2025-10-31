@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Table,
@@ -44,6 +44,7 @@ import {
   type ETBData
 } from '@/lib/api/extendedTrialBalanceApi';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ExtendedTBWithWorkbookProps {
   engagementId?: string;
@@ -62,9 +63,23 @@ export default function ExtendedTBWithWorkbook({
   const engagementId = propEngagementId || routeEngagementId;
   const { toast } = useToast();
 
-  const [data, setData] = useState<ETBData | null>(null);
+  // Lead Sheet rows loaded via the same APIs as ClassificationSection
+  const [sectionData, setSectionData] = useState<Array<{
+    id?: string;
+    _id?: string;
+    code: string;
+    accountName: string;
+    currentYear: number;
+    priorYear: number;
+    adjustments: number;
+    finalBalance: number;
+    classification?: string;
+    // For UI compatibility (linked files column stays but likely disabled)
+    linkedExcelFiles?: any[];
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string>(new Date().toISOString());
 
   // Use prop classification or get from URL params if needed
   const classification = propClassification;
@@ -86,6 +101,87 @@ export default function ExtendedTBWithWorkbook({
     );
   }
 
+  // authFetch helper to attach Supabase Bearer token (same pattern as ClassificationSection)
+  async function authFetch(url: string, options: RequestInit = {}) {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    const headers = new Headers(options.headers || {});
+    if (data.session?.access_token) {
+      headers.set('Authorization', `Bearer ${data.session.access_token}`);
+    }
+    return fetch(url, { ...options, headers });
+  }
+
+  // Helpers mirroring ClassificationSection logic
+  const isAdjustments = (c: string) => c === 'Adjustments';
+  const isETB = (c: string) => c === 'ETB';
+  const TOP_CATEGORIES = ['Equity', 'Income', 'Expenses'];
+  const isTopCategory = (c: string) => TOP_CATEGORIES.includes(c);
+
+  const loadSectionData = async () => {
+    try {
+      if (!engagementId || !classification) throw new Error('Engagement ID and classification are required');
+
+      // Always fetch linked files snapshot for this classification to preserve previous functionality
+      // This endpoint returns rows that include linkedExcelFiles and often a stable _id
+      const linkedResp = await getExtendedTBWithLinkedFiles(engagementId, classification);
+      const linkedRows: any[] = Array.isArray(linkedResp?.rows) ? linkedResp.rows : [];
+      const byCode = new Map<string, any>();
+      const byId = new Map<string, any>();
+      for (const lr of linkedRows) {
+        if (lr?.code) byCode.set(String(lr.code), lr);
+        if (lr?._id) byId.set(String(lr._id), lr);
+      }
+
+      if (isAdjustments(classification) || isETB(classification)) {
+        const etbResp = await authFetch(
+          `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb`
+        );
+        if (!etbResp.ok) throw new Error('Failed to load ETB');
+        const etb = await etbResp.json();
+        const rows: any[] = Array.isArray(etb.rows) ? etb.rows : [];
+        const filtered = isAdjustments(classification)
+          ? rows.filter((r) => Number(r.adjustments) !== 0)
+          : rows;
+        // merge linked files info by code or id
+        const merged = filtered.map((r) => {
+          const match = (r.code && byCode.get(String(r.code))) || (r._id && byId.get(String(r._id)));
+          return {
+            ...r,
+            _id: match?._id ?? r._id,
+            linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
+          };
+        });
+        setSectionData(merged);
+        setLastUpdatedAt(new Date().toISOString());
+        return;
+      }
+
+      const endpoint = isTopCategory(classification)
+        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/category/${encodeURIComponent(classification)}`
+        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(classification)}`;
+
+      const response = await authFetch(endpoint);
+      if (!response.ok) throw new Error('Failed to load section data');
+      const data = await response.json();
+      const leadRows: any[] = Array.isArray(data.rows) ? data.rows : [];
+      // merge linked files info
+      const merged = leadRows.map((r) => {
+        const match = (r.code && byCode.get(String(r.code))) || (r._id && byId.get(String(r._id)));
+        return {
+          ...r,
+          _id: match?._id ?? r._id,
+          linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
+        };
+      });
+      setSectionData(merged);
+      setLastUpdatedAt(new Date().toISOString());
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load lead sheet');
+      setSectionData([]);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       if (!engagementId || !classification) {
@@ -93,14 +189,10 @@ export default function ExtendedTBWithWorkbook({
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
         setError(null);
-        const result = await getExtendedTBWithLinkedFiles(engagementId, classification);
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch Extended Trial Balance');
+        await loadSectionData();
       } finally {
         setLoading(false);
       }
@@ -118,15 +210,14 @@ export default function ExtendedTBWithWorkbook({
         try {
           setLoading(true);
           setError(null);
-          const result = await getExtendedTBWithLinkedFiles(engagementId, classification);
-          setData(result);
+          await loadSectionData();
 
           // Call the refresh complete callback if provided
           if (onRefreshComplete) {
             onRefreshComplete();
           }
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to refresh Extended Trial Balance');
+          setError(err instanceof Error ? err.message : 'Failed to refresh lead sheet');
         } finally {
           setLoading(false);
         }
@@ -163,10 +254,7 @@ export default function ExtendedTBWithWorkbook({
 
     try {
       await deleteWorkbookFromLinkedFilesInExtendedTB(engagementId, classification, rowId, workbookId);
-
-      // Refresh the data after successful removal
-      const result = await getExtendedTBWithLinkedFiles(engagementId, classification);
-      setData(result);
+      await loadSectionData();
 
       toast({
         title: "Success",
@@ -183,6 +271,18 @@ export default function ExtendedTBWithWorkbook({
       });
     }
   };
+
+  const totals = useMemo(() => {
+    return sectionData.reduce(
+      (acc, row) => ({
+        currentYear: acc.currentYear + (Number(row.currentYear) || 0),
+        priorYear: acc.priorYear + (Number(row.priorYear) || 0),
+        adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+        finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
+      }),
+      { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+    );
+  }, [sectionData]);
 
   if (loading) {
     return (
@@ -216,7 +316,7 @@ export default function ExtendedTBWithWorkbook({
     );
   }
 
-  if (!data || data.rows.length === 0) {
+  if (!sectionData || sectionData.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -225,7 +325,7 @@ export default function ExtendedTBWithWorkbook({
         <CardContent>
           <Alert>
             <AlertDescription>
-              No Extended Trial Balance data found for this classification.
+              No lead sheet data found for this classification.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -241,7 +341,7 @@ export default function ExtendedTBWithWorkbook({
           Lead Sheet with Linked Files
         </CardTitle>
         <div className="text-sm text-muted-foreground">
-          Classification: <Badge variant="outline">{data.classification}</Badge>
+          Classification: <Badge variant="outline">{classification}</Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -260,132 +360,135 @@ export default function ExtendedTBWithWorkbook({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.rows.map((row) => (
-                  <TableRow key={row._id || row.code}>
-                    <TableCell className="font-medium whitespace-nowrap">{row.code}</TableCell>
-                    <TableCell className="whitespace-nowrap">{row.accountName}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(row.currentYear)}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(row.priorYear)}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(row.adjustments)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium whitespace-nowrap">
-                      {formatCurrency(row.finalBalance)}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <Drawer>
-                        <DrawerTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3"
-                            disabled={row.linkedExcelFiles.length === 0}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {row.linkedExcelFiles.length} file{row.linkedExcelFiles.length !== 1 ? 's' : ''}
-                          </Button>
-                        </DrawerTrigger>
-                        <DrawerContent>
-                          <DrawerHeader>
-                            <DrawerTitle>Linked Excel Files</DrawerTitle>
-                            <DrawerDescription>
-                              Manage linked files for {row.accountName} ({row.code})
-                            </DrawerDescription>
-                          </DrawerHeader>
-                          <div className="px-4 pb-4">
-                            {row.linkedExcelFiles.length === 0 ? (
-                              <div className="text-center py-8 text-muted-foreground">
-                                No linked files for this row.
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {row.linkedExcelFiles.map((workbook) => (
-                                  <div
-                                    key={workbook._id}
-                                    className="flex items-center justify-between p-3 border rounded-lg"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                      <div>
-                                        <p className="font-medium">{workbook.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          Uploaded: {formatDate(workbook.uploadedDate)}
-                                        </p>
+                {sectionData.map((row: any) => {
+                  const linkedCount = Array.isArray(row.linkedExcelFiles) ? row.linkedExcelFiles.length : 0;
+                  return (
+                    <TableRow key={row.id || row._id || row.code}>
+                      <TableCell className="font-medium whitespace-nowrap">{row.code}</TableCell>
+                      <TableCell className="whitespace-nowrap">{row.accountName}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(Number(row.currentYear) || 0)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(Number(row.priorYear) || 0)}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        {formatCurrency(Number(row.adjustments) || 0)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium whitespace-nowrap">
+                        {formatCurrency(Number(row.finalBalance) || 0)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Drawer>
+                          <DrawerTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3"
+                              disabled={linkedCount === 0}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              {linkedCount} file{linkedCount !== 1 ? 's' : ''}
+                            </Button>
+                          </DrawerTrigger>
+                          <DrawerContent>
+                            <DrawerHeader>
+                              <DrawerTitle>Linked Excel Files</DrawerTitle>
+                              <DrawerDescription>
+                                Manage linked files for {row.accountName} ({row.code})
+                              </DrawerDescription>
+                            </DrawerHeader>
+                            <div className="px-4 pb-4">
+                              {linkedCount === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  No linked files for this row.
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {row.linkedExcelFiles.map((workbook: any) => (
+                                    <div
+                                      key={workbook._id}
+                                      className="flex items-center justify-between p-3 border rounded-lg"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                        <div>
+                                          <p className="font-medium">{workbook.name}</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            Uploaded: {formatDate(workbook.uploadedDate)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleViewWorkbook(workbook)}
+                                        >
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Remove
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                This action cannot be undone.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id)}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              >
+                                                Remove
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                       </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleViewWorkbook(workbook)}
-                                      >
-                                        <ExternalLink className="h-4 w-4 mr-2" />
-                                        View
-                                      </Button>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Remove
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                              This action cannot be undone.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => handleRemoveWorkbook(row._id || row.code, workbook._id)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            >
-                                              Remove
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <DrawerFooter>
-                            <DrawerClose asChild>
-                              <Button variant="outline">Close</Button>
-                            </DrawerClose>
-                          </DrawerFooter>
-                        </DrawerContent>
-                      </Drawer>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <DrawerFooter>
+                              <DrawerClose asChild>
+                                <Button variant="outline">Close</Button>
+                              </DrawerClose>
+                            </DrawerFooter>
+                          </DrawerContent>
+                        </Drawer>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
               <TableFooter>
                 <TableRow className="font-semibold">
                   <TableCell colSpan={2} className="whitespace-nowrap">TOTALS</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {formatCurrency(data.rows.reduce((sum, row) => sum + row.currentYear, 0))}
+                    {formatCurrency(totals.currentYear)}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {formatCurrency(data.rows.reduce((sum, row) => sum + row.priorYear, 0))}
+                    {formatCurrency(totals.priorYear)}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {formatCurrency(data.rows.reduce((sum, row) => sum + row.adjustments, 0))}
+                    {formatCurrency(totals.adjustments)}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {formatCurrency(data.rows.reduce((sum, row) => sum + row.finalBalance, 0))}
+                    {formatCurrency(totals.finalBalance)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap"></TableCell>
                 </TableRow>
@@ -395,7 +498,7 @@ export default function ExtendedTBWithWorkbook({
         </div>
 
         <div className="mt-4 text-sm text-muted-foreground">
-          Last updated: {formatDate(data.updatedAt)}
+          Last updated: {formatDate(lastUpdatedAt)}
         </div>
       </CardContent>
     </Card>

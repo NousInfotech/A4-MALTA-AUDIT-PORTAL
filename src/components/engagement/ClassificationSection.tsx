@@ -738,6 +738,7 @@ function replaceClassificationQuestions(all: any[], classification: string, upda
 
 export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
+
   engagement,
 
   classification,
@@ -909,6 +910,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     () => getTabFromSearch()
 
   );
+
+
+  const groupBySubCategory = (data) => {
+    const grouped = {};
+
+    data.forEach((item) => {
+      const parts = item.classification.split(">").map((p) => p.trim());
+      const subCategoryName = parts.length >= 4 ? parts[3] : null; // Group4 else null
+
+      if (!grouped[subCategoryName]) {
+        grouped[subCategoryName] = [];
+      }
+      grouped[subCategoryName].push(item);
+    });
+
+    return Object.keys(grouped).map((key) => ({
+      subCategoryName: key === "null" ? null : key,
+      data: grouped[key],
+    }));
+  };
 
 
 
@@ -1121,33 +1142,33 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
       try {
-  // Always show fresh ETB/lead-sheet data first
-  await loadSectionData();
+        // Always show fresh ETB/lead-sheet data first
+        await loadSectionData();
 
-  if (shouldHaveWorkingPapers(classification)) {
-    // Get WP status so buttons/links are correct
-    await checkWorkingPapersStatus();
+        if (shouldHaveWorkingPapers(classification)) {
+          // Get WP status so buttons/links are correct
+          await checkWorkingPapersStatus();
 
-    // Only hydrate from the Working Papers DB if the user is actually on the WP tab.
-    if (activeTab === "working-papers") {
-      await loadWorkingPaperFromDB(false); // not silent -> show toast; change to true if you prefer silent
-    }
-  } else {
-    if (!cancelled && mountedRef.current) {
-      setWorkingPapersInitialized(false);
-      setWorkingPapersUrl("");
-      setWorkingPapersId("");
-      setAvailableSheets([]);
-    }
-  }
-} catch (e) {
-  // errors already toasted in helpers
-} finally {
-  if (!cancelled && mountedRef.current) {
-    setLoading(false);
-    setWpHydrating(false);
-  }
-}
+          // Only hydrate from the Working Papers DB if the user is actually on the WP tab.
+          if (activeTab === "working-papers") {
+            await loadWorkingPaperFromDB(false); // not silent -> show toast; change to true if you prefer silent
+          }
+        } else {
+          if (!cancelled && mountedRef.current) {
+            setWorkingPapersInitialized(false);
+            setWorkingPapersUrl("");
+            setWorkingPapersId("");
+            setAvailableSheets([]);
+          }
+        }
+      } catch (e) {
+        // errors already toasted in helpers
+      } finally {
+        if (!cancelled && mountedRef.current) {
+          setLoading(false);
+          setWpHydrating(false);
+        }
+      }
 
 
     };
@@ -1792,46 +1813,46 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // Load Working Paper (DB) — returns boolean
 
- const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
-  const onWpTab = activeTab === "working-papers";
-  if (onWpTab) setDbBusy("load");
-  else setLoading(true);
+  const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+    const onWpTab = activeTab === "working-papers";
+    if (onWpTab) setDbBusy("load");
+    else setLoading(true);
 
-  try {
-    const response = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
-    );
+    try {
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
+      );
 
-    if (response.ok) {
-      const json = await response.json();
-      if (!mountedRef.current) return false;
+      if (response.ok) {
+        const json = await response.json();
+        if (!mountedRef.current) return false;
 
-      // ✅ Only replace sectionData if we're actually viewing Working Papers
-      if (onWpTab) {
-        setSectionData(Array.isArray(json.rows) ? json.rows : []);
+        // ✅ Only replace sectionData if we're actually viewing Working Papers
+        if (onWpTab) {
+          setSectionData(Array.isArray(json.rows) ? json.rows : []);
+        }
+
+        if (!silent) {
+          toast.success("Working Paper loaded from database.");
+        }
+        return true;
+      } else {
+        if (!silent && response.status !== 404) {
+          toast.error(`Load failed (${response.status})`);
+        }
+        return false;
       }
-
+    } catch (error: any) {
       if (!silent) {
-        toast.success("Working Paper loaded from database.");
-      }
-      return true;
-    } else {
-      if (!silent && response.status !== 404) {
-        toast.error(`Load failed (${response.status})`);
+        console.error("Load WP from DB error:", error);
+        toast.error(`Load failed: ${error.message}`);
       }
       return false;
+    } finally {
+      if (onWpTab) setDbBusy(null);
+      else if (mountedRef.current) setLoading(false);
     }
-  } catch (error: any) {
-    if (!silent) {
-      console.error("Load WP from DB error:", error);
-      toast.error(`Load failed: ${error.message}`);
-    }
-    return false;
-  } finally {
-    if (onWpTab) setDbBusy(null);
-    else if (mountedRef.current) setLoading(false);
-  }
-};
+  };
 
 
 
@@ -2836,7 +2857,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         activeTab === "working-papers" &&
 
-        
+
         shouldHaveWorkingPapers(classification) &&
         !wpFirstLoadedRef.current.has(classification)
 
@@ -3555,10 +3576,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             >
               <>
-              {/* <div className="my-5">
+                {/* <div className="my-5">
                 {renderDataTable()}
               </div> */}
-              <WorkBookApp engagement={engagement} engagementId={engagement.id} classification={classification}/>
+                <WorkBookApp engagement={engagement} engagementId={engagement.id} classification={classification} />
               </>
             </TabsContent>
 
@@ -4642,71 +4663,69 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
+
+// First, create a helper function to calculate totals for a given data array
+function calculateTotals(data: ETBRow[]) {
+  return data.reduce(
+    (acc, row) => ({
+      currentYear: acc.currentYear + (Number(row.currentYear) || 0),
+      priorYear: acc.priorYear + (Number(row.priorYear) || 0),
+      adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+      finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
+    }),
+    { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+  );
+}
+
+
+
+
+
   function renderLeadSheetContent() {
+    const subSections = groupBySubCategory(sectionData);
 
     return (
 
       <>
+      {/* Summary Cards - Keep the global totals here */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <Card className="p-3">
+          <div className="text-xs text-gray-500">Current Year</div>
+          <div className="text-lg font-semibold">
+            {totals.currentYear.toLocaleString()}
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-gray-500">Prior Year</div>
+          <div className="text-lg font-semibold">
+            {totals.priorYear.toLocaleString()}
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-gray-500">Adjustments</div>
+          <div className="text-lg font-semibold">
+            {totals.adjustments.toLocaleString()}
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-gray-500">Final Balance</div>
+          <div className="text-lg font-semibold">
+            {totals.finalBalance.toLocaleString()}
+          </div>
+        </Card>
+      </div>
 
-        {/* Summary Cards */}
-
-        <div className="grid grid-cols-4 gap-4 mb-6">
-
-          <Card className="p-3">
-
-            <div className="text-xs text-gray-500">Current Year</div>
-
-            <div className="text-lg font-semibold">
-
-              {totals.currentYear.toLocaleString()}
-
-            </div>
-
-          </Card>
-
-          <Card className="p-3">
-
-            <div className="text-xs text-gray-500">Prior Year</div>
-
-            <div className="text-lg font-semibold">
-
-              {totals.priorYear.toLocaleString()}
-
-            </div>
-
-          </Card>
-
-          <Card className="p-3">
-
-            <div className="text-xs text-gray-500">Adjustments</div>
-
-            <div className="text-lg font-semibold">
-
-              {totals.adjustments.toLocaleString()}
-
-            </div>
-
-          </Card>
-
-          <Card className="p-3">
-
-            <div className="text-xs text-gray-500">Final Balance</div>
-
-            <div className="text-lg font-semibold">
-
-              {totals.finalBalance.toLocaleString()}
-
-            </div>
-
-          </Card>
-
-        </div>
-
-
-
-        {renderDataTable()}
-
-      </>
+      {/* Render each subcategory with its own totals */}
+      {subSections.map((section) => {
+        const sectionTotals = calculateTotals(section.data);
+        return (
+          <div key={section.subCategoryName || 'default'}>
+            {section.subCategoryName && <Badge className="my-5">{section.subCategoryName}</Badge>}
+            {renderDataTable(section.data, sectionTotals)}
+          </div>
+        );
+      })}
+    </>
 
     );
 
@@ -4846,30 +4865,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     return (
 
-          <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
+      <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
 
-          <div className="overflow-x-auto max-h-96">
+        <div className="overflow-x-auto max-h-96">
 
-            <table className="w-full text-sm">
+          <table className="w-full text-sm">
 
 
-                <tr>
+            <tr>
 
-                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
+              <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
 
-                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+              <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
 
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
+              <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
 
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
+              <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
 
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
+              <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
 
-                  <th className="px-4 py-2 border-secondary border-b border-r text-right">Final Balance</th>
+              <th className="px-4 py-2 border-secondary border-b border-r text-right">Final Balance</th>
 
-                  <th className="px-4 py-2 border-secondary border-b text-right">Reference</th>
+              <th className="px-4 py-2 border-secondary border-b text-right">Reference</th>
 
-                </tr>
+            </tr>
 
 
             <tbody>
@@ -5089,7 +5108,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 // <th key={i} className="px-3 py-2 text-left">{String(h ?? "")}</th>
 
-                <td key={i} className={`border-t-0 border-r-0 border-b border-b-secondary ${i!==0?"border-l border-l-secondary":""} px-3 py-2 font-bold`}>
+                <td key={i} className={`border-t-0 border-r-0 border-b border-b-secondary ${i !== 0 ? "border-l border-l-secondary" : ""} px-3 py-2 font-bold`}>
 
                   {String(h ?? "")}
 
@@ -5109,7 +5128,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 {r.map((c: any, ci: number) => (
 
-                  <td key={ci} className={`border-t-0 border-r-0 ${ri !== rows.length - 1 ? "border-b border-b-secondary" : ""} ${ci!==0?"border-l border-l-secondary":""} px-3 py-2`}>
+                  <td key={ci} className={`border-t-0 border-r-0 ${ri !== rows.length - 1 ? "border-b border-b-secondary" : ""} ${ci !== 0 ? "border-l border-l-secondary" : ""} px-3 py-2`}>
 
                     {String(c ?? "")}
 
@@ -6886,9 +6905,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  function renderDataTable() {
+  function renderDataTable(sectionData, sectionTotals = null) {
+    console.log("my sectionData", sectionData)
 
-    const isSignedOff = reviewWorkflow?.isSignedOff;
+    // Calculate totals from sectionData if sectionTotals is not provided
+    const currentTotals = sectionTotals || calculateTotals(sectionData);
+  const isSignedOff = reviewWorkflow?.isSignedOff;
 
 
 
@@ -6988,43 +7010,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 ))}
 
-                {sectionData.length > 0 && (
-
-                  <tr className="bg-muted/50 font-bold">
-
-                    <td className="px-4 py-2 border-r border-secondary" colSpan={2}>
-
-                      TOTALS
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary text-right">
-
-                      {totals.currentYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary text-right">
-
-                      {totals.priorYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary text-right">
-
-                      {totals.adjustments.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary text-right">
-
-                      {totals.finalBalance.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                )}
+{sectionData.length > 0 && (
+    <tr className="bg-muted/50 font-medium">
+      <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+        TOTALS
+      </td>
+      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+        {currentTotals.currentYear.toLocaleString()}
+      </td>
+      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+        {currentTotals.priorYear.toLocaleString()}
+      </td>
+      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+        {currentTotals.adjustments.toLocaleString()}
+      </td>
+      <td className="px-4 py-2 font-bold text-right">
+        {currentTotals.finalBalance.toLocaleString()}
+      </td>
+    </tr>
+  )}
 
                 {sectionData.length === 0 && (
 
@@ -7386,25 +7390,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
-                      {totals.currentYear.toLocaleString()}
+                      {currentTotals.currentYear.toLocaleString()}
 
                     </td>
 
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
-                      {totals.priorYear.toLocaleString()}
+                      {currentTotals.priorYear.toLocaleString()}
 
                     </td>
 
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
 
-                      {totals.adjustments.toLocaleString()}
+                      {currentTotals.adjustments.toLocaleString()}
 
                     </td>
 
                     <td className="px-4 py-2 font-bold text-right">
 
-                      {totals.finalBalance.toLocaleString()}
+                      {currentTotals.finalBalance.toLocaleString()}
 
                     </td>
 

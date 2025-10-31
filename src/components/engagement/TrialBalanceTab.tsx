@@ -38,18 +38,35 @@ async function authFetch(url: string, options: RequestInit = {}) {
   });
 }
 
+// const formatClassificationForDisplay = (c: string) => {
+//   if (!c) return "—";
+//   const parts = c.split(" > ");
+//   const top = parts[0];
+//   if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
+//   return top;
+// };
+
 const formatClassificationForDisplay = (c: string) => {
+  
   if (!c) return "—";
   const parts = c.split(" > ");
-  const top = parts[0];
-  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
-  return top;
+  if (parts.length > 2) {
+    console.log("string", c);
+    console.log("parts", parts);
+    return parts[2];
+  } else {
+    console.log("string", c);
+    console.log("parts", parts);
+    return parts[parts.length - 1]; // Retype this line
+  }
 };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   engagement,
   setEngagement,
 }) => {
+  console.log("formatClassificationForDisplay", formatClassificationForDisplay("Equity > Equity > Share Capital"));
+
   const [activeTab, setActiveTab] = useState("upload");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
   const [classifications, setClassifications] = useState<string[]>([]);
@@ -60,9 +77,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   // counts for special sections
   const [etbCount, setEtbCount] = useState(0);
   const [adjustmentsCount, setAdjustmentsCount] = useState(0);
-  
+
   // notification counts for classifications
-  const [classificationNotificationCounts, setClassificationNotificationCounts] = useState<{[key: string]: number}>({});
+  const [classificationNotificationCounts, setClassificationNotificationCounts] = useState<{ [key: string]: number }>({});
 
   const { toast } = useToast();
 
@@ -134,9 +151,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       console.log('loadNotificationCountsForClassifications: Skipping - no engagement ID or classifications');
       return;
     }
-    
+
     console.log('loadNotificationCountsForClassifications: Loading for classifications:', classificationsList);
-    
+
     try {
       const base = import.meta.env.VITE_APIURL;
       if (!base) {
@@ -148,34 +165,34 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       const response = await authFetch(
         `${base}/api/classification-reviews?engagementId=${engagement._id}`
       );
-      
+
       if (response.ok) {
         const data = await response.json();
         const reviews = data.reviews || [];
-        
+
         console.log('loadNotificationCountsForClassifications: Found', reviews.length, 'total reviews');
-        
-        const counts: {[key: string]: number} = {};
-        
+
+        const counts: { [key: string]: number } = {};
+
         // Process all classifications at once
         for (const classification of classificationsList) {
           // Filter reviews for this classification that are not signed off
           const classificationReviews = reviews.filter((review: any) => {
-            const reviewClassification = typeof review.classificationId === 'string' 
-              ? review.classificationId 
+            const reviewClassification = typeof review.classificationId === 'string'
+              ? review.classificationId
               : review.classificationId?.classification || '';
             return reviewClassification === classification && review.status !== 'signed-off';
           });
-          
+
           // Count unique review points (reviews with comments)
-          const reviewPointsCount = classificationReviews.filter((review: any) => 
+          const reviewPointsCount = classificationReviews.filter((review: any) =>
             review.comment && review.comment.trim() !== ''
           ).length;
-          
+
           counts[classification] = reviewPointsCount;
           console.log(`loadNotificationCountsForClassifications: ${classification} = ${reviewPointsCount} notifications`);
         }
-        
+
         console.log('loadNotificationCountsForClassifications: Final counts:', counts);
         setClassificationNotificationCounts(counts);
       } else {
@@ -192,7 +209,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       console.log('loadNotificationCounts: Skipping - no engagement ID or classifications');
       return;
     }
-    
+
     console.log('loadNotificationCounts: Loading counts for', classifications.length, 'classifications');
     await loadNotificationCountsForClassifications(classifications);
   }, [engagement?._id, classifications, loadNotificationCountsForClassifications]);
@@ -232,7 +249,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
   const shouldCreateSeparateTab = (classification: string) => {
     const category = getClassificationCategory(classification);
-    return category === "Assets" || category === "Liabilities";
+    return category === "Assets" || category === "Liabilities" || category === "Equity";
   };
 
   const groupClassifications = () => {
@@ -269,7 +286,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       </div>
     );
   }
-  console.log("selectedClassification",selectedClassification)
+  console.log("selectedClassification", selectedClassification)
   return (
     <div className="h-full flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
       <div className="flex-1">
@@ -344,7 +361,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
           </TabsContent>
 
           <TabsContent value="tb-excel" className="flex-1 overflow-hidden">
-            <WorkBookApp engagement={engagement} engagementId={engagement.id} classification="ETB"/>
+            <WorkBookApp engagement={engagement} engagementId={engagement.id} classification="ETB" />
           </TabsContent>
 
           <TabsContent
@@ -408,40 +425,106 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     )}
 
                     <div className="mt-1" />
-                    {Object.entries(groupedClassifications).map(
-                      ([key, classificationList]) => {
-                        const notificationCount = classificationNotificationCounts[key] || 0;
+                    {(() => {
+                      // Group classifications by main title and subtitle (2 levels only)
+                      const groupedByTitle: { [mainTitle: string]: { [subtitle: string]: Array<[string, string[]]> } } = {};
+
+                      Object.entries(groupedClassifications).forEach(([key, classificationList]) => {
+                        if (key === "Adjustments") return; // Skip Adjustments
+
+                        const parts = key.split(" > ");
+                        const mainTitle = parts[0] || ''; // First part (Assets, Liabilities, Equity, etc.)
+
+                        // Process each classification in the list to extract subtitles
+                        classificationList.forEach((classification) => {
+                          const classParts = classification.split(" > ");
+                          let subtitle = classParts[1];
+
+                          // If second part is same as main title (e.g., "Equity > Equity"), skip it and use third part or default
+                          // if (subtitle === mainTitle && classParts.length > 2) {
+                          //   subtitle = classParts[2]; // Use third part if second is duplicate
+                          // } 
+
+                          if (!groupedByTitle[mainTitle]) {
+                            groupedByTitle[mainTitle] = {};
+                          }
+                          if (!groupedByTitle[mainTitle][subtitle]) {
+                            groupedByTitle[mainTitle][subtitle] = [];
+                          }
+                          groupedByTitle[mainTitle][subtitle].push([key, classificationList]);
+                        });
+                      });
+
+                      // Define title order
+                      const titleOrder = ['Assets', 'Liabilities', 'Equity'];
+                      const sortedMainTitles = Object.keys(groupedByTitle).sort((a, b) => {
+                        const aIndex = titleOrder.indexOf(a);
+                        const bIndex = titleOrder.indexOf(b);
+                        if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+                        if (aIndex === -1) return 1;
+                        if (bIndex === -1) return -1;
+                        return aIndex - bIndex;
+                      });
+
+                      return sortedMainTitles.map((mainTitle) => {
+                        const subtitles = Object.keys(groupedByTitle[mainTitle]).sort();
+
                         return (
-                          <div key={key}>
-                            {key !== "Adjustments" && (
-                              <Button
-                                variant={
-                                  selectedClassification === key
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="w-full justify-between text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                                onClick={() => setSelectedClassification(key)}
-                              >
-                                <div className="flex flex-col items-start">
-                                  <div className="font-medium">
-                                    {formatClassificationForDisplay(key)}
+                          <div key={mainTitle}>
+                            {/* Main Title Header */}
+                            <div className="text-xs uppercase text-gray-700 px-3 pt-4 pb-2 font-bold">
+                              {mainTitle}
+                            </div>
+
+                            {/* Subtitles within this main title */}
+                            {subtitles.map((subtitle) => {
+                              const items = groupedByTitle[mainTitle][subtitle];
+
+                              return (
+                                <div key={`${mainTitle}-${subtitle}`}>
+                                  {/* Subtitle Header */}
+                                  <div className="text-xs uppercase text-gray-500 px-3 pt-2 pb-1 font-semibold">
+                                    {subtitle}
                                   </div>
+
+                                  {/* Items for this subtitle */}
+                                  {items.map(([key, classificationList]) => {
+                                    const notificationCount = classificationNotificationCounts[key] || 0;
+                                    return (
+                                      <div key={key} className="px-2 mb-2">
+                                        <Button
+                                          variant={
+                                            selectedClassification === key
+                                              ? "default"
+                                              : "outline"
+                                          }
+                                          className="w-full justify-between text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
+                                          onClick={() => setSelectedClassification(key)}
+                                        >
+                                          <div className="flex flex-col items-start flex-1 min-w-0">
+                                            <div className="font-medium whitespace-normal break-words">
+                                              {formatClassificationForDisplay(key)}
+                                            </div>
+                                          </div>
+                                          {notificationCount > 0 && (
+                                            <Badge
+                                              variant="destructive"
+                                              className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 flex-shrink-0"
+                                            >
+                                              {notificationCount}
+                                            </Badge>
+                                          )}
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                                {notificationCount > 0 && (
-                                  <Badge 
-                                    variant="destructive" 
-                                    className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1"
-                                  >
-                                    {notificationCount}
-                                  </Badge>
-                                )}
-                              </Button>
-                            )}
+                              );
+                            })}
                           </div>
                         );
-                      }
-                    )}
+                      });
+                    })()}
 
                     {etbCount === 0 &&
                       adjustmentsCount === 0 &&
