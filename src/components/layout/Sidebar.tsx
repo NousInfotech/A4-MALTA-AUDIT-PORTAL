@@ -2,7 +2,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSidebarStats } from '@/hooks/useSidebarStats';
 import {
   Building2,
   Users,
@@ -23,6 +22,7 @@ import {
   Shield
 } from 'lucide-react';
 import { IconRobotFace } from '@tabler/icons-react';
+import { useSidebarStats } from "@/contexts/SidebarStatsContext";
 
 interface NavItem {
   title: string;
@@ -33,6 +33,10 @@ interface NavItem {
   badge?: string;
   getBadge?: (stats: any) => string;
 }
+
+
+
+
 
 const navItems: NavItem[] = [
   // Admin
@@ -167,7 +171,7 @@ const navItems: NavItem[] = [
 export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
   const location = useLocation();
   const { user } = useAuth();
-  const { stats, loading } = useSidebarStats(user?.role || '');
+  const { stats, loading } = useSidebarStats();
   const isClientPortal= location.pathname.startsWith("/client");
   const isEmployeePortal= location.pathname.startsWith("/employee");
   const isAdminPortal= location.pathname.startsWith("/admin");

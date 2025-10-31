@@ -63,6 +63,7 @@ export const EngagementDetails = () => {
     comment: "",
   });
   const [loading, setLoading] = useState(true);
+  const [clientCompanyName, setClientCompanyName] = useState<string>("");
 
   const {
     loading: tbLoading,
@@ -108,6 +109,21 @@ export const EngagementDetails = () => {
        
         // Log engagement view
         logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
+
+        // Fetch client company name
+        try {
+          const { data: clientData, error: clientError } = await supabase
+            .from('profiles')
+            .select('company_name')
+            .eq('user_id', engagementData.clientId)
+            .single();
+
+          if (!clientError && clientData) {
+            setClientCompanyName(clientData.company_name || "");
+          }
+        } catch (error) {
+          console.log("Could not fetch client company name:", error);
+        }
 
         try {
           const tbData = await engagementApi.getTrialBalance(id);
@@ -257,7 +273,12 @@ export const EngagementDetails = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 break-words">{engagement.title}</h1>
-                <p className="text-sm sm:text-base text-gray-700"></p>
+                {clientCompanyName && (
+                  <p className="text-sm sm:text-base text-gray-600 mt-1 font-medium flex items-center gap-2">
+                    <Building2 className="h-4 w-4 flex-shrink-0" />
+                    {clientCompanyName}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">

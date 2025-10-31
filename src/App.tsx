@@ -53,6 +53,7 @@ import WorkBookApp from "./components/audit-workbooks/WorkBookApp";
 import { AnalyticalReviewSection } from "./components/analitical review/AnalyticalReviewSection";
 
 import { EditClient } from "./pages/employee/EditClient";
+import { SidebarStatsProvider } from "./contexts/SidebarStatsContext";
 
 
 
@@ -63,6 +64,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <DataProvider>
+      <SidebarStatsProvider>  
         <ReviewNotesProvider>
           <TooltipProvider>
             <Toaster />
@@ -147,6 +149,7 @@ const App = () => (
             </BrowserRouter>
           </TooltipProvider>
         </ReviewNotesProvider>
+        </SidebarStatsProvider>
       </DataProvider>
     </AuthProvider>
   </QueryClientProvider>

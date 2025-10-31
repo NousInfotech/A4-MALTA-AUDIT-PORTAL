@@ -392,31 +392,43 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
           {/* Folder tree */}
           <div className="flex-1 overflow-y-auto p-2">
-            <div className="space-y-1">
-              <div className="flex items-center space-x-1 p-2 hover:bg-gray-100 rounded cursor-pointer">
-                <ChevronDown className="h-4 w-4" />
-                <FolderOpen className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium">Document Library</span>
-              </div>
-              <div className="ml-4 space-y-1">
-                {categories.map((folder) => (
-                  <div
-                    key={folder}
-                    className={`flex items-center space-x-1 p-2 hover:bg-gray-100 rounded cursor-pointer ${
-                      selectedFolder === folder ? "bg-blue-50 border-l-2 border-blue-500" : ""
-                    }`}
-                    onClick={() => setSelectedFolder(folder)}
-                  >
-                    <div className="w-4" /> {/* Indent */}
-                    <Folder className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm">{folder}</span>
-                    <Badge variant="outline" className="ml-auto text-xs">
-                      {filesByCategory[folder] || 0}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="w-full">
+  <div className="flex flex-col space-y-1">
+    {categories.map((folder) => (
+      <div
+        key={folder}
+        onClick={() => setSelectedFolder(folder)}
+        className={`flex items-center justify-between w-full p-2 rounded-lg cursor-pointer transition-all duration-150
+          hover:bg-gray-100 ${
+            selectedFolder === folder
+              ? "bg-blue-50 border-l-2 border-blue-500"
+              : "border-l-2 border-transparent"
+          }`}
+      >
+        {/* Left section */}
+        <div className="flex items-center space-x-2 flex-1 min-w-0">
+          <Folder className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+          <span
+            className="text-sm font-medium text-gray-700 truncate hover:underline text-blue-600 cursor-pointer block w-full"
+            title={folder}
+          >
+            {folder}
+          </span>
+        </div>
+
+        {/* Right section: badge */}
+        <Badge
+          variant="outline"
+          className="ml-2 text-xs px-2 py-0.5 rounded-full bg-white border-gray-300 text-gray-600 flex-shrink-0"
+        >
+          {filesByCategory[folder] || 0}
+        </Badge>
+      </div>
+    ))}
+  </div>
+          </div>
+
+
           </div>
         </div>
 
