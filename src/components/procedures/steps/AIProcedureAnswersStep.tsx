@@ -554,10 +554,10 @@ const AIProcedureAnswersStep: React.FC<{
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={onBack}>
+          <div className="flex items-end justify-end gap-2">
+            {/* <Button variant="ghost" onClick={onBack}>
               Back
-            </Button>
+            </Button> */}
             <Button onClick={handleProceed}>Continue</Button>
           </div>
         </CardContent>

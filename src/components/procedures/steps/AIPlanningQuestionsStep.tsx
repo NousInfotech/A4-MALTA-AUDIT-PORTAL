@@ -340,10 +340,9 @@ export const AIPlanningQuestionsStep: React.FC<{
       </div>
 
       {/* Navigation Dropdown */}
-      <div className="flex justify-start mb-6">
-        <div className="w-full max-w-md">
+         <div className="w-auto">
           <Select onValueChange={(value) => scrollToSection(value)}>
-            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+            <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
                <SelectValue placeholder={PLANNING_SECTIONS[0].title}/>
             </SelectTrigger>
 
@@ -367,7 +366,7 @@ export const AIPlanningQuestionsStep: React.FC<{
             </SelectContent>
           </Select>
         </div>
-      </div>
+     
 
 
 
@@ -428,7 +427,7 @@ export const AIPlanningQuestionsStep: React.FC<{
               {hasQuestions ? (
                 <div className="space-y-3">
                   {(sectionData.fields || []).map((f: any) => (
-                    <div key={f.__uid} className="border rounded p-3 space-y-2">
+                    <div key={f.__uid} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-medium">Question</div>
                         <Button size="sm" variant="ghost" onClick={() => {
@@ -480,7 +479,7 @@ export const AIPlanningQuestionsStep: React.FC<{
           Continue to Step-4 (Answers)
         </Button>
         <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+        {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
       </div>
     </div>
   )

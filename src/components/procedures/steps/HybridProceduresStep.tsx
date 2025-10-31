@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Loader2, Sparkles, PlusCircle, Save, Edit3, X, CheckCircle, Trash2, ChevronUp, ChevronDown } from "lucide-react"
@@ -395,7 +396,9 @@ export const HybridProceduresStep: React.FC<{
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Hybrid — Start with Manual, then Add AI</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Hybrid — Start with Manual, then Add AI</CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-3">
@@ -404,6 +407,27 @@ export const HybridProceduresStep: React.FC<{
               Save Draft
             </Button>
           </div>
+
+          {Object.keys(grouped).length > 0 && (
+            <div className="w-auto">
+              <Select onValueChange={(value) => scrollToSection(value)}>
+                <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+                  <SelectValue placeholder={formatClassificationForDisplay(Object.keys(grouped)[0])} />
+                </SelectTrigger>
+                <SelectContent className="bg-white text-black border border-gray-200">
+                  {Object.keys(grouped).map((bucket, index) => (
+                    <SelectItem
+                      key={bucket}
+                      value={`section-${index}`}
+                      className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                    >
+                      {formatClassificationForDisplay(bucket)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
 
@@ -415,7 +439,7 @@ export const HybridProceduresStep: React.FC<{
               </AlertDescription>
             </Alert>
           ) : (
-            <>
+            <div className="h-[60vh] overflow-y-scroll space-y-5">
               {Object.entries(grouped).map(([bucket, items], index) => (
                 <Card key={bucket} id={`section-${index}`} className="border-2 border-primary/10 relative">
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -444,9 +468,8 @@ export const HybridProceduresStep: React.FC<{
                         <PlusCircle className="h-4 w-4 mr-2" />
                         Add Custom
                       </Button>
-
                       {/* Section Navigation Buttons */}
-                      {index > 0 && (
+                      {/* {index > 0 && (
                         <Button
                           variant="outline"
                           onClick={() => scrollToSection(sectionIds[index - 1])}
@@ -465,7 +488,7 @@ export const HybridProceduresStep: React.FC<{
                           Next Section
                           <ChevronDown className="h-4 w-4" />
                         </Button>
-                      )}
+                      )} */}
                     </div>
                   </CardHeader>
 
@@ -474,7 +497,7 @@ export const HybridProceduresStep: React.FC<{
                       const isEditing = editingUid === q.__uid
                       const badge = formatClassificationForDisplay(q.classification)
                       return (
-                        <div key={q.__uid} className="rounded border p-3 space-y-2">
+                        <div key={q.__uid} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
                           {q.framework &&
                             <Badge className="mr-2" variant="default">{q.framework}</Badge>
                           }
@@ -496,7 +519,7 @@ export const HybridProceduresStep: React.FC<{
                             <div className="flex gap-2">
 
                               {/* Section Navigation Buttons */}
-                              {index > 0 && (
+                              {/* {index > 0 && (
                                 <Button
                                   variant="outline"
                                   onClick={() => scrollToSection(sectionIds[index - 1])}
@@ -515,7 +538,7 @@ export const HybridProceduresStep: React.FC<{
                                   Next Section
                                   <ChevronDown className="h-4 w-4" />
                                 </Button>
-                              )}
+                              )} */}
                               <Button size="sm" variant="outline" onClick={() => toggleRequired(q.__uid)}>
                                 {q.isRequired ? "Mark Optional" : "Mark Required"}
                               </Button>
@@ -574,14 +597,14 @@ export const HybridProceduresStep: React.FC<{
                   </CardContent>
                 </Card>
               ))}
-            </>
+            </div>
           )}
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={onBack}>Back</Button>
+            {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
             <Button onClick={handleProceed} disabled={Object.keys(grouped).length === 0}>Continue</Button>
           </div>
-        </CardContent>
+        </CardContent>  
       </Card>
     </div>
   )

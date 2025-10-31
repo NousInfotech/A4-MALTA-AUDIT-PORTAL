@@ -105,10 +105,10 @@ export const PlanningMaterialityStep: React.FC<PlanningMaterialityStepProps> = (
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={onBack} className="bg-transparent">
+      <div className="flex items-end justify-end">
+        {/* <Button variant="outline" onClick={onBack} className="bg-transparent">
           Back to Mode Selection
-        </Button>
+        </Button> */}
         <Button onClick={handleProceed} disabled={!isValid} className="flex items-center gap-2">
           Proceed to Sections
           <ArrowRight className="h-4 w-4" />

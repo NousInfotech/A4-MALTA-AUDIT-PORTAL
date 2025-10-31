@@ -343,10 +343,10 @@ export const RecommendationsStep: React.FC<RecommendationsStepProps> = ({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={onBack}>
+      <div className="flex items-end justify-end gap-2">
+        {/* <Button variant="outline" onClick={onBack}>
           Back
-        </Button>
+        </Button> */}
         <Button onClick={handleSaveProcedures} disabled={saving || entryAnimating} className="flex items-center gap-2">
           {saving ? (
             <>

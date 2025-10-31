@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useEngagements } from '@/hooks/useEngagements';
+import { useEngagements, Engagement } from '@/hooks/useEngagements';
+import { engagementApi } from '@/services/api';
 import { ArrowLeft, Briefcase, Loader2, Users, Calendar, FileText, Sparkles, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +29,11 @@ export const CreateEngagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { logCreateEngagement } = useActivityLogger();
+  
+  // State to store existing engagements for validation
+  const [existingEngagements, setExistingEngagements] = useState<Engagement[]>([]);
+  const [yearError, setYearError] = useState<string>('');
+  const [titleError, setTitleError] = useState<string>('');
 
   interface User {
   summary: string;
@@ -44,9 +50,21 @@ export const CreateEngagement = () => {
   const [loading, setLoading] = useState(true)
 
 const [clients, setClients] = useState<User[]>([])
+    
     useEffect(() => {
-      fetchClients()
+      fetchClients();
+      fetchExistingEngagements();
     }, [])
+    
+    // Fetch existing engagements for validation
+    const fetchExistingEngagements = async () => {
+      try {
+        const engagements = await engagementApi.getAll();
+        setExistingEngagements(engagements);
+      } catch (error) {
+        console.error("Error fetching existing engagements:", error);
+      }
+    };
   
     const fetchClients = async () => {
       try {
@@ -105,11 +123,81 @@ const [clients, setClients] = useState<User[]>([])
       }
     }
 
+  // Validation function to check for duplicate year
+  const validateYear = (yearEndDate: string, clientId: string): { isValid: boolean; errorMessage: string; duplicateYear?: number } => {
+    if (!yearEndDate || !clientId) {
+      return { isValid: true, errorMessage: '' };
+    }
+
+    const inputYear = new Date(yearEndDate).getFullYear();
+    const duplicateEngagement = existingEngagements.find((eng) => {
+      if (eng.clientId === clientId && eng.yearEndDate) {
+        const existingYear = new Date(eng.yearEndDate).getFullYear();
+        return existingYear === inputYear;
+      }
+      return false;
+    });
+
+    if (duplicateEngagement) {
+      return {
+        isValid: false,
+        errorMessage: `An engagement already exists for ${inputYear} for this client. Please choose next or previous year.`,
+        duplicateYear: inputYear
+      };
+    }
+
+    return { isValid: true, errorMessage: '' };
+  };
+
+  // Validation function to check for duplicate title
+  const validateTitle = (title: string, clientId: string): { isValid: boolean; errorMessage: string } => {
+    if (!title || !clientId) {
+      return { isValid: true, errorMessage: '' };
+    }
+
+    const duplicateTitle = existingEngagements.find(
+      (eng) => eng.clientId === clientId && eng.title === title
+    );
+
+    if (duplicateTitle) {
+      return {
+        isValid: false,
+        errorMessage: 'An engagement with this title already exists for this client. Please choose a different title.'
+      };
+    }
+
+    return { isValid: true, errorMessage: '' };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      // Validation: Check for duplicate title
+      const titleValidation = validateTitle(formData.title, formData.clientId);
+      if (!titleValidation.isValid) {
+        toast({
+          title: "Duplicate Engagement Title",
+          description: titleValidation.errorMessage,
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validation: Check for duplicate year
+      const yearValidation = validateYear(formData.yearEndDate, formData.clientId);
+      if (!yearValidation.isValid) {
+        toast({
+          title: "Duplicate Year",
+          description: yearValidation.errorMessage,
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const newEngagement = await createEngagement(formData);
       
       // Log engagement creation
@@ -135,6 +223,8 @@ const [clients, setClients] = useState<User[]>([])
   const handleChange = (field: string, value: string) => {
     if (field === 'clientId') {
       // When client is selected, update the title with company name
+      setYearError(''); // Clear year error when client changes
+      setTitleError(''); // Clear title error when client changes
       const selectedClient = clients.find(client => client.id === value);
       if (selectedClient && selectedClient.companyName) {
         setFormData(prev => ({ 
@@ -144,6 +234,17 @@ const [clients, setClients] = useState<User[]>([])
         }));
       } else {
         setFormData(prev => ({ ...prev, clientId: value }));
+      }
+    } else if (field === 'title') {
+      // Validate title when it changes
+      setFormData(prev => ({ ...prev, [field]: value }));
+      if (formData.clientId) {
+        const titleValidation = validateTitle(value, formData.clientId);
+        if (!titleValidation.isValid) {
+          setTitleError(titleValidation.errorMessage);
+        } else {
+          setTitleError('');
+        }
       }
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
@@ -157,13 +258,35 @@ const [clients, setClients] = useState<User[]>([])
     // Get the current title (should be the company name)
     const currentTitle = formData.title;
     
+    // Validate the year before proceeding
+    if (formData.clientId) {
+      const yearValidation = validateYear(value, formData.clientId);
+      if (!yearValidation.isValid) {
+        setYearError(yearValidation.errorMessage);
+      } else {
+        setYearError('');
+      }
+    }
+    
     // If we have a title and it doesn't already end with the year, append it
     if (currentTitle && year) {
-      const titleWithoutYear = currentTitle.replace(/\s*,?\s*\d{4}$/, '').trim(); // Remove any existing year and comma
+      const titleWithoutYear = currentTitle.replace(/\s*,?\s*\d{4}$/, '').replace(/\s*Audit\s*$/, '').trim(); // Remove any existing year, comma, or "Audit" word
+      const newTitle = `${titleWithoutYear} Audit ${year}`;
+      
+      // Validate the new title if client is selected
+      if (formData.clientId) {
+        const titleValidation = validateTitle(newTitle, formData.clientId);
+        if (!titleValidation.isValid) {
+          setTitleError(titleValidation.errorMessage);
+        } else {
+          setTitleError('');
+        }
+      }
+      
       setFormData(prev => ({ 
         ...prev, 
         yearEndDate: value,
-        title: `${titleWithoutYear}, ${year}`
+        title: newTitle
       }));
     } else {
       setFormData(prev => ({ ...prev, yearEndDate: value }));
@@ -269,9 +392,12 @@ const [clients, setClients] = useState<User[]>([])
                   type="date"
                   value={formData.yearEndDate}
                   onChange={(e) => handleYearEndDateChange(e.target.value)}
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg ${yearError ? 'border-red-500' : ''}`}
                   required
                 />
+                {yearError && (
+                  <p className="text-sm text-red-600 mt-1">{yearError}</p>
+                )}
                   </div>
 
                   <div className="space-y-3">
@@ -281,9 +407,12 @@ const [clients, setClients] = useState<User[]>([])
                   value={formData.title}
                   onChange={(e) => handleChange('title', e.target.value)}
                   placeholder="e.g., Annual Audit 2024, Interim Review Q3 2024"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg ${titleError ? 'border-red-500' : ''}`}
                   required
                 />
+                {titleError && (
+                  <p className="text-sm text-red-600 mt-1">{titleError}</p>
+                )}
               </div>
                 </div>
               </div>

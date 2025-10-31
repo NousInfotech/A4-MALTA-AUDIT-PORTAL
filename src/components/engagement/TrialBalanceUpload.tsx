@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast"
 import * as XLSX from "xlsx"
 import Papa from "papaparse"
 import { supabase } from "@/integrations/supabase/client"
+import { useSidebarStats } from "@/contexts/SidebarStatsContext"
+ 
 
 // 🔹 Auth fetch helper: attaches Supabase Bearer token
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -43,6 +45,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { refetch } = useSidebarStats(); // shared instance
   const { toast } = useToast()
 
   const validateTrialBalance = (data: any[]): ValidationResult => {
@@ -167,6 +170,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       if (!tbResponse.ok) throw new Error("Failed to save trial balance data")
 
       const trialBalanceData = await tbResponse.json()
+      refetch()
       setUploadSuccess(true)
       onUploadSuccess(trialBalanceData)
       toast({ title: "Success", description: "Trial Balance uploaded and saved successfully" })

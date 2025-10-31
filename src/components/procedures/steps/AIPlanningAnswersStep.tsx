@@ -418,10 +418,10 @@ const AIPlanningAnswersStep: React.FC<{
         Step-2: Generate answers for each planning section separately, then edit as needed. You can also upload files to store in the engagement library (Planning).
       </div>
  {/* Navigation Dropdown */}
-      <div className="flex justify-start mb-6">
-        <div className="w-full max-w-md">
+   
+        <div className="w-auto">
           <Select onValueChange={(value) => scrollToSection(value)}>
-            <SelectTrigger className="w-full bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
+            <SelectTrigger className="w-auto bg-white text-black border border-black hover:bg-gray-100 focus:bg-gray-100">
               <SelectValue placeholder={PLANNING_SECTIONS[0].title}/>
             </SelectTrigger>
 
@@ -445,7 +445,7 @@ const AIPlanningAnswersStep: React.FC<{
             </SelectContent>
           </Select>
         </div>
-      </div>
+     
 
       <div className="space-y-4 h-[60vh] overflow-y-scroll">
         {PLANNING_SECTIONS.map((section, index) => {
@@ -601,7 +601,7 @@ const AIPlanningAnswersStep: React.FC<{
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => handleSave()}>Save Draft</Button>
         <Button onClick={() => handleSave()}>Proceed to Recommendations</Button>
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+        {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
       </div>
     </div>
   )
