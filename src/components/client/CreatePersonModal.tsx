@@ -476,8 +476,8 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
             </Button>
               <Button
               type="submit"
-                disabled={isSubmitting || !formData.name || !!shareTotalError}
-              className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
+              disabled={isSubmitting || !formData.name || !!shareTotalError}
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
                 <>

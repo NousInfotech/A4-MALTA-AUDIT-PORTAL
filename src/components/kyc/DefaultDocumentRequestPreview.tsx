@@ -124,7 +124,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
       <Badge 
         variant="outline" 
         className={type === 'template' 
-          ? "text-amber-600 border-amber-300 bg-amber-50" 
+          ? "text-amber-600 border-amber-300 bg-brand-body" 
           : "text-gray-600 border-gray-300 bg-gray-50"
         }
       >
@@ -151,7 +151,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
       <CardHeader className="bg-gradient-to-r from-amber-50 to-amber-100 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
               <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -182,7 +182,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
             <Button
               onClick={handleAddSelectedDocuments}
               disabled={selectedDocuments.size === 0}
-              className="bg-gray-800 hover:bg-gray-900 text-white disabled:bg-gray-400"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white disabled:bg-gray-400"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Selected ({selectedDocuments.size})
@@ -214,7 +214,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                     key={document.id}
                     className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                       selectedDocuments.has(document.id)
-                        ? 'border-amber-500 bg-amber-50'
+                        ? 'border-amber-500 bg-brand-body'
                         : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                   >
@@ -275,7 +275,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
         </div>
 
         {selectedDocuments.size > 0 && (
-          <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+          <div className="mt-6 p-4  bg-brand-body rounded-xl border border-amber-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-amber-600" />
@@ -285,7 +285,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
               </div>
               <Button
                 onClick={handleAddSelectedDocuments}
-                className="bg-gray-800 hover:bg-gray-900 text-white"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Selected Documents

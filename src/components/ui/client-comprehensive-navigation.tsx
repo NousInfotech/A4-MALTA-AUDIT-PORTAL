@@ -51,7 +51,7 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
       href: "/client/dashboard",
       icon: BarChart3,
       color: "text-gray-800",
-      bgColor: "bg-gray-900",
+      bgColor: "bg-brand-sidebar",
       percentage: 100,
       description: "Overview & Analytics"
     },
@@ -60,13 +60,13 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
       href: "/client/engagements",
       icon: Briefcase,
       color: "text-gray-700",
-      bgColor: "bg-gray-800",
+      bgColor: "bg-brand-hover",
       percentage: 75,
       description: "Your Audit Engagements",
       subPages: [
-        { title: "All Engagements", href: "/client/engagements", icon: Briefcase, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 75, description: "View all engagements" },
-        { title: "Active Projects", href: "/client/engagements?tab=active", icon: Clock, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 90, description: "Active projects" },
-        { title: "Completed", href: "/client/engagements?tab=completed", icon: CheckCircle, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 70, description: "Completed work" }
+        { title: "All Engagements", href: "/client/engagements", icon: Briefcase, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 75, description: "View all engagements" },
+        { title: "Active Projects", href: "/client/engagements?tab=active", icon: Clock, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 90, description: "Active projects" },
+        { title: "Completed", href: "/client/engagements?tab=completed", icon: CheckCircle, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 70, description: "Completed work" }
       ]
     },
     {
@@ -164,7 +164,7 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
                   {item.title}
                 </h4>
                 {item.badge && (
-                  <span className="px-2 py-0.5 bg-gray-800/20 text-gray-800 text-xs rounded-full font-medium">
+                  <span className="px-2 py-0.5 bg-brand-hover/20 text-gray-800 text-xs rounded-full font-medium">
                     {item.badge}
                   </span>
                 )}

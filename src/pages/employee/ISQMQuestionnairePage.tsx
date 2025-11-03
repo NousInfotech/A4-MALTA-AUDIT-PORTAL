@@ -3127,7 +3127,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
   return (
 
-    <div className="min-h-screen bg-amber-50">
+    <div className="min-h-screen bg-brand-body">
 
       <div className="max-w-7xl mx-auto p-6 space-y-8">
 
@@ -3174,7 +3174,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="questionnaire" 
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3192,7 +3192,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="policy-generator"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3210,7 +3210,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="documents"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3228,7 +3228,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
               value="analytics"
 
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-md hover:bg-white/70"
 
             >
 
@@ -3327,7 +3327,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
                       disabled={!selectedAuditor}
 
-                      className="bg-gray-800 hover:bg-gray-900 text-white px-6 rounded-xl shadow-lg disabled:opacity-50"
+                      className="bg-brand-hover hover:bg-brand-active text-white px-6 rounded-xl shadow-lg disabled:opacity-50"
 
                     >
 
@@ -3471,7 +3471,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
                         onClick={() => setIsCreatingParent(true)}
 
-                        className="bg-gray-800 hover:bg-gray-900 text-white"
+                        className="bg-brand-hover hover:bg-brand-active text-white"
 
                       >
 
@@ -3525,7 +3525,7 @@ const ISQMQuestionnairePage: React.FC = () => {
 
                         onClick={() => setIsCreatingParent(true)}
 
-                        className="bg-gray-800 hover:bg-gray-900 text-white"
+                        className="bg-brand-hover hover:bg-brand-active text-white"
 
                       >
 

@@ -76,7 +76,7 @@ export function ModernKPICard({ metric }: ModernKPICardProps) {
       <CardHeader className="relative pb-4 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+            <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
               <IconComponent className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -141,7 +141,7 @@ export function ModernKPISection({ title, metrics, icon, description }: ModernKP
     <div className="space-y-6">
       <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg">
             <SectionIcon className="h-6 w-6 text-white" />
           </div>
           <div>

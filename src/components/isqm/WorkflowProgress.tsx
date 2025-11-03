@@ -14,7 +14,7 @@ export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({ activeTab })
           <div className="flex items-center gap-4">
             <div className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${
               activeTab === "questionnaire" 
-                ? "bg-gray-800 text-white shadow-lg scale-105" 
+                ? "bg-brand-hover text-white shadow-lg scale-105" 
                 : "bg-white text-gray-600 shadow-md hover:shadow-lg"
               }`}>
               <Play className={`w-4 h-4 ${activeTab === "questionnaire" ? "text-white" : "text-gray-800"}`} />
@@ -25,7 +25,7 @@ export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({ activeTab })
             
             <div className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${
               activeTab === "policy-generator" 
-                ? "bg-gray-800 text-white shadow-lg scale-105" 
+                ? "bg-brand-hover text-white shadow-lg scale-105" 
                 : "bg-white text-gray-600 shadow-md hover:shadow-lg"
               }`}>
               <Sparkles className={`w-4 h-4 ${activeTab === "policy-generator" ? "text-white" : "text-gray-800"}`} />
@@ -36,7 +36,7 @@ export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({ activeTab })
             
             <div className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${
               activeTab === "documents" 
-                ? "bg-gray-800 text-white shadow-lg scale-105" 
+                ? "bg-brand-hover text-white shadow-lg scale-105" 
                 : "bg-white text-gray-600 shadow-md hover:shadow-lg"
             }`}>
               <FileText className={`w-4 h-4 ${activeTab === "documents" ? "text-white" : "text-gray-800"}`} />
@@ -47,7 +47,7 @@ export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({ activeTab })
             
             <div className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 ${
               activeTab === "analytics" 
-                ? "bg-gray-800 text-white shadow-lg scale-105" 
+                ? "bg-brand-hover text-white shadow-lg scale-105" 
                 : "bg-white text-gray-600 shadow-md hover:shadow-lg"
             }`}>
               <TrendingUp className={`w-4 h-4 ${activeTab === "analytics" ? "text-white" : "text-gray-800"}`} />

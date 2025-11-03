@@ -48,7 +48,7 @@ export function ISQMHeader({
               </Button>
               <Button 
                 onClick={onGeneratePolicy}
-                className="bg-gray-800 hover:bg-gray-900 text-white"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Generate Policy

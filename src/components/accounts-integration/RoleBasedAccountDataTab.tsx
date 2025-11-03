@@ -55,7 +55,7 @@ const RoleBasedAccountDataTab: React.FC<RoleBasedAccountDataTabProps> = () => {
   };
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6 space-y-8">
+    <div className="min-h-screen  bg-brand-body p-6 space-y-8">
       {/* Header Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">

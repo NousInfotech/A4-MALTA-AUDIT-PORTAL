@@ -63,7 +63,7 @@ export const EditParentDialog: React.FC<EditParentDialogProps> = ({
           </div>
         </CardContent>
         <CardFooter className="flex gap-2">
-          <Button onClick={onSave} className="bg-gray-800 hover:bg-gray-900 text-white">
+          <Button onClick={onSave} className="bg-brand-hover hover:bg-brand-sidebar text-white">
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>

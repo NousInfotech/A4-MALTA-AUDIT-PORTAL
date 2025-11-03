@@ -54,7 +54,7 @@ export const DeleteClientConfirmation: React.FC<DeleteClientConfirmationProps> =
           </div>
         </AlertDialogHeader>
         
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-4">
+        <div className=" bg-brand-body border border-amber-200 rounded-xl p-4 mt-4">
           <div className="flex flex-row sm:flex-row items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
             <div className="text-xs sm:text-sm text-amber-800">

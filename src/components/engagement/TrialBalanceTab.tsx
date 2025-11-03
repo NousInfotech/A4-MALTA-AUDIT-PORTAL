@@ -46,19 +46,25 @@ async function authFetch(url: string, options: RequestInit = {}) {
 //   return top;
 // };
 
+// const formatClassificationForDisplay = (c: string) => {
+  
+//   if (!c) return "—";
+//   const parts = c.split(" > ");
+//   if (parts.length > 2) {
+//     return parts[2];
+//   } else {
+//     return parts[parts.length - 1]; // Retype this line
+//   }
+// };
+
+
 const formatClassificationForDisplay = (c: string) => {
   
   if (!c) return "—";
   const parts = c.split(" > ");
-  if (parts.length > 2) {
-    console.log("string", c);
-    console.log("parts", parts);
-    return parts[2];
-  } else {
-    console.log("string", c);
-    console.log("parts", parts);
+   
     return parts[parts.length - 1]; // Retype this line
-  }
+  
 };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
@@ -386,7 +392,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             ? "default"
                             : "outline"
                         }
-                        className="w-full justify-between h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                        className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("ETB")}
                       >
                         <span className="flex items-center gap-2">
@@ -407,7 +413,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             ? "default"
                             : "outline"
                         }
-                        className="w-full justify-between h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                        className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => setSelectedClassification("Adjustments")}
                       >
                         <span className="flex items-center gap-2">
@@ -498,7 +504,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                               ? "default"
                                               : "outline"
                                           }
-                                          className="w-full justify-between text-left h-auto p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
+                                          className="w-full justify-between text-left h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
                                           onClick={() => setSelectedClassification(key)}
                                         >
                                           <div className="flex flex-col items-start flex-1 min-w-0">

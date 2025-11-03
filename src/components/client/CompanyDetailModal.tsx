@@ -133,7 +133,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
               <DialogHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
                       <Building2 className="h-6 w-6 text-white" />
                     </div>
                     <div>

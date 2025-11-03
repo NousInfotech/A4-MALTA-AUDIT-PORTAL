@@ -131,7 +131,7 @@ export const ClientEngagements = () => {
   console.log("clientEngagements", clientEngagements);
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -175,7 +175,7 @@ export const ClientEngagements = () => {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-brand-hover rounded-2xl flex items-center justify-center flex-shrink-0">
                       <Briefcase className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -193,7 +193,7 @@ export const ClientEngagements = () => {
                       variant="outline"
                       className={
                         engagement.status === "active"
-                          ? "bg-gray-800 text-white border-gray-800"
+                          ? "bg-brand-hover text-white border-gray-800"
                           : engagement.status === "completed"
                           ? "bg-gray-700 text-white border-gray-700"
                           : "bg-gray-600 text-white border-gray-600"

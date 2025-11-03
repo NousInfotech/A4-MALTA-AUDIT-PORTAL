@@ -14,7 +14,7 @@ export const PendingApprovalPage = () => {
           <CardHeader className="bg-gray-50/50 border-b border-gray-200/50 text-center pb-8">
             <div className="flex justify-center mb-6">
               <div className="relative">
-                <div className="w-20 h-20 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-20 h-20 bg-brand-hover rounded-2xl flex items-center justify-center shadow-lg">
                   <img src="/logo.png" alt="Logo" className="h-16 w-16 object-cover rounded" />
                 </div>
                 <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gray-700 rounded-xl flex items-center justify-center shadow-lg border-2 border-white">

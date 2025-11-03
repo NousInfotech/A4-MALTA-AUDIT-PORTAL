@@ -90,7 +90,7 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
               <p className="text-gray-700 mb-4">Please select an existing ISQM pack or create a new one to start working on questionnaires.</p>
               <Button 
                 onClick={onCreateNewPack}
-                className="bg-gray-800 hover:bg-gray-900 text-white"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Pack
@@ -153,7 +153,7 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                   {questionnaire.stats.answeredQuestions} answered
                 </Badge>
                 <Badge variant="outline" className={`${
-                  questionnaire.status === 'completed' ? 'bg-gray-800 text-white border-gray-800' :
+                  questionnaire.status === 'completed' ? 'bg-brand-hover text-white border-gray-800' :
                   questionnaire.status === 'in-progress' ? 'bg-gray-600 text-white border-gray-600' :
                   'bg-gray-400 text-white border-gray-400'
                 }`}>
@@ -305,7 +305,7 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                                 e.stopPropagation();
                                 onSaveSection(questionnaire._id, sectionIdx);
                               }}
-                              className="h-7 px-3 bg-gray-800 hover:bg-gray-900 text-white"
+                              className="h-7 px-3 bg-brand-hover hover:bg-brand-sidebar text-white"
                             >
                               <Save className="w-3 h-3 mr-1" />
                               Save
@@ -377,7 +377,7 @@ export const QuestionnaireTab: React.FC<QuestionnaireTabProps> = ({
                                                 }
                                               })()}
                                               onCheckedChange={(checked) => onStateUpdate(questionnaire._id, sectionIdx, questionIdx, checked as boolean)}
-                                              className="data-[state=checked]:bg-gray-800 data-[state=checked]:border-gray-800"
+                                              className="data-[state=checked]:bg-brand-hover data-[state=checked]:border-gray-800"
                                             />
                                             <label 
                                               htmlFor={`implemented-${questionnaire._id}-${sectionIdx}-${questionIdx}`}

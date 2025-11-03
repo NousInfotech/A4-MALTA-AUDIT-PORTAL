@@ -392,7 +392,7 @@ const AIProcedureAnswersStep: React.FC<{
                       className="
                 bg-white 
                  
-                data-[state=checked]:bg-gray-900
+                data-[state=checked]:bg-brand-sidebar
                 data-[state=checked]:text-white 
                 [&>svg]:text-white
                 cursor-pointer

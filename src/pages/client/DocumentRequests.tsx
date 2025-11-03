@@ -337,7 +337,7 @@ export const DocumentRequests = () => {
   console.log("user:", user);
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -415,25 +415,25 @@ export const DocumentRequests = () => {
           <TabsList className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-1">
             <TabsTrigger
               value="pending"
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
             >
               Pending ({pendingRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="completed"
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
             >
               Completed ({completedRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="pbc"
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
             >
               PBC ({pbcRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="kyc"
-              className="rounded-xl data-[state=active]:bg-gray-800 data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
             >
               KYC ({kycRequests.length})
             </TabsTrigger>
@@ -469,7 +469,7 @@ export const DocumentRequests = () => {
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-gray-800 text-white border-gray-800"
+                        className="bg-brand-hover text-white border-gray-800"
                       >
                         Pending
                       </Badge>

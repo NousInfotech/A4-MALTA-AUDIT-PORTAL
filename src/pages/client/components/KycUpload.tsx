@@ -292,7 +292,7 @@ function KycUpload({
                 </div>
                 <Badge
                   variant="outline"
-                  className="bg-gray-800 text-white border-gray-800"
+                  className="bg-brand-hover text-white border-gray-800"
                 >
                   KYC
                 </Badge>
@@ -542,7 +542,7 @@ function KycUpload({
 
                 {/* Completion Status */}
                 <div className="bg-gray-50 rounded-lg p-6 text-center">
-                  <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 bg-brand-hover rounded-full flex items-center justify-center mx-auto mb-4">
                     {request.documents?.some(doc => doc.url && doc.status !== 'pending') ? (
                       <CheckCircle className="h-8 w-8 text-white" />
                     ) : (

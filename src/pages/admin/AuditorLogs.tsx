@@ -197,13 +197,13 @@ export const AuditorLogs = () => {
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       {/* Header Section */}
       <div className="mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-2xl flex items-center justify-center shadow-lg shrink-0">
                 <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
               </div>
               <div>
@@ -220,7 +220,7 @@ export const AuditorLogs = () => {
             <Button
               onClick={handleExportLogs}
               disabled={exportLoading}
-              className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 h-auto disabled:opacity-50"
+              className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 h-auto disabled:opacity-50"
             >
               {exportLoading ? (
                 <>
@@ -263,7 +263,7 @@ export const AuditorLogs = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Logs */}
             <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <FileText className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
@@ -277,7 +277,7 @@ export const AuditorLogs = () => {
 
             {/* Active Auditors */}
             <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <User className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
@@ -291,7 +291,7 @@ export const AuditorLogs = () => {
 
             {/* Success Rate */}
             <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <CheckCircle className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
@@ -306,7 +306,7 @@ export const AuditorLogs = () => {
 
             {/* Today's Activity */}
             <div className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-lg">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300 shrink-0">
                 <Activity className="h-6 w-6 text-white" />
               </div>
               <div className="min-w-0 flex-1">
@@ -330,7 +330,7 @@ export const AuditorLogs = () => {
         <div className="bg-gray-50 border-b border-gray-200 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Filter className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -431,7 +431,7 @@ export const AuditorLogs = () => {
         <div className="bg-gray-50 border-b border-gray-200 p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <FileText className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -658,7 +658,7 @@ export const AuditorLogs = () => {
                         onClick={() => setCurrentPage(pageNum)}
                         className={`rounded-xl ${
                           currentPage === pageNum
-                            ? "bg-gray-800 text-white hover:bg-gray-900"
+                            ? "bg-brand-hover text-white hover:bg-brand-sidebar"
                             : "border-gray-300 hover:bg-gray-100 text-gray-700"
                         }`}
                       >

@@ -104,7 +104,7 @@ export const CreateParentDialog: React.FC<CreateParentDialogProps> = ({
           <div className="flex gap-3">
             <Button 
               onClick={onCreate}
-              className="bg-gray-800 hover:bg-gray-900 text-white"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Pack

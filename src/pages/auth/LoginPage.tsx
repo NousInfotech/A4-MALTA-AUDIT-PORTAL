@@ -43,7 +43,7 @@ export const LoginPage = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Left Sidebar - Dark Theme */}
-      <div className="hidden lg:flex w-1/2 bg-gray-900 relative overflow-hidden">
+      <div className="hidden lg:flex w-1/2 bg-brand-sidebar relative overflow-hidden">
         {/* Content */}
         <div className="relative z-10 flex items-center justify-center h-full p-12">
           <div className="text-center text-white space-y-8 max-w-lg">
@@ -102,7 +102,7 @@ export const LoginPage = () => {
           {/* Header */}
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
                 <img src="/logo.png" alt="Logo" className="h-10 w-10 object-cover rounded" />
               </div>
               <span className="text-2xl font-bold text-gray-900">Audit Portal</span>
@@ -168,7 +168,7 @@ export const LoginPage = () => {
                     
                     <Button 
                       type="submit" 
-                className="w-full h-12 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-semibold" 
+                className="w-full h-12 bg-brand-hover hover:bg-brand-active text-white rounded-lg font-semibold" 
                       disabled={isLoading}
                     >
                       {isLoading ? (

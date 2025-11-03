@@ -372,7 +372,7 @@ export const DocumentRequestsTab = ({
               <Button
                 onClick={handleSendDocumentRequest}
                 disabled={!canSend}
-                className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4 mr-2" />
                 Send Request
@@ -447,7 +447,7 @@ export const DocumentRequestsTab = ({
                               href={doc.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-2 px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-all duration-300 shadow-sm hover:shadow-md text-sm"
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-brand-hover text-white rounded-lg hover:bg-brand-sidebar transition-all duration-300 shadow-sm hover:shadow-md text-sm"
                               title={`View ${doc.name}`}
                             >
                               <FileText className="h-4 w-4" />

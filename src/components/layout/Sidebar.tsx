@@ -2,6 +2,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import {
   Building2,
   Users,
@@ -76,6 +77,14 @@ const navItems: NavItem[] = [
   icon: IconRobotFace, 
   roles: ['admin'],
   description: 'Manage AI Prompts',
+  badge: 'New'
+},
+{ 
+  title: 'Branding Settings', 
+  href: '/admin/branding', 
+  icon: Settings, 
+  roles: ['admin'],
+  description: 'Customize Portal Appearance',
   badge: 'New'
 },
   // Employee
@@ -171,12 +180,16 @@ const navItems: NavItem[] = [
 export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const { branding } = useBranding();
   const { stats, loading } = useSidebarStats();
   const isClientPortal= location.pathname.startsWith("/client");
   const isEmployeePortal= location.pathname.startsWith("/employee");
   const isAdminPortal= location.pathname.startsWith("/admin");
 
   if (!user) return null;
+
+  const logoUrl = branding?.logo_url || '/logo.png';
+  const orgName = branding?.organization_name || 'Audit Portal';
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user.role));
 
@@ -193,28 +206,43 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
     <div
       className={cn(
         // container
-        "fixed inset-y-0 left-0 bg-black text-white flex flex-col transform transition-all duration-300 ease-in-out z-50 md:static md:z-auto md:translate-x-0",
+        "fixed inset-y-0 left-0 flex flex-col transform transition-all duration-300 ease-in-out z-50 md:static md:z-auto md:translate-x-0",
         // mobile slide
         isOpen ? "translate-x-0" : "-translate-x-full",
         // desktop width
         isCollapsed ? "md:w-20" : "md:w-72",
         // modern styling
-        "border-r border-gray-800 shadow-xl"
+        "border-r shadow-xl"
       )}
+      style={{
+        backgroundColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'})`,
+        color: `hsl(${branding?.sidebar_text_color || '220 14% 96%'})`,
+        borderColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'} / 0.5)`
+      }}
     >
       {/* Header */}
-      <div className={cn(
-        "border-b border-gray-800 relative",
+      <div 
+        className={cn(
+          "border-b relative",
         isCollapsed ? "p-4" : "p-6"
-      )}>
+        )}
+        style={{ borderColor: `hsl(var(--sidebar-border))` }}
+      >
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className={cn(
-              "bg-gradient-to-br from-gray-700 to-gray-800 rounded-2xl flex items-center justify-center shadow-lg border border-gray-600",
+            <div 
+              className={cn(
+                "rounded-2xl flex items-center justify-center shadow-lg",
               isCollapsed ? "w-12 h-12" : "w-16 h-16"
-            )}>
+              )}
+              style={{ 
+                background: `linear-gradient(to bottom right, hsl(var(--sidebar-logo-bg)), hsl(var(--sidebar-hover)))`,
+                borderColor: `hsl(var(--sidebar-border))`,
+                borderWidth: '1px'
+              }}
+            >
               <img 
-                src="/logo.png" 
+                src={logoUrl} 
                 alt="Logo" 
                 className={cn(
                   "object-cover rounded-lg",
@@ -231,10 +259,16 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
             isCollapsed ? "md:opacity-0 md:w-0 md:overflow-hidden" : "md:opacity-100 md:w-auto"
           )}>
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent tracking-tight">
-                Audit Portal
+              <h1 
+                className="text-2xl font-bold tracking-tight"
+                style={{ color: `hsl(var(--sidebar-foreground))` }}
+              >
+                {orgName}
               </h1>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+              <p 
+                className="text-xs font-medium uppercase tracking-wider opacity-70"
+                style={{ color: `hsl(var(--sidebar-foreground))` }}
+              >
                 Audit & Compliance
               </p>
             </div>
@@ -243,7 +277,12 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
 
         {/* Mobile close */}
         <button
-          className="md:hidden absolute top-6 right-6 p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors border border-gray-700"
+          className="md:hidden absolute top-6 right-6 p-2 rounded-lg transition-colors"
+          style={{
+            backgroundColor: `hsl(var(--sidebar-hover))`,
+            borderColor: `hsl(var(--sidebar-border))`,
+            borderWidth: '1px'
+          }}
           onClick={onClose}
           aria-label="Close Menu"
         >
@@ -260,20 +299,29 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
      
       {/* Quick Stats */}
       {!isCollapsed && !isClientPortal && !isAdminPortal && isEmployeePortal && (
-        <div className="px-4 py-3 border-b border-gray-800">
-          <div className="bg-gray-900 rounded-2xl p-3 border border-gray-700">
+        <div 
+          className="px-4 py-3 border-b"
+          style={{ borderColor: `hsl(var(--sidebar-border))` }}
+        >
+          <div 
+            className="rounded-2xl p-3 border"
+            style={{ 
+              backgroundColor: `hsl(var(--sidebar-hover))`,
+              borderColor: `hsl(var(--sidebar-border))`
+            }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-white" />
-                <span className="text-xs text-gray-300 font-medium">Today's Tasks</span>
+                <Clock className="h-4 w-4" style={{ color: `hsl(var(--sidebar-foreground))` }} />
+                <span className="text-xs font-medium" style={{ color: `hsl(var(--sidebar-foreground))` }}>Today's Tasks</span>
               </div>
-              <span className="text-xs font-semibold text-white">
+              <span className="text-xs font-semibold" style={{ color: `hsl(var(--sidebar-foreground))` }}>
                 {loading ? '...' : stats.todayTasks}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <Calendar className="h-3 w-3 text-gray-400" />
-              <span className="text-xs text-gray-400">
+              <Calendar className="h-3 w-3 opacity-70" style={{ color: `hsl(var(--sidebar-foreground))` }} />
+              <span className="text-xs opacity-70" style={{ color: `hsl(var(--sidebar-foreground))` }}>
                 Next: {loading ? 'Loading...' : stats.nextTask}
               </span>
             </div>
@@ -304,27 +352,47 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                   isCollapsed 
                     ? 'justify-center px-2 py-3 rounded-2xl' 
                     : 'gap-4 px-4 py-3 rounded-2xl',
-                  'hover:scale-[1.02] hover:shadow-lg hover:shadow-gray-500/10',
-                  isActive
-                    ? 'bg-gray-800 text-white border border-gray-700 shadow-lg shadow-gray-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800/50 border border-transparent'
+                  'hover:scale-[1.02] hover:shadow-lg border'
                 )}
+                style={{
+                  backgroundColor: isActive ? `hsl(var(--sidebar-active))` : 'transparent',
+                  color: isActive ? `hsl(var(--sidebar-foreground))` : `hsl(var(--sidebar-foreground) / 0.8)`,
+                  borderColor: isActive ? `hsl(var(--sidebar-border))` : 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = `hsl(var(--sidebar-hover))`;
+                    e.currentTarget.style.color = `hsl(var(--sidebar-foreground))`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = `hsl(var(--sidebar-foreground) / 0.8)`;
+                  }
+                }}
                 title={isCollapsed ? item.title : undefined}
               >
                 {/* Active indicator */}
                 {isActive && !isCollapsed && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full"></div>
+                  <div 
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
+                    style={{ backgroundColor: `hsl(var(--accent))` }}
+                  ></div>
                 )}
                 
                 {/* Icon container */}
-                <div className={cn(
+                <div 
+                  className={cn(
                   'relative flex items-center justify-center transition-all duration-300',
                   isCollapsed ? 'w-8 h-8' : 'w-10 h-10',
-                  'rounded-xl',
-                  isActive
-                    ? 'bg-white text-black shadow-lg'
-                    : 'bg-gray-800 text-white group-hover:bg-gray-700'
-                )}>
+                    'rounded-xl'
+                  )}
+                  style={{
+                    backgroundColor: isActive ? `hsl(var(--accent))` : `hsl(var(--sidebar-hover))`,
+                    color: isActive ? `hsl(var(--accent-foreground))` : `hsl(var(--sidebar-foreground))`
+                  }}
+                >
                   <Icon className={cn(
                     isCollapsed ? "h-4 w-4" : "h-5 w-5"
                   )} />
@@ -337,14 +405,21 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm truncate">{item.title}</div>
                         {item.description && (
-                          <div className="text-xs text-gray-400 mt-0.5 truncate">
+                          <div className="text-xs mt-0.5 truncate opacity-70">
                             {item.description}
                           </div>
                         )}
                       </div>
                       {item.badge && (
                         <div className="flex-shrink-0">
-                          <div className="px-2 py-0.5 bg-gray-700 text-white text-xs rounded-full font-medium border border-gray-600 whitespace-nowrap min-w-fit">
+                          <div 
+                            className="px-2 py-0.5 text-xs rounded-full font-medium border whitespace-nowrap min-w-fit"
+                            style={{
+                              backgroundColor: `hsl(var(--badge-background))`,
+                              color: `hsl(var(--badge-foreground))`,
+                              borderColor: `hsl(var(--accent))`
+                            }}
+                          >
                             {loading && item.getBadge ? '...' : item.badge}
                           </div>
                         </div>
@@ -356,12 +431,11 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
 
                 {/* Hover effect */}
                 <div className={cn(
-                  'absolute inset-0 transition-opacity duration-300',
-                  isCollapsed ? 'rounded-2xl' : 'rounded-2xl',
-                  isActive
-                    ? 'bg-gradient-to-r from-gray-800/5 to-transparent opacity-100'
-                    : 'bg-gradient-to-r from-gray-800/5 to-transparent opacity-0 group-hover:opacity-100'
-                )}></div>
+                  'absolute inset-0 transition-opacity duration-300 rounded-2xl pointer-events-none',
+                  isActive ? 'opacity-0' : 'opacity-0 group-hover:opacity-10'
+                )}
+                style={{ backgroundColor: `hsl(var(--sidebar-foreground))` }}
+                ></div>
               </Link>
             );
           })}
@@ -369,41 +443,68 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
       </nav>
 
       {/* Footer / User */}
-      <div className={cn(
-        "border-t border-gray-800",
-        isCollapsed ? "p-2" : "p-4"
-      )}>
-        <div className={cn(
-          "border border-gray-700",
-          isCollapsed ? "bg-gray-900 rounded-2xl p-2" : "bg-gray-900 rounded-2xl p-4"
-        )}>
+      <div 
+        className={cn(
+          "border-t",
+          isCollapsed ? "p-2" : "p-4"
+        )}
+        style={{ borderColor: `hsl(var(--sidebar-border))` }}
+      >
+        <div 
+          className={cn(
+            "border rounded-2xl",
+            isCollapsed ? "p-2" : "p-4"
+          )}
+          style={{
+            backgroundColor: `hsl(var(--sidebar-hover))`,
+            borderColor: `hsl(var(--sidebar-border))`
+          }}
+        >
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className={cn(
-                "bg-white rounded-2xl flex items-center justify-center",
-                isCollapsed ? "w-8 h-8" : "w-10 h-10"
-              )}>
-                <span className={cn(
-                  "font-bold text-black",
-                  isCollapsed ? "text-xs" : "text-sm"
-                )}>
+              <div 
+                className={cn(
+                  "rounded-2xl flex items-center justify-center",
+                  isCollapsed ? "w-8 h-8" : "w-10 h-10"
+                )}
+                style={{ backgroundColor: `hsl(var(--accent))` }}
+              >
+                <span 
+                  className={cn(
+                    "font-bold",
+                    isCollapsed ? "text-xs" : "text-sm"
+                  )}
+                  style={{ color: `hsl(var(--accent-foreground))` }}
+                >
                   {user.name?.charAt(0)?.toUpperCase()}
                 </span>
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-black"></div>
+              <div 
+                className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2"
+                style={{ borderColor: `hsl(var(--sidebar-background))` }}
+              ></div>
             </div>
 
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">
+                <p 
+                  className="text-sm font-semibold truncate"
+                  style={{ color: `hsl(var(--sidebar-foreground))` }}
+                >
                   {user.name}
                 </p>
-                <p className="text-xs text-gray-400 truncate">
+                <p 
+                  className="text-xs truncate opacity-70"
+                  style={{ color: `hsl(var(--sidebar-foreground))` }}
+                >
                   {user.email}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-gray-400">Online</span>
+                  <span 
+                    className="text-xs opacity-70"
+                    style={{ color: `hsl(var(--sidebar-foreground))` }}
+                  >Online</span>
                 </div>
               </div>
             )}

@@ -135,7 +135,7 @@ export const ClientManagement = () => {
     }
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -148,7 +148,7 @@ export const ClientManagement = () => {
         {/* Action Button */}
         <div className="mb-8">
           <Button 
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
+            className="bg-brand-hover hover:bg-brand-active text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
             variant='default' 
             asChild
           >
@@ -191,7 +191,7 @@ export const ClientManagement = () => {
               <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
                       <Building2 className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -239,7 +239,7 @@ export const ClientManagement = () => {
                   </div>
                   
                   <Button 
-                    className="w-full bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
+                    className="w-full bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
                     size="sm" 
                     variant="default" 
                     asChild
@@ -274,7 +274,7 @@ export const ClientManagement = () => {
             </p>
             {!searchTerm && (
               <Button 
-                className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3" 
+                className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3" 
                 variant='default' 
                 asChild
               >

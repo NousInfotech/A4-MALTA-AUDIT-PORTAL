@@ -18,11 +18,11 @@ import { CreatePBCDialog } from "./CreatePBCDialog";
 import { getPBCStatusLabel } from "@/lib/statusLabels";
 
 const statusColors = {
-  "document-collection": "bg-gray-800",
+  "document-collection": "bg-brand-hover",
   "qna-preparation": "bg-gray-700",
   "client-responses": "bg-gray-600",
   "doubt-resolution": "bg-gray-500",
-  submitted: "bg-gray-900",
+  submitted: "bg-brand-sidebar",
 };
 
 const statusIcons = {
@@ -198,7 +198,7 @@ export function PBCDashboard({
         {(userRole === "employee" || userRole === "admin") && (
           <Button
             onClick={() => setShowCreateDialog(true)}
-            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+            className="flex items-center gap-2 bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
             disabled={!selectedEngagement} // Disable if no engagement or no document requests
           >
             <Plus className="h-4 w-4" />
@@ -221,7 +221,7 @@ export function PBCDashboard({
             }}
             className={`transition-all duration-300 rounded-xl ${
               statusFilter === "" && !engagementFilter
-                ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                ? "bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg"
                 : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             }`}
           >
@@ -236,7 +236,7 @@ export function PBCDashboard({
             }}
             className={`transition-all duration-300 rounded-xl ${
               engagementFilter
-                ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                ? "bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg"
                 : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             }`}
           >
@@ -253,7 +253,7 @@ export function PBCDashboard({
               }}
               className={`transition-all duration-300 rounded-xl ${
                 statusFilter === status
-                  ? "bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg"
+                  ? "bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg"
                   : "border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
               }`}
             >
@@ -364,7 +364,7 @@ export function PBCDashboard({
             (userRole === "employee" || userRole === "admin") && (
               <Button
                 onClick={() => setShowCreateDialog(true)}
-                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                className="flex items-center gap-2 bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                 disabled={!selectedEngagement}
               >
                 <Plus className="h-4 w-4" />

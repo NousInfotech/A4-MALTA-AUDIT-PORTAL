@@ -63,7 +63,7 @@ export const RatioTable: React.FC<RatioTableProps> = ({ ratios, onRatioChange, o
   return (
     <div className="overflow-x-auto relative shadow-sm rounded-lg border border-gray-200 dark:border-gray-700">
       <Table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <TableHeader className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+        <TableHeader className="bg-gray-50 dark:bg-brand-hover sticky top-0 z-10">
           <TableRow className="text-gray-700 dark:text-gray-300 uppercase text-xs tracking-wider">
             <TableHead className="py-3 px-4 font-semibold">Ratio Name / Label</TableHead>
             <TableHead className="py-3 px-4 font-semibold w-[250px]">Formula</TableHead>
@@ -74,9 +74,9 @@ export const RatioTable: React.FC<RatioTableProps> = ({ ratios, onRatioChange, o
             <TableHead className="py-3 px-4 font-semibold text-center w-[60px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+        <TableBody className="bg-white dark:bg-brand-sidebar divide-y divide-gray-100 dark:divide-gray-800">
           {ratios.map((ratio) => (
-            <TableRow key={ratio.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
+            <TableRow key={ratio.id} className="hover:bg-gray-50 dark:hover:bg-brand-hover transition-colors duration-150">
               <TableCell className="py-3 px-4">
                 <Input
                   type="text"
@@ -175,7 +175,7 @@ export const RatioTable: React.FC<RatioTableProps> = ({ ratios, onRatioChange, o
                         <History size={16} aria-label="View Comments History" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="bg-gray-800 text-white dark:bg-gray-100 dark:text-gray-900">
+                    <TooltipContent className="bg-brand-hover text-white dark:bg-gray-100 dark:text-gray-900">
                       <p>View Version History for Comments</p>
                     </TooltipContent>
                   </Tooltip>

@@ -484,7 +484,7 @@ export function KYCSetupModal({
       <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <CardTitle className="flex items-center gap-2 text-gray-900">
-            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center">
               <Building2 className="h-4 w-4 text-white" />
             </div>
             Client Information
@@ -553,7 +553,7 @@ export function KYCSetupModal({
       <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <CardTitle className="flex items-center gap-2 text-gray-900">
-            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center">
               <Shield className="h-4 w-4 text-white" />
             </div>
             KYC Document Requirements
@@ -651,7 +651,7 @@ export function KYCSetupModal({
                   </p>
                 </div>
               )}
-              <Button onClick={handleAddDocument} className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <Button onClick={handleAddDocument} className="w-full bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Document
               </Button>
@@ -664,7 +664,7 @@ export function KYCSetupModal({
       <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <CardTitle className="flex items-center gap-2 text-gray-900">
-            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center">
               <FileText className="h-4 w-4 text-white" />
             </div>
             Additional Instructions
@@ -686,7 +686,7 @@ export function KYCSetupModal({
   const renderPreviewStep = () => (
     <div className="space-y-6">
       <div className="text-center">
-        <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <div className="w-16 h-16 bg-brand-hover rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
           <Eye className="h-8 w-8 text-white" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">KYC Setup Preview</h3>
@@ -731,7 +731,7 @@ export function KYCSetupModal({
           <div className="space-y-3">
             {documents.filter(d => d.type === 'required').map((doc) => (
               <div key={doc.id} className="flex items-center gap-3 p-3 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
-                <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
+                <div className="w-6 h-6 bg-brand-hover rounded-lg flex items-center justify-center">
                   <CheckCircle className="h-4 w-4 text-white" />
                 </div>
                 <div>
@@ -758,7 +758,7 @@ export function KYCSetupModal({
             <div className="space-y-3">
               {documents.filter(d => d.type === 'optional').map((doc) => (
                 <div key={doc.id} className="flex items-center gap-3 p-3 bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-gray-100/80 transition-all duration-300">
-                  <div className="w-6 h-6 bg-gray-800 rounded-lg flex items-center justify-center">
+                  <div className="w-6 h-6 bg-brand-hover rounded-lg flex items-center justify-center">
                     <AlertCircle className="h-4 w-4 text-white" />
                   </div>
                   <div>
@@ -792,7 +792,7 @@ export function KYCSetupModal({
 
   const renderCompleteStep = () => (
     <div className="text-center space-y-6">
-      <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto shadow-lg">
+      <div className="w-20 h-20 bg-brand-hover rounded-full flex items-center justify-center mx-auto shadow-lg">
         <CheckCircle className="h-10 w-10 text-white" />
       </div>
       <div>
@@ -818,7 +818,7 @@ export function KYCSetupModal({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl text-gray-900">
-            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center">
               <Shield className="h-4 w-4 text-white" />
             </div>
             KYC Setup - {selectedEngagement?.title}
@@ -844,12 +844,12 @@ export function KYCSetupModal({
           </div>
           <div>
             {currentStep === 'setup' && (
-              <Button onClick={handleProceedToPreview} className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <Button onClick={handleProceedToPreview} className="bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 Preview KYC Setup
               </Button>
             )}
             {currentStep === 'preview' && (
-              <Button onClick={handleCompleteKYC} className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <Button onClick={handleCompleteKYC} className="bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
                 Complete KYC Setup
               </Button>
             )}

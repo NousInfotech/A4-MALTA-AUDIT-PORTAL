@@ -12,7 +12,7 @@ export const DashboardLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-brand-body">
       {/* Sidebar for desktop & mobile */}
       <Sidebar 
         isOpen={isSidebarOpen} 
@@ -23,7 +23,8 @@ export const DashboardLayout = () => {
       {/* Overlay for mobile */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+          className="fixed inset-0 backdrop-blur-sm z-40 md:hidden"
+          style={{ backgroundColor: `hsl(var(--sidebar-background) / 0.2)` }}
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
@@ -34,7 +35,7 @@ export const DashboardLayout = () => {
           onSidebarToggle={handleSidebarToggle}
           isSidebarCollapsed={isSidebarCollapsed}
         />
-        <main className="flex-1 overflow-y-auto bg-gray-900">
+        <main className="flex-1 overflow-y-auto bg-brand-body">
           <Outlet />
         </main>
       </div>
