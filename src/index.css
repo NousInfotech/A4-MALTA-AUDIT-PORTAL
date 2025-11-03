@@ -186,10 +186,29 @@
     color: hsl(var(--accent));
   }
   
+  /* ✅ DYNAMIC BODY TEXT - Auto white on dark, dark on light */
   .text-brand-body {
     color: hsl(var(--foreground));
   }
   
+  .text-brand-heading {
+    color: hsl(var(--body-text-heading));
+    font-weight: 600;
+  }
+  
+  .text-brand-subheading {
+    color: hsl(var(--body-text-subheading));
+  }
+  
+  .text-brand-muted {
+    color: hsl(var(--body-text-muted));
+  }
+  
+  .text-brand-subtle {
+    color: hsl(var(--body-text-subtle));
+  }
+  
+  /* Sidebar text - always contrasts with sidebar background */
   .text-brand-sidebar {
     color: hsl(var(--sidebar-foreground));
   }

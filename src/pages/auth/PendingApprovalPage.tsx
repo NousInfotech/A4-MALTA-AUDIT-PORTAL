@@ -22,7 +22,7 @@ export const PendingApprovalPage = () => {
                 </div>
               </div>
             </div>
-            <CardTitle className="text-4xl font-bold text-gray-900">
+            <CardTitle className="text-4xl font-bold text-brand-body">
               Approval Pending
             </CardTitle>
             <CardDescription className="text-lg text-gray-600">
@@ -41,7 +41,7 @@ export const PendingApprovalPage = () => {
                 <div className="w-8 h-8 bg-gray-700 rounded-xl flex items-center justify-center">
                   <Mail className="h-4 w-4 text-white" />
                 </div>
-                <h3 className="font-semibold text-gray-800">Email Notification</h3>
+                <h3 className="font-semibold text-brand-body">Email Notification</h3>
               </div>
               <p className="text-sm text-gray-600">
                 You will receive an email notification once your account has been approved. 
@@ -54,7 +54,7 @@ export const PendingApprovalPage = () => {
                 <div className="w-8 h-8 bg-gray-700 rounded-xl flex items-center justify-center">
                   <CheckCircle className="h-4 w-4 text-white" />
                 </div>
-                <h3 className="font-semibold text-gray-800">What's Next?</h3>
+                <h3 className="font-semibold text-brand-body">What's Next?</h3>
               </div>
               <p className="text-sm text-gray-600">
                 Once approved, you'll be able to access all features of the platform and start managing your audit engagements.

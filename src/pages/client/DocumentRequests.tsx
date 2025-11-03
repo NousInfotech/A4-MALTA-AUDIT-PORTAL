@@ -343,7 +343,7 @@ export const DocumentRequests = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 mb-2 animate-fade-in">
+              <h1 className="text-3xl font-semibold text-brand-body mb-2 animate-fade-in">
                 Document Requests
               </h1>
               <p className="text-gray-700 animate-fade-in-delay">

@@ -23,15 +23,15 @@ export function ISQMHeader({
             <Shield className="h-8 w-8 text-gray-800" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">ISQM Questionnaire</h1>
-            <p className="text-gray-700">Quality Management Assessment System</p>
+            <h1 className="text-3xl font-bold text-brand-body">ISQM Questionnaire</h1>
+            <p className="text-brand-body">Quality Management Assessment System</p>
           </div>
         </div>
         <div className="flex gap-3">
           <Button 
             onClick={onCreateNewPack}
             variant="outline"
-            className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            className="border-gray-300 hover:bg-gray-100 text-brand-body hover:text-gray-900"
           >
             <Plus className="h-4 w-4 mr-2" />
             New Pack

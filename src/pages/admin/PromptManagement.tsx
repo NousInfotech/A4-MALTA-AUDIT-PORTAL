@@ -149,8 +149,8 @@ export const PromptManagement = () => {
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-semibold text-gray-900 mb-2">AI Prompt Management</h1>
-                    <p className="text-gray-700">
+                    <h1 className="text-3xl font-semibold text-brand-body mb-2">AI Prompt Management</h1>
+                    <p className="text-brand-body">
                         Manage and edit AI prompts used across the audit portal
                     </p>
                 </div>
