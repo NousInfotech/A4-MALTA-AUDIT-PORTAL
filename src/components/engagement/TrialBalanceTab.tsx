@@ -46,26 +46,26 @@ async function authFetch(url: string, options: RequestInit = {}) {
 //   return top;
 // };
 
-// const formatClassificationForDisplay = (c: string) => {
-  
-//   if (!c) return "—";
-//   const parts = c.split(" > ");
-//   if (parts.length > 2) {
-//     return parts[2];
-//   } else {
-//     return parts[parts.length - 1]; // Retype this line
-//   }
-// };
-
-
 const formatClassificationForDisplay = (c: string) => {
   
   if (!c) return "—";
   const parts = c.split(" > ");
-   
+  if (parts.length > 2) {
+    return parts[2];
+  } else {
     return parts[parts.length - 1]; // Retype this line
-  
+  }
 };
+
+
+// const formatClassificationForDisplay = (c: string) => {
+  
+//   if (!c) return "—";
+//   const parts = c.split(" > ");
+   
+//     return parts[parts.length - 1]; // Retype this line
+  
+// };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   engagement,
@@ -485,7 +485,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             {/* Subtitles within this main title */}
                             {subtitles.map((subtitle) => {
                               const items = groupedByTitle[mainTitle][subtitle];
-
+                              console.log("items", items)
                               return (
                                 <div key={`${mainTitle}-${subtitle}`}>
                                   {/* Subtitle Header */}
@@ -495,6 +495,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                                   {/* Items for this subtitle */}
                                   {items.map(([key, classificationList]) => {
+                                    
                                     const notificationCount = classificationNotificationCounts[key] || 0;
                                     return (
                                       <div key={key} className="px-2 mb-2">

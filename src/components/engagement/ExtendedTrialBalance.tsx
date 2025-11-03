@@ -51,6 +51,27 @@ import EditableText from "../ui/editable-text";
    Helpers & Types
 ------------------------------------------------------- */
 
+// Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
+// Removes parentheses and special characters, preserves any existing minus sign
+const parseAccountingNumber = (value: any): number => {
+  if (value === null || value === undefined || value === "") return 0;
+  
+  // If already a number, return it
+  if (typeof value === "number") return value;
+  
+  // Convert to string and clean
+  let str = String(value).trim();
+  
+  // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
+  str = str.replace(/[(),\$€£¥]/g, "").trim();
+  
+  // Parse to number
+  const num = Number(str);
+  
+  // Return the number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : num;
+};
+
 // Ensure each row has a unique client-only ID
 const withClientIds = <T extends object>(rows: T[]) =>
   rows.map((r: any, i: number) => ({
@@ -70,6 +91,10 @@ interface ETBRow {
   adjustments: number;
   finalBalance: number;
   classification: string;
+  grouping1?: string;
+  grouping2?: string;
+  grouping3?: string;
+  grouping4?: string;
 }
 
 interface ExtendedTrialBalanceProps {
@@ -907,20 +932,64 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const priorYearIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("prior year")
       );
+      
+      // Find optional grouping column indices
+      const grouping1Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 1"
+      );
+      const grouping2Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 2"
+      );
+      const grouping3Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 3"
+      );
+      const grouping4Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 4"
+      );
 
       const etbData: ETBRow[] = rows.map((row: any[], index: number) => {
         const accountName = row[nameIndex] || "";
-        const currentYear = Number(row[currentYearIndex]) || 0;
+        
+        // Parse numeric values - remove parentheses and commas: (55,662) → 55662
+        const currentYear = parseAccountingNumber(row[currentYearIndex]);
+        const priorYear = parseAccountingNumber(row[priorYearIndex]);
         const adjustments = 0;
+        
+        // Extract grouping values from file if available
+        const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
+        const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
+        const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
+        const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
+        
+        // Determine classification:
+        // - If file has grouping values, build classification from them (no autoClassify)
+        // - If no grouping values, use autoClassify
+        const hasFileGrouping = g1 || g2 || g3 || g4;
+        let classification = "";
+        
+        if (hasFileGrouping) {
+          // Build classification from file grouping values
+          classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
+        } else {
+          // No grouping in file, use autoClassify
+          // classification = autoClassify(accountName);
+          classification = "";
+        }
+        
         return {
           id: `row-${index}-${Date.now()}`,
           code: row[codeIndex] || "",
           accountName,
           currentYear,
-          priorYear: Number(row[priorYearIndex]) || 0,
+          priorYear,
           adjustments,
           finalBalance: currentYear + adjustments,
-          classification: "",
+          classification,
+          // Store file grouping (will be overwritten when user changes classification)
+          grouping1: g1,
+          grouping2: g2,
+          grouping3: g3,
+          grouping4: g4,
         };
       });
 
@@ -948,6 +1017,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       adjustments: 0,
       finalBalance: 0,
       classification: "",
+      grouping1: "",
+      grouping2: "",
+      grouping3: "",
+      grouping4: "",
     };
     setEtbRows(prevRows => {
       const newRows = [...prevRows, newRow];
@@ -1257,9 +1330,32 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const actualPushingToCloud = pushingToCloud || isPushingToCloudRef.current;
 
   // Memoize the classification change handler
+  // When classification changes, sync grouping fields from classification parts
+  // This ensures grouping and classification stay in sync for Excel export
   const handleClassificationChange = useCallback((rowId: string, classification: string) => {
-    updateRow(rowId, "classification", classification);
-  }, [updateRow]);
+    setEtbRows(prevRows => {
+      return prevRows.map((row) => {
+        if (row.id !== rowId) return row;
+        
+        // Extract classification parts to sync with grouping fields
+        const parts = (classification || "").split(" > ").map(s => s.trim());
+        
+        // Update BOTH classification AND grouping fields to keep them in sync
+        // Backend will use grouping fields with classification as fallback
+        const updatedRow = {
+          ...row,
+          classification,
+          // Sync grouping to match classification parts
+          grouping1: parts[0] || "",
+          grouping2: parts[1] || "",
+          grouping3: parts[2] || "",
+          grouping4: parts[3] || "",
+        };
+        
+        return updatedRow;
+      });
+    });
+  }, []);
 
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
@@ -1406,14 +1502,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
                     </TableHead>
-                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
-                      Prior Year
-                    </TableHead>
                     <TableHead className="text-start  border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Adjustments
                     </TableHead>
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Final Balance
+                    </TableHead>
+                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
+                      Prior Year
                     </TableHead>
                     <TableHead className="w-24 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">
                       Classification
@@ -1464,18 +1560,6 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <EditableText
                           type="number"
-                          value={row.priorYear}
-                          onChange={(val) => {
-                            updateRow(row.id, "priorYear", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
                           value={row.adjustments}
                           onChange={(val) => {
                             updateRow(row.id, "adjustments", val);
@@ -1487,6 +1571,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       </TableCell>
                       <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
                         {Math.round(Number(row.finalBalance)).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                        <EditableText
+                          type="number"
+                          value={row.priorYear}
+                          onChange={(val) => {
+                            updateRow(row.id, "priorYear", val);
+                          }}
+                          placeholder="0"
+                          className="text-start text-xs sm:text-sm"
+                          step={1}
+                        />
                       </TableCell>
                       <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
                         <div className="w-fit flex flex-col items-start gap-1">
@@ -1536,13 +1632,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
-                      {Math.round(totals.priorYear).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start border border-r-secondary  font-bold text-xs sm:text-sm">
                       {Math.round(totals.finalBalance).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
+                      {Math.round(totals.priorYear).toLocaleString()}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>

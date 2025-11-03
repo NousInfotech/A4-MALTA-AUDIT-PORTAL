@@ -38,6 +38,28 @@ interface ValidationResult {
 }
 
 const REQUIRED_COLUMNS = ["Code", "Account Name", "Current Year", "Prior Year"]
+const OPTIONAL_COLUMNS = ["Grouping 1", "Grouping 2", "Grouping 3", "Grouping 4"]
+
+// Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
+// Removes parentheses and special characters, preserves any existing minus sign
+const parseAccountingNumber = (value: any): number => {
+  if (value === null || value === undefined || value === "") return 0;
+  
+  // If already a number, return it
+  if (typeof value === "number") return value;
+  
+  // Convert to string and clean
+  let str = String(value).trim();
+  
+  // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
+  str = str.replace(/[(),\$€£¥]/g, "").trim();
+  
+  // Parse to number
+  const num = Number(str);
+  
+  // Return the number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : num;
+};
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {
   const [uploading, setUploading] = useState(false)
@@ -77,11 +99,13 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       dataRows.forEach((row: any[], index: number) => {
         const currentYear = row[currentYearIndex]
         const priorYear = row[priorYearIndex]
-        if (currentYear && isNaN(Number(currentYear))) {
-          errors.push(`Row ${index + 2}: Current Year must be a number`)
+        
+        // Try to parse accounting format - if result is NaN, it's invalid
+        if (currentYear && currentYear !== "" && isNaN(parseAccountingNumber(currentYear))) {
+          errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
         }
-        if (priorYear && isNaN(Number(priorYear))) {
-          errors.push(`Row ${index + 2}: Prior Year must be a number`)
+        if (priorYear && priorYear !== "" && isNaN(parseAccountingNumber(priorYear))) {
+          errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
         }
       })
     }
@@ -234,7 +258,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         </CardTitle>
         <CardDescription>
           Upload your Trial Balance file (CSV/Excel) or import from Google Sheets. Required columns: Code, Account Name,
-          Current Year, Prior Year
+          Current Year, Prior Year. Optional columns: Grouping 1, Grouping 2, Grouping 3, Grouping 4
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

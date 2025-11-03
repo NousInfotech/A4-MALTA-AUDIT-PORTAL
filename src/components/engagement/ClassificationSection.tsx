@@ -254,29 +254,13 @@ interface ETBRow {
 
   referenceData?: ReferenceData;
 
-}
+  grouping1?: string;
 
+  grouping2?: string;
 
+  grouping3?: string;
 
-interface ETBRow {
-
-  id: string;
-
-  code: string;
-
-  accountName: string;
-
-  currentYear: number;
-
-  priorYear: number;
-
-  adjustments: number;
-
-  finalBalance: number;
-
-  classification: string;
-
-  reference?: string;
+  grouping4?: string;
 
 }
 
