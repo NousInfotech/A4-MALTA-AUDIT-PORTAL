@@ -62,7 +62,11 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (!response.ok) throw new Error("Failed to fetch persons");
 
       const result = await response.json();
-      setPersons(result.data || []);
+      const next = result.data || [];
+      setPersons(next);
+      try {
+        window.dispatchEvent(new CustomEvent('persons-updated', { detail: next }));
+      } catch (_) {}
     } catch (error) {
       console.error("Error fetching persons:", error);
       toast({
@@ -114,6 +118,10 @@ export const PersonList: React.FC<PersonListProps> = ({
       setIsDeleteDialogOpen(false);
       setPersonToDelete(null);
       fetchPersons();
+      try {
+        const next = persons.filter(p => p._id !== personToDelete._id);
+        window.dispatchEvent(new CustomEvent('persons-updated', { detail: next }));
+      } catch (_) {}
       onUpdate();
     } catch (error) {
       console.error("Error deleting person:", error);
@@ -160,7 +168,7 @@ export const PersonList: React.FC<PersonListProps> = ({
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Persons</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Representatives</h3>
               <p className="text-sm text-gray-600">
                 Individuals associated with this company
               </p>

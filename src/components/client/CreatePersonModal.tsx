@@ -63,6 +63,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
 
   const isShareholderSelected = formData.roles.includes("ShareHolder");
   const [shareTotalError, setShareTotalError] = useState<string>("");
+  const [rolesError, setRolesError] = useState<string>("");
 
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[
@@ -133,6 +134,15 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
     }
   }, [formData.sharePercentage, isShareholderSelected, existingShareTotal]);
 
+  // Require at least one role
+  useEffect(() => {
+    if ((formData.roles || []).length === 0) {
+      setRolesError("Select at least one role.");
+    } else {
+      setRolesError("");
+    }
+  }, [formData.roles]);
+
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -187,6 +197,11 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // roles must have at least one selection
+    if ((formData.roles || []).length === 0) {
+      setRolesError("Select at least one role.");
+      return;
+    }
     // guard by local validation (no API calls)
     const newPct = isShareholderSelected ? parseFloat(formData.sharePercentage || "0") : 0;
     const projected = (existingShareTotal || 0) + (isNaN(newPct) ? 0 : newPct);
@@ -283,14 +298,15 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
                 setFormData({ ...formData, name: e.target.value })
               }
               required
-              className="rounded-xl border-gray-200"
+              className="rounded-xl border-gray-200 capitalize"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="address" className="text-gray-700 font-semibold">
-              Address
+              Address <span className="text-red-500">*</span>
             </Label>
+           
             <Textarea
               id="address"
               placeholder="Enter person address"
@@ -298,13 +314,14 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, address: e.target.value })
               }
-              className="rounded-xl border-gray-200"
+              className="rounded-xl border-gray-200 capitalize"
               rows={2}
+              required
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Roles</Label>
+            <Label className="text-gray-700 font-semibold">Roles <span className="text-red-500">*</span></Label>
             <div className="grid grid-cols-2 gap-4 mt-2">
               {ROLES.map((role) => (
                 <div key={role} className="flex items-center space-x-2">
@@ -325,6 +342,9 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
                 </div>
               ))}
             </div>
+            {rolesError && (
+              <p className="text-xs text-red-600 mt-1">{rolesError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -364,41 +384,40 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="sharePercentage"
-                className="text-gray-700 font-semibold"
-              >
-                Share Percentage
-              </Label>
-              <div className="relative">
-                <Input
-                  id="sharePercentage"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  placeholder="Enter share percentage"
-                  value={formData.sharePercentage}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sharePercentage: e.target.value })
-                  }
-                  disabled={!isShareholderSelected}
-                  className="rounded-xl border-gray-200 pr-8"
-                />
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm">%</span>
+            {isShareholderSelected && (
+              <div className="space-y-2">
+                <Label
+                  htmlFor="sharePercentage"
+                  className="text-gray-700 font-semibold"
+                >
+                  Share Percentage
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="sharePercentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="Enter share percentage"
+                    value={formData.sharePercentage}
+                    onChange={(e) =>
+                      setFormData({ ...formData, sharePercentage: e.target.value })
+                    }
+                    className="rounded-xl border-gray-200 pr-8"
+                    required
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm">%</span>
+                </div>
+                {shareTotalError && (
+                  <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
+                )}
               </div>
-              <p className="text-xs text-gray-500">
-                Only required if ShareHolder role is selected
-              </p>
-              {shareTotalError && (
-                <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
-              )}
-            </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="nationality" className="text-gray-700 font-semibold">
-                Nationality
+                Nationality <span className="text-red-500">*</span>
               </Label>
               <Select
                 value={formData.nationality}
@@ -476,7 +495,15 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
             </Button>
               <Button
               type="submit"
-              disabled={isSubmitting || !formData.name || !!shareTotalError}
+              disabled={
+                isSubmitting ||
+                !formData.name ||
+                !formData.address ||
+                !formData.nationality ||
+                (formData.roles || []).length === 0 ||
+                !!shareTotalError ||
+                (isShareholderSelected && !formData.sharePercentage)
+              }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
