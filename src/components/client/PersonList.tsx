@@ -166,14 +166,16 @@ export const PersonList: React.FC<PersonListProps> = ({
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => setIsCreateModalOpen(true)}
-            size="sm"
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Person
-          </Button>
+          {persons.length > 0 && (
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              size="sm"
+              className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Person
+            </Button>
+          )}
         </div>
 
         {/* Persons Grid */}
@@ -292,6 +294,11 @@ export const PersonList: React.FC<PersonListProps> = ({
         }}
         clientId={clientId}
         companyId={companyId}
+        existingShareTotal={(persons || []).reduce((acc, p) => {
+          const hasShare = Array.isArray(p?.roles) && p.roles.includes("ShareHolder");
+          const pct = typeof p?.sharePercentage === "number" ? p.sharePercentage : 0;
+          return acc + (hasShare ? pct : 0);
+        }, 0)}
       />
 
       {/* Edit Person Modal */}

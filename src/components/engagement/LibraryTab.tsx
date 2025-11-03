@@ -409,7 +409,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         <div className="flex items-center space-x-2 flex-1 min-w-0">
           <Folder className="h-4 w-4 text-yellow-600 flex-shrink-0" />
           <span
-            className="text-sm font-medium text-gray-700 truncate hover:underline text-blue-600 cursor-pointer block w-full"
+            className="text-sm font-medium text-gray-700 truncate hover:underline cursor-pointer block w-full"
             title={folder}
           >
             {folder}

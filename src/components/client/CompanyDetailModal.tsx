@@ -169,6 +169,9 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
                   <TabsTrigger value="persons" className="rounded-lg">
                     Persons ({fullCompanyData?.persons?.length || 0})
                   </TabsTrigger>
+                  <TabsTrigger value="persons" className="rounded-lg">
+                    
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="space-y-6 mt-6">

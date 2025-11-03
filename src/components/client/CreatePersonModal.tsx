@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,6 +28,7 @@ interface CreatePersonModalProps {
   onSuccess: () => void;
   clientId: string;
   companyId: string;
+  existingShareTotal: number;
 }
 
 const ROLES = [
@@ -38,6 +46,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
   onSuccess,
   clientId,
   companyId,
+  existingShareTotal,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -51,6 +60,78 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const isShareholderSelected = formData.roles.includes("ShareHolder");
+  const [shareTotalError, setShareTotalError] = useState<string>("");
+
+  const [nationalityOptions, setNationalityOptions] = useState<
+    { value: string; label: string; isEuropean: boolean }[
+  ]>([]);
+
+  useEffect(() => {
+    const fetchNationalities = async () => {
+      try {
+        const res = await fetch(
+          "https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json"
+        );
+        if (!res.ok) throw new Error("Failed to load nationalities");
+        const raw = await res.json();
+
+        const items: { value: string; label: string; isEuropean: boolean }[] = [];
+        const seen = new Set<string>();
+
+        (Array.isArray(raw) ? raw : []).forEach((entry: any) => {
+          const alpha2 = (entry?.cca2 || "").toUpperCase();
+          const region = entry?.region || ""; // e.g., "Europe"
+          const demonym = entry?.demonyms?.eng?.m || entry?.demonyms?.eng?.f || "";
+          const label = demonym || entry?.name?.common || "";
+          if (!label) return;
+          const key = label.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push({
+            value: label,
+            label,
+            isEuropean: region === "Europe",
+          });
+        });
+
+        items.sort((a, b) => {
+          if (a.isEuropean !== b.isEuropean) return a.isEuropean ? -1 : 1;
+          return a.label.localeCompare(b.label);
+        });
+
+        setNationalityOptions(items);
+      } catch (e) {
+        console.error(e);
+        const fallback = [
+          { value: "Maltese", label: "Maltese", isEuropean: true },
+          { value: "Italian", label: "Italian", isEuropean: true },
+          { value: "French", label: "French", isEuropean: true },
+          { value: "German", label: "German", isEuropean: true },
+          { value: "Spanish", label: "Spanish", isEuropean: true },
+          { value: "British", label: "British", isEuropean: true },
+          { value: "American", label: "American", isEuropean: false },
+          { value: "Canadian", label: "Canadian", isEuropean: false },
+          { value: "Australian", label: "Australian", isEuropean: false },
+        ];
+        setNationalityOptions(fallback);
+      }
+    };
+
+    fetchNationalities();
+  }, []);
+
+  // Local validation using existingShareTotal from parent (no API)
+  useEffect(() => {
+    const newPct = isShareholderSelected ? parseFloat(formData.sharePercentage || "0") : 0;
+    const projected = (existingShareTotal || 0) + (isNaN(newPct) ? 0 : newPct);
+    if (projected > 100) {
+      setShareTotalError(`Total share would be ${projected}%, which exceeds 100%.`);
+    } else {
+      setShareTotalError("");
+    }
+  }, [formData.sharePercentage, isShareholderSelected, existingShareTotal]);
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -106,6 +187,14 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // guard by local validation (no API calls)
+    const newPct = isShareholderSelected ? parseFloat(formData.sharePercentage || "0") : 0;
+    const projected = (existingShareTotal || 0) + (isNaN(newPct) ? 0 : newPct);
+    if (projected > 100) {
+      setShareTotalError(`Total share would be ${projected}%, which exceeds 100%.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -282,37 +371,50 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
               >
                 Share Percentage
               </Label>
-              <Input
-                id="sharePercentage"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                placeholder="Enter share percentage"
-                value={formData.sharePercentage}
-                onChange={(e) =>
-                  setFormData({ ...formData, sharePercentage: e.target.value })
-                }
-                className="rounded-xl border-gray-200"
-              />
+              <div className="relative">
+                <Input
+                  id="sharePercentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  placeholder="Enter share percentage"
+                  value={formData.sharePercentage}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sharePercentage: e.target.value })
+                  }
+                  disabled={!isShareholderSelected}
+                  className="rounded-xl border-gray-200 pr-8"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm">%</span>
+              </div>
               <p className="text-xs text-gray-500">
                 Only required if ShareHolder role is selected
               </p>
+              {shareTotalError && (
+                <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="nationality" className="text-gray-700 font-semibold">
                 Nationality
               </Label>
-              <Input
-                id="nationality"
-                placeholder="Enter nationality"
+              <Select
                 value={formData.nationality}
-                onChange={(e) =>
-                  setFormData({ ...formData, nationality: e.target.value })
-                }
-                className="rounded-xl border-gray-200"
-              />
+                onValueChange={(v) => setFormData({ ...formData, nationality: v })}
+              >
+                <SelectTrigger id="nationality" className="rounded-xl border-gray-200">
+                  <SelectValue placeholder="Select nationality" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {nationalityOptions.map((opt) => (
+                    <SelectItem key={opt.label} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -372,9 +474,9 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
             >
               Cancel
             </Button>
-            <Button
+              <Button
               type="submit"
-              disabled={isSubmitting || !formData.name}
+                disabled={isSubmitting || !formData.name || !!shareTotalError}
               className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
             >
               {isSubmitting ? (
