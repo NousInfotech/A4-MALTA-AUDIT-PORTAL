@@ -141,11 +141,10 @@ export const PersonList: React.FC<PersonListProps> = ({
   };
 
   const getRoleBadgeVariant = (role: string) => {
-    if (role === "ShareHolder") return "bg-blue-100 text-blue-700 border-blue-200";
+    if (role === "Shareholder") return "bg-blue-100 text-blue-700 border-blue-200";
     if (role === "Director") return "bg-green-100 text-green-700 border-green-200";
-    if (role === "Judicial") return "bg-purple-100 text-purple-700 border-purple-200";
-    if (role === "Representative") return "bg-amber-100 text-amber-700 border-amber-200";
-    if (role === "LegalRepresentative") return "bg-red-100 text-red-700 border-red-200";
+    if (role === "Judicial Representative") return "bg-amber-100 text-amber-700 border-amber-200";
+    if (role === "Legal Representative") return "bg-red-100 text-red-700 border-red-200";
     if (role === "Secretary") return "bg-gray-100 text-gray-700 border-gray-200";
     return "bg-gray-100 text-gray-700 border-gray-200";
   };
@@ -309,7 +308,9 @@ export const PersonList: React.FC<PersonListProps> = ({
         clientId={clientId}
         companyId={companyId}
         existingShareTotal={(persons || []).reduce((acc, p) => {
-          const hasShare = Array.isArray(p?.roles) && p.roles.includes("ShareHolder");
+          const hasShare = Array.isArray(p?.roles) && (
+            p.roles.includes("Shareholder")
+          );
           const pct = typeof p?.sharePercentage === "number" ? p.sharePercentage : 0;
           return acc + (hasShare ? pct : 0);
         }, 0)}
