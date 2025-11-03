@@ -920,7 +920,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           priorYear: Number(row[priorYearIndex]) || 0,
           adjustments,
           finalBalance: currentYear + adjustments,
-          classification: autoClassify(accountName),
+          classification: "",
         };
       });
 
