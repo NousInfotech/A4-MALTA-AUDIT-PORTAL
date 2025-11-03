@@ -178,7 +178,7 @@ export const SignupPage = () => {
             </div>
             
             <div className="space-y-3">
-              <h1 className="text-4xl font-bold text-gray-900 leading-tight">
+              <h1 className="text-4xl font-bold text-brand-body leading-tight">
                 Create your account
               </h1>
               <p className="text-gray-600 text-lg">
@@ -273,7 +273,7 @@ export const SignupPage = () => {
                     <div className="w-8 h-8 bg-gray-700 rounded-xl flex items-center justify-center">
                       <Building2 className="h-4 w-4 text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800">Company Information</h3>
+                    <h3 className="text-lg font-semibold text-brand-body">Company Information</h3>
                   </div>
                   
                   <div className="space-y-3">

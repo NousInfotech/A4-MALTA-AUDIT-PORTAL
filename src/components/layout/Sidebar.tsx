@@ -251,7 +251,10 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
               />
             </div>
             {/* Subtle glow effect */}
-            <div className="absolute inset-0 bg-white/5 rounded-2xl blur-sm"></div>
+            <div 
+              className="absolute inset-0 rounded-2xl blur-sm"
+              style={{ backgroundColor: `hsl(var(--sidebar-foreground) / 0.05)` }}
+            ></div>
           </div>
           
           <div className={cn(
@@ -288,10 +291,16 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
         >
           <div className="w-5 h-5 relative">
             <div className="absolute inset-0 rotate-45">
-              <div className="w-0.5 h-5 bg-white rounded-full"></div>
+              <div 
+                className="w-0.5 h-5 rounded-full"
+                style={{ backgroundColor: `hsl(var(--sidebar-foreground))` }}
+              ></div>
             </div>
             <div className="absolute inset-0 -rotate-45">
-              <div className="w-0.5 h-5 bg-white rounded-full"></div>
+              <div 
+                className="w-0.5 h-5 rounded-full"
+                style={{ backgroundColor: `hsl(var(--sidebar-foreground))` }}
+              ></div>
             </div>
           </div>
         </button>

@@ -194,7 +194,7 @@ export const BrandingSettings: React.FC = () => {
     <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Branding Settings</h1>
-        <p className="text-muted-foreground">
+        <p className="text-brand-body">
           Customize your portal's appearance with your brand colors and logo
         </p>
       </div>

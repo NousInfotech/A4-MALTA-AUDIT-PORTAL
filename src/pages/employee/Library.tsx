@@ -304,8 +304,8 @@ export default function GlobalLibraryPage() {
               <Library className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 animate-fade-in">Global Document Library</h1>
-              <p className="text-gray-700 animate-fade-in-delay">Company-wide folders and documents</p>
+              <h1 className="text-3xl font-semibold text-brand-body animate-fade-in">Global Document Library</h1>
+              <p className="text-brand-body animate-fade-in-delay">Company-wide folders and documents</p>
             </div>
           </div>
         </div>

@@ -370,8 +370,8 @@ export const UserManagement = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">User Management</h1>
-          <p className="text-gray-700">Manage user registrations, approvals, and account status</p>
+          <h1 className="text-3xl font-semibold text-brand-body mb-2">User Management</h1>
+          <p className="text-brand-body">Manage user registrations, approvals, and account status</p>
                 </div>
 
         {/* Action Buttons */}

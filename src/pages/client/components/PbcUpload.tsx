@@ -71,7 +71,7 @@ function PbcUpload({
 
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-      <h2 className="text-3xl font-extrabold text-gray-900 mb-8 text-center">
+      <h2 className="text-3xl font-extrabold text-brand-body mb-8 text-center">
         PBC Document Management
       </h2>
       {pbcRequests.length === 0 ? (

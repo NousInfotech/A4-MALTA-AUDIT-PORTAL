@@ -104,8 +104,8 @@ export const ClientDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Welcome to Your Client Portal</h1>
-          <p className="text-gray-700">Track your audit engagements and document requests.</p>
+          <h1 className="text-3xl font-semibold text-brand-body mb-2">Welcome to Your Client Portal</h1>
+          <p className="text-brand-body">Track your audit engagements and document requests.</p>
       </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

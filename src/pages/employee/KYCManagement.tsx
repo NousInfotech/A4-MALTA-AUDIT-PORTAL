@@ -232,8 +232,8 @@ export function KYCManagement() {
               <Shield className="h-8 w-8 text-gray-800" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">KYC Management</h1>
-              <p className="text-gray-700">Manage Know Your Client workflows</p>
+              <h1 className="text-3xl font-bold text-brand-body">KYC Management</h1>
+              <p className="text-brand-body">Manage Know Your Client workflows</p>
             </div>
           </div>
           <Button 
