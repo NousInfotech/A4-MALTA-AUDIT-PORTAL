@@ -48,7 +48,7 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       href: "/admin",
       icon: BarChart3,
       color: "text-gray-800",
-      bgColor: "bg-gray-900",
+      bgColor: "bg-brand-sidebar",
       percentage: 100,
       description: "Admin Overview & Analytics"
     },
@@ -57,14 +57,14 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       href: "/admin/users",
       icon: Users,
       color: "text-gray-700",
-      bgColor: "bg-gray-800",
+      bgColor: "bg-brand-hover",
       percentage: 85,
       description: "Manage All Users",
       subPages: [
-        { title: "All Users", href: "/admin/users", icon: Users, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 85, description: "View all users" },
-        { title: "Pending Approvals", href: "/admin/users?filter=pending", icon: Clock, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 60, description: "Awaiting approval" },
-        { title: "Approved Users", href: "/admin/users?filter=approved", icon: UserCheck, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 90, description: "Active users" },
-        { title: "Rejected Users", href: "/admin/users?filter=rejected", icon: UserX, color: "text-gray-700", bgColor: "bg-gray-800", percentage: 15, description: "Rejected accounts" }
+        { title: "All Users", href: "/admin/users", icon: Users, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 85, description: "View all users" },
+        { title: "Pending Approvals", href: "/admin/users?filter=pending", icon: Clock, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 60, description: "Awaiting approval" },
+        { title: "Approved Users", href: "/admin/users?filter=approved", icon: UserCheck, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 90, description: "Active users" },
+        { title: "Rejected Users", href: "/admin/users?filter=rejected", icon: UserX, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 15, description: "Rejected accounts" }
       ]
     },
     {
@@ -72,7 +72,7 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       href: "/admin/logs",
       icon: FileText,
       color: "text-gray-800",
-      bgColor: "bg-gray-900",
+      bgColor: "bg-brand-sidebar",
       percentage: 95,
       description: "System Activity Logs"
     },
@@ -81,7 +81,7 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       href: "/admin/isqm",
       icon: Shield,
       color: "text-gray-700",
-      bgColor: "bg-gray-800",
+      bgColor: "bg-brand-hover",
       percentage: 70,
       description: "Quality Management",
       badge: "New"
@@ -151,7 +151,7 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
                   {item.title}
                 </h4>
                 {item.badge && (
-                  <span className="px-2 py-0.5 bg-gray-800/20 text-gray-800 text-xs rounded-full font-medium">
+                  <span className="px-2 py-0.5 bg-brand-hover/20 text-gray-800 text-xs rounded-full font-medium">
                     {item.badge}
                   </span>
                 )}

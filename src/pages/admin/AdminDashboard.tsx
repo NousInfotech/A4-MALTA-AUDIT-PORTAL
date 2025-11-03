@@ -401,7 +401,7 @@ import {
   };
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -462,10 +462,10 @@ import {
               {/* Circular Progress Charts */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
                 {[
-                  { status: 'Pending', count: pendingUsers.length, total: users.length, color: 'text-gray-700', bgColor: 'bg-gray-800', ringColor: 'ring-gray-800/20' },
+                  { status: 'Pending', count: pendingUsers.length, total: users.length, color: 'text-gray-700', bgColor: 'bg-brand-hover', ringColor: 'ring-gray-800/20' },
                   { status: 'Approved', count: approvedUsers.length, total: users.length, color: 'text-gray-600', bgColor: 'bg-gray-700', ringColor: 'ring-gray-700/20' },
                   { status: 'Rejected', count: users.filter(u => u.status === 'rejected').length, total: users.length, color: 'text-gray-500', bgColor: 'bg-gray-600', ringColor: 'ring-gray-600/20' },
-                  { status: 'Total', count: users.length, total: users.length, color: 'text-gray-800', bgColor: 'bg-gray-900', ringColor: 'ring-gray-900/20' }
+                  { status: 'Total', count: users.length, total: users.length, color: 'text-gray-800', bgColor: 'bg-brand-sidebar', ringColor: 'ring-gray-900/20' }
                 ].map((item, index) => {
                   const percentage = users.length > 0 ? (item.count / item.total) * 100 : 0;
                   const circumference = 2 * Math.PI * 30;
@@ -514,7 +514,7 @@ import {
                 <h4 className="text-sm font-medium text-gray-800 mb-4">User Status Distribution</h4>
                 <div className="space-y-3">
                   {[
-                    { status: 'Pending', count: pendingUsers.length, color: 'bg-gray-800', percentage: users.length > 0 ? (pendingUsers.length / users.length) * 100 : 0 },
+                    { status: 'Pending', count: pendingUsers.length, color: 'bg-brand-hover', percentage: users.length > 0 ? (pendingUsers.length / users.length) * 100 : 0 },
                     { status: 'Approved', count: approvedUsers.length, color: 'bg-gray-700', percentage: users.length > 0 ? (approvedUsers.length / users.length) * 100 : 0 },
                     { status: 'Rejected', count: users.filter(u => u.status === 'rejected').length, color: 'bg-gray-600', percentage: users.length > 0 ? (users.filter(u => u.status === 'rejected').length / users.length) * 100 : 0 }
                   ].map((item, index) => (
@@ -562,7 +562,7 @@ import {
                     className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                      <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                         <Users className="h-4 w-4 text-white" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -609,7 +609,7 @@ import {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction 
                               onClick={() => handleApprove(user.id)}
-                              className="bg-gray-800 text-white hover:bg-gray-900"
+                              className="bg-brand-hover text-white hover:bg-brand-active"
                             >
                               Approve
                             </AlertDialogAction>
@@ -646,7 +646,7 @@ import {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleReject(user.id)}
-                              className="bg-gray-800 text-white hover:bg-gray-900"
+                              className="bg-brand-hover text-white hover:bg-brand-active"
                             >
                               Reject
                             </AlertDialogAction>
@@ -676,7 +676,7 @@ import {
                     className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                      <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
                         <Activity className="h-4 w-4 text-white" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -707,7 +707,13 @@ import {
             </div>
 
             {/* System Overview */}
-            <div className="bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-2xl p-6">
+            <div 
+              className="backdrop-blur-md border rounded-2xl p-6"
+              style={{ 
+                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
+                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+              }}
+            >
               <h3 className="text-lg font-semibold text-white mb-2">System Overview</h3>
               <p className="text-gray-300 mb-4">
                 {pendingUsers.length > 0 ? `${pendingUsers.length} pending approval${pendingUsers.length !== 1 ? 's' : ''}` : 'All users processed'}
@@ -755,7 +761,13 @@ import {
             </div>
 
             {/* Admin Status */}
-            <div className="bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-2xl p-6">
+            <div 
+              className="backdrop-blur-md border rounded-2xl p-6"
+              style={{ 
+                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
+                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+              }}
+            >
               <div className="flex items-center space-x-2 mb-2">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
                 <span className="text-white font-medium">

@@ -53,7 +53,7 @@ export const ParentSelection: React.FC<ParentSelectionProps> = ({
           <div className="flex gap-2">
             <Button 
               onClick={onCreateNewPack}
-              className="bg-gray-800 hover:bg-gray-900 text-white"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create New

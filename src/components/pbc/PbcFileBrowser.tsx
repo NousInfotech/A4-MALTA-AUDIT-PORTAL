@@ -79,7 +79,7 @@
 //                             ${
 //                               selectedFolderId === folder.id
 //                                 ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100"
-//                                 : "hover:bg-gray-50 dark:hover:bg-gray-800"
+//                                 : "hover:bg-gray-50 dark:hover:bg-brand-hover"
 //                             }`}
 //                 onClick={() => {
 //                   setSelectedFolderId(folder.id);
@@ -116,7 +116,7 @@
 //                               ${
 //                                 selectedFileId === file.id
 //                                   ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100"
-//                                   : "hover:bg-gray-50 dark:hover:bg-gray-800"
+//                                   : "hover:bg-gray-50 dark:hover:bg-brand-hover"
 //                               }`}
 //                   onClick={() => setSelectedFileId(file.id)}
 //                 >
@@ -257,7 +257,7 @@ export function PbcFileBrowser({ engagementId }: PbcFileBrowserProps) {
                             ${
                               selectedFolderId === folder.id
                                 ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100"
-                                : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                                : "hover:bg-gray-50 dark:hover:bg-brand-hover"
                             }`}
                 onClick={() => {
                   setSelectedFolderId(folder.id);
@@ -294,7 +294,7 @@ export function PbcFileBrowser({ engagementId }: PbcFileBrowserProps) {
                               ${
                                 selectedFileId === file.id
                                   ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100"
-                                  : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                                  : "hover:bg-gray-50 dark:hover:bg-brand-hover"
                               }`}
                   onClick={() => setSelectedFileId(file.id)}
                 >

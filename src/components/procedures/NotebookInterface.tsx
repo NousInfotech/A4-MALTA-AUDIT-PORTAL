@@ -371,7 +371,7 @@ const NotebookInterface: React.FC<NotebookInterfaceProps> = ({
       <div
         className={cn(
           'fixed inset-4 z-50 max-w-4xl mx-auto',
-          'bg-amber-50 border border-amber-200 rounded-2xl shadow-2xl',
+          ' bg-brand-body border border-amber-200 rounded-2xl shadow-2xl',
           'transform transition-all duration-500 ease-out',
           isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
           !dismissible && 'relative inset-0 max-w-none mx-0 shadow-none'

@@ -91,7 +91,7 @@ const getButtonClass = (action: string) => {
     case "reopen":
       return "bg-orange-600 hover:bg-orange-700 text-white shadow-md";
     default:
-      return "bg-gray-800 hover:bg-gray-900 text-white dark:bg-gray-600 dark:hover:bg-gray-700 shadow-md";
+      return "bg-brand-hover hover:bg-brand-sidebar text-white dark:bg-gray-600 dark:hover:bg-gray-700 shadow-md";
   }
 };
 
@@ -171,7 +171,7 @@ const ReviewItemCard: React.FC<ReviewItemCardProps> = ({
           </p>
         )}
       </CardContent>
-      <CardFooter className="flex gap-2 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+      <CardFooter className="flex gap-2 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-brand-hover">
         {availableActions.map((action) => (
           <Button
             key={action.action}

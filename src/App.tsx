@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { ReviewNotesProvider } from "@/contexts/ReviewNotesContext";
+import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
@@ -19,6 +20,7 @@ import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { UserManagement } from "@/pages/admin/UserManagement";
 import { AuditorLogs } from "@/pages/admin/AuditorLogs";
 import AdminISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
+import BrandingSettings from "@/pages/admin/BrandingSettings";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -62,11 +64,12 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <DataProvider>
-      <SidebarStatsProvider>  
-        <ReviewNotesProvider>
-          <TooltipProvider>
+    <BrandingProvider>
+      <AuthProvider>
+        <DataProvider>
+        <SidebarStatsProvider>  
+          <ReviewNotesProvider>
+            <TooltipProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
@@ -94,6 +97,7 @@ const App = () => (
                 <Route path="users" element={<UserManagement />} />
                 <Route path="logs" element={<AuditorLogs />} />
                 <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
+                <Route path="branding" element={<BrandingSettings />} />
               </Route>
 
               {/* Employee Routes */}
@@ -147,11 +151,12 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
-          </TooltipProvider>
-        </ReviewNotesProvider>
-        </SidebarStatsProvider>
-      </DataProvider>
-    </AuthProvider>
+            </TooltipProvider>
+          </ReviewNotesProvider>
+          </SidebarStatsProvider>
+        </DataProvider>
+      </AuthProvider>
+    </BrandingProvider>
   </QueryClientProvider>
 );
 

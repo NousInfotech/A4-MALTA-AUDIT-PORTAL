@@ -94,8 +94,8 @@ export const AnalyticalReviewSection: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
-      <Card className="shadow-lg rounded-xl overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-        <CardHeader className="bg-gray-50 dark:bg-gray-800 p-6 border-b border-gray-200 dark:border-gray-700">
+      <Card className="shadow-lg rounded-xl overflow-hidden bg-white dark:bg-brand-sidebar border border-gray-200 dark:border-gray-800">
+        <CardHeader className="bg-gray-50 dark:bg-brand-hover p-6 border-b border-gray-200 dark:border-gray-700">
           <CardTitle className="flex items-center gap-3 text-2xl font-bold text-gray-900 dark:text-gray-50">
             <LineChart className="w-7 h-7 text-primary dark:text-primary-foreground" aria-label="Line Chart Icon" />
             Final Analytical Review & Audit Report
@@ -126,7 +126,7 @@ export const AnalyticalReviewSection: React.FC = () => {
           />
         </CardContent>
 
-        <CardFooter className="p-6 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+        <CardFooter className="p-6 bg-gray-50 dark:bg-brand-hover border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
           Audit Report Generator v1.0 &copy; {new Date().getFullYear()}
         </CardFooter>
       </Card>

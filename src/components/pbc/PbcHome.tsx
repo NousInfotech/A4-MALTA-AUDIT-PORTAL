@@ -34,7 +34,7 @@ function PbcHome({ selectedEngagement }) {
   };
 
   return (
-    <div className="min-h-screen bg-amber-50">
+    <div className="min-h-screen bg-brand-body">
       {/* Header */}
       <header className="bg-white/60 backdrop-blur-md border-b border-white/30 shadow-lg shadow-gray-300/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -100,7 +100,7 @@ export const ClientDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -193,7 +193,7 @@ export const ClientDashboard = () => {
                         </span>
                     </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        engagement.status === "active" ? "bg-gray-800 text-white" :
+                        engagement.status === "active" ? "bg-brand-hover text-white" :
                         engagement.status === "completed" ? "bg-gray-700 text-white" :
                         "bg-gray-600 text-white"
                       }`}>
@@ -243,7 +243,7 @@ export const ClientDashboard = () => {
                       {new Date(request.requestedAt).toLocaleDateString()}
                     </span>
                   </div>
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-800 text-white">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-brand-hover text-white">
                         Pending
                       </span>
                     </div>
@@ -259,7 +259,13 @@ export const ClientDashboard = () => {
       </div>
 
       {/* User Information */}
-            <div className="bg-gray-900/80 backdrop-blur-md border border-gray-800/50 rounded-2xl p-6">
+            <div 
+              className="backdrop-blur-md border rounded-2xl p-6"
+              style={{ 
+                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
+                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+              }}
+            >
               <h3 className="text-lg font-semibold text-white mb-2">Account Information</h3>
               <p className="text-gray-300 mb-4">
                 Welcome to your client portal. Track your audit engagements and manage document requests.

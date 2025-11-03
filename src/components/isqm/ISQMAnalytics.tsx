@@ -302,7 +302,7 @@ export const ISQMAnalytics: React.FC<ISQMAnalyticsProps> = ({ parentId }) => {
                 <p className="text-2xl font-bold text-gray-900">{analytics.overall.completionRate.toFixed(1)}%</p>
                 <p className="text-xs text-gray-600">{analytics.overall.answeredQuestions} of {analytics.overall.totalQuestions} questions</p>
               </div>
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Target className="w-5 h-5 text-white" />
               </div>
             </div>
@@ -317,7 +317,7 @@ export const ISQMAnalytics: React.FC<ISQMAnalyticsProps> = ({ parentId }) => {
                 <p className="text-2xl font-bold text-gray-900">{analytics.overall.documentCompletionRate.toFixed(1)}%</p>
                 <p className="text-xs text-gray-600">{analytics.overall.approvedDocuments} of {analytics.overall.totalDocuments} documents</p>
               </div>
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <CheckCircle className="w-5 h-5 text-white" />
               </div>
             </div>
@@ -332,7 +332,7 @@ export const ISQMAnalytics: React.FC<ISQMAnalyticsProps> = ({ parentId }) => {
                 <p className="text-2xl font-bold text-gray-900">{questionnaires.length}</p>
                 <p className="text-xs text-gray-600">Active questionnaires</p>
               </div>
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <FileText className="w-5 h-5 text-white" />
               </div>
             </div>
@@ -347,7 +347,7 @@ export const ISQMAnalytics: React.FC<ISQMAnalyticsProps> = ({ parentId }) => {
                 <p className="text-2xl font-bold text-gray-900">{analytics.bySection.length}</p>
                 <p className="text-xs text-gray-600">Total sections</p>
               </div>
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
             </div>

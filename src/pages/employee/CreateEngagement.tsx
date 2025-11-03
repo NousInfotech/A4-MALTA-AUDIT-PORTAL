@@ -294,7 +294,7 @@ const [clients, setClients] = useState<User[]>([])
   };
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -308,7 +308,7 @@ const [clients, setClients] = useState<User[]>([])
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -323,7 +323,7 @@ const [clients, setClients] = useState<User[]>([])
         <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -340,7 +340,7 @@ const [clients, setClients] = useState<User[]>([])
               {/* Client Selection */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
                     <Users className="h-4 w-4 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">Client Selection</h3>
@@ -376,7 +376,7 @@ const [clients, setClients] = useState<User[]>([])
               {/* Engagement Details */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
                     <Briefcase className="h-4 w-4 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">Engagement Information</h3>
@@ -420,7 +420,7 @@ const [clients, setClients] = useState<User[]>([])
               {/* Next Steps */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-gray-800 rounded-xl flex items-center justify-center">
+                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
                     <FileText className="h-4 w-4 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">Next Steps</h3>
@@ -430,7 +430,7 @@ const [clients, setClients] = useState<User[]>([])
                   <h4 className="font-semibold text-gray-900 mb-4 text-lg">After creating this engagement:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
+                      <div className="w-6 h-6 bg-brand-hover rounded-full flex items-center justify-center">
                         <CheckCircle className="h-3 w-3 text-white" />
                       </div>
                       <span className="text-sm text-gray-700">Upload trial balance data</span>
@@ -462,7 +462,7 @@ const [clients, setClients] = useState<User[]>([])
                 <Button 
                   type="submit" 
                   disabled={isSubmitting || clients.length === 0}
-                  className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                   Create Engagement

@@ -372,7 +372,7 @@ export const KYCEnhancedManagement = ({
   return (
     <div className="space-y-6">
       {/* {!engagementId && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-amber-200 bg-brand-body">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600" />
@@ -392,7 +392,7 @@ export const KYCEnhancedManagement = ({
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -420,7 +420,7 @@ export const KYCEnhancedManagement = ({
                   engagementName={`Engagement ${engagementId}`}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-gray-800 hover:bg-gray-900 text-white">
+                    <Button className="bg-brand-hover hover:bg-brand-sidebar text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       Create KYC
                     </Button>
@@ -501,7 +501,7 @@ export const KYCEnhancedManagement = ({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gray-800 rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-brand-hover rounded-2xl flex items-center justify-center shadow-lg">
                       <FileText className="h-6 w-6 text-white" />
                     </div>
                     <div>
@@ -644,7 +644,7 @@ export const KYCEnhancedManagement = ({
                         {selectedKYC.status !== 'completed' && (
                           <Button
                             size="sm"
-                            className="bg-gray-800 hover:bg-gray-900 text-white"
+                            className="bg-brand-hover hover:bg-brand-sidebar text-white"
                             onClick={() => handleStatusUpdate(selectedKYC._id, 'completed')}
                           >
                             <CheckCircle className="h-4 w-4 mr-1" />
@@ -883,7 +883,7 @@ export const KYCEnhancedManagement = ({
                               : 'bg-white border-l-4 border-gray-500'
                           }`}>
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={discussion.role === 'auditor' ? 'default' : 'secondary'} className={discussion.role === 'auditor' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}>
+                              <Badge variant={discussion.role === 'auditor' ? 'default' : 'secondary'} className={discussion.role === 'auditor' ? 'bg-brand-hover text-white' : 'bg-gray-200 text-gray-800'}>
                                 {discussion.role === 'auditor' ? 'Auditor' : 'Client'}
                               </Badge>
                               <span className="text-sm text-gray-700">
@@ -913,7 +913,7 @@ export const KYCEnhancedManagement = ({
                           <Button
                             onClick={handleSendMessage}
                             disabled={!newMessage.trim() || sendingMessage}
-                            className="bg-gray-800 hover:bg-gray-900 text-white"
+                            className="bg-brand-hover hover:bg-brand-sidebar text-white"
                           >
                             {sendingMessage ? (
                               <>

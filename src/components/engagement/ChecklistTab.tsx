@@ -287,7 +287,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 <CardDescription className="text-gray-700">Complete audit checklist to track progress through all phases</CardDescription>
               </div>
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: "spring" }}>
-                <Badge variant="outline" className="text-lg px-4 py-2 bg-gray-800 text-white border-gray-800 rounded-xl">
+                <Badge variant="outline" className="text-lg px-4 py-2 bg-brand-hover text-white border-gray-800 rounded-xl">
                   {done}/{total} ({pct}%)
                 </Badge>
               </motion.div>
@@ -305,7 +305,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                   transition={{ delay: categoryIndex * 0.1 }}
                 >
                   <motion.div
-                    className="bg-gray-800 text-white p-3 font-semibold rounded-xl shadow-lg"
+                    className="bg-brand-hover text-white p-3 font-semibold rounded-xl shadow-lg"
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >

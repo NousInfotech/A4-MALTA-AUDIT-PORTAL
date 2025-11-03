@@ -134,7 +134,7 @@ export const PromptManagement = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-amber-50 p-6">
+            <div className="min-h-screen  bg-brand-body p-6">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex items-center justify-center h-64">
                         <EnhancedLoader size="lg" text="Loading prompts..." />
@@ -145,7 +145,7 @@ export const PromptManagement = () => {
     }
 
     return (
-        <div className="min-h-screen bg-amber-50 p-6">
+        <div className="min-h-screen  bg-brand-body p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
@@ -311,7 +311,7 @@ export const PromptManagement = () => {
                                                 <Button
                                                     onClick={() => savePrompt(editingPrompt)}
                                                     disabled={saving === prompt._id}
-                                                    className="rounded-xl bg-gray-900 text-white hover:bg-gray-800"
+                                                    className="rounded-xl bg-brand-sidebar text-white hover:bg-brand-hover"
                                                 >
                                                     {saving === prompt._id ? (
                                                         <>

@@ -33,11 +33,11 @@ import PbcManager from "./PbcManager";
 import { Separator } from "../ui/separator";
 
 const statusColors = {
-  "document-collection": "bg-gray-800",
+  "document-collection": "bg-brand-hover",
   "qna-preparation": "bg-gray-700",
   "client-responses": "bg-gray-600",
   "doubt-resolution": "bg-gray-500",
-  submitted: "bg-gray-900",
+  submitted: "bg-brand-sidebar",
 };
 
 const documentStatusColors = {
@@ -219,7 +219,7 @@ export function PbcDocuments({
   console.log("currentPBC-DATA", currentEngagementPBC);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[95vw] h-[95vh] p-6 bg-amber-50 rounded-lg shadow-xl flex flex-col">
+      <DialogContent className="min-w-[95vw] h-[95vh] p-6  bg-brand-body rounded-lg shadow-xl flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gray-900">
             All PBC Documents for{" "}
@@ -232,7 +232,7 @@ export function PbcDocuments({
           <div className="flex justify-end">
             <Button
               onClick={() => setShowCreateDialog(true)}
-              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl transform hover:-translate-y-1"
+              className="flex items-center gap-2 bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl transform hover:-translate-y-1"
               disabled={!selectedEngagement || documentRequests.length === 0}
             >
               <Plus className="h-4 w-4 transform hover:scale-110 transition-transform duration-200" />

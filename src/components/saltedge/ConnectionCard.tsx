@@ -139,7 +139,7 @@ const ConnectionCard: React.FC<ConnectionCardProps> = ({ connection, onSelect })
         {/* Header */}
         <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-lg flex items-center justify-center">
               <Building2 className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">

@@ -156,7 +156,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -169,7 +169,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           <Button
             onClick={() => setIsCreateModalOpen(true)}
             size="sm"
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
+            className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Person
@@ -272,7 +272,7 @@ export const PersonList: React.FC<PersonListProps> = ({
             <p className="text-gray-600 mb-4">No persons yet</p>
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Person

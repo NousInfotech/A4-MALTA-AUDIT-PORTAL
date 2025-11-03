@@ -117,7 +117,7 @@ export const PortalAnalytics: React.FC = () => {
       percentage: analyticsData.completionRate,
       icon: CheckCircle,
       color: "text-gray-800",
-      bgColor: "bg-gray-900",
+      bgColor: "bg-brand-sidebar",
       ringColor: "ring-gray-900/20",
       description: `${analyticsData.completedEngagements} of ${analyticsData.totalEngagements} completed`,
       trend: analyticsData.completionRate > 70 ? "+12%" : "-3%",
@@ -128,7 +128,7 @@ export const PortalAnalytics: React.FC = () => {
       percentage: analyticsData.totalClients > 0 ? Math.min((analyticsData.newClientsThisMonth / analyticsData.totalClients) * 100, 100) : 0,
       icon: Users,
       color: "text-gray-700",
-      bgColor: "bg-gray-800",
+      bgColor: "bg-brand-hover",
       ringColor: "ring-gray-800/20",
       description: `${analyticsData.newClientsThisMonth} new clients this month`,
       trend: analyticsData.newClientsThisMonth > 0 ? "+25%" : "0%",
@@ -168,8 +168,8 @@ export const PortalAnalytics: React.FC = () => {
           </div>
           <h3 className="text-lg font-semibold text-gray-900">Analytics</h3>
         </div>
-        <div className="flex items-center space-x-1 px-2 py-1 bg-gray-800/20 rounded-full">
-          <div className="w-1.5 h-1.5 bg-gray-800 rounded-full animate-pulse"></div>
+        <div className="flex items-center space-x-1 px-2 py-1 bg-brand-hover/20 rounded-full">
+          <div className="w-1.5 h-1.5 bg-brand-hover rounded-full animate-pulse"></div>
           <span className="text-xs text-gray-800">Live</span>
         </div>
       </div>

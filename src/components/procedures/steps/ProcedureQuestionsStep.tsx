@@ -536,7 +536,7 @@ export const ProcedureQuestionsStep: React.FC<ProcedureQuestionsStepProps> = ({
                   <SelectItem
                     key={bucket}
                     value={`section-${index}`}
-                    className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                    className="bg-white data-[state=checked]:bg-brand-sidebar data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
                   >
                     {formatClassificationForDisplay(bucket)}
                   </SelectItem>

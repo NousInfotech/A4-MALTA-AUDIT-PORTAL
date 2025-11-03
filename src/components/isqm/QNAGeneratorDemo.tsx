@@ -84,7 +84,7 @@ export default function QNAGeneratorDemo() {
       <Card className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <CardTitle className="flex items-center gap-2 text-gray-900">
-            <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             QNA to Policy/Procedure Generator
@@ -201,7 +201,7 @@ export default function QNAGeneratorDemo() {
           <Button
             onClick={handleGenerate}
             disabled={isGenerating || !categoryName.trim()}
-            className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            className="w-full bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
             size="lg"
           >
             {isGenerating ? (
@@ -238,7 +238,7 @@ export default function QNAGeneratorDemo() {
                       <Button
                         onClick={() => handleDownload(generatedDocuments.documents.policy.pdfFilename)}
                         size="sm"
-                        className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                        className="w-full bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Policy PDF
@@ -256,7 +256,7 @@ export default function QNAGeneratorDemo() {
                       <Button
                         onClick={() => handleDownload(generatedDocuments.documents.procedure.pdfFilename)}
                         size="sm"
-                        className="w-full bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                        className="w-full bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download Procedure PDF

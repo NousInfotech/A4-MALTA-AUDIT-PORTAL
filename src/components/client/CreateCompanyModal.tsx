@@ -338,7 +338,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
             <Button
               type="submit"
               disabled={isSubmitting || !formData.name}
-              className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
                 <>

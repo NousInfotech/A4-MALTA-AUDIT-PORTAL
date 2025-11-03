@@ -45,7 +45,7 @@ export const EditSectionDialog: React.FC<EditSectionDialogProps> = ({
           <Button variant="outline" onClick={onClose} className="border-gray-300 hover:bg-gray-100">
             Cancel
           </Button>
-          <Button onClick={onSave} className="bg-gray-800 hover:bg-gray-900 text-white">
+          <Button onClick={onSave} className="bg-brand-hover hover:bg-brand-sidebar text-white">
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>

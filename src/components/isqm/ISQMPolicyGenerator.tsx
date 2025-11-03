@@ -1011,7 +1011,7 @@ ${procedureStepsBySection}
           </div>
           <div className="flex gap-3">
             <button 
-              className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-colors duration-300 shadow-lg hover:shadow-xl" 
+              className="px-4 py-2 rounded-xl bg-brand-hover hover:bg-brand-active text-white transition-colors duration-300 shadow-lg hover:shadow-xl" 
               onClick={refreshDocuments}
             >
               <RefreshCw className="w-4 h-4 mr-2 inline" />
@@ -1023,7 +1023,7 @@ ${procedureStepsBySection}
         {/* Permission Status */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-white" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900">Permission Status</h3>
@@ -1048,7 +1048,7 @@ ${procedureStepsBySection}
         </div>
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
               <FileText className="w-5 h-5 text-white" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900">Document Generation Summary</h3>
@@ -1076,7 +1076,7 @@ ${procedureStepsBySection}
         </div>
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 p-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
               <FileText className="w-5 h-5 text-white" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900">Generation Options</h3>
@@ -1205,7 +1205,7 @@ ${procedureStepsBySection}
             <section key={questionnaire._id} className="space-y-6">
               <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
                     {questionnaire.key.charAt(questionnaire.key.length - 1)}
                 </div>
                 <div>
@@ -1217,7 +1217,7 @@ ${procedureStepsBySection}
                 </div>
                 <div className="flex gap-3">
                   <button 
-                    className="px-6 py-3 rounded-xl shadow-lg bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    className="px-6 py-3 rounded-xl shadow-lg bg-brand-hover hover:bg-brand-active text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed" 
                     onClick={() => generateAllDocuments(questionnaire)}
                     disabled={generating === `all-${questionnaire._id}` || !canGenerateDocuments}
                   >
@@ -1291,7 +1291,7 @@ ${procedureStepsBySection}
                     {/* Action Buttons */}
                     <div className="flex gap-3">
                       <button
-                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-brand-hover hover:bg-brand-active text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => generateDocument(questionnaire, sectionIdx, 'procedure')}
                         disabled={generating === `${questionnaire._id}-${sectionIdx}-procedures` || !canGenerateDocuments}
                         title={!canGenerateDocuments ? "Insufficient permissions" : "Generate Procedures"}
@@ -1307,7 +1307,7 @@ ${procedureStepsBySection}
                         )}
                       </button>
                       <button
-                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-gray-800 hover:bg-gray-900 text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 px-4 py-2 text-sm rounded-xl bg-brand-hover hover:bg-brand-active text-white transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => generateDocument(questionnaire, sectionIdx, 'policy')}
                         disabled={generating === `${questionnaire._id}-${sectionIdx}-policy` || !canGenerateDocuments}
                         title={!canGenerateDocuments ? "Insufficient permissions" : "Generate Policy"}
@@ -1421,7 +1421,7 @@ ${procedureStepsBySection}
         {activeDoc && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl border-0 overflow-hidden animate-in slide-in-from-bottom duration-300">
-              <div className="bg-gray-800 p-6 text-white">
+              <div className="bg-brand-hover p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/20 rounded-xl">

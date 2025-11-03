@@ -19,7 +19,7 @@ interface NavigationChartProps {
 
 export const NavigationChart: React.FC<NavigationChartProps> = ({ items, className }) => {
   return (
-    <div className={cn("bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg", className)}>
+    <div className={cn("bg-brand-hover/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg", className)}>
       <h3 className="text-lg font-semibold text-white mb-6">Quick Navigation</h3>
       
       <div className="grid grid-cols-2 gap-4">

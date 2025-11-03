@@ -15,7 +15,7 @@ export const ConclusionNarrative: React.FC<ConclusionNarrativeProps> = ({
   isEnabled,
 }) => {
   return (
-    <div className={`space-y-2 p-6 rounded-lg border ${isEnabled ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800' : 'border-dashed border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900'}`}>
+    <div className={`space-y-2 p-6 rounded-lg border ${isEnabled ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-brand-hover' : 'border-dashed border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-brand-sidebar'}`}>
       <Label htmlFor="conclusion-narrative" className="text-lg font-semibold text-gray-800 dark:text-gray-200">
         Conclusion Narrative
       </Label>

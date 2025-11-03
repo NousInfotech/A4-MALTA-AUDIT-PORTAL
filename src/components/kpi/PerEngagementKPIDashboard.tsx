@@ -14,7 +14,7 @@ export function PerEngagementKPIDashboard({ engagementId }: PerEngagementKPIDash
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg shrink-0">
+              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center shadow-lg shrink-0">
                 <ClipboardList className="h-6 w-6 text-white" />
               </div>
               <div>

@@ -155,7 +155,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
               <Building2 className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -167,7 +167,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
           </div>
           <Button
             onClick={() => setIsCreateModalOpen(true)}
-            className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
+            className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Company
@@ -185,7 +185,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-gray-800 rounded-xl flex items-center justify-center">
+                      <div className="w-14 h-14 bg-brand-hover rounded-xl flex items-center justify-center">
                         <Building2 className="h-7 w-7 text-white" />
                       </div>
                       <div>
@@ -275,7 +275,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
               </p>
               <Button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="bg-gray-800 hover:bg-gray-900 text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Company

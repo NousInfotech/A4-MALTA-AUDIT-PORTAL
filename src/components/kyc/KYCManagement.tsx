@@ -193,7 +193,7 @@ export const KYCManagement = ({ engagementId }: KYCManagementProps) => {
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Shield className="h-5 w-5 text-white" />
               </div>
               <div>

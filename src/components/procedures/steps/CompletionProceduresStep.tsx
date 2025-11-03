@@ -479,7 +479,7 @@ export const CompletionProceduresStep: React.FC<CompletionProceduresStepProps> =
                                         <SelectItem
                                             key={p.sectionId}
                                             value={p.sectionId}
-                                            className="bg-white data-[state=checked]:bg-gray-900 data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
+                                            className="bg-white data-[state=checked]:bg-brand-sidebar data-[state=checked]:text-white [&>svg]:text-white cursor-pointer"
                                         >
                                             {p.title}
                                         </SelectItem>

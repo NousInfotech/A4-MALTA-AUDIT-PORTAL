@@ -36,11 +36,11 @@ import { useToast } from "@/hooks/use-toast";
 import { documentRequestApi } from "@/services/api";
 
 const statusColors = {
-  "document-collection": "bg-gray-800",
+  "document-collection": "bg-brand-hover",
   "qna-preparation": "bg-gray-700",
   "client-responses": "bg-gray-600",
   "doubt-resolution": "bg-gray-500",
-  submitted: "bg-gray-900",
+  submitted: "bg-brand-sidebar",
 };
 
 const documentStatusColors = {
@@ -286,7 +286,7 @@ export function ClientPbcDocumentsModal({
   console.log("currentPBC-DATA", currentEngagementPBC);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[95vw] h-[95vh] p-6 bg-amber-50 rounded-lg shadow-xl flex flex-col">
+      <DialogContent className="min-w-[95vw] h-[95vh] p-6  bg-brand-body rounded-lg shadow-xl flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gray-900">
             All PBC Documents for{" "}

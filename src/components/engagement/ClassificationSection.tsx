@@ -4334,7 +4334,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     {/* Timeline marker */}
 
-                    <div className="absolute left-0 top-0 -ml-2.5 h-5 w-5 rounded-full bg-amber-500 flex items-center justify-center text-white z-10">
+                    <div className="absolute left-0 top-0 -ml-2.5 h-5 w-5 rounded-full bg-brand-body0 flex items-center justify-center text-white z-10">
 
                       <span className="text-xs">
 

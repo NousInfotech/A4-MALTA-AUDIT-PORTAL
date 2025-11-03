@@ -366,7 +366,7 @@ export const UserManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
+    <div className="min-h-screen  bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -377,7 +377,7 @@ export const UserManagement = () => {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <Button 
-            className="bg-gray-800 hover:bg-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto" 
+            className="bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto" 
                 onClick={fetchUsers}
               >
                 <RefreshCw className="h-5 w-5 mr-2" />
@@ -436,7 +436,7 @@ export const UserManagement = () => {
           <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
                 <Users className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -585,7 +585,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleApprove(user.id)}
-                                        className="bg-gray-800 text-white hover:bg-gray-900"
+                                        className="bg-brand-hover text-white hover:bg-brand-sidebar"
                                     >
                                       Approve
                                     </AlertDialogAction>
@@ -628,7 +628,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleReject(user.id)}
-                                        className="bg-gray-800 text-white hover:bg-gray-900"
+                                        className="bg-brand-hover text-white hover:bg-brand-sidebar"
                                     >
                                       Reject
                                     </AlertDialogAction>
@@ -671,7 +671,7 @@ export const UserManagement = () => {
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleDelete(user.id)}
-                                    className="bg-gray-800 text-white hover:bg-gray-900"
+                                    className="bg-brand-hover text-white hover:bg-brand-sidebar"
                                 >
                                   Delete
                                 </AlertDialogAction>

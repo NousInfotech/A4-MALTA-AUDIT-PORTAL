@@ -21,7 +21,7 @@ const BalanceSheetTable = () => {
 
   const renderAccountSection = (title, accounts, total) => (
     <>
-      <TableRow className="bg-gray-100 dark:bg-gray-800 font-semibold">
+      <TableRow className="bg-gray-100 dark:bg-brand-hover font-semibold">
         <TableCell colSpan="2" className="text-lg">{title}</TableCell>
         <TableCell className="text-right text-lg">{formatCurrency(total)}</TableCell>
       </TableRow>
