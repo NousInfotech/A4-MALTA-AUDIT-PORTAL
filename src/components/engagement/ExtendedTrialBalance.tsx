@@ -799,43 +799,16 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Additional effect to watch for localStorage changes (in case of re-renders from loadExistingData)
   // This is critical to restore state after re-renders caused by saveETB/loadExistingData
   useEffect(() => {
-    const checkAndSync = () => {
-      // Always check localStorage and sync state, especially during/after push operations
-      try {
-        const pushedState = localStorage.getItem(pushedKey);
-        if (pushedState === "true") {
-          setHasBeenPushed((prev) => {
-            // Always restore from localStorage if it's true, even during push
-            if (!prev) {
-              setForceUpdate((f) => f + 1);
-              return true;
-            }
-            return prev;
-          });
-          // Force update regardless
-          setForceUpdate((prev) => prev + 1);
-        }
-      } catch { }
-    };
+  try {
+    const pushedState = localStorage.getItem(pushedKey);
+    if (pushedState === "true" && !hasBeenPushed) {
+      setHasBeenPushed(true);
+    }
+  } catch {
+    // ignore
+  }
+}, [pushedKey]);
 
-    // Check immediately
-    checkAndSync();
-
-    // Check multiple times to catch any re-renders from loadExistingData
-    const timeoutId1 = setTimeout(checkAndSync, 50);
-    const timeoutId2 = setTimeout(checkAndSync, 100);
-    const timeoutId3 = setTimeout(checkAndSync, 200);
-    const timeoutId4 = setTimeout(checkAndSync, 500);
-    const timeoutId5 = setTimeout(checkAndSync, 1000);
-
-    return () => {
-      clearTimeout(timeoutId1);
-      clearTimeout(timeoutId2);
-      clearTimeout(timeoutId3);
-      clearTimeout(timeoutId4);
-      clearTimeout(timeoutId5);
-    };
-  }, [forceUpdate, hasBeenPushed, pushing, pushedKey]); // Re-check when these change
 
   // Poll localStorage periodically to catch changes immediately
   useEffect(() => {

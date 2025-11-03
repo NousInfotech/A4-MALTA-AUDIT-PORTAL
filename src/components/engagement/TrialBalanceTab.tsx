@@ -47,7 +47,6 @@ async function authFetch(url: string, options: RequestInit = {}) {
 // };
 
 const formatClassificationForDisplay = (c: string) => {
-  
   if (!c) return "—";
   const parts = c.split(" > ");
   if (parts.length > 2) {
@@ -57,21 +56,23 @@ const formatClassificationForDisplay = (c: string) => {
   }
 };
 
-
 // const formatClassificationForDisplay = (c: string) => {
-  
+
 //   if (!c) return "—";
 //   const parts = c.split(" > ");
-   
+
 //     return parts[parts.length - 1]; // Retype this line
-  
+
 // };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   engagement,
   setEngagement,
 }) => {
-  console.log("formatClassificationForDisplay", formatClassificationForDisplay("Equity > Equity > Share Capital"));
+  console.log(
+    "formatClassificationForDisplay",
+    formatClassificationForDisplay("Equity > Equity > Share Capital")
+  );
 
   const [activeTab, setActiveTab] = useState("upload");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
@@ -85,7 +86,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   const [adjustmentsCount, setAdjustmentsCount] = useState(0);
 
   // notification counts for classifications
-  const [classificationNotificationCounts, setClassificationNotificationCounts] = useState<{ [key: string]: number }>({});
+  const [
+    classificationNotificationCounts,
+    setClassificationNotificationCounts,
+  ] = useState<{ [key: string]: number }>({});
 
   const { toast } = useToast();
 
@@ -152,73 +156,107 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🔧 fetch notification counts for classifications (with direct classifications parameter)
-  const loadNotificationCountsForClassifications = useCallback(async (classificationsList: string[]) => {
-    if (!engagement?._id || classificationsList.length === 0) {
-      console.log('loadNotificationCountsForClassifications: Skipping - no engagement ID or classifications');
-      return;
-    }
-
-    console.log('loadNotificationCountsForClassifications: Loading for classifications:', classificationsList);
-
-    try {
-      const base = import.meta.env.VITE_APIURL;
-      if (!base) {
-        console.log('loadNotificationCountsForClassifications: No API URL');
+  const loadNotificationCountsForClassifications = useCallback(
+    async (classificationsList: string[]) => {
+      if (!engagement?._id || classificationsList.length === 0) {
+        console.log(
+          "loadNotificationCountsForClassifications: Skipping - no engagement ID or classifications"
+        );
         return;
       }
 
-      // Fetch all reviews at once instead of per classification
-      const response = await authFetch(
-        `${base}/api/classification-reviews?engagementId=${engagement._id}`
+      console.log(
+        "loadNotificationCountsForClassifications: Loading for classifications:",
+        classificationsList
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        const reviews = data.reviews || [];
-
-        console.log('loadNotificationCountsForClassifications: Found', reviews.length, 'total reviews');
-
-        const counts: { [key: string]: number } = {};
-
-        // Process all classifications at once
-        for (const classification of classificationsList) {
-          // Filter reviews for this classification that are not signed off
-          const classificationReviews = reviews.filter((review: any) => {
-            const reviewClassification = typeof review.classificationId === 'string'
-              ? review.classificationId
-              : review.classificationId?.classification || '';
-            return reviewClassification === classification && review.status !== 'signed-off';
-          });
-
-          // Count unique review points (reviews with comments)
-          const reviewPointsCount = classificationReviews.filter((review: any) =>
-            review.comment && review.comment.trim() !== ''
-          ).length;
-
-          counts[classification] = reviewPointsCount;
-          console.log(`loadNotificationCountsForClassifications: ${classification} = ${reviewPointsCount} notifications`);
+      try {
+        const base = import.meta.env.VITE_APIURL;
+        if (!base) {
+          console.log("loadNotificationCountsForClassifications: No API URL");
+          return;
         }
 
-        console.log('loadNotificationCountsForClassifications: Final counts:', counts);
-        setClassificationNotificationCounts(counts);
-      } else {
-        console.log('loadNotificationCountsForClassifications: API response not OK:', response.status);
+        // Fetch all reviews at once instead of per classification
+        const response = await authFetch(
+          `${base}/api/classification-reviews?engagementId=${engagement._id}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const reviews = data.reviews || [];
+
+          console.log(
+            "loadNotificationCountsForClassifications: Found",
+            reviews.length,
+            "total reviews"
+          );
+
+          const counts: { [key: string]: number } = {};
+
+          // Process all classifications at once
+          for (const classification of classificationsList) {
+            // Filter reviews for this classification that are not signed off
+            const classificationReviews = reviews.filter((review: any) => {
+              const reviewClassification =
+                typeof review.classificationId === "string"
+                  ? review.classificationId
+                  : review.classificationId?.classification || "";
+              return (
+                reviewClassification === classification &&
+                review.status !== "signed-off"
+              );
+            });
+
+            // Count unique review points (reviews with comments)
+            const reviewPointsCount = classificationReviews.filter(
+              (review: any) => review.comment && review.comment.trim() !== ""
+            ).length;
+
+            counts[classification] = reviewPointsCount;
+            console.log(
+              `loadNotificationCountsForClassifications: ${classification} = ${reviewPointsCount} notifications`
+            );
+          }
+
+          console.log(
+            "loadNotificationCountsForClassifications: Final counts:",
+            counts
+          );
+          setClassificationNotificationCounts(counts);
+        } else {
+          console.log(
+            "loadNotificationCountsForClassifications: API response not OK:",
+            response.status
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load notification counts:", error);
       }
-    } catch (error) {
-      console.error('Failed to load notification counts:', error);
-    }
-  }, [engagement?._id]);
+    },
+    [engagement?._id]
+  );
 
   // 🔧 fetch notification counts for classifications (using state)
   const loadNotificationCounts = useCallback(async () => {
     if (!engagement?._id || classifications.length === 0) {
-      console.log('loadNotificationCounts: Skipping - no engagement ID or classifications');
+      console.log(
+        "loadNotificationCounts: Skipping - no engagement ID or classifications"
+      );
       return;
     }
 
-    console.log('loadNotificationCounts: Loading counts for', classifications.length, 'classifications');
+    console.log(
+      "loadNotificationCounts: Loading counts for",
+      classifications.length,
+      "classifications"
+    );
     await loadNotificationCountsForClassifications(classifications);
-  }, [engagement?._id, classifications, loadNotificationCountsForClassifications]);
+  }, [
+    engagement?._id,
+    classifications,
+    loadNotificationCountsForClassifications,
+  ]);
 
   // 🔧 call the memoized loader when _id becomes available/changes
   useEffect(() => {
@@ -255,20 +293,38 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
   const shouldCreateSeparateTab = (classification: string) => {
     const category = getClassificationCategory(classification);
-    return category === "Assets" || category === "Liabilities" || category === "Equity";
+    return (
+      category === "Assets" ||
+      category === "Liabilities" ||
+      category === "Equity"
+    );
   };
+
+  // const groupClassifications = () => {
+  //   const grouped: { [key: string]: string[] } = {};
+  //   classifications.forEach((classification) => {
+  //     if (shouldCreateSeparateTab(classification)) {
+  //       grouped[classification] = [classification];
+  //     } else {
+  //       const category = getClassificationCategory(classification);
+  //       if (!grouped[category]) grouped[category] = [];
+  //       grouped[category].push(classification);
+  //     }
+  //   });
+  //   return grouped;
+  // };
 
   const groupClassifications = () => {
     const grouped: { [key: string]: string[] } = {};
+
     classifications.forEach((classification) => {
-      if (shouldCreateSeparateTab(classification)) {
-        grouped[classification] = [classification];
-      } else {
-        const category = getClassificationCategory(classification);
-        if (!grouped[category]) grouped[category] = [];
-        grouped[category].push(classification);
-      }
+      const parts = classification.split(" > ");
+      const parentPath = parts.slice(0, -1).join(" > "); // everything except last
+
+      if (!grouped[parentPath]) grouped[parentPath] = [];
+      grouped[parentPath].push(classification);
     });
+
     return grouped;
   };
 
@@ -292,7 +348,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       </div>
     );
   }
-  console.log("selectedClassification", selectedClassification)
+  console.log("selectedClassification", selectedClassification);
   return (
     <div className="h-full flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
       <div className="flex-1">
@@ -323,7 +379,6 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                   <span className="sm:hidden">ETB</span>
                 </TabsTrigger>
 
-
                 {/* <TabsTrigger
                   value="tb-excel"
                   className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
@@ -332,8 +387,6 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                   <span className="hidden sm:inline">TB Excel</span>
                   <span className="sm:hidden">Excel</span>
                 </TabsTrigger> */}
-
-
 
                 <TabsTrigger
                   value="sections"
@@ -367,13 +420,14 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
           </TabsContent>
 
           <TabsContent value="tb-excel" className="flex-1 overflow-hidden">
-            <WorkBookApp engagement={engagement} engagementId={engagement.id} classification="ETB" />
+            <WorkBookApp
+              engagement={engagement}
+              engagementId={engagement.id}
+              classification="ETB"
+            />
           </TabsContent>
 
-          <TabsContent
-            value="sections"
-            className="flex-1 overflow-hidden"
-          >
+          <TabsContent value="sections" className="flex-1 overflow-hidden">
             <div className="flex h-full flex-col md:flex-row">
               {/* Sidebar */}
               <div className="w-full md:w-80 border-r bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
@@ -433,47 +487,54 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     <div className="mt-1" />
                     {(() => {
                       // Group classifications by main title and subtitle (2 levels only)
-                      const groupedByTitle: { [mainTitle: string]: { [subtitle: string]: Array<[string, string[]]> } } = {};
+                      const groupedByTitle: {
+                        [mainTitle: string]: {
+                          [subtitle: string]: Array<[string, string[]]>;
+                        };
+                      } = {};
 
-                      Object.entries(groupedClassifications).forEach(([key, classificationList]) => {
-                        if (key === "Adjustments") return; // Skip Adjustments
+                      Object.entries(groupedClassifications).forEach(
+                        ([key, classificationList]) => {
+                          if (key === "Adjustments") return;
 
-                        const parts = key.split(" > ");
-                        const mainTitle = parts[0] || ''; // First part (Assets, Liabilities, Equity, etc.)
+                          const parts = key.split(" > ");
+                           if (parts.length < 3) return; 
+                          const mainTitle = parts[0] || "";
+                          const subtitle =
+                            parts[1] === mainTitle && parts.length > 2
+                              ? parts[2]
+                              : parts[1];
 
-                        // Process each classification in the list to extract subtitles
-                        classificationList.forEach((classification) => {
-                          const classParts = classification.split(" > ");
-                          let subtitle = classParts[1];
-
-                          // If second part is same as main title (e.g., "Equity > Equity"), skip it and use third part or default
-                          // if (subtitle === mainTitle && classParts.length > 2) {
-                          //   subtitle = classParts[2]; // Use third part if second is duplicate
-                          // } 
-
-                          if (!groupedByTitle[mainTitle]) {
+                          if (!groupedByTitle[mainTitle])
                             groupedByTitle[mainTitle] = {};
-                          }
-                          if (!groupedByTitle[mainTitle][subtitle]) {
+                          if (!groupedByTitle[mainTitle][subtitle])
                             groupedByTitle[mainTitle][subtitle] = [];
-                          }
-                          groupedByTitle[mainTitle][subtitle].push([key, classificationList]);
-                        });
-                      });
+
+                          groupedByTitle[mainTitle][subtitle].push([
+                            key,
+                            classificationList,
+                          ]);
+                        }
+                      );
 
                       // Define title order
-                      const titleOrder = ['Assets', 'Liabilities', 'Equity'];
-                      const sortedMainTitles = Object.keys(groupedByTitle).sort((a, b) => {
-                        const aIndex = titleOrder.indexOf(a);
-                        const bIndex = titleOrder.indexOf(b);
-                        if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
-                        if (aIndex === -1) return 1;
-                        if (bIndex === -1) return -1;
-                        return aIndex - bIndex;
-                      });
+                      const titleOrder = ["Assets", "Liabilities", "Equity"];
+                      const sortedMainTitles = Object.keys(groupedByTitle).sort(
+                        (a, b) => {
+                          const aIndex = titleOrder.indexOf(a);
+                          const bIndex = titleOrder.indexOf(b);
+                          if (aIndex === -1 && bIndex === -1)
+                            return a.localeCompare(b);
+                          if (aIndex === -1) return 1;
+                          if (bIndex === -1) return -1;
+                          return aIndex - bIndex;
+                        }
+                      );
 
                       return sortedMainTitles.map((mainTitle) => {
-                        const subtitles = Object.keys(groupedByTitle[mainTitle]).sort();
+                        const subtitles = Object.keys(
+                          groupedByTitle[mainTitle]
+                        ).sort();
 
                         return (
                           <div key={mainTitle}>
@@ -485,7 +546,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             {/* Subtitles within this main title */}
                             {subtitles.map((subtitle) => {
                               const items = groupedByTitle[mainTitle][subtitle];
-                              console.log("items", items)
+                              console.log("items", items);
                               return (
                                 <div key={`${mainTitle}-${subtitle}`}>
                                   {/* Subtitle Header */}
@@ -495,8 +556,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                                   {/* Items for this subtitle */}
                                   {items.map(([key, classificationList]) => {
-                                    
-                                    const notificationCount = classificationNotificationCounts[key] || 0;
+                                    const notificationCount =
+                                      classificationNotificationCounts[key] ||
+                                      0;
                                     return (
                                       <div key={key} className="px-2 mb-2">
                                         <Button
@@ -506,11 +568,15 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                               : "outline"
                                           }
                                           className="w-full justify-between text-left h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
-                                          onClick={() => setSelectedClassification(key)}
+                                          onClick={() =>
+                                            setSelectedClassification(key)
+                                          }
                                         >
                                           <div className="flex flex-col items-start flex-1 min-w-0">
                                             <div className="font-medium whitespace-normal break-words">
-                                              {formatClassificationForDisplay(key)}
+                                              {formatClassificationForDisplay(
+                                                key
+                                              )}
                                             </div>
                                           </div>
                                           {notificationCount > 0 && (

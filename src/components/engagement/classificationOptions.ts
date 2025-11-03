@@ -116,4 +116,41 @@ export const NEW_CLASSIFICATION_OPTIONS = [
     "Liabilities > Current > Trade and other payables > Deferred government grant",
     "Liabilities > Current > Current tax liabilities",
     "Liabilities > Current > Provisions"
-  ];
+];
+
+export const NEW_CLASSIFICATION_RULESET = [
+  // 🏢 Assets
+  "Assets > Non-current > Intangible assets",
+  "Assets > Non-current > Property, plant and equipment",
+  "Assets > Non-current > Investment property",
+  "Assets > Non-current > Investment in subsidiary",
+  "Assets > Non-current > Loan to subsidiary",
+  "Assets > Non-current > Other non-current investments",
+
+  "Assets > Current > Inventories",
+  "Assets > Current > Trade and other receivables",
+  "Assets > Current > Held-for-trading investments",
+  "Assets > Current > Loan to subsidiary",
+  "Assets > Current > Cash and bank balances",
+
+  // 💰 Equity
+  "Equity > Equity",
+  "Equity > Current Year Profits & Losses",
+  "Equity > Current Year Profits & Losses > Revenue",
+  "Equity > Current Year Profits & Losses > Cost of sales",
+  "Equity > Current Year Profits & Losses > Sales and marketing expenses",
+  "Equity > Current Year Profits & Losses > Administrative expenses",
+  "Equity > Current Year Profits & Losses > Other operating income",
+  "Equity > Current Year Profits & Losses > Investment income",
+  "Equity > Current Year Profits & Losses > Investment losses",
+  "Equity > Current Year Profits & Losses > Finance costs",
+  "Equity > Current Year Profits & Losses > Income tax expense",
+  "Equity > Current Year Profits & Losses > PBT Expenses",
+
+  // ⚖️ Liabilities
+  "Liabilities > Non-current > Borrowings",
+  "Liabilities > Non-current",
+  "Liabilities > Current > Borrowings",
+  "Liabilities > Current > Trade and other payables",
+  "Liabilities > Current"
+];
