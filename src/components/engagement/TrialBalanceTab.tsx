@@ -46,19 +46,25 @@ async function authFetch(url: string, options: RequestInit = {}) {
 //   return top;
 // };
 
+// const formatClassificationForDisplay = (c: string) => {
+  
+//   if (!c) return "—";
+//   const parts = c.split(" > ");
+//   if (parts.length > 2) {
+//     return parts[2];
+//   } else {
+//     return parts[parts.length - 1]; // Retype this line
+//   }
+// };
+
+
 const formatClassificationForDisplay = (c: string) => {
   
   if (!c) return "—";
   const parts = c.split(" > ");
-  if (parts.length > 2) {
-    console.log("string", c);
-    console.log("parts", parts);
-    return parts[2];
-  } else {
-    console.log("string", c);
-    console.log("parts", parts);
+   
     return parts[parts.length - 1]; // Retype this line
-  }
+  
 };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
