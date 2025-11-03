@@ -4664,68 +4664,81 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-// First, create a helper function to calculate totals for a given data array
-function calculateTotals(data: ETBRow[]) {
-  return data.reduce(
-    (acc, row) => ({
-      currentYear: acc.currentYear + (Number(row.currentYear) || 0),
-      priorYear: acc.priorYear + (Number(row.priorYear) || 0),
-      adjustments: acc.adjustments + (Number(row.adjustments) || 0),
-      finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
-    }),
-    { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
-  );
-}
+  // First, create a helper function to calculate totals for a given data array
+  function calculateTotals(data: ETBRow[]) {
+    return data.reduce(
+      (acc, row) => ({
+        currentYear: acc.currentYear + (Number(row.currentYear) || 0),
+        priorYear: acc.priorYear + (Number(row.priorYear) || 0),
+        adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+        finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
+      }),
+      { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+    );
+  }
 
 
 
 
 
   function renderLeadSheetContent() {
+    console.log("my sectionData", sectionData)
     const subSections = groupBySubCategory(sectionData);
 
     return (
 
       <>
-      {/* Summary Cards - Keep the global totals here */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Card className="p-3">
-          <div className="text-xs text-gray-500">Current Year</div>
-          <div className="text-lg font-semibold">
-            {totals.currentYear.toLocaleString()}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-gray-500">Prior Year</div>
-          <div className="text-lg font-semibold">
-            {totals.priorYear.toLocaleString()}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-gray-500">Adjustments</div>
-          <div className="text-lg font-semibold">
-            {totals.adjustments.toLocaleString()}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-gray-500">Final Balance</div>
-          <div className="text-lg font-semibold">
-            {totals.finalBalance.toLocaleString()}
-          </div>
-        </Card>
-      </div>
+        {/* Summary Cards - Keep the global totals here */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Current Year</div>
+            <div className="text-lg font-semibold">
+              {totals.currentYear.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Prior Year</div>
+            <div className="text-lg font-semibold">
+              {totals.priorYear.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Adjustments</div>
+            <div className="text-lg font-semibold">
+              {totals.adjustments.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Final Balance</div>
+            <div className="text-lg font-semibold">
+              {totals.finalBalance.toLocaleString()}
+            </div>
+          </Card>
+        </div>
 
-      {/* Render each subcategory with its own totals */}
-      {subSections.map((section) => {
-        const sectionTotals = calculateTotals(section.data);
-        return (
-          <div key={section.subCategoryName || 'default'}>
-            {section.subCategoryName && <Badge className="my-5">{section.subCategoryName}</Badge>}
-            {renderDataTable(section.data, sectionTotals)}
-          </div>
-        );
-      })}
-    </>
+        {/* Render each subcategory with its own totals */}
+        {/* Sort: sections without subCategoryName first, then sections with subCategoryName */}
+        {[...subSections]
+          .sort((a, b) => {
+            // Sections without subCategoryName (null) should come first
+            if (!a.subCategoryName && b.subCategoryName) return -1;
+            if (a.subCategoryName && !b.subCategoryName) return 1;
+            return 0;
+          })
+          .map((section, index) => {
+            const sectionTotals = calculateTotals(section.data);
+            return (
+              <div key={index}>
+                {/* Show badge before table if subCategoryName exists */}
+                {section.subCategoryName && (
+                  <Badge className="my-5">{section.subCategoryName}</Badge>
+                )}
+                {/* Render table once per section */}
+                {renderDataTable(section.data, sectionTotals)}
+              </div>
+            );
+          })}
+      </>
 
     );
 
@@ -6906,11 +6919,10 @@ function calculateTotals(data: ETBRow[]) {
 
 
   function renderDataTable(sectionData, sectionTotals = null) {
-    console.log("my sectionData", sectionData)
 
     // Calculate totals from sectionData if sectionTotals is not provided
     const currentTotals = sectionTotals || calculateTotals(sectionData);
-  const isSignedOff = reviewWorkflow?.isSignedOff;
+    const isSignedOff = reviewWorkflow?.isSignedOff;
 
 
 
@@ -7010,25 +7022,25 @@ function calculateTotals(data: ETBRow[]) {
 
                 ))}
 
-{sectionData.length > 0 && (
-    <tr className="bg-muted/50 font-medium">
-      <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
-        TOTALS
-      </td>
-      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-        {currentTotals.currentYear.toLocaleString()}
-      </td>
-      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-        {currentTotals.priorYear.toLocaleString()}
-      </td>
-      <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-        {currentTotals.adjustments.toLocaleString()}
-      </td>
-      <td className="px-4 py-2 font-bold text-right">
-        {currentTotals.finalBalance.toLocaleString()}
-      </td>
-    </tr>
-  )}
+                {sectionData.length > 0 && (
+                  <tr className="bg-muted/50 font-medium">
+                    <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                      TOTALS
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {currentTotals.currentYear.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {currentTotals.priorYear.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {currentTotals.adjustments.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 font-bold text-right">
+                      {currentTotals.finalBalance.toLocaleString()}
+                    </td>
+                  </tr>
+                )}
 
                 {sectionData.length === 0 && (
 

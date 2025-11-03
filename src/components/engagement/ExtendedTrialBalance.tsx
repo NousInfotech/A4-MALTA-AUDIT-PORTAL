@@ -551,22 +551,22 @@ const ClassificationCombos = React.memo(({ rowId, classification, onChange, memo
     const newState = { ...stateRef.current, level2: v, level3: "", level4: "" };
     stateRef.current = newState;
     setInternalState(newState);
-    onChange(rowId, buildClassification(internalState.level1, v, ""));
-  }, [rowId, onChange, internalState.level1]);
+    onChange(rowId, buildClassification(newState.level1, v, ""));
+  }, [rowId, onChange]);
 
   const handleL3Change = useCallback((v: string) => {
     const newState = { ...stateRef.current, level3: v, level4: "" };
     stateRef.current = newState;
     setInternalState(newState);
-    onChange(rowId, buildClassification(internalState.level1, internalState.level2, v));
-  }, [rowId, onChange, internalState.level1, internalState.level2]);
+    onChange(rowId, buildClassification(newState.level1, newState.level2, v));
+  }, [rowId, onChange]);
 
   const handleL4Change = useCallback((v: string) => {
     const newState = { ...stateRef.current, level4: v };
     stateRef.current = newState;
     setInternalState(newState);
-    onChange(rowId, buildClassification(internalState.level1, internalState.level2, internalState.level3, v));
-  }, [rowId, onChange, internalState.level1, internalState.level2, internalState.level3]);
+    onChange(rowId, buildClassification(newState.level1, newState.level2, newState.level3, v));
+  }, [rowId, onChange]);
 
   return (
     <div className="flex flex-wrap gap-1 sm:gap-2">
