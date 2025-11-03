@@ -32,11 +32,10 @@ interface CreatePersonModalProps {
 }
 
 const ROLES = [
-  "ShareHolder",
+  "Shareholder",
   "Director",
-  "Judicial",
-  "Representative",
-  "LegalRepresentative",
+  "Judicial Representative",
+  "Legal Representative",
   "Secretary",
 ];
 
@@ -61,7 +60,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const isShareholderSelected = formData.roles.includes("ShareHolder");
+  const isShareholderSelected = formData.roles.includes("Shareholder");
   const [shareTotalError, setShareTotalError] = useState<string>("");
   const [rolesError, setRolesError] = useState<string>("");
 

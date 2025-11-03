@@ -203,7 +203,7 @@ export const CompanyDetail: React.FC = () => {
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-                Persons ({company.persons?.length || 0})
+              Representatives ({company.persons?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
               Distribution

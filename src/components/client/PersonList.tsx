@@ -174,6 +174,7 @@ export const PersonList: React.FC<PersonListProps> = ({
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
           {persons.length > 0 && (
             <Button
               onClick={() => setIsCreateModalOpen(true)}
@@ -184,6 +185,11 @@ export const PersonList: React.FC<PersonListProps> = ({
               Add Person
             </Button>
           )}
+          <Button size="sm" className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl">
+          <Plus className="h-4 w-4 mr-2" />
+             Company
+          </Button>
+          </div>
         </div>
 
         {/* Persons Grid */}
