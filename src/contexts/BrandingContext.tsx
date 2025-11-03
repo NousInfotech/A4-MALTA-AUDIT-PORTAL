@@ -63,16 +63,41 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     const sidebarBg = parseSidebarHSL(settings.sidebar_background_color);
     const primaryColor = parseSidebarHSL(settings.primary_color);
+    const bodyBg = parseSidebarHSL(settings.body_background_color);
+    
+    // ✅ AUTO-CALCULATE BODY TEXT COLOR based on background lightness
+    // If body background is dark (< 50% lightness) → use white text
+    // If body background is light (>= 50% lightness) → use dark gray text
+    const bodyTextColor = bodyBg.l < 50 
+      ? '0 0% 100%'        // White text for dark backgrounds
+      : '222 47% 11%';     // Dark navy text for light backgrounds
+    
+    console.log(`🎨 Body background lightness: ${bodyBg.l}% → Using ${bodyBg.l < 50 ? 'WHITE' : 'DARK'} text`);
     
     // Core branding colors
     root.style.setProperty('--sidebar-background', settings.sidebar_background_color);
     root.style.setProperty('--sidebar-foreground', settings.sidebar_text_color);
     root.style.setProperty('--background', settings.body_background_color);
-    root.style.setProperty('--foreground', settings.body_text_color);
+    root.style.setProperty('--foreground', bodyTextColor); // ✅ Dynamic text color!
     root.style.setProperty('--primary', settings.primary_color);
     root.style.setProperty('--primary-foreground', settings.primary_foreground_color);
     root.style.setProperty('--accent', settings.accent_color);
     root.style.setProperty('--accent-foreground', settings.accent_foreground_color);
+    
+    // ✅ Additional body text utilities for different emphasis levels
+    root.style.setProperty('--body-text-heading', bodyTextColor); // Main headings
+    root.style.setProperty('--body-text-subheading', bodyBg.l < 50 
+      ? '0 0% 90%'        // Light gray for dark backgrounds
+      : '215 25% 27%'     // Medium gray for light backgrounds
+    );
+    root.style.setProperty('--body-text-muted', bodyBg.l < 50 
+      ? '0 0% 70%'        // Medium gray for dark backgrounds  
+      : '220 9% 46%'      // Darker gray for light backgrounds
+    );
+    root.style.setProperty('--body-text-subtle', bodyBg.l < 50 
+      ? '0 0% 50%'        // Darker gray for dark backgrounds
+      : '220 9% 60%'      // Light gray for light backgrounds
+    );
     
     // Sidebar utility variables (derived from main colors)
     root.style.setProperty('--sidebar-border', `${sidebarBg.h} ${sidebarBg.s}% ${Math.min(sidebarBg.l + 10, 95)}%`);
@@ -91,9 +116,9 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     root.style.setProperty('--interactive-bg', `${primaryColor.h} ${primaryColor.s}% ${Math.min(primaryColor.l + 5, 95)}%`);
     root.style.setProperty('--interactive-hover', `${primaryColor.h} ${primaryColor.s}% ${Math.min(primaryColor.l + 10, 97)}%`);
     
-    // Apply body background directly to override Tailwind classes
+    // Apply body background and dynamic text color directly to override Tailwind classes
     document.body.style.backgroundColor = `hsl(${settings.body_background_color})`;
-    document.body.style.color = `hsl(${settings.body_text_color})`;
+    document.body.style.color = `hsl(${bodyTextColor})`; // ✅ Dynamic text!
     
     // Log to verify
     console.log('✅ CSS Variables applied:', {

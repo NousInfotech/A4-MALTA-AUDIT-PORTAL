@@ -233,7 +233,7 @@ export const EditClient = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900">
+                <h1 className="text-3xl font-semibold text-brand-body">
                   Edit Client: {formData.companyName}
                 </h1>
                 <p className="text-gray-700">

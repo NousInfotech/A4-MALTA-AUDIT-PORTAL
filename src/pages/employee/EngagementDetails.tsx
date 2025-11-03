@@ -272,7 +272,7 @@ export const EngagementDetails = () => {
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 break-words">{engagement.title}</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">{engagement.title}</h1>
                 {clientCompanyName && (
                   <p className="text-sm sm:text-base text-gray-600 mt-1 font-medium flex items-center gap-2">
                     <Building2 className="h-4 w-4 flex-shrink-0" />

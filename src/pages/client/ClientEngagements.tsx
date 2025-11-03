@@ -137,7 +137,7 @@ export const ClientEngagements = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900 mb-2">
+              <h1 className="text-3xl font-semibold text-brand-body mb-2">
                 My Engagements
               </h1>
               <p className="text-gray-700">

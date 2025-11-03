@@ -207,10 +207,10 @@ export const AuditorLogs = () => {
                 <img src="/logo.png" alt="Logo" className="h-12 w-12 object-cover rounded" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900">
+                <h1 className="text-3xl font-semibold text-brand-body">
                   Auditor Logs
                 </h1>
-                <p className="text-gray-700 mt-1 text-lg">
+                <p className="text-brand-body mt-1 text-lg">
                   Monitor and track all auditor activities and system access
                 </p>
               </div>
@@ -220,7 +220,7 @@ export const AuditorLogs = () => {
             <Button
               onClick={handleExportLogs}
               disabled={exportLoading}
-              className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 h-auto disabled:opacity-50"
+              className="bg-brand-hover hover:bg-brand-active text-brand-body border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 h-auto disabled:opacity-50"
             >
               {exportLoading ? (
                 <>
@@ -236,7 +236,7 @@ export const AuditorLogs = () => {
             </Button>
             <Button
               variant="outline"
-              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
+              className="border-gray-300 hover:bg-gray-100 text-brand-body hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
               onClick={handleRefresh}
               disabled={loading}
             >
@@ -246,7 +246,7 @@ export const AuditorLogs = () => {
             <Button
               asChild
               variant="outline"
-              className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
+              className="border-gray-300 hover:bg-gray-100 text-brand-body hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
             >
               <Link to="/admin">
                 <ArrowLeft className="h-5 w-5 mr-2" />

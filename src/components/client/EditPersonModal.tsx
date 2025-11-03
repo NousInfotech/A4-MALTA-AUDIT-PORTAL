@@ -25,11 +25,10 @@ interface EditPersonModalProps {
 }
 
 const ROLES = [
-  "ShareHolder",
+  "Shareholder",
   "Director",
-  "Judicial",
-  "Representative",
-  "LegalRepresentative",
+  "Judicial Representative",
+  "Legal Representative",
   "Secretary",
 ];
 
@@ -197,7 +196,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 setFormData({ ...formData, name: e.target.value })
               }
               required
-              className="rounded-xl border-gray-200"
+              className="rounded-xl border-gray-200 capitalize"
             />
           </div>
 
@@ -212,7 +211,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, address: e.target.value })
               }
-              className="rounded-xl border-gray-200"
+              className="rounded-xl border-gray-200 capitalize"
               rows={2}
             />
           </div>

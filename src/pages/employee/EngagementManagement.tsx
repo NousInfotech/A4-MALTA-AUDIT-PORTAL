@@ -222,8 +222,8 @@ export const EngagementManagement = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Engagement Management</h1>
-          <p className="text-gray-700">
+          <h1 className="text-3xl font-semibold text-brand-body mb-2">Engagement Management</h1>
+          <p className="text-brand-body">
             Manage and track all your audit engagements
           </p>
         </div>

@@ -312,8 +312,8 @@ const [clients, setClients] = useState<User[]>([])
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900">Create New Engagement</h1>
-                <p className="text-gray-700">Set up a new audit engagement for your client</p>
+                <h1 className="text-3xl font-semibold text-brand-body">Create New Engagement</h1>
+                <p className="text-brand-body">Set up a new audit engagement for your client</p>
               </div>
             </div>
           </div>
