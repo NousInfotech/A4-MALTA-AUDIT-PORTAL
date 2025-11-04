@@ -20,6 +20,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonList } from "@/components/client/PersonList";
 import { EditCompanyModal } from "@/components/client/EditCompanyModal";
+import SharePieChart from "@/components/client/SharePieChart";
 
 interface Person {
   _id: string;
@@ -61,12 +62,23 @@ export const CompanyDetail: React.FC = () => {
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
 
   useEffect(() => {
     if (companyId && clientId) {
       fetchCompanyData();
+      fetchPersonsForChart();
     }
   }, [companyId, clientId]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const next = Array.isArray(e?.detail) ? e.detail : [];
+      setPersonsForChart(next);
+    };
+    window.addEventListener('persons-updated', handler as EventListener);
+    return () => window.removeEventListener('persons-updated', handler as EventListener);
+  }, []);
 
   const fetchCompanyData = async () => {
     if (!companyId || !clientId) return;
@@ -101,6 +113,31 @@ export const CompanyDetail: React.FC = () => {
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchPersonsForChart = async () => {
+    if (!companyId || !clientId) return;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Not authenticated");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person`,
+        {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch persons for chart");
+
+      const result = await response.json();
+      setPersonsForChart(Array.isArray(result.data) ? result.data : []);
+    } catch (error: any) {
+      console.error("Error fetching persons for chart:", error);
+      // Non-blocking for the page; show a subtle toast only if needed
     }
   };
 
@@ -166,7 +203,10 @@ export const CompanyDetail: React.FC = () => {
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-                Persons ({company.persons?.length || 0})
+              Representatives ({company.persons?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="pie-chart" className="rounded-lg">
+              Distribution
               </TabsTrigger>
             </TabsList>
 
@@ -361,6 +401,9 @@ export const CompanyDetail: React.FC = () => {
                   onUpdate={fetchCompanyData}
                 />
               )}
+            </TabsContent>
+            <TabsContent value="pie-chart" className="p-6 mt-6">
+              <SharePieChart persons={personsForChart} title="Distribution" />
             </TabsContent>
           </Tabs>
         </div>

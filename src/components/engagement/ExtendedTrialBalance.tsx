@@ -45,11 +45,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import EditableText from "../ui/editable-text";
-// import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
+import { NEW_CLASSIFICATION_OPTIONS,NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
 
 /* -------------------------------------------------------
    Helpers & Types
 ------------------------------------------------------- */
+
+// Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
+// Removes parentheses and special characters, preserves any existing minus sign
+const parseAccountingNumber = (value: any): number => {
+  if (value === null || value === undefined || value === "") return 0;
+  
+  // If already a number, return it
+  if (typeof value === "number") return value;
+  
+  // Convert to string and clean
+  let str = String(value).trim();
+  
+  // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
+  str = str.replace(/[(),\$€£¥]/g, "").trim();
+  
+  // Parse to number
+  const num = Number(str);
+  
+  // Return the number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : num;
+};
 
 // Ensure each row has a unique client-only ID
 const withClientIds = <T extends object>(rows: T[]) =>
@@ -70,6 +91,10 @@ interface ETBRow {
   adjustments: number;
   finalBalance: number;
   classification: string;
+  grouping1?: string;
+  grouping2?: string;
+  grouping3?: string;
+  grouping4?: string;
 }
 
 interface ExtendedTrialBalanceProps {
@@ -79,214 +104,6 @@ interface ExtendedTrialBalanceProps {
   onClassificationJump?: (classification: string) => void;
   loadExistingData: any;
 }
-
-/* -------------------------------------------------------
-   Domain data
-------------------------------------------------------- */
-const NEW_CLASSIFICATION_OPTIONS = [
-  "Assets > Non-current > Intangible assets > Intangible assets - Cost",
-  "Assets > Non-current > Intangible assets > Intangible assets - Accumulated Amortisation",
-  "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Cost",
-  "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Accumulated Depreciation",
-  "Assets > Non-current > Investment property > Investment property - Cost",
-  "Assets > Non-current > Investment property > Investment property - Accumulated Depreciation",
-  "Assets > Non-current > Investment in subsidiary > Carrying amount",
-  "Assets > Non-current > Investment in subsidiary > Share of profit for the",
-  "Assets > Non-current > Investment in subsidiary > Distributions received",
-  "Assets > Non-current > Investment in subsidiary > Capital contribution paid",
-  "Assets > Non-current > Loan to subsidiary",
-  "Assets > Non-current > Other non-current investments > HTM–quoted debt",
-  "Assets > Non-current > Other non-current investments > AFS– quoted equity",
-  "Assets > Current > Inventories > Raw materials and consumables",
-  "Assets > Current > Inventories > Work in progress",
-  "Assets > Current > Inventories > Finished goods",
-  "Assets > Current > Trade and other receivables > Trade receivables from related parties",
-  "Assets > Current > Trade and other receivables > Other trade receivables",
-  "Assets > Current > Trade and other receivables > Amount due from subsidiary",
-  "Assets > Current > Trade and other receivables > Prepayments and accrued income",
-  "Assets > Current > Held-for-trading investments",
-  "Assets > Current > Loan to subsidiary > Amount advanced to subsidiary",
-  "Assets > Current > Loan to subsidiary > Capital contribution",
-  "Assets > Current > Cash and bank balances > Cash at bank and on hand",
-  "Assets > Current > Cash and bank balances > Bank overdraft",
-  "Equity > Equity > Share capital",
-  "Equity > Equity > Revaluation reserve",
-  "Equity > Equity > Fair value reserve",
-  "Equity > Equity > Retained earnings",
-  "Equity > Current Year Profits & Losses > Revenue > Sale of goods",
-  "Equity > Current Year Profits & Losses > Revenue > Rendering of services",
-  "Equity > Current Year Profits & Losses > Cost of sales > Opening stock",
-  "Equity > Current Year Profits & Losses > Cost of sales > Purchases",
-  "Equity > Current Year Profits & Losses > Cost of sales > Carriage in",
-  "Equity > Current Year Profits & Losses > Cost of sales > Closing stock",
-  "Equity > Current Year Profits & Losses > Cost of sales > Other direct costs",
-  "Equity > Current Year Profits & Losses > Cost of sales > Wages and salaries",
-  "Equity > Current Year Profits & Losses > Cost of sales > Loose tools",
-  "Equity > Current Year Profits & Losses > Cost of sales > Repairsand maintenance",
-  "Equity > Current Year Profits & Losses > Cost of sales > Training and courses",
-  "Equity > Current Year Profits & Losses > Cost of sales > Fuel and oil",
-  "Equity > Current Year Profits & Losses > Cost of sales > Water and electricity",
-  "Equity > Current Year Profits & Losses > Cost of sales > Professional fees",
-  "Equity > Current Year Profits & Losses > Cost of sales > Insurances",
-  "Equity > Current Year Profits & Losses > Cost of sales > Consumables",
-  "Equity > Current Year Profits & Losses > Cost of sales > Depreciation",
-  "Equity > Current Year Profits & Losses > Cost of sales > Provision for warranty costs",
-  "Equity > Current Year Profits & Losses > Cost of sales > General expenses",
-  "Equity > Current Year Profits & Losses > Sales and marketing expenses > Fairs and exhibitions",
-  "Equity > Current Year Profits & Losses > Sales and marketing expenses > Advertising",
-  "Equity > Current Year Profits & Losses > Sales and marketing expenses > Commissions payable",
-  "Equity > Current Year Profits & Losses > Sales and marketing expenses > Market research and surveys",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Salaries",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Directors' remuneration",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Management fees",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Water andelectricity",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Repairs and maintenance",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Computer maintenance",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Office stationery and supplies",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Staff development",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Staff training",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Staff welfare",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Telecommunications",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Overseas travel",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Legal and professional fees",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Litigation settlement",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Audit fee",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Bank charges",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Insurance",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Subscriptions",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Baddebts written off",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Provision for doubtful debts",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Transport expenses",
-  "Equity > Current Year Profits & Losses > Administrative expenses > General expenses",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Research costs",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Impairment loss on property, plant and equipment",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Depreciation",
-  "Equity > Current Year Profits & Losses > Administrative expenses > Amortisation of intangible assets",
-  "Equity > Current Year Profits & Losses > Other operating income > Rental income from operating leases",
-  "Equity > Current Year Profits & Losses > Other operating income > Government grant",
-  "Equity > Current Year Profits & Losses > Other operating income > Gain on disposal of property, plant and equipment",
-  "Equity > Current Year Profits & Losses > Other operating income > Exchange gains",
-  "Equity > Current Year Profits & Losses > Investment income > Interest income on cash and cash equivalents",
-  "Equity > Current Year Profits & Losses > Investment income > Interest income from HFT investments",
-  "Equity > Current Year Profits & Losses > Investment income > Interest income from HTM investments",
-  "Equity > Current Year Profits & Losses > Investment income > Change in fair value of HFT investments",
-  "Equity > Current Year Profits & Losses > Investment losses > Change in fair value of HFT investments",
-  "Equity > Current Year Profits & Losses > Finance costs > Interest payable on finance lease",
-  "Equity > Current Year Profits & Losses > Finance costs > Bank interest",
-  "Equity > Current Year Profits & Losses > Finance costs > Dividends on redeemable cumulative preference shares",
-  "Equity > Current Year Profits & Losses > Finance costs > Unwinding of discount on site restoration provision",
-  "Equity > Current Year Profits & Losses > Share of profit of subsidiary",
-  "Equity > Current Year Profits & Losses > Income tax expense > Current tax expense",
-  "Equity > Current Year Profits & Losses > Income tax expense > Deferred tax expense",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Directors' remuneration",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Depreciation and amortisation expense",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Employee benefits expense",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Write-downs of inventories to net realisable value",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Impairment losses on property, plant and equipment",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Litigation settlement",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Audit fees",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Other assurance services",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Tax advisory services",
-  "Equity > Current Year Profits & Losses > PBT Expenses > Other non-audit services",
-  "Liabilities > Non-current > Borrowings > Redeemable preference shares",
-  "Liabilities > Non-current > Borrowings > Finance lease obligations",
-  "Liabilities > Non-current > Deferred tax liability",
-  "Liabilities > Non-current > Provisions",
-  "Liabilities > Current > Borrowings > Bank loan",
-  "Liabilities > Current > Borrowings > Bank overdraft",
-  "Liabilities > Current > Borrowings > Finance lease obligation",
-  "Liabilities > Current > Trade and other payables > Trade payables",
-  "Liabilities > Current > Trade and other payables > Other payables",
-  "Liabilities > Current > Trade and other payables > Accrued expenses",
-  "Liabilities > Current > Trade and other payables > Deferred government grant",
-  "Liabilities > Current > Current tax liabilities",
-  "Liabilities > Current > Provisions"
-];
-
-
-const CLASSIFICATION_RULES = [
-  {
-    keywords: ["bank", "cash", "petty"],
-    classification: "Assets > Current > Cash and bank balances > Cash at bank and on hand",
-  },
-  {
-    keywords: [
-      "trade receivable",
-      "trade debtor",
-      "accounts receivable",
-      "debtors",
-    ],
-    classification: "Assets > Current > Trade and other receivables > Other trade receivables",
-  },
-  {
-    keywords: ["prepayment", "prepaid", "advance"],
-    classification: "Assets > Current > Trade and other receivables > Prepayments and accrued income",
-  },
-  {
-    keywords: ["inventory", "stock", "raw materials"],
-    classification: "Assets > Current > Inventories > Raw materials and consumables",
-  },
-  {
-    keywords: ["vat recoverable", "input vat", "tax receivable"],
-    classification: "Assets > Current > Trade and other receivables > Other trade receivables",
-  },
-  {
-    keywords: ["property", "plant", "equipment", "machinery", "furniture"],
-    classification: "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Cost",
-  },
-  {
-    keywords: ["trade payable", "creditors", "accounts payable", "supplier"],
-    classification: "Liabilities > Current > Trade and other payables > Trade payables",
-  },
-  {
-    keywords: ["accrual", "accrued"],
-    classification: "Liabilities > Current > Trade and other payables > Accrued expenses",
-  },
-  {
-    keywords: ["vat payable", "output vat", "tax payable"],
-    classification: "Liabilities > Current > Current tax liabilities",
-  },
-  {
-    keywords: ["loan", "borrowing", "mortgage"],
-    classification: "Liabilities > Non-current > Borrowings > Finance lease obligations",
-  },
-  {
-    keywords: ["share capital", "ordinary shares"],
-    classification: "Equity > Equity > Share capital",
-  },
-  {
-    keywords: ["retained earnings", "profit brought forward"],
-    classification: "Equity > Equity > Retained earnings",
-  },
-  {
-    keywords: ["sales", "revenue", "turnover", "income"],
-    classification: "Equity > Current Year Profits & Losses > Revenue > Sale of goods",
-  },
-  {
-    keywords: ["salary", "wages", "payroll"],
-    classification: "Equity > Current Year Profits & Losses > Administrative expenses > Salaries",
-  },
-  {
-    keywords: ["rent", "utilities", "electricity"],
-    classification: "Equity > Current Year Profits & Losses > Administrative expenses > Water andelectricity",
-  },
-  {
-    keywords: ["office", "admin", "stationery"],
-    classification: "Equity > Current Year Profits & Losses > Administrative expenses > Office stationery and supplies",
-  },
-  {
-    keywords: ["marketing", "advertising"],
-    classification: "Equity > Current Year Profits & Losses > Sales and marketing expenses > Advertising",
-  },
-  {
-    keywords: ["insurance", "premium"],
-    classification: "Equity > Current Year Profits & Losses > Administrative expenses > Insurance",
-  },
-  {
-    keywords: ["depreciation", "amortisation"],
-    classification: "Equity > Current Year Profits & Losses > Administrative expenses > Depreciation",
-  },
-];
 
 /* -------------------------------------------------------
    Classification split helpers
@@ -774,43 +591,16 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Additional effect to watch for localStorage changes (in case of re-renders from loadExistingData)
   // This is critical to restore state after re-renders caused by saveETB/loadExistingData
   useEffect(() => {
-    const checkAndSync = () => {
-      // Always check localStorage and sync state, especially during/after push operations
-      try {
-        const pushedState = localStorage.getItem(pushedKey);
-        if (pushedState === "true") {
-          setHasBeenPushed((prev) => {
-            // Always restore from localStorage if it's true, even during push
-            if (!prev) {
-              setForceUpdate((f) => f + 1);
-              return true;
-            }
-            return prev;
-          });
-          // Force update regardless
-          setForceUpdate((prev) => prev + 1);
-        }
-      } catch { }
-    };
+  try {
+    const pushedState = localStorage.getItem(pushedKey);
+    if (pushedState === "true" && !hasBeenPushed) {
+      setHasBeenPushed(true);
+    }
+  } catch {
+    // ignore
+  }
+}, [pushedKey]);
 
-    // Check immediately
-    checkAndSync();
-
-    // Check multiple times to catch any re-renders from loadExistingData
-    const timeoutId1 = setTimeout(checkAndSync, 50);
-    const timeoutId2 = setTimeout(checkAndSync, 100);
-    const timeoutId3 = setTimeout(checkAndSync, 200);
-    const timeoutId4 = setTimeout(checkAndSync, 500);
-    const timeoutId5 = setTimeout(checkAndSync, 1000);
-
-    return () => {
-      clearTimeout(timeoutId1);
-      clearTimeout(timeoutId2);
-      clearTimeout(timeoutId3);
-      clearTimeout(timeoutId4);
-      clearTimeout(timeoutId5);
-    };
-  }, [forceUpdate, hasBeenPushed, pushing, pushedKey]); // Re-check when these change
 
   // Poll localStorage periodically to catch changes immediately
   useEffect(() => {
@@ -850,7 +640,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
   const autoClassify = useCallback((accountName: string): string => {
     const name = (accountName || "").toLowerCase();
-    for (const rule of CLASSIFICATION_RULES) {
+    for (const rule of NEW_CLASSIFICATION_RULESET) {
       if (rule.keywords.some((keyword) => name.includes(keyword)))
         return rule.classification;
     }
@@ -907,22 +697,75 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const priorYearIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("prior year")
       );
+      
+      // Find optional grouping column indices
+      const grouping1Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 1"
+      );
+      const grouping2Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 2"
+      );
+      const grouping3Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 3"
+      );
+      const grouping4Index = headers.findIndex((h: string) =>
+        h.toLowerCase().trim() === "grouping 4"
+      );
 
-      const etbData: ETBRow[] = rows.map((row: any[], index: number) => {
-        const accountName = row[nameIndex] || "";
-        const currentYear = Number(row[currentYearIndex]) || 0;
-        const adjustments = 0;
-        return {
-          id: `row-${index}-${Date.now()}`,
-          code: row[codeIndex] || "",
-          accountName,
-          currentYear,
-          priorYear: Number(row[priorYearIndex]) || 0,
-          adjustments,
-          finalBalance: currentYear + adjustments,
-          classification: "",
-        };
-      });
+      const etbData: ETBRow[] = rows
+        .map((row: any[], index: number) => {
+          const code = row[codeIndex] || "";
+          const accountName = row[nameIndex] || "";
+          
+          // Parse numeric values - remove parentheses and commas: (55,662) → 55662
+          const currentYear = parseAccountingNumber(row[currentYearIndex]);
+          const priorYear = parseAccountingNumber(row[priorYearIndex]);
+          const adjustments = 0;
+          
+          // Extract grouping values from file if available
+          const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
+          const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
+          const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
+          const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
+          
+          // Determine classification:
+          // - If file has grouping values, build classification from them (no autoClassify)
+          // - If no grouping values, use autoClassify
+          const hasFileGrouping = g1 || g2 || g3 || g4;
+          let classification = "";
+          
+          if (hasFileGrouping) {
+            // Build classification from file grouping values
+            classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
+          } else {
+            // No grouping in file, use autoClassify
+            // classification = autoClassify(accountName);
+            classification = "";
+          }
+          
+          return {
+            id: `row-${index}-${Date.now()}`,
+            code,
+            accountName,
+            currentYear,
+            priorYear,
+            adjustments,
+            finalBalance: currentYear + adjustments,
+            classification,
+            // Store file grouping (will be overwritten when user changes classification)
+            grouping1: g1,
+            grouping2: g2,
+            grouping3: g3,
+            grouping4: g4,
+          };
+        })
+        // Keep row if at least ONE of these has a value (Code OR Account Name OR Current Year)
+        // Filter out ONLY if ALL THREE are empty/zero
+        .filter((row) => {
+          const codeStr = (row.code || "").toString().trim();
+          const accountNameStr = (row.accountName || "").toString().trim();
+          return codeStr !== "" || accountNameStr !== "" || row.currentYear !== 0;
+        });
 
       setEtbRows(etbData);
       refreshClassificationSummary(etbData);
@@ -948,6 +791,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       adjustments: 0,
       finalBalance: 0,
       classification: "",
+      grouping1: "",
+      grouping2: "",
+      grouping3: "",
+      grouping4: "",
     };
     setEtbRows(prevRows => {
       const newRows = [...prevRows, newRow];
@@ -1257,9 +1104,32 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const actualPushingToCloud = pushingToCloud || isPushingToCloudRef.current;
 
   // Memoize the classification change handler
+  // When classification changes, sync grouping fields from classification parts
+  // This ensures grouping and classification stay in sync for Excel export
   const handleClassificationChange = useCallback((rowId: string, classification: string) => {
-    updateRow(rowId, "classification", classification);
-  }, [updateRow]);
+    setEtbRows(prevRows => {
+      return prevRows.map((row) => {
+        if (row.id !== rowId) return row;
+        
+        // Extract classification parts to sync with grouping fields
+        const parts = (classification || "").split(" > ").map(s => s.trim());
+        
+        // Update BOTH classification AND grouping fields to keep them in sync
+        // Backend will use grouping fields with classification as fallback
+        const updatedRow = {
+          ...row,
+          classification,
+          // Sync grouping to match classification parts
+          grouping1: parts[0] || "",
+          grouping2: parts[1] || "",
+          grouping3: parts[2] || "",
+          grouping4: parts[3] || "",
+        };
+        
+        return updatedRow;
+      });
+    });
+  }, []);
 
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
@@ -1406,14 +1276,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
                     </TableHead>
-                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
-                      Prior Year
-                    </TableHead>
                     <TableHead className="text-start  border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Adjustments
                     </TableHead>
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Final Balance
+                    </TableHead>
+                    <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
+                      Prior Year
                     </TableHead>
                     <TableHead className="w-24 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">
                       Classification
@@ -1464,18 +1334,6 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       <TableCell className="text-start border border-r-secondary border-b-secondary ">
                         <EditableText
                           type="number"
-                          value={row.priorYear}
-                          onChange={(val) => {
-                            updateRow(row.id, "priorYear", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
                           value={row.adjustments}
                           onChange={(val) => {
                             updateRow(row.id, "adjustments", val);
@@ -1487,6 +1345,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       </TableCell>
                       <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
                         {Math.round(Number(row.finalBalance)).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                        <EditableText
+                          type="number"
+                          value={row.priorYear}
+                          onChange={(val) => {
+                            updateRow(row.id, "priorYear", val);
+                          }}
+                          placeholder="0"
+                          className="text-start text-xs sm:text-sm"
+                          step={1}
+                        />
                       </TableCell>
                       <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
                         <div className="w-fit flex flex-col items-start gap-1">
@@ -1536,13 +1406,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                       {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
-                      {Math.round(totals.priorYear).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-start border border-r-secondary  font-bold text-xs sm:text-sm">
                       {Math.round(totals.finalBalance).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
+                      {Math.round(totals.priorYear).toLocaleString()}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>

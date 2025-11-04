@@ -2,6 +2,7 @@
 // Dynamically maps frontend classification strings to backend MongoDB ObjectIds
 // by fetching or creating ClassificationSection documents
 
+import { NEW_CLASSIFICATION_RULESET } from '@/components/engagement/classificationOptions';
 import axiosInstance from './axiosInstance';
 
 export interface ClassificationMapping {
@@ -99,8 +100,8 @@ export const getClassificationId = async (classificationString: string, engageme
   }
 
   // Validate classification string
-  if (!VALID_CLASSIFICATIONS.includes(classificationString)) {
-    throw new Error(`Invalid classification: "${classificationString}". Valid options: ${VALID_CLASSIFICATIONS.slice(0, 5).join(', ')}...`);
+  if (!NEW_CLASSIFICATION_RULESET.includes(classificationString)) {
+    throw new Error(`Invalid classification: "${classificationString}". Valid options: ${NEW_CLASSIFICATION_RULESET.slice(0, 5).join(', ')}...`);
   }
 
   // Validate engagement ID
@@ -203,7 +204,7 @@ export const clearClassificationCache = (): void => {
  * @returns Array of valid classification strings
  */
 export const getValidClassifications = (): string[] => {
-  return [...VALID_CLASSIFICATIONS];
+  return [...NEW_CLASSIFICATION_RULESET];
 };
 
 /**
@@ -212,5 +213,5 @@ export const getValidClassifications = (): string[] => {
  * @returns boolean indicating if classification is valid
  */
 export const isValidClassification = (classificationString: string): boolean => {
-  return VALID_CLASSIFICATIONS.includes(classificationString);
+  return NEW_CLASSIFICATION_RULESET.includes(classificationString);
 };

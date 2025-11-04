@@ -38,6 +38,28 @@ interface ValidationResult {
 }
 
 const REQUIRED_COLUMNS = ["Code", "Account Name", "Current Year", "Prior Year"]
+const OPTIONAL_COLUMNS = ["Grouping 1", "Grouping 2", "Grouping 3", "Grouping 4"]
+
+// Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
+// Removes parentheses and special characters, preserves any existing minus sign
+const parseAccountingNumber = (value: any): number => {
+  if (value === null || value === undefined || value === "") return 0;
+  
+  // If already a number, return it
+  if (typeof value === "number") return value;
+  
+  // Convert to string and clean
+  let str = String(value).trim();
+  
+  // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
+  str = str.replace(/[(),\$€£¥]/g, "").trim();
+  
+  // Parse to number
+  const num = Number(str);
+  
+  // Return the number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : num;
+};
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {
   const [uploading, setUploading] = useState(false)
@@ -77,16 +99,46 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       dataRows.forEach((row: any[], index: number) => {
         const currentYear = row[currentYearIndex]
         const priorYear = row[priorYearIndex]
-        if (currentYear && isNaN(Number(currentYear))) {
-          errors.push(`Row ${index + 2}: Current Year must be a number`)
+        
+        // Try to parse accounting format - if result is NaN, it's invalid
+        if (currentYear && currentYear !== "" && isNaN(parseAccountingNumber(currentYear))) {
+          errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
         }
-        if (priorYear && isNaN(Number(priorYear))) {
-          errors.push(`Row ${index + 2}: Prior Year must be a number`)
+        if (priorYear && priorYear !== "" && isNaN(parseAccountingNumber(priorYear))) {
+          errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
         }
       })
     }
 
     return { isValid: errors.length === 0, errors, data: errors.length === 0 ? data : undefined }
+  }
+
+  const filterZeroRows = (data: any[]): any[] => {
+    if (!data || data.length === 0) return data
+
+    const headers = data[0]
+    const codeIndex = headers.findIndex((h: string) => h.toLowerCase().trim().includes("code"))
+    const accountNameIndex = headers.findIndex((h: string) => h.toLowerCase().trim().includes("account name"))
+    const currentYearIndex = headers.findIndex((h: string) => h.toLowerCase().trim() === "current year")
+
+    if (codeIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1) {
+      // If we can't find required columns, return data as-is
+      return data
+    }
+
+    const dataRows = data.slice(1)
+    const filteredRows = dataRows.filter((row: any[]) => {
+      const code = (row[codeIndex] || "").toString().trim()
+      const accountName = (row[accountNameIndex] || "").toString().trim()
+      const currentYear = parseAccountingNumber(row[currentYearIndex])
+      
+      // Keep row if at least ONE of these has a value (Code OR Account Name OR Current Year)
+      // Filter out ONLY if ALL THREE are empty/zero
+      return code !== "" || accountName !== "" || currentYear !== 0
+    })
+
+    // Return headers + filtered rows
+    return [headers, ...filteredRows]
   }
 
   const parseCSVFile = (file: File): Promise<any[]> =>
@@ -141,6 +193,14 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         return
       }
 
+      // Filter out rows where Code, Account Name, AND Current Year are ALL empty/zero
+      const filteredData = filterZeroRows(validation.data)
+      
+      if (filteredData.length <= 1) {
+        // Only headers or no data rows after filtering
+        throw new Error("No valid data rows found (all rows have Code, Account Name, and Current Year empty/zero)")
+      }
+
       // delete existing TB (if your API supports it)
       await authFetch(`${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance`, {
         method: "DELETE",
@@ -158,13 +218,13 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       })
       if (!response.ok) throw new Error("Failed to upload file to library")
 
-      // Save trial balance data
+      // Save trial balance data with filtered rows
       const tbResponse = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: validation.data, fileName: file.name }),
+          body: JSON.stringify({ data: filteredData, fileName: file.name }),
         },
       )
       if (!tbResponse.ok) throw new Error("Failed to save trial balance data")
@@ -234,7 +294,7 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         </CardTitle>
         <CardDescription>
           Upload your Trial Balance file (CSV/Excel) or import from Google Sheets. Required columns: Code, Account Name,
-          Current Year, Prior Year
+          Current Year, Prior Year. Optional columns: Grouping 1, Grouping 2, Grouping 3, Grouping 4
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
