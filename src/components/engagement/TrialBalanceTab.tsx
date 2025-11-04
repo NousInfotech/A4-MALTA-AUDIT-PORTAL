@@ -38,32 +38,11 @@ async function authFetch(url: string, options: RequestInit = {}) {
   });
 }
 
-// const formatClassificationForDisplay = (c: string) => {
-//   if (!c) return "—";
-//   const parts = c.split(" > ");
-//   const top = parts[0];
-//   if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
-//   return top;
-// };
-
-const formatClassificationForDisplay = (c: string) => {
-  if (!c) return "—";
-  const parts = c.split(" > ");
-  if (parts.length > 2) {
-    return parts[2];
-  } else {
-    return parts[parts.length - 1]; // Retype this line
-  }
+const formatClassificationForDisplay = (classification: string) => {
+  if (!classification) return "—";
+  const parts = classification.split(" > ");
+  return parts.length >= 3 ? parts[2] : parts[parts.length - 1];
 };
-
-// const formatClassificationForDisplay = (c: string) => {
-
-//   if (!c) return "—";
-//   const parts = c.split(" > ");
-
-//     return parts[parts.length - 1]; // Retype this line
-
-// };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   engagement,
@@ -315,24 +294,20 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   // };
 
   const groupClassifications = () => {
-    const grouped: { [key: string]: string[] } = {};
+  const grouped: { [key: string]: string[] } = {};
 
-    classifications.forEach((classification) => {
-      const parts = classification.split(" > ");
+  classifications.forEach((classification) => {
+    const parts = classification.split(" > ");
+    if (parts.length < 3) return; // ignore level 1–2
 
-      // Ensure at least 3 levels
-      while (parts.length < 3) parts.push(parts[parts.length - 1]);
+    const fullPath = parts.join(" > ");
+    if (!grouped[fullPath]) grouped[fullPath] = [];
+    grouped[fullPath].push(classification);
+  });
 
-      // Make the key the full path (all levels)
-      const fullPath = parts.join(" > ");
+  return grouped;
+};
 
-      // Push the same classification under its full path
-      if (!grouped[fullPath]) grouped[fullPath] = [];
-      grouped[fullPath].push(classification);
-    });
-
-    return grouped;
-  };
 
   const groupedClassifications = groupClassifications();
   console.log(groupedClassifications);
@@ -562,42 +537,49 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                   </div>
 
                                   {/* Items for this subtitle */}
-                                  {items.map(([key, classificationList]) => {
-                                    const notificationCount =
-                                      classificationNotificationCounts[key] ||
-                                      0;
-                                    return (
-                                      <div key={key} className="px-2 mb-2">
-                                        <Button
-                                          variant={
-                                            selectedClassification === key
-                                              ? "default"
-                                              : "outline"
-                                          }
-                                          className="w-full justify-between text-left h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
-                                          onClick={() =>
-                                            setSelectedClassification(key)
-                                          }
-                                        >
-                                          <div className="flex flex-col items-start flex-1 min-w-0">
-                                            <div className="font-medium whitespace-normal break-words">
-                                              {formatClassificationForDisplay(
-                                                key
-                                              )}
+                                  {items
+                                    .filter(([key]) => {
+                                      const parts = key.split(" > ");
+                                      // ✅ Only show if it's level 3
+                                      return parts.length === 3;
+                                    })
+                                    .map(([key, classificationList]) => {
+                                      const notificationCount =
+                                        classificationNotificationCounts[key] ||
+                                        0;
+
+                                      return (
+                                        <div key={key} className="px-2 mb-2">
+                                          <Button
+                                            variant={
+                                              selectedClassification === key
+                                                ? "default"
+                                                : "outline"
+                                            }
+                                            className="w-full justify-between text-left h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
+                                            onClick={() =>
+                                              setSelectedClassification(key)
+                                            }
+                                          >
+                                            <div className="flex flex-col items-start flex-1 min-w-0">
+                                              <div className="font-medium whitespace-normal break-words">
+                                                {formatClassificationForDisplay(
+                                                  key
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
-                                          {notificationCount > 0 && (
-                                            <Badge
-                                              variant="destructive"
-                                              className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 flex-shrink-0"
-                                            >
-                                              {notificationCount}
-                                            </Badge>
-                                          )}
-                                        </Button>
-                                      </div>
-                                    );
-                                  })}
+                                            {notificationCount > 0 && (
+                                              <Badge
+                                                variant="destructive"
+                                                className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 flex-shrink-0"
+                                              >
+                                                {notificationCount}
+                                              </Badge>
+                                            )}
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
                                 </div>
                               );
                             })}

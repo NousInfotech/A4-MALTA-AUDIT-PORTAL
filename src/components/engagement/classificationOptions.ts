@@ -146,13 +146,11 @@ export const NEW_CLASSIFICATION_RULESET = [
   "Assets > Current > Cash and bank balances",
 
   // 💰 Equity
-  "Equity > Equity",
   "Equity > Equity > Share capital",
   "Equity > Equity > Revaluation reserve",
   "Equity > Equity > Fair value reserve",
   "Equity > Equity > Other reserves",
   "Equity > Equity > Retained earnings",
-  "Equity > Current Year Profits & Losses",
   "Equity > Current Year Profits & Losses > Revenue",
   "Equity > Current Year Profits & Losses > Cost of sales",
   "Equity > Current Year Profits & Losses > Sales and marketing expenses",
@@ -165,9 +163,7 @@ export const NEW_CLASSIFICATION_RULESET = [
   "Equity > Current Year Profits & Losses > PBT Expenses",
 
   // ⚖️ Liabilities
-  "Liabilities > Non-current > Borrowings",
-  "Liabilities > Non-current",
   "Liabilities > Current > Borrowings",
   "Liabilities > Current > Trade and other payables",
-  "Liabilities > Current",
+  "Liabilities > Non-current > Borrowings",
 ];
