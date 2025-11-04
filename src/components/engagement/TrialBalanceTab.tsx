@@ -295,14 +295,15 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
   const groupClassifications = () => {
   const grouped: { [key: string]: string[] } = {};
-
+  console.log(classifications);
   classifications.forEach((classification) => {
     const parts = classification.split(" > ");
     if (parts.length < 3) return; // ignore level 1–2
 
-    const fullPath = parts.join(" > ");
-    if (!grouped[fullPath]) grouped[fullPath] = [];
-    grouped[fullPath].push(classification);
+    // Group by first 3 levels (the parent)
+    const groupKey = parts.slice(0, 3).join(" > ");
+    if (!grouped[groupKey]) grouped[groupKey] = [];
+    grouped[groupKey].push(classification);
   });
 
   return grouped;
@@ -482,10 +483,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           const parts = key.split(" > ");
                           if (parts.length < 3) return;
                           const mainTitle = parts[0] || "";
-                          const subtitle =
-                            parts[1] === mainTitle && parts.length > 2
-                              ? parts[2]
-                              : parts[1];
+                          // Always use parts[1] as subtitle, no special case
+                          const subtitle = parts[1] || "";
 
                           if (!groupedByTitle[mainTitle])
                             groupedByTitle[mainTitle] = {};
@@ -528,7 +527,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             {/* Subtitles within this main title */}
                             {subtitles.map((subtitle) => {
                               const items = groupedByTitle[mainTitle][subtitle];
-
+                              console.log(`Items for ${mainTitle} ${subtitle}:`, items);
                               return (
                                 <div key={`${mainTitle}-${subtitle}`}>
                                   {/* Subtitle Header */}
@@ -539,9 +538,16 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                   {/* Items for this subtitle */}
                                   {items
                                     .filter(([key]) => {
-                                      const parts = key.split(" > ");
-                                      // ✅ Only show if it's level 3
-                                      return parts.length === 3;
+                                      // Get all classification keys to check for children
+                                      const allKeys = Object.keys(groupedClassifications);
+                                      // Check if this classification has any children
+                                      const hasChildren = allKeys.some(
+                                        (otherKey) =>
+                                          otherKey !== key &&
+                                          otherKey.startsWith(key + " > ")
+                                      );
+                                      // Only show if it has no children (it's a leaf node)
+                                      return !hasChildren;
                                     })
                                     .map(([key, classificationList]) => {
                                       const notificationCount =

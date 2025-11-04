@@ -516,9 +516,8 @@ const formatClassificationForDisplay = (c: string) => {
 
   const parts = c.split(" > ");
 
-  const top = parts[0];
+  const top = parts[2];
 
-  if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
 
   return top;
 
