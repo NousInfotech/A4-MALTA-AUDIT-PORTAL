@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useRef } from 'react';
-import { useBranding } from '@/contexts/BrandingContext';
+import { useBranding, ThemeSuggestion } from '@/contexts/BrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Upload, RefreshCw, Save, Palette, Layout, Image as ImageIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { ThemeSuggestionModal } from '@/components/admin/ThemeSuggestionModal';
 
 const ColorPicker: React.FC<{
   label: string;
@@ -103,6 +104,9 @@ export const BrandingSettings: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [themeSuggestions, setThemeSuggestions] = useState<ThemeSuggestion[]>([]);
+  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [pendingLogoUrl, setPendingLogoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -127,12 +131,23 @@ export const BrandingSettings: React.FC = () => {
     setIsSaving(true);
     try {
       let logoUrl = formData.logo_url;
+      let suggestions: ThemeSuggestion[] = [];
 
       // Upload logo if a new file was selected
       if (logoFile) {
-        const uploadedUrl = await uploadLogo(logoFile);
-        if (uploadedUrl) {
-          logoUrl = uploadedUrl;
+        const result = await uploadLogo(logoFile);
+        if (result) {
+          logoUrl = result.logo_url;
+          suggestions = result.theme_suggestions || [];
+          
+          // If we have theme suggestions, show the modal
+          if (suggestions.length > 0) {
+            setThemeSuggestions(suggestions);
+            setPendingLogoUrl(logoUrl);
+            setShowThemeModal(true);
+            setIsSaving(false);
+            return; // Don't save yet, wait for user to choose or skip
+          }
         } else {
           toast.error('Failed to upload logo');
           setIsSaving(false);
@@ -140,7 +155,7 @@ export const BrandingSettings: React.FC = () => {
         }
       }
 
-      // Update branding settings
+      // Update branding settings (either no logo was uploaded, or no suggestions were generated)
       const success = await updateBranding({
         ...formData,
         logo_url: logoUrl,
@@ -159,6 +174,63 @@ export const BrandingSettings: React.FC = () => {
       toast.error('An error occurred while saving');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSelectTheme = async (theme: ThemeSuggestion) => {
+    setIsSaving(true);
+    try {
+      // Apply the selected theme colors along with the logo
+      const success = await updateBranding({
+        ...formData,
+        logo_url: pendingLogoUrl,
+        ...theme.colors,
+      });
+
+      if (success) {
+        toast.success(`Applied "${theme.name}" theme successfully!`);
+        setLogoFile(null);
+        setLogoPreview(null);
+        setPendingLogoUrl(null);
+        setThemeSuggestions([]);
+        await refreshBranding();
+      } else {
+        toast.error('Failed to apply theme');
+      }
+    } catch (error) {
+      console.error('Error applying theme:', error);
+      toast.error('An error occurred while applying theme');
+    } finally {
+      setIsSaving(false);
+      setShowThemeModal(false);
+    }
+  };
+
+  const handleSkipTheme = async () => {
+    setIsSaving(true);
+    try {
+      // Just save the logo without theme changes
+      const success = await updateBranding({
+        ...formData,
+        logo_url: pendingLogoUrl,
+      });
+
+      if (success) {
+        toast.success('Logo updated successfully');
+        setLogoFile(null);
+        setLogoPreview(null);
+        setPendingLogoUrl(null);
+        setThemeSuggestions([]);
+        await refreshBranding();
+      } else {
+        toast.error('Failed to update logo');
+      }
+    } catch (error) {
+      console.error('Error updating logo:', error);
+      toast.error('An error occurred');
+    } finally {
+      setIsSaving(false);
+      setShowThemeModal(false);
     }
   };
 
@@ -384,6 +456,15 @@ export const BrandingSettings: React.FC = () => {
           {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
+
+      {/* Theme Suggestion Modal */}
+      <ThemeSuggestionModal
+        isOpen={showThemeModal}
+        onClose={() => setShowThemeModal(false)}
+        suggestions={themeSuggestions}
+        onSelectTheme={handleSelectTheme}
+        onSkip={handleSkipTheme}
+      />
     </div>
   );
 };

@@ -21,12 +21,27 @@ export interface BrandingSettings {
   updated_at?: string;
 }
 
+export interface ThemeSuggestion {
+  name: string;
+  description: string;
+  colors: {
+    sidebar_background_color: string;
+    sidebar_text_color: string;
+    body_background_color: string;
+    body_text_color: string;
+    primary_color: string;
+    primary_foreground_color: string;
+    accent_color: string;
+    accent_foreground_color: string;
+  };
+}
+
 interface BrandingContextType {
   branding: BrandingSettings | null;
   isLoading: boolean;
   refreshBranding: () => Promise<void>;
   updateBranding: (settings: Partial<BrandingSettings>) => Promise<boolean>;
-  uploadLogo: (file: File) => Promise<string | null>;
+  uploadLogo: (file: File) => Promise<{ logo_url: string; theme_suggestions: ThemeSuggestion[] } | null>;
   resetBranding: () => Promise<boolean>;
 }
 
@@ -189,7 +204,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [applyCSSVariables]);
 
   // Upload logo
-  const uploadLogo = useCallback(async (file: File): Promise<string | null> => {
+  const uploadLogo = useCallback(async (file: File): Promise<{ logo_url: string; theme_suggestions: ThemeSuggestion[] } | null> => {
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) {
@@ -211,7 +226,10 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       );
 
-      return response.data.logo_url;
+      return {
+        logo_url: response.data.logo_url,
+        theme_suggestions: response.data.theme_suggestions || []
+      };
     } catch (error) {
       console.error('Error uploading logo:', error);
       return null;
