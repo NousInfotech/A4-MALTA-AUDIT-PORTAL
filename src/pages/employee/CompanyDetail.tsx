@@ -229,7 +229,7 @@ export const CompanyDetail: React.FC = () => {
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-              Representatives ({company.persons?.length || 0})
+              Representatives ({(company.persons?.length || 0) + (company.shareHoldingCompanies?.length || 0)})
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
               Distribution
@@ -429,7 +429,11 @@ export const CompanyDetail: React.FC = () => {
               )}
             </TabsContent>
             <TabsContent value="pie-chart" className="p-6 mt-6">
-              <SharePieChart persons={personsForChart} title="Distribution" />
+              <SharePieChart 
+                persons={personsForChart} 
+                companies={company?.shareHoldingCompanies || []}
+                title="Distribution" 
+              />
             </TabsContent>
           </Tabs>
         </div>

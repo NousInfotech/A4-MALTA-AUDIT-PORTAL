@@ -167,10 +167,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
                     Company Details
                   </TabsTrigger>
                   <TabsTrigger value="persons" className="rounded-lg">
-                    Persons ({fullCompanyData?.persons?.length || 0})
-                  </TabsTrigger>
-                  <TabsTrigger value="persons" className="rounded-lg">
-                    
+                    Representatives ({(fullCompanyData?.persons?.length || 0) + (fullCompanyData?.shareHoldingCompanies?.length || 0)})
                   </TabsTrigger>
                 </TabsList>
 

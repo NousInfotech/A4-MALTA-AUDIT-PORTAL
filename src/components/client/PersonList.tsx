@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Plus, Edit, Trash2, Mail, Phone, Globe } from "lucide-react";
+import { Users, Plus, Edit, Trash2, Mail, Phone, Globe, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CreatePersonModal } from "./CreatePersonModal";
+import { CreateCompanyModal } from "./CreateCompanyModal";
 import { EditPersonModal } from "./EditPersonModal";
 import { DeletePersonConfirmation } from "./DeletePersonConfirmation";
 
@@ -42,7 +43,11 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [personToDelete, setPersonToDelete] = useState<Person | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCompanyCreateModalOpen, setIsCompanyCreateModalOpen] = useState(false);
   const { toast } = useToast();
+  // API helper import usage (may be used for future actions)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const apiCompany = null;
 
   const fetchPersons = async () => {
     try {
@@ -149,6 +154,17 @@ export const PersonList: React.FC<PersonListProps> = ({
     return "bg-gray-100 text-gray-700 border-gray-200";
   };
 
+  // Calculate share totals - count all persons with shares and all companies
+  const shareTotals = {
+    personTotal: persons.reduce((acc, p) => {
+      const pct = typeof p?.sharePercentage === "number" ? p.sharePercentage : 0;
+      return acc + pct;
+    }, 0),
+    companyTotal: (company?.shareHoldingCompanies || []).reduce((acc: number, share: any) => {
+      return acc + (typeof share.sharePercentage === "number" ? share.sharePercentage : 0);
+    }, 0),
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -169,12 +185,27 @@ export const PersonList: React.FC<PersonListProps> = ({
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Representatives</h3>
               <p className="text-sm text-gray-600">
-                Individuals associated with this company
+                Individuals and companies associated with this company
               </p>
+              {/* Share Totals */}
+              {(shareTotals.companyTotal > 0 || shareTotals.personTotal > 0) && (
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {shareTotals.companyTotal > 0 && (
+                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 rounded-lg px-2 py-1 text-xs">
+                      Company shares: {shareTotals.companyTotal}%
+                    </Badge>
+                  )}
+                  {shareTotals.personTotal > 0 && (
+                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 rounded-lg px-2 py-1 text-xs">
+                      Person shares: {shareTotals.personTotal}%
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-          {persons.length > 0 && (
+          {(persons.length > 0 || (company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0)) && (
             <Button
               onClick={() => setIsCreateModalOpen(true)}
               size="sm"
@@ -184,12 +215,73 @@ export const PersonList: React.FC<PersonListProps> = ({
               Add Person
             </Button>
           )}
-          <Button size="sm" className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl">
+          <Button size="sm" className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl" onClick={() => setIsCompanyCreateModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-             Company
+            Add Company
           </Button>
           </div>
         </div>
+
+        {/* Shareholding Companies Section */}
+        {company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 className="h-5 w-5 text-gray-600" />
+              <h4 className="text-md font-semibold text-gray-900">Shareholding Companies</h4>
+            </div>
+            {company.shareHoldingCompanies.map((share: any, index: number) => {
+              let companyName = "Unknown Company";
+              if (share.companyId) {
+                if (typeof share.companyId === 'object' && share.companyId.name) {
+                  companyName = share.companyId.name;
+                } else if (typeof share.companyId === 'string') {
+                  companyName = "Unknown Company";
+                }
+              }
+              
+              return (
+                <Card
+                  key={`company-${index}`}
+                  className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Building2 className="h-5 w-5 text-gray-600" />
+                          <h4 className="text-lg font-semibold text-gray-900">
+                            {companyName}
+                          </h4>
+                          {share.sharePercentage && share.sharePercentage > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                            >
+                              {share.sharePercentage}% Shareholder
+                            </Badge>
+                          )}
+                        </div>
+                        {typeof share.companyId === 'object' && share.companyId.registrationNumber && (
+                          <div className="text-sm text-gray-600">
+                            Registration: {share.companyId.registrationNumber}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Persons Section */}
+        {company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0 && persons.length > 0 && (
+          <div className="flex items-center gap-2 mb-2 mt-6">
+            <Users className="h-5 w-5 text-gray-600" />
+            <h4 className="text-md font-semibold text-gray-900">Persons</h4>
+          </div>
+        )}
 
         {/* Persons Grid */}
         {persons.length > 0 ? (
@@ -210,7 +302,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                           person.sharePercentage > 0 && (
                             <Badge
                               variant="outline"
-                              className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                              className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
                             >
                               {person.sharePercentage}% Shareholder
                             </Badge>
@@ -282,17 +374,19 @@ export const PersonList: React.FC<PersonListProps> = ({
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-xl">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">No persons yet</p>
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Person
-            </Button>
-          </div>
+          !company?.shareHoldingCompanies || company.shareHoldingCompanies.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-xl">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 mb-4">No representatives yet</p>
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Person
+              </Button>
+            </div>
+          ) : null
         )}
       </div>
 
@@ -307,13 +401,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         }}
         clientId={clientId}
         companyId={companyId}
-        existingShareTotal={(persons || []).reduce((acc, p) => {
-          const hasShare = Array.isArray(p?.roles) && (
-            p.roles.includes("Shareholder")
-          );
-          const pct = typeof p?.sharePercentage === "number" ? p.sharePercentage : 0;
-          return acc + (hasShare ? pct : 0);
-        }, 0)}
+        existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
       />
 
       {/* Edit Person Modal */}
@@ -344,6 +432,19 @@ export const PersonList: React.FC<PersonListProps> = ({
         onConfirm={handleDeleteConfirm}
         personName={personToDelete?.name || ""}
         isLoading={isDeleting}
+      />
+
+      {/* Create Company Modal */}
+      <CreateCompanyModal
+        isOpen={isCompanyCreateModalOpen}
+        onClose={() => setIsCompanyCreateModalOpen(false)}
+        onSuccess={() => {
+          setIsCompanyCreateModalOpen(false);
+          // No local companies list here; trigger parent refresh if needed
+          onUpdate();
+        }}
+        clientId={clientId}
+        existingCompanies={[]}
       />
     </>
   );
