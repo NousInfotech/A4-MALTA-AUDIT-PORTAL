@@ -319,16 +319,23 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
     classifications.forEach((classification) => {
       const parts = classification.split(" > ");
-      const parentPath = parts.slice(0, -1).join(" > "); // everything except last
 
-      if (!grouped[parentPath]) grouped[parentPath] = [];
-      grouped[parentPath].push(classification);
+      // Ensure at least 3 levels
+      while (parts.length < 3) parts.push(parts[parts.length - 1]);
+
+      // Make the key the full path (all levels)
+      const fullPath = parts.join(" > ");
+
+      // Push the same classification under its full path
+      if (!grouped[fullPath]) grouped[fullPath] = [];
+      grouped[fullPath].push(classification);
     });
 
     return grouped;
   };
 
   const groupedClassifications = groupClassifications();
+  console.log(groupedClassifications);
 
   const jumpToClassification = (classification: string) => {
     const key = shouldCreateSeparateTab(classification)
@@ -498,7 +505,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           if (key === "Adjustments") return;
 
                           const parts = key.split(" > ");
-                           if (parts.length < 3) return; 
+                          if (parts.length < 3) return;
                           const mainTitle = parts[0] || "";
                           const subtitle =
                             parts[1] === mainTitle && parts.length > 2
@@ -546,7 +553,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             {/* Subtitles within this main title */}
                             {subtitles.map((subtitle) => {
                               const items = groupedByTitle[mainTitle][subtitle];
-                              console.log("items", items);
+
                               return (
                                 <div key={`${mainTitle}-${subtitle}`}>
                                   {/* Subtitle Header */}

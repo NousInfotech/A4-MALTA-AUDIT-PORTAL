@@ -4665,7 +4665,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  function renderLeadSheetContent() {
+function renderLeadSheetContent() {
+
     console.log("my sectionData", sectionData)
     const subSections = groupBySubCategory(sectionData);
 
@@ -6946,9 +6947,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               <tbody>
 
-                {sectionData.map((row) => (
+                {sectionData.map((row,index) => (
 
-                  <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
+                  <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
                     <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
 
@@ -7318,9 +7319,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               <tbody>
 
-                {sectionData.map((row) => (
+                {sectionData.map((row,index) => (
 
-                  <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
+                  <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
                     <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
 
