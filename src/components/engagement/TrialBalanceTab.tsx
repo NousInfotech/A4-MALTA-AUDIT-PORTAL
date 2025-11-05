@@ -38,32 +38,11 @@ async function authFetch(url: string, options: RequestInit = {}) {
   });
 }
 
-// const formatClassificationForDisplay = (c: string) => {
-//   if (!c) return "—";
-//   const parts = c.split(" > ");
-//   const top = parts[0];
-//   if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1];
-//   return top;
-// };
-
-const formatClassificationForDisplay = (c: string) => {
-  if (!c) return "—";
-  const parts = c.split(" > ");
-  if (parts.length > 2) {
-    return parts[2];
-  } else {
-    return parts[parts.length - 1]; // Retype this line
-  }
+const formatClassificationForDisplay = (classification: string) => {
+  if (!classification) return "—";
+  const parts = classification.split(" > ");
+  return parts.length >= 3 ? parts[2] : parts[parts.length - 1];
 };
-
-// const formatClassificationForDisplay = (c: string) => {
-
-//   if (!c) return "—";
-//   const parts = c.split(" > ");
-
-//     return parts[parts.length - 1]; // Retype this line
-
-// };
 
 export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   engagement,
@@ -315,20 +294,24 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   // };
 
   const groupClassifications = () => {
-    const grouped: { [key: string]: string[] } = {};
+  const grouped: { [key: string]: string[] } = {};
+  console.log(classifications);
+  classifications.forEach((classification) => {
+    const parts = classification.split(" > ");
+    if (parts.length < 3) return; // ignore level 1–2
 
-    classifications.forEach((classification) => {
-      const parts = classification.split(" > ");
-      const parentPath = parts.slice(0, -1).join(" > "); // everything except last
+    // Group by first 3 levels (the parent)
+    const groupKey = parts.slice(0, 3).join(" > ");
+    if (!grouped[groupKey]) grouped[groupKey] = [];
+    grouped[groupKey].push(classification);
+  });
 
-      if (!grouped[parentPath]) grouped[parentPath] = [];
-      grouped[parentPath].push(classification);
-    });
+  return grouped;
+};
 
-    return grouped;
-  };
 
   const groupedClassifications = groupClassifications();
+  console.log(groupedClassifications);
 
   const jumpToClassification = (classification: string) => {
     const key = shouldCreateSeparateTab(classification)
@@ -498,12 +481,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           if (key === "Adjustments") return;
 
                           const parts = key.split(" > ");
-                           if (parts.length < 3) return; 
+                          if (parts.length < 3) return;
                           const mainTitle = parts[0] || "";
-                          const subtitle =
-                            parts[1] === mainTitle && parts.length > 2
-                              ? parts[2]
-                              : parts[1];
+                          // Always use parts[1] as subtitle, no special case
+                          const subtitle = parts[1] || "";
 
                           if (!groupedByTitle[mainTitle])
                             groupedByTitle[mainTitle] = {};
@@ -546,7 +527,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             {/* Subtitles within this main title */}
                             {subtitles.map((subtitle) => {
                               const items = groupedByTitle[mainTitle][subtitle];
-                              console.log("items", items);
+                              console.log(`Items for ${mainTitle} ${subtitle}:`, items);
                               return (
                                 <div key={`${mainTitle}-${subtitle}`}>
                                   {/* Subtitle Header */}
@@ -555,42 +536,56 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                   </div>
 
                                   {/* Items for this subtitle */}
-                                  {items.map(([key, classificationList]) => {
-                                    const notificationCount =
-                                      classificationNotificationCounts[key] ||
-                                      0;
-                                    return (
-                                      <div key={key} className="px-2 mb-2">
-                                        <Button
-                                          variant={
-                                            selectedClassification === key
-                                              ? "default"
-                                              : "outline"
-                                          }
-                                          className="w-full justify-between text-left h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
-                                          onClick={() =>
-                                            setSelectedClassification(key)
-                                          }
-                                        >
-                                          <div className="flex flex-col items-start flex-1 min-w-0">
-                                            <div className="font-medium whitespace-normal break-words">
-                                              {formatClassificationForDisplay(
-                                                key
-                                              )}
+                                  {items
+                                    .filter(([key]) => {
+                                      // Get all classification keys to check for children
+                                      const allKeys = Object.keys(groupedClassifications);
+                                      // Check if this classification has any children
+                                      const hasChildren = allKeys.some(
+                                        (otherKey) =>
+                                          otherKey !== key &&
+                                          otherKey.startsWith(key + " > ")
+                                      );
+                                      // Only show if it has no children (it's a leaf node)
+                                      return !hasChildren;
+                                    })
+                                    .map(([key, classificationList]) => {
+                                      const notificationCount =
+                                        classificationNotificationCounts[key] ||
+                                        0;
+
+                                      return (
+                                        <div key={key} className="px-2 mb-2">
+                                          <Button
+                                            variant={
+                                              selectedClassification === key
+                                                ? "default"
+                                                : "outline"
+                                            }
+                                            className="w-full justify-between text-left h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
+                                            onClick={() =>
+                                              setSelectedClassification(key)
+                                            }
+                                          >
+                                            <div className="flex flex-col items-start flex-1 min-w-0">
+                                              <div className="font-medium whitespace-normal break-words">
+                                                {formatClassificationForDisplay(
+                                                  key
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
-                                          {notificationCount > 0 && (
-                                            <Badge
-                                              variant="destructive"
-                                              className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 flex-shrink-0"
-                                            >
-                                              {notificationCount}
-                                            </Badge>
-                                          )}
-                                        </Button>
-                                      </div>
-                                    );
-                                  })}
+                                            {notificationCount > 0 && (
+                                              <Badge
+                                                variant="destructive"
+                                                className="ml-2 bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 flex-shrink-0"
+                                              >
+                                                {notificationCount}
+                                              </Badge>
+                                            )}
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
                                 </div>
                               );
                             })}

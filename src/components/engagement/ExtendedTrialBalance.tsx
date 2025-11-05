@@ -712,51 +712,60 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         h.toLowerCase().trim() === "grouping 4"
       );
 
-      const etbData: ETBRow[] = rows.map((row: any[], index: number) => {
-        const accountName = row[nameIndex] || "";
-        
-        // Parse numeric values - remove parentheses and commas: (55,662) → 55662
-        const currentYear = parseAccountingNumber(row[currentYearIndex]);
-        const priorYear = parseAccountingNumber(row[priorYearIndex]);
-        const adjustments = 0;
-        
-        // Extract grouping values from file if available
-        const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
-        const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
-        const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
-        const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
-        
-        // Determine classification:
-        // - If file has grouping values, build classification from them (no autoClassify)
-        // - If no grouping values, use autoClassify
-        const hasFileGrouping = g1 || g2 || g3 || g4;
-        let classification = "";
-        
-        if (hasFileGrouping) {
-          // Build classification from file grouping values
-          classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
-        } else {
-          // No grouping in file, use autoClassify
-          // classification = autoClassify(accountName);
-          classification = "";
-        }
-        
-        return {
-          id: `row-${index}-${Date.now()}`,
-          code: row[codeIndex] || "",
-          accountName,
-          currentYear,
-          priorYear,
-          adjustments,
-          finalBalance: currentYear + adjustments,
-          classification,
-          // Store file grouping (will be overwritten when user changes classification)
-          grouping1: g1,
-          grouping2: g2,
-          grouping3: g3,
-          grouping4: g4,
-        };
-      });
+      const etbData: ETBRow[] = rows
+        .map((row: any[], index: number) => {
+          const code = row[codeIndex] || "";
+          const accountName = row[nameIndex] || "";
+          
+          // Parse numeric values - remove parentheses and commas: (55,662) → 55662
+          const currentYear = parseAccountingNumber(row[currentYearIndex]);
+          const priorYear = parseAccountingNumber(row[priorYearIndex]);
+          const adjustments = 0;
+          
+          // Extract grouping values from file if available
+          const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
+          const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
+          const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
+          const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
+          
+          // Determine classification:
+          // - If file has grouping values, build classification from them (no autoClassify)
+          // - If no grouping values, use autoClassify
+          const hasFileGrouping = g1 || g2 || g3 || g4;
+          let classification = "";
+          
+          if (hasFileGrouping) {
+            // Build classification from file grouping values
+            classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
+          } else {
+            // No grouping in file, use autoClassify
+            // classification = autoClassify(accountName);
+            classification = "";
+          }
+          
+          return {
+            id: `row-${index}-${Date.now()}`,
+            code,
+            accountName,
+            currentYear,
+            priorYear,
+            adjustments,
+            finalBalance: currentYear + adjustments,
+            classification,
+            // Store file grouping (will be overwritten when user changes classification)
+            grouping1: g1,
+            grouping2: g2,
+            grouping3: g3,
+            grouping4: g4,
+          };
+        })
+        // Keep row if at least ONE of these has a value (Code OR Account Name OR Current Year)
+        // Filter out ONLY if ALL THREE are empty/zero
+        .filter((row) => {
+          const codeStr = (row.code || "").toString().trim();
+          const accountNameStr = (row.accountName || "").toString().trim();
+          return codeStr !== "" || accountNameStr !== "" || row.currentYear !== 0;
+        });
 
       setEtbRows(etbData);
       refreshClassificationSummary(etbData);
