@@ -44,6 +44,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     status: "active",
     timelineStart: "",
     timelineEnd: "",
+    totalShares: 0,
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
@@ -109,6 +110,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       status: "active",
       timelineStart: "",
       timelineEnd: "",
+      totalShares: 0,
     });
     setSupportingDocuments([]);
     setShareHoldingCompanies([]);
@@ -254,7 +256,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               />
             </div>
           </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="timelineEnd" className="text-gray-700 font-semibold">
               Timeline End
@@ -268,6 +270,29 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               }
               className="rounded-xl border-gray-200"
             />
+          </div>
+          <div className="space-y-2">
+          <Label htmlFor="totalShares" className="text-gray-700 font-semibold">
+            Total Shares <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="totalShares"
+            type="number"
+            step={1}
+            placeholder="Enter total number of shares"
+            value={formData.totalShares}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                totalShares: Number.isNaN(parseInt(e.target.value, 10))
+                  ? 0
+                  : parseInt(e.target.value, 10),
+              })
+            }
+            required
+            className="rounded-xl border-gray-200"
+          />
+        </div>
           </div>
 
           {/* Supporting Documents */}
