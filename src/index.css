@@ -27,10 +27,10 @@
     --popover: 0 0% 100%; /* #ffffff - Pure white */
     --popover-foreground: 222 47% 11%; /* #0f172a - Deep navy text */
 
-    /* Brand colors - Deep Navy Blue for trust and authority */
-    --primary: 222 47% 11%; /* #0f172a - Deep Navy Blue */
+    /* Brand colors - Vibrant Blue for primary actions */
+    --primary: 222 89% 63%; /* Vibrant Blue - Primary brand color */
     --primary-foreground: 0 0% 100%; /* #ffffff - White text */
-    --primary-hover: 222 47% 15%; /* Slightly lighter navy for hover */
+    --primary-hover: 222 89% 68%; /* Slightly lighter blue for hover */
 
     /* Secondary colors - Slate Gray for modern sophistication */
     --secondary: 215 25% 27%; /* #374151 - Slate Gray */
@@ -58,7 +58,7 @@
     /* Interface elements - Subtle borders and inputs */
     --border: 220 13% 91%; /* #e2e8f0 - Light gray border */
     --input: 220 14% 96%; /* #f1f5f9 - Light cool gray input */
-    --ring: 222 47% 11%; /* #0f172a - Deep navy ring */
+    --ring: 222 89% 63%; /* Vibrant Blue ring */
 
     /* Sidebar colors - Charcoal Gray for professional navigation */
     --sidebar-background: 222 47% 11%; /* #0f172a - Deep Navy Blue */
@@ -71,15 +71,15 @@
     --sidebar-ring: 43 96% 56%; /* #f59e0b - Gold ring */
 
     /* Professional gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-primary: linear-gradient(135deg, hsl(222 89% 63%), hsl(var(--accent)));
     --gradient-secondary: linear-gradient(135deg, hsl(var(--secondary)), hsl(var(--muted)));
-    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--primary)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(222 89% 63%));
 
     /* Shadows - Subtle and professional */
-    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.1), 0 2px 4px -1px hsl(222 47% 11% / 0.06);
-    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.1), 0 4px 6px -2px hsl(222 47% 11% / 0.05);
-    --shadow-xl: 0 20px 25px -5px hsl(222 47% 11% / 0.1), 0 10px 10px -5px hsl(222 47% 11% / 0.04);
+    --shadow-sm: 0 1px 2px 0 hsl(222 89% 63% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(222 89% 63% / 0.1), 0 2px 4px -1px hsl(222 89% 63% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(222 89% 63% / 0.1), 0 4px 6px -2px hsl(222 89% 63% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(222 89% 63% / 0.1), 0 10px 10px -5px hsl(222 89% 63% / 0.04);
 
     /* Animation */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -166,15 +166,15 @@
   }
   
   .bg-brand-hover {
-    background-color: hsl(var(--sidebar-hover));
+    background-color: hsl(var(--primary));
   }
   
   .bg-brand-active {
-    background-color: hsl(var(--sidebar-active));
+    background-color: hsl(var(--primary-hover));
   }
 
   .bg-brand-muted {
-    background-color: hsl(var(--sidebar-muted));
+    background-color: hsl(var(--muted));
   }
 
   /* Branding Text Utilities */
@@ -228,7 +228,7 @@
 
   /* Branding Interactive Utilities */
   .hover\:bg-brand-hover:hover {
-    background-color: hsl(var(--sidebar-hover));
+    background-color: hsl(var(--primary));
   }
 
   .hover\:bg-brand-primary:hover {

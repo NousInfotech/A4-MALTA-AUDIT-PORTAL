@@ -36,11 +36,11 @@ import { useToast } from "@/hooks/use-toast";
 import { documentRequestApi } from "@/services/api";
 
 const statusColors = {
-  "document-collection": "bg-brand-hover",
+  "document-collection": "bg-primary",
   "qna-preparation": "bg-gray-700",
   "client-responses": "bg-gray-600",
   "doubt-resolution": "bg-gray-500",
-  submitted: "bg-brand-sidebar",
+  submitted: "bg-primary",
 };
 
 const documentStatusColors = {

@@ -8,6 +8,7 @@ const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
 export interface BrandingSettings {
   id?: string;
   organization_name: string;
+  organization_subname?: string;
   logo_url: string | null;
   sidebar_background_color: string;
   sidebar_text_color: string;
@@ -47,15 +48,16 @@ interface BrandingContextType {
 
 const defaultBranding: BrandingSettings = {
   organization_name: 'Audit Portal',
+  organization_subname: 'AUDIT & COMPLIANCE',
   logo_url: null,
   sidebar_background_color: '222 47% 11%',
   sidebar_text_color: '220 14% 96%',
-  body_background_color: '210 40% 98%',
+  body_background_color: '48 100% 96%',
   body_text_color: '222 47% 11%',
   primary_color: '222 47% 11%',
   primary_foreground_color: '0 0% 100%',
-  accent_color: '43 96% 56%',
-  accent_foreground_color: '222 47% 11%',
+  accent_color: '0 0% 45%',
+  accent_foreground_color: '0 0% 100%',
 };
 
 const BrandingContext = createContext<BrandingContextType | undefined>(undefined);

@@ -142,7 +142,7 @@ export const EmployeeDashboard = () => {
 
   if (loading) {
       return (
-        <div className="flex items-center justify-center h-64 bg-brand-sidebar">
+        <div className="min-h-screen bg-brand-body flex items-center justify-center">
           <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
@@ -299,10 +299,10 @@ export const EmployeeDashboard = () => {
               {/* Circular Progress Charts */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
                 {[
-                  { status: 'Active', count: activeEngagements, total: totalEngagements, color: 'text-gray-700', bgColor: 'bg-brand-hover', ringColor: 'ring-gray-800/20' },
+                  { status: 'Active', count: activeEngagements, total: totalEngagements, color: 'text-gray-700', bgColor: 'bg-primary', ringColor: 'ring-primary/20' },
                   { status: 'Completed', count: completedEngagements, total: totalEngagements, color: 'text-gray-600', bgColor: 'bg-gray-700', ringColor: 'ring-gray-700/20' },
                   { status: 'Draft', count: draftEngagements, total: totalEngagements, color: 'text-gray-500', bgColor: 'bg-gray-600', ringColor: 'ring-gray-600/20' },
-                  { status: 'Total', count: totalEngagements, total: totalEngagements, color: 'text-gray-800', bgColor: 'bg-brand-sidebar', ringColor: 'ring-gray-900/20' }
+                  { status: 'Total', count: totalEngagements, total: totalEngagements, color: 'text-gray-800', bgColor: 'bg-primary', ringColor: 'ring-primary/20' }
                 ].map((item, index) => {
                   const percentage = totalEngagements > 0 ? (item.count / item.total) * 100 : 0;
                   const circumference = 2 * Math.PI * 30;
@@ -351,7 +351,7 @@ export const EmployeeDashboard = () => {
                 <h4 className="text-sm font-medium text-gray-800 mb-4">Status Distribution</h4>
                 <div className="space-y-3">
                   {[
-                    { status: 'Active', count: activeEngagements, color: 'bg-brand-hover', percentage: totalEngagements > 0 ? (activeEngagements / totalEngagements) * 100 : 0 },
+                    { status: 'Active', count: activeEngagements, color: 'bg-primary', percentage: totalEngagements > 0 ? (activeEngagements / totalEngagements) * 100 : 0 },
                     { status: 'Completed', count: completedEngagements, color: 'bg-gray-700', percentage: totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0 },
                     { status: 'Draft', count: draftEngagements, color: 'bg-gray-600', percentage: totalEngagements > 0 ? (draftEngagements / totalEngagements) * 100 : 0 }
                   ].map((item, index) => (
@@ -385,7 +385,7 @@ export const EmployeeDashboard = () => {
               <Mail className="h-6 w-6 text-gray-700" />
               <Bell className="h-6 w-6 text-gray-700" />
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-brand-hover rounded-full"></div>
+                <div className="w-8 h-8 bg-primary rounded-full"></div>
                 <ChevronDown className="h-4 w-4 text-gray-700" />
               </div>
             </div> */}
@@ -425,7 +425,7 @@ export const EmployeeDashboard = () => {
                           </span>
                     </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          engagement.status === "active" ? "bg-brand-hover text-white" :
+                          engagement.status === "active" ? "bg-primary text-primary-foreground" :
                           engagement.status === "completed" ? "bg-gray-700 text-white" :
                           "bg-gray-600 text-white"
                         }`}>
@@ -446,26 +446,25 @@ export const EmployeeDashboard = () => {
 
             {/* Formation Status */}
             <div 
-              className="backdrop-blur-md border rounded-2xl p-6"
+              className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
               style={{ 
-                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
-                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+                borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
-              <h3 className="text-lg font-semibold text-white mb-2">Engagement Status</h3>
-              <p className="text-gray-300 mb-4">
+              <h3 className="text-lg font-semibold text-primary-foreground mb-2">Engagement Status</h3>
+              <p className="text-primary-foreground/80 mb-4">
                 {activeEngagements > 0 ? `${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} in progress` : 'No active engagements'}
               </p>
-              <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
+              <div className="w-full bg-primary-foreground/20 rounded-full h-2 mb-4">
                 <div 
-                  className="bg-white h-2 rounded-full" 
+                  className="bg-primary-foreground h-2 rounded-full" 
                   style={{ width: `${totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0}%` }}
                 ></div>
               </div>
-              <p className="text-gray-300 text-sm mb-4">
+              <p className="text-primary-foreground/80 text-sm mb-4">
                 {completedEngagements} of {totalEngagements} engagements completed
               </p>
-              <button className="w-full bg-white text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-gray-100">
+              <button className="w-full bg-primary-foreground text-primary py-2 px-4 rounded-xl font-medium hover:bg-primary-foreground/90 transition-colors duration-200">
                 View all engagements
               </button>
             </div>
@@ -536,19 +535,18 @@ export const EmployeeDashboard = () => {
 
             {/* Board Meeting */}
             <div 
-              className="backdrop-blur-md border rounded-2xl p-6"
+              className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
               style={{ 
-                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
-                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+                borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
               <div className="flex items-center space-x-2 mb-2">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
-                <span className="text-white font-medium">
+                <div className="w-2 h-2 bg-primary-foreground rounded-full"></div>
+                <span className="text-primary-foreground font-medium">
                   {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 </div>
-              <p className="text-gray-300 text-sm">
+              <p className="text-primary-foreground/80 text-sm">
                 {totalClients > 0 
                   ? `You have ${totalClients} client${totalClients !== 1 ? 's' : ''} and ${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} to manage.`
                   : 'No clients or active engagements at the moment.'

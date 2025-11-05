@@ -192,7 +192,7 @@ export function KYCManagement() {
       case 'in-review':
         return 'bg-gray-300 text-gray-800 border-gray-400';
       case 'completed':
-        return 'bg-brand-hover text-white border-gray-800';
+        return 'bg-primary text-primary-foreground border-gray-800';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -298,7 +298,7 @@ export function KYCManagement() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
-                      <FileText className="h-6 w-6 text-white" />
+                      <FileText className="h-6 w-6 text-primary-foreground" />
                     </div>
                     <div>
                       <CardTitle className="text-xl text-gray-900">{kyc.engagement.title}</CardTitle>
@@ -427,7 +427,7 @@ export function KYCManagement() {
                         {selectedKYC.status !== 'completed' && (
                           <Button
                             size="sm"
-                            className="bg-brand-hover hover:bg-brand-active text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                             onClick={() => handleUpdateStatus(selectedKYC._id, 'completed')}
                           >
                             Mark as Completed
@@ -494,7 +494,7 @@ export function KYCManagement() {
                               : 'bg-white/80 backdrop-blur-sm border-l-4 border-gray-500'
                           }`}>
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={discussion.role === 'auditor' ? 'default' : 'secondary'} className={discussion.role === 'auditor' ? 'bg-brand-hover text-white' : 'bg-gray-200 text-gray-800'}>
+                              <Badge variant={discussion.role === 'auditor' ? 'default' : 'secondary'} className={discussion.role === 'auditor' ? 'bg-primary text-primary-foreground' : 'bg-gray-200 text-gray-800'}>
                                 {discussion.role === 'auditor' ? 'Auditor' : 'Client'}
                               </Badge>
                               <span className="text-sm text-gray-700">
@@ -523,7 +523,7 @@ export function KYCManagement() {
                           <Button
                             onClick={handleSendMessage}
                             disabled={!newMessage.trim() || sendingMessage}
-                            className="bg-brand-hover hover:bg-brand-active text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                           >
                             {sendingMessage ? (
                               <>

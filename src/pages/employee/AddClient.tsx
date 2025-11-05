@@ -148,8 +148,8 @@ export const AddClient = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
                 <h1 className="text-3xl font-semibold text-brand-body">
@@ -167,8 +167,8 @@ export const AddClient = () => {
         <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
                 <h2 className="text-2xl font-semibold text-gray-900">
@@ -186,8 +186,8 @@ export const AddClient = () => {
               {/* Basic Info */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
-                    <Users className="h-4 w-4 text-white" />
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <Users className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     Basic Information
@@ -298,8 +298,8 @@ export const AddClient = () => {
               {/* Industry */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
-                    <Globe className="h-4 w-4 text-white" />
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <Globe className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     Industry Details
@@ -359,8 +359,8 @@ export const AddClient = () => {
               {/* Summary */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
-                    <FileText className="h-4 w-4 text-white" />
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">
                     Company Summary
@@ -390,7 +390,7 @@ export const AddClient = () => {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />

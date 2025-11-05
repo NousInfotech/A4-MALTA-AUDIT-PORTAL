@@ -268,8 +268,8 @@ export const EngagementDetails = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
-              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center flex-shrink-0">
-                <Briefcase className="h-6 w-6 text-white" />
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
+                <Briefcase className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">{engagement.title}</h1>
@@ -302,7 +302,7 @@ export const EngagementDetails = () => {
                 <Button
                   variant="default"
                   size="sm"
-                  className="bg-brand-hover hover:bg-brand-active text-white border-0 rounded-xl w-full sm:w-auto"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 rounded-xl w-full sm:w-auto"
                 >
                   <Delete className="h-4 w-4 mr-2" />
                   Delete Engagement
@@ -321,49 +321,49 @@ export const EngagementDetails = () => {
                 <TabsList className="min-w-max sm:min-w-0 bg-white border border-gray-200 rounded-xl p-1">
                   <TabsTrigger
                     value="overview"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
                     Overview
                   </TabsTrigger>
                   <TabsTrigger
                     value="trial-balance"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     Audit
                   </TabsTrigger>
                 <TabsTrigger
                   value="requests"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Document Requests
                 </TabsTrigger>
                 <TabsTrigger
                   value="procedures"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Procedures
                 </TabsTrigger>
                 <TabsTrigger
                   value="checklist"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Checklist
                 </TabsTrigger>
                 <TabsTrigger
                   value="library"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                 >
                   <Library className="h-4 w-4 mr-2" />
                   Library
                 </TabsTrigger>
                 <TabsTrigger
                   value="kyc"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                 >
                   <Shield className="h-4 w-4 mr-2" />
                   KYC
@@ -371,7 +371,7 @@ export const EngagementDetails = () => {
                 
               </TabsList>
             </div>
-            {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-brand-hover text-white hover:bg-brand-sidebar">
+            {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary">
               See the PBC Work Flow
             </button> */}
           </div>

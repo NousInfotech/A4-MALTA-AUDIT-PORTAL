@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useBranding } from "@/contexts/BrandingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,8 +49,13 @@ export const SignupPage = () => {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { signup, isLoading } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const logoUrl = branding?.logo_url || '/logo.png';
+  const orgName = branding?.organization_name || 'Audit Portal';
+  const orgSubname = branding?.organization_subname || 'AUDIT & COMPLIANCE';
 
   console.log('SignupPage rendering...');
 
@@ -107,15 +113,18 @@ export const SignupPage = () => {
             {/* Logo */}
             <div className="flex items-center justify-center space-x-4 mb-8">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30">
-                <img src="/logo.png" alt="Logo" className="h-14 w-14 object-cover rounded" />
+                <img src={logoUrl} alt="Logo" className="h-14 w-14 object-cover rounded" />
               </div>
-              <span className="text-3xl font-bold">Audit Portal</span>
+              <div className="text-left">
+                <span className="text-3xl font-bold block">{orgName}</span>
+                <span className="text-xs font-medium uppercase tracking-wider opacity-70 block">{orgSubname}</span>
+              </div>
             </div>
             
             <h1 className="text-5xl font-bold leading-tight">
               Join
               <span className="block text-gray-300">
-                Audit Portal
+                {orgName}
               </span>
             </h1>
             
@@ -171,10 +180,13 @@ export const SignupPage = () => {
           {/* Header */}
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
-              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                <img src="/logo.png" alt="Logo" className="h-10 w-10 object-cover rounded" />
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <img src={logoUrl} alt="Logo" className="h-10 w-10 object-cover rounded" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Audit Portal</span>
+              <div>
+                <span className="text-2xl font-bold text-gray-900 block">{orgName}</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-gray-600">{orgSubname}</span>
+              </div>
             </div>
             
             <div className="space-y-3">
@@ -182,7 +194,7 @@ export const SignupPage = () => {
                 Create your account
               </h1>
               <p className="text-gray-600 text-lg">
-                Join thousands of professionals already using Audit Portal
+                Join thousands of professionals already using {orgName}
               </p>
             </div>
           </div>
@@ -359,7 +371,7 @@ export const SignupPage = () => {
 
                 <Button 
                   type="submit" 
-                  className="w-full h-12 bg-brand-hover hover:bg-brand-active text-white rounded-lg font-semibold" 
+                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-semibold" 
                   disabled={isLoading}
               >
                 {isLoading ? (

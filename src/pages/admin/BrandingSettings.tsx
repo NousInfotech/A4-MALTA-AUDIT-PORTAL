@@ -1,15 +1,17 @@
 // @ts-nocheck
 import React, { useState, useRef } from 'react';
 import { useBranding, ThemeSuggestion } from '@/contexts/BrandingContext';
+import { useTour } from '@/contexts/TourContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Upload, RefreshCw, Save, Palette, Layout, Image as ImageIcon } from 'lucide-react';
+import { Upload, RefreshCw, Save, Palette, Layout, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { ThemeSuggestionModal } from '@/components/admin/ThemeSuggestionModal';
+import { BrandingTour } from '@/components/tour/BrandingTour';
 
 const ColorPicker: React.FC<{
   label: string;
@@ -99,6 +101,7 @@ const ColorPicker: React.FC<{
 
 export const BrandingSettings: React.FC = () => {
   const { branding, isLoading, updateBranding, uploadLogo, resetBranding, refreshBranding } = useBranding();
+  const { resetTour } = useTour();
   const [formData, setFormData] = useState(branding || {});
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -108,6 +111,7 @@ export const BrandingSettings: React.FC = () => {
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [pendingLogoUrl, setPendingLogoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showTour, setShowTour] = useState(false);
 
   React.useEffect(() => {
     if (branding) {
@@ -262,29 +266,46 @@ export const BrandingSettings: React.FC = () => {
     );
   }
 
+  const handleRestartTour = async () => {
+    await resetTour('branding-settings');
+    setShowTour(true);
+    toast.info('Tour restarted! Follow the highlighted steps.');
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Branding Settings</h1>
-        <p className="text-brand-body">
-          Customize your portal's appearance with your brand colors and logo
-        </p>
+      <div className="flex items-start justify-between" data-tour="branding-title">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Branding Settings</h1>
+          <p className="text-brand-body">
+            Customize your portal's appearance with your brand colors and logo
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRestartTour}
+          className="gap-2"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Show Tutorial
+        </Button>
       </div>
 
-      <Tabs defaultValue="colors" className="space-y-6">
+      <Tabs defaultValue="colors" className="space-y-6" data-tour="tabs">
         <TabsList>
-          <TabsTrigger value="colors">
+          <TabsTrigger value="colors" data-tour="colors-tab">
             <Palette className="h-4 w-4 mr-2" />
             Colors
           </TabsTrigger>
-          <TabsTrigger value="logo">
+          <TabsTrigger value="logo" data-tour="logo-tab">
             <ImageIcon className="h-4 w-4 mr-2" />
             Logo & Branding
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="colors" className="space-y-6">
-          <Card>
+          <Card data-tour="sidebar-colors">
             <CardHeader>
               <CardTitle>Sidebar Colors</CardTitle>
               <CardDescription>
@@ -308,7 +329,7 @@ export const BrandingSettings: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-tour="body-colors">
             <CardHeader>
               <CardTitle>Body Colors</CardTitle>
               <CardDescription>
@@ -332,7 +353,7 @@ export const BrandingSettings: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-tour="brand-colors">
             <CardHeader>
               <CardTitle>Brand Colors</CardTitle>
               <CardDescription>
@@ -372,7 +393,7 @@ export const BrandingSettings: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="logo" className="space-y-6">
-          <Card>
+          <Card data-tour="org-name">
             <CardHeader>
               <CardTitle>Organization Details</CardTitle>
               <CardDescription>
@@ -389,10 +410,22 @@ export const BrandingSettings: React.FC = () => {
                   placeholder="Audit Portal"
                 />
               </div>
+              <div className="space-y-2" data-tour="org-subname">
+                <Label htmlFor="orgSubname">Organization Sub Name</Label>
+                <Input
+                  id="orgSubname"
+                  value={formData.organization_subname || ''}
+                  onChange={(e) => setFormData({ ...formData, organization_subname: e.target.value })}
+                  placeholder="AUDIT & COMPLIANCE"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Subtitle text that appears below your organization name
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-tour="logo-upload">
             <CardHeader>
               <CardTitle>Logo</CardTitle>
               <CardDescription>
@@ -447,11 +480,12 @@ export const BrandingSettings: React.FC = () => {
           variant="outline"
           onClick={handleReset}
           disabled={isSaving || isResetting}
+          data-tour="reset-button"
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
           Reset to Defaults
         </Button>
-        <Button onClick={handleSave} disabled={isSaving || isResetting}>
+        <Button onClick={handleSave} disabled={isSaving || isResetting} data-tour="save-button">
           <Save className="h-4 w-4 mr-2" />
           {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
@@ -465,6 +499,9 @@ export const BrandingSettings: React.FC = () => {
         onSelectTheme={handleSelectTheme}
         onSkip={handleSkipTheme}
       />
+
+      {/* Onboarding Tour */}
+      <BrandingTour onComplete={() => toast.success('You\'re all set! Start customizing your brand.')} />
     </div>
   );
 };

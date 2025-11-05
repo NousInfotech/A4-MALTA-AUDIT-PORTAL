@@ -19,8 +19,8 @@ interface NavigationChartProps {
 
 export const NavigationChart: React.FC<NavigationChartProps> = ({ items, className }) => {
   return (
-    <div className={cn("bg-brand-hover/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-6 shadow-lg", className)}>
-      <h3 className="text-lg font-semibold text-white mb-6">Quick Navigation</h3>
+    <div className={cn("bg-primary/90 backdrop-blur-sm border border-primary/50 rounded-2xl p-6 shadow-lg", className)}>
+      <h3 className="text-lg font-semibold text-primary-foreground mb-6">Quick Navigation</h3>
       
       <div className="grid grid-cols-2 gap-4">
         {items.map((item, index) => {
@@ -68,7 +68,10 @@ export const NavigationChart: React.FC<NavigationChartProps> = ({ items, classNa
                   "absolute inset-0 flex items-center justify-center rounded-full",
                   item.bgColor
                 )}>
-                  <Icon className="h-6 w-6 text-white" />
+                  <Icon className={cn(
+                    "h-6 w-6",
+                    item.bgColor === "bg-primary" ? "text-primary-foreground" : "text-white"
+                  )} />
                 </div>
               </div>
               
@@ -115,5 +118,8 @@ export const NavigationChart: React.FC<NavigationChartProps> = ({ items, classNa
         </div>
       </div>
     </div>
+  );
+};
+
   );
 };
