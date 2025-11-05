@@ -16,8 +16,18 @@ type Person = {
   sharePercentage?: number;
 };
 
+type ShareholdingCompany = {
+  companyId: string | {
+    _id: string;
+    name: string;
+    registrationNumber?: string;
+  };
+  sharePercentage: number;
+};
+
 interface SharePieChartProps {
-  persons: Person[];
+  persons?: Person[];
+  companies?: ShareholdingCompany[];
   title?: string;
   dateRangeLabel?: string;
 }
@@ -36,26 +46,53 @@ const COLORS = [
 ];
 
 const SharePieChart: React.FC<SharePieChartProps> = ({
-  persons,
+  persons = [],
+  companies = [],
   title = "Shareholders",
   dateRangeLabel = "",
 }) => {
-  const { normalizedData, totalRaw } = useMemo(() => {
-    const raw = (persons || [])
+  const { normalizedData, totalRaw, companyTotal, personTotal } = useMemo(() => {
+    // Process persons
+    const personData = (persons || [])
       .map((p) => ({
         name: p?.name || "Unnamed",
         value: Number(p?.sharePercentage ?? 0),
+        type: "Person",
       }))
       .filter((d) => !isNaN(d.value) && d.value > 0);
 
+    // Process companies
+    const companyData = (companies || [])
+      .map((share) => {
+        let companyName = "Unknown Company";
+        if (share.companyId) {
+          if (typeof share.companyId === 'object' && share.companyId.name) {
+            companyName = share.companyId.name;
+          } else if (typeof share.companyId === 'string') {
+            companyName = "Unknown Company";
+          }
+        }
+        return {
+          name: companyName,
+          value: Number(share.sharePercentage ?? 0),
+          type: "Company",
+        };
+      })
+      .filter((d) => !isNaN(d.value) && d.value > 0);
+
+    // Combine both
+    const raw = [...personData, ...companyData];
+
+    const personSum = personData.reduce((acc, d) => acc + d.value, 0);
+    const companySum = companyData.reduce((acc, d) => acc + d.value, 0);
     const sum = raw.reduce((acc, d) => acc + d.value, 0);
 
-    if (sum <= 0) return { normalizedData: [], totalRaw: 0 };
+    if (sum <= 0) return { normalizedData: [], totalRaw: 0, companyTotal: 0, personTotal: 0 };
 
-    let parts: { name: string; value: number }[];
+    let parts: { name: string; value: number; type?: string }[];
     if (sum > 100) {
       const scale = 100 / sum;
-      parts = raw.map((d) => ({ name: d.name, value: d.value * scale }));
+      parts = raw.map((d) => ({ name: d.name, value: d.value * scale, type: d.type }));
     } else {
       parts = [...raw];
       const remaining = Math.max(0, 100 - sum);
@@ -63,8 +100,13 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
         parts.push({ name: "No Data", value: remaining });
     }
 
-    return { normalizedData: parts, totalRaw: sum };
-  }, [persons]);
+    return { 
+      normalizedData: parts, 
+      totalRaw: sum,
+      companyTotal: companySum,
+      personTotal: personSum,
+    };
+  }, [persons, companies]);
 
   return (
     <div className="w-full bg-white border border-border rounded-2xl text-brand-text p-4 sm:p-5 md:p-6 overflow-hidden">
@@ -94,7 +136,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                   cy="50%"
                   outerRadius="75%"
                   label={(entry) =>
-                    `${entry.name}: ${Number(entry.value)}%`
+                    `${entry.name}: ${Number(entry.value).toFixed(1)}%`
                   }
                   isAnimationActive
                   className="capitalize"
@@ -111,9 +153,9 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(val: any, name: any) => [
-                    `${Number(val)}%`,
-                    name,
+                  formatter={(val: any, name: any, props: any) => [
+                    `${Number(val).toFixed(1)}%`,
+                    `${props.payload?.type || ""} ${name}`.trim(),
                   ]}
                 />
                 <Legend
@@ -141,11 +183,27 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="pt-4 border-t border-gray-200 dark:border-gray-700 text-center sm:text-left">
-        <p className="text-base sm:text-lg">
-          Total declared shares:{" "}
-          <span className="font-bold">{totalRaw}%</span>
-        </p>
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+        <div className="text-center sm:text-left space-y-1">
+          <p className="text-base sm:text-lg">
+            Total declared shares:{" "}
+            <span className="font-bold">{totalRaw.toFixed(1)}%</span>
+          </p>
+          {(companyTotal > 0 || personTotal > 0) && (
+            <div className="flex flex-wrap gap-4 justify-center sm:justify-start text-sm text-gray-600">
+              {companyTotal > 0 && (
+                <span>
+                  Company shares: <span className="font-semibold text-gray-900">{companyTotal.toFixed(1)}%</span>
+                </span>
+              )}
+              {personTotal > 0 && (
+                <span>
+                  Person shares: <span className="font-semibold text-gray-900">{personTotal.toFixed(1)}%</span>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
 interface ShareholdingCompany {
   companyId: string;
   sharePercentage: number;
+  shares: number;            // ✅ added
 }
 
 interface ShareholdingCompaniesManagerProps {
@@ -22,11 +23,9 @@ interface ShareholdingCompaniesManagerProps {
   onChange?: (shareholdings: ShareholdingCompany[]) => void;
 }
 
-export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManagerProps> = ({
-  companies,
-  value = [],
-  onChange,
-}) => {
+export const ShareholdingCompaniesManager: React.FC<
+  ShareholdingCompaniesManagerProps
+> = ({ companies, value = [], onChange }) => {
   const [shareholdings, setShareholdings] = useState<ShareholdingCompany[]>(value);
 
   useEffect(() => {
@@ -34,8 +33,12 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
   }, [value]);
 
   const handleAddShareholding = () => {
-    const newShareholding = { companyId: "", sharePercentage: 0 };
-    const updated = [...shareholdings, newShareholding];
+    const newEntry: ShareholdingCompany = {
+      companyId: "",
+      sharePercentage: 0,
+      shares: 0,
+    };
+    const updated = [...shareholdings, newEntry];
     setShareholdings(updated);
     onChange?.(updated);
   };
@@ -46,7 +49,11 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
     onChange?.(updated);
   };
 
-  const handleChange = (index: number, field: keyof ShareholdingCompany, val: string | number) => {
+  const handleChange = (
+    index: number,
+    field: keyof ShareholdingCompany,
+    val: string | number
+  ) => {
     const updated = shareholdings.map((item, i) =>
       i === index ? { ...item, [field]: val } : item
     );
@@ -56,6 +63,7 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
 
   return (
     <div className="space-y-4">
+
       <div className="flex items-center justify-between">
         <Label className="text-gray-700 font-semibold">Shareholding Companies</Label>
         <Button
@@ -76,7 +84,7 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
             key={index}
             className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200"
           >
-            <div className="flex-1 grid grid-cols-2 gap-3">
+            <div className="flex-1 grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label className="text-xs text-gray-600">Company</Label>
                 <Select
@@ -88,7 +96,9 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
                   </SelectTrigger>
                   <SelectContent className="bg-white">
                     {companies.length === 0 ? (
-                      <SelectItem value="no-companies" disabled>No companies available</SelectItem>
+                      <SelectItem value="no-companies" disabled>
+                        No companies available
+                      </SelectItem>
                     ) : (
                       companies.map((company) => (
                         <SelectItem key={company._id} value={company._id}>
@@ -101,22 +111,40 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
               </div>
 
               <div className="space-y-2">
+                <Label className="text-xs text-gray-600">Shares</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={shareholding.shares ?? ""}
+                  onChange={(e) => {
+                    const num = parseInt(e.target.value, 10);
+                    handleChange(
+                      index,
+                      "shares",
+                      isNaN(num) ? 0 : num
+                    );
+                  }}
+                  className="rounded-lg"
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label className="text-xs text-gray-600">Share %</Label>
                 <Input
                   type="number"
                   min="0"
                   max="100"
                   step="0.01"
-                  value={shareholding.sharePercentage || ""}
+                  value={shareholding.sharePercentage ?? ""}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // Allow empty value or valid numbers
                     if (val === "") {
                       handleChange(index, "sharePercentage", 0);
                     } else {
-                      const numVal = parseFloat(val);
-                      if (!isNaN(numVal)) {
-                        handleChange(index, "sharePercentage", numVal);
+                      const num = parseFloat(val);
+                      if (!isNaN(num)) {
+                        handleChange(index, "sharePercentage", num);
                       }
                     }
                   }}
@@ -141,7 +169,9 @@ export const ShareholdingCompaniesManager: React.FC<ShareholdingCompaniesManager
         {shareholdings.length === 0 && (
           <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-xl">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-600">No shareholding companies added yet</p>
+            <p className="text-sm text-gray-600">
+              No shareholding companies added yet
+            </p>
           </div>
         )}
       </div>

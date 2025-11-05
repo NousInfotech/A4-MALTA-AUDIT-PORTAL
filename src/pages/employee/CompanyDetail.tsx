@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,11 +58,39 @@ interface Company {
 export const CompanyDetail: React.FC = () => {
   const { clientId, companyId } = useParams<{ clientId: string; companyId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
+  
+  // Get active tab from query parameter, default to "details"
+  const activeTab = searchParams.get("tab");
+  
+  // Validate tab value
+  const validTabs = ["details", "persons", "pie-chart"];
+  const currentTab = activeTab && validTabs.includes(activeTab) ? activeTab : "details";
+  
+  // Set default tab to "details" in URL if no tab parameter exists (only on mount)
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (!tab || !validTabs.includes(tab)) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set("tab", "details");
+      setSearchParams(newParams, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value }, { replace: false });
+  };
+
+  const handleBackClick = () => {
+    // Use browser history to go back, same as global back button
+    navigate(-1);
+  };
 
   useEffect(() => {
     if (companyId && clientId) {
@@ -161,12 +189,10 @@ export const CompanyDetail: React.FC = () => {
               <Button
                 variant="outline"
                 size="icon"
-                asChild
+                onClick={handleBackClick}
                 className="rounded-xl border-gray-200 hover:bg-gray-50"
               >
-                <Link to={`/employee/clients/${clientId}`}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -197,13 +223,13 @@ export const CompanyDetail: React.FC = () => {
 
         {/* Main Content */}
         <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs defaultValue="details" className="mt-6">
+          <Tabs value={currentTab} onValueChange={handleTabChange} className="mt-6">
             <TabsList className="rounded-xl m-6 mb-0">
               <TabsTrigger value="details" className="rounded-lg">
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-              Representatives ({company.persons?.length || 0})
+              Representatives ({(company.persons?.length || 0) + (company.shareHoldingCompanies?.length || 0)})
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
               Distribution
@@ -403,7 +429,11 @@ export const CompanyDetail: React.FC = () => {
               )}
             </TabsContent>
             <TabsContent value="pie-chart" className="p-6 mt-6">
-              <SharePieChart persons={personsForChart} title="Distribution" />
+              <SharePieChart 
+                persons={personsForChart} 
+                companies={company?.shareHoldingCompanies || []}
+                title="Distribution" 
+              />
             </TabsContent>
           </Tabs>
         </div>
