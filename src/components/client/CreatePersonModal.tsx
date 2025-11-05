@@ -215,17 +215,20 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
+      // Person is decoupled - only send person fields
+      // Roles and sharePercentage are handled by the backend when companyId is provided
       const payload = {
         name: formData.name,
         address: formData.address,
-        roles: formData.roles,
         email: formData.email || undefined,
         phoneNumber: formData.phoneNumber || undefined,
-        sharePercentage: formData.sharePercentage
-          ? parseFloat(formData.sharePercentage)
-          : undefined,
         nationality: formData.nationality || undefined,
         supportingDocuments,
+        // Include roles and sharePercentage for company relationship
+        roles: formData.roles.length > 0 ? formData.roles : undefined,
+        sharePercentage: isShareholderSelected && formData.sharePercentage
+          ? parseFloat(formData.sharePercentage)
+          : undefined,
       };
 
       const response = await fetch(

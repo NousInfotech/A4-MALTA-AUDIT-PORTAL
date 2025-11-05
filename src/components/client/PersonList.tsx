@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, Edit, Trash2, Mail, Phone, Globe, Building2, ChevronDown, X } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Users, Plus, Edit, Trash2, Mail, Phone, Globe, Building2, ChevronDown, X, UserCheck, Percent } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CreatePersonModal } from "./CreatePersonModal";
@@ -226,9 +227,11 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (existingIndex >= 0 && idx === existingIndex) {
         return;
       }
-      const sharePct = typeof share.sharePercentage === "number" ? share.sharePercentage : 0;
-      if (!isNaN(sharePct) && sharePct > 0) {
-        currentCompanyTotal += sharePct;
+      // Handle both old format (sharePercentage) and new format (sharesData.percentage)
+      const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
+      const numPct = typeof sharePct === "number" ? sharePct : 0;
+      if (!isNaN(numPct) && numPct > 0) {
+        currentCompanyTotal += numPct;
       }
     });
 
@@ -371,15 +374,87 @@ export const PersonList: React.FC<PersonListProps> = ({
   };
 
   // Calculate share totals - count all persons with shares and all companies
+  // Use company.shareHolders directly for person totals
   const shareTotals = {
-    personTotal: persons.reduce((acc, p) => {
-      const pct = typeof p?.sharePercentage === "number" ? p.sharePercentage : 0;
+    personTotal: (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
+      const pct = shareHolder?.sharesData?.percentage || 0;
       return acc + (isNaN(pct) ? 0 : pct);
     }, 0),
     companyTotal: (company?.shareHoldingCompanies || []).reduce((acc: number, share: any) => {
-      const pct = typeof share.sharePercentage === "number" ? share.sharePercentage : 0;
-      return acc + (isNaN(pct) || pct <= 0 ? 0 : pct);
+      // Handle both old format (sharePercentage) and new format (sharesData.percentage)
+      const pct = share?.sharesData?.percentage ?? share?.sharePercentage;
+      const numPct = typeof pct === "number" ? pct : 0;
+      return acc + (isNaN(numPct) || numPct <= 0 ? 0 : numPct);
     }, 0),
+  };
+
+  // Get representatives from company.representationalSchema directly
+  // Representatives are persons with roles EXCEPT those who ONLY have "Shareholder" role
+  // role is now an array of strings in the schema
+  const representatives = (company?.representationalSchema || [])
+    .map((rep: any) => {
+      const personData = rep.personId || {};
+      // role is already an array of strings
+      const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+      return {
+        ...personData,
+        roles: roles,
+      };
+    })
+    .filter((person: any) => {
+      // Include if person has roles other than just "Shareholder"
+      const roles = person.roles || [];
+      return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
+    });
+
+  // Get shareholders from company.shareHolders array directly (not from persons array)
+  // Sort by totalShares (biggest first)
+  const personShareholders = (company?.shareHolders || [])
+    .map((shareHolder: any) => {
+      const personData = shareHolder.personId || {};
+      const sharesData = shareHolder.sharesData || {};
+      return {
+        ...personData,
+        sharePercentage: sharesData.percentage || 0,
+        totalShares: sharesData.totalShares || 0,
+        shareClass: sharesData.class,
+      };
+    })
+    .sort((a, b) => (b.totalShares || 0) - (a.totalShares || 0));
+
+  // Check if a person is UBO (Ultimate Beneficial Owner)
+  // UBO: Person's company holds shares in this company AND person holds position in this company
+  // For now, we'll check if person has a role and there are shareholding companies
+  // In a full implementation, we'd need to check if the person is a shareholder/director of the shareholding company
+  const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
+    if (!person.roles || person.roles.length === 0) {
+      return { isUBO: false };
+    }
+
+    // Check if there are shareholding companies
+    const shareHoldingCompanies = company?.shareHoldingCompanies || [];
+    if (shareHoldingCompanies.length === 0) {
+      return { isUBO: false };
+    }
+
+    // For now, if person has a role and there are shareholding companies, 
+    // we'll mark as potential UBO with the first shareholding company name
+    // In production, you'd want to check if the person is actually associated with that company
+    const firstShareholdingCompany = shareHoldingCompanies.find((share: any) => {
+      return share.companyId && (
+        (typeof share.companyId === 'object' && share.companyId.name) ||
+        typeof share.companyId === 'string'
+      );
+    });
+
+    if (firstShareholdingCompany) {
+      const companyName = typeof firstShareholdingCompany.companyId === 'object' 
+        ? firstShareholdingCompany.companyId.name 
+        : "Shareholding Company";
+      return { isUBO: true, companyName };
+    }
+
+    return { isUBO: false };
   };
 
   if (isLoading) {
@@ -389,6 +464,23 @@ export const PersonList: React.FC<PersonListProps> = ({
       </div>
     );
   }
+
+  // Get shareholding companies data with proper structure
+  // Sort by totalShares (biggest first)
+  const shareholdingCompanies = (company?.shareHoldingCompanies || [])
+    .map((share: any) => {
+      const sharePercentage = share?.sharesData?.percentage ?? share?.sharePercentage;
+      const totalShares = share?.sharesData?.totalShares ?? 0;
+      const companyName = share.companyId?.name || share.companyId || "Unknown Company";
+      return {
+        companyId: typeof share.companyId === 'object' ? share.companyId._id : share.companyId,
+        companyName,
+        sharePercentage,
+        totalShares,
+        registrationNumber: share.companyId?.registrationNumber,
+      };
+    })
+    .sort((a, b) => (b.totalShares || 0) - (a.totalShares || 0));
 
   return (
     <>
@@ -400,38 +492,21 @@ export const PersonList: React.FC<PersonListProps> = ({
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Representatives</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Representatives & Shareholders</h3>
               <p className="text-sm text-gray-600">
-                Individuals and companies associated with this company
+                Manage individuals and companies associated with this company
               </p>
-              {/* Share Totals */}
-              {(shareTotals.companyTotal > 0 || shareTotals.personTotal > 0) && (
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {shareTotals.companyTotal > 0 && (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 rounded-lg px-2 py-1 text-xs">
-                      Company shares: {shareTotals.companyTotal}%
-                    </Badge>
-                  )}
-                  {shareTotals.personTotal > 0 && (
-                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 rounded-lg px-2 py-1 text-xs">
-                      Person shares: {shareTotals.personTotal}%
-                    </Badge>
-                  )}
-                </div>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-          {(persons.length > 0 || (company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0)) && (
             <Button
               onClick={() => setIsCreateModalOpen(true)}
               size="sm"
-             className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Person
             </Button>
-          )}
                       <Popover 
             open={isAddCompanyDropdownOpen} 
             onOpenChange={(open) => {
@@ -585,172 +660,276 @@ export const PersonList: React.FC<PersonListProps> = ({
           </div>
         </div>
 
-        {/* Shareholding Companies Section */}
-        {company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="h-5 w-5 text-gray-600" />
-              <h4 className="text-md font-semibold text-gray-900">Shareholding Companies</h4>
-            </div>
-            {company.shareHoldingCompanies.map((share: any, index: number) => {
-              let companyName = "Unknown Company";
-              if (share.companyId) {
-                if (typeof share.companyId === 'object' && share.companyId.name) {
-                  companyName = share.companyId.name;
-                } else if (typeof share.companyId === 'string') {
-                  companyName = "Unknown Company";
-                }
-              }
-              
-              return (
-                <Card
-                  key={`company-${index}`}
-                  className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+        {/* Tabs */}
+        <Tabs defaultValue="representatives" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="representatives" className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Representatives
+            </TabsTrigger>
+            <TabsTrigger value="shareholders" className="flex items-center gap-2">
+              <Percent className="h-4 w-4" />
+              Shareholders
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Representatives Tab */}
+          <TabsContent value="representatives" className="space-y-4 mt-6">
+            {representatives.length > 0 ? (
+              <div className="space-y-4">
+                {representatives.map((person) => {
+                  const uboInfo = isUBO(person);
+                  // roles is already an array, filter out "Shareholder" role
+                  const rolesArray = Array.isArray(person.roles) 
+                    ? person.roles.filter((r: string) => r !== "Shareholder")
+                    : [];
+                    
+                  return (
+                    <Card
+                      key={person._id || person.id}
+                      className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                {person.name}
+                              </h4>
+                              {uboInfo.isUBO && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-purple-100 text-purple-700 border-purple-200 rounded-xl px-3 py-1 text-xs font-semibold"
+                                >
+                                  UBO
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Roles (excluding Shareholder) */}
+                            {rolesArray.length > 0 && (
+                              <div className="flex flex-wrap gap-3 mb-3">
+                                {rolesArray.map((role: string, index: number) => (
+                                  <Badge
+                                    key={`${person._id || person.id}-role-${index}`}
+                                    variant="outline"
+                                    className={`rounded-xl px-2 py-1 text-xs font-semibold ${getRoleBadgeVariant(role)}`}
+                                  >
+                                    {role}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* UBO Company Name */}
+                            {uboInfo.isUBO && uboInfo.companyName && (
+                              <div className="text-xs text-gray-500 mb-2">
+                                Company: {uboInfo.companyName}
+                              </div>
+                            )}
+
+                            {/* Address and Nationality */}
+                            <div className="space-y-2">
+                              {person.address && (
+                                <div className="flex items-start gap-2 text-sm text-gray-600">
+                                  <span className="text-xs">{person.address}</span>
+                                </div>
+                              )}
+                              {person.nationality && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Globe className="h-4 w-4" />
+                                  <span>{person.nationality}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditPerson(person)}
+                              className="rounded-xl hover:bg-gray-100"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(person)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-xl">
+                <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">No representatives yet</p>
+                <Button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <Building2 className="h-5 w-5 text-gray-600" />
-                          <h4 className="text-lg font-semibold text-gray-900">
-                            {companyName}
-                          </h4>
-                          {share.sharePercentage && share.sharePercentage > 0 && (
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Person
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Shareholders Tab */}
+          <TabsContent value="shareholders" className="space-y-4 mt-6">
+            <div className="mb-4">
+              <h4 className="text-md font-semibold text-gray-900">Shareholders</h4>
+              <p className="text-sm text-gray-600">
+                Individuals and companies holding shares in this company
+              </p>
+            </div>
+              
+            {/* Person Shareholders */}
+            {personShareholders.length > 0 && (
+              <div className="space-y-4">
+                {personShareholders.map((person: any) => {
+                  const totalShares = person.totalShares || 0;
+                  const sharePercentage = person.sharePercentage || 0;
+                  const shareClass = person.shareClass || "General";
+                  return (
+                    <Card
+                      key={person._id || person.id}
+                      className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                {person.name}
+                              </h4>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                              >
+                                {shareClass}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                              >
+                                {totalShares.toLocaleString()} shares ({sharePercentage}%)
+                              </Badge>
+                            </div>
+                        
+                            {/* Address and Nationality */}
+                            <div className="space-y-2">
+                              {person.address && (
+                                <div className="flex items-start gap-2 text-sm text-gray-600">
+
+                                  <span className="text-xs">{person.address}</span>
+                                </div>
+                              )}
+                              {person.nationality && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Globe className="h-4 w-4" />
+                                  <span>{person.nationality}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditPerson(person)}
+                              className="rounded-xl hover:bg-gray-100"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteClick(person)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Company Shareholders */}
+            {shareholdingCompanies.length > 0 && (
+              <div className="space-y-4">
+                {shareholdingCompanies.map((share, index) => (
+                  <Card
+                    key={`company-shareholder-${index}`}
+                    className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Building2 className="h-5 w-5 text-gray-600" />
+                            <h4 className="text-lg font-semibold text-gray-900">
+                              {share.companyName}
+                            </h4>
                             <Badge
                               variant="outline"
                               className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
                             >
-                              {share.sharePercentage}% Shareholder
+                              {share.totalShares.toLocaleString()} shares ({share.sharePercentage}%)
                             </Badge>
+                          </div>
+                          {share.registrationNumber && (
+                            <div className="text-sm text-gray-600">
+                              Registration: {share.registrationNumber}
+                            </div>
                           )}
                         </div>
-                        {typeof share.companyId === 'object' && share.companyId.registrationNumber && (
-                          <div className="text-sm text-gray-600">
-                            Registration: {share.companyId.registrationNumber}
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-        {/* Persons Section */}
-        {company?.shareHoldingCompanies && company.shareHoldingCompanies.length > 0 && persons.length > 0 && (
-          <div className="flex items-center gap-2 mb-2 mt-6">
-            <Users className="h-5 w-5 text-gray-600" />
-            <h4 className="text-md font-semibold text-gray-900">Persons</h4>
-          </div>
-        )}
-
-        {/* Persons Grid */}
-        {persons.length > 0 ? (
-          <div className="space-y-4">
-            {persons.map((person) => (
-              <Card
-                key={person._id}
-                className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h4 className="text-lg font-semibold text-gray-900">
-                          {person.name}
-                        </h4>
-                        {person.sharePercentage &&
-                          person.sharePercentage > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                            >
-                              {person.sharePercentage}% Shareholder
-                            </Badge>
-                          )}
-                      </div>
-
-                      {/* Roles */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {person.roles?.map((role, index) => (
-                          <Badge
-                            key={index}
-                            variant="outline"
-                            className={`rounded-xl px-2 py-1 text-xs font-semibold ${getRoleBadgeVariant(role)}`}
-                          >
-                            {role}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Contact Info */}
-                      <div className="space-y-2">
-                        {person.email && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Mail className="h-4 w-4" />
-                            <span>{person.email}</span>
-                          </div>
-                        )}
-                        {person.phoneNumber && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Phone className="h-4 w-4" />
-                            <span>{person.phoneNumber}</span>
-                          </div>
-                        )}
-                        {person.nationality && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Globe className="h-4 w-4" />
-                            <span>{person.nationality}</span>
-                          </div>
-                        )}
-                        {person.address && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span className="text-xs">{person.address}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditPerson(person)}
-                        className="rounded-xl hover:bg-gray-100"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteClick(person)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          !company?.shareHoldingCompanies || company.shareHoldingCompanies.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-xl">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-4">No representatives yet</p>
-              <Button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Person
-              </Button>
-            </div>
-          ) : null
-        )}
+            {/* Empty State */}
+            {personShareholders.length === 0 && shareholdingCompanies.length === 0 && (
+              <div className="text-center py-12 bg-gray-50 rounded-xl">
+                <Percent className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-4">No shareholders yet</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Person
+                  </Button>
+                  <Button
+                    onClick={() => setIsAddCompanyDropdownOpen(true)}
+                    variant="outline"
+                    className="rounded-xl"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Company
+                  </Button>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Create Person Modal */}
