@@ -45,7 +45,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import EditableText from "../ui/editable-text";
-import { NEW_CLASSIFICATION_OPTIONS,NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
+import { NEW_CLASSIFICATION_OPTIONS, NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -55,19 +55,19 @@ import { NEW_CLASSIFICATION_OPTIONS,NEW_CLASSIFICATION_RULESET } from "./classif
 // Removes parentheses and special characters, preserves any existing minus sign
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
-  
+
   // If already a number, return it
   if (typeof value === "number") return value;
-  
+
   // Convert to string and clean
   let str = String(value).trim();
-  
+
   // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
   str = str.replace(/[(),\$€£¥]/g, "").trim();
-  
+
   // Parse to number
   const num = Number(str);
-  
+
   // Return the number (no negative conversion for parentheses)
   return isNaN(num) ? 0 : num;
 };
@@ -591,15 +591,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Additional effect to watch for localStorage changes (in case of re-renders from loadExistingData)
   // This is critical to restore state after re-renders caused by saveETB/loadExistingData
   useEffect(() => {
-  try {
-    const pushedState = localStorage.getItem(pushedKey);
-    if (pushedState === "true" && !hasBeenPushed) {
-      setHasBeenPushed(true);
+    try {
+      const pushedState = localStorage.getItem(pushedKey);
+      if (pushedState === "true" && !hasBeenPushed) {
+        setHasBeenPushed(true);
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-}, [pushedKey]);
+  }, [pushedKey]);
 
 
   // Poll localStorage periodically to catch changes immediately
@@ -697,7 +697,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const priorYearIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("prior year")
       );
-      
+
       // Find optional grouping column indices
       const grouping1Index = headers.findIndex((h: string) =>
         h.toLowerCase().trim() === "grouping 1"
@@ -716,24 +716,24 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         .map((row: any[], index: number) => {
           const code = row[codeIndex] || "";
           const accountName = row[nameIndex] || "";
-          
+
           // Parse numeric values - remove parentheses and commas: (55,662) → 55662
           const currentYear = parseAccountingNumber(row[currentYearIndex]);
           const priorYear = parseAccountingNumber(row[priorYearIndex]);
           const adjustments = 0;
-          
+
           // Extract grouping values from file if available
           const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
           const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
           const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
           const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
-          
+
           // Determine classification:
           // - If file has grouping values, build classification from them (no autoClassify)
           // - If no grouping values, use autoClassify
           const hasFileGrouping = g1 || g2 || g3 || g4;
           let classification = "";
-          
+
           if (hasFileGrouping) {
             // Build classification from file grouping values
             classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
@@ -742,7 +742,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             // classification = autoClassify(accountName);
             classification = "";
           }
-          
+
           return {
             id: `row-${index}-${Date.now()}`,
             code,
@@ -1110,10 +1110,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setEtbRows(prevRows => {
       return prevRows.map((row) => {
         if (row.id !== rowId) return row;
-        
+
         // Extract classification parts to sync with grouping fields
         const parts = (classification || "").split(" > ").map(s => s.trim());
-        
+
         // Update BOTH classification AND grouping fields to keep them in sync
         // Backend will use grouping fields with classification as fallback
         const updatedRow = {
@@ -1125,7 +1125,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           grouping3: parts[2] || "",
           grouping4: parts[3] || "",
         };
-        
+
         return updatedRow;
       });
     });
@@ -1294,73 +1294,79 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {etbRows.map((row, idx) => (
-                    <TableRow
-                      key={row.id}
-                      className={cn(
-                        idx % 2 === 1 && "bg-muted/20",
-                        "hover:bg-muted/40 transition-colors"
-                      )}
-                    >
-                      <TableCell className="border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          value={row.code}
-                          onChange={(val) => updateRow(row.id, "code", val)}
-                          className="font-mono text-xs sm:text-sm"
-                        />
-                      </TableCell>
-                      <TableCell className="border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          value={row.accountName}
-                          onChange={(val) =>
-                            updateRow(row.id, "accountName", val)
-                          }
-                          className="w-48 text-xs sm:text-sm"
-                          placeholder="-"
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          step={1}
-                          value={row.currentYear}
-                          onChange={(val) =>
-                            updateRow(row.id, "currentYear", val)
-                          }
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          value={row.adjustments}
-                          onChange={(val) => {
-                            updateRow(row.id, "adjustments", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
-                        {Math.round(Number(row.finalBalance)).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          value={row.priorYear}
-                          onChange={(val) => {
-                            updateRow(row.id, "priorYear", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
-                        <div className="w-fit flex flex-col items-start gap-1">
-                          {/* <Badge
+                  {etbRows
+                    .filter((row) => {
+                      // Filter out rows where code starts with "TOTALS" (case-insensitive)
+                      const code = (row.code || "").toString().trim().toUpperCase();
+                      return !code.startsWith("TOTALS");
+                    })
+                    .map((row, idx) => (
+                      <TableRow
+                        key={row.id}
+                        className={cn(
+                          idx % 2 === 1 && "bg-muted/20",
+                          "hover:bg-muted/40 transition-colors"
+                        )}
+                      >
+                        <TableCell className="border border-r-secondary border-b-secondary ">
+                          <EditableText
+                            value={row.code}
+                            onChange={(val) => updateRow(row.id, "code", val)}
+                            className="font-mono text-xs sm:text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary ">
+                          <EditableText
+                            value={row.accountName}
+                            onChange={(val) =>
+                              updateRow(row.id, "accountName", val)
+                            }
+                            className="w-48 text-xs sm:text-sm"
+                            placeholder="-"
+                          />
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                          <EditableText
+                            type="number"
+                            step={1}
+                            value={row.currentYear}
+                            onChange={(val) =>
+                              updateRow(row.id, "currentYear", val)
+                            }
+                            placeholder="0"
+                            className="text-start text-xs sm:text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                          <EditableText
+                            type="number"
+                            value={row.adjustments}
+                            onChange={(val) => {
+                              updateRow(row.id, "adjustments", val);
+                            }}
+                            placeholder="0"
+                            className="text-start text-xs sm:text-sm"
+                            step={1}
+                          />
+                        </TableCell>
+                        <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
+                          {Math.round(Number(row.finalBalance)).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                          <EditableText
+                            type="number"
+                            value={row.priorYear}
+                            onChange={(val) => {
+                              updateRow(row.id, "priorYear", val);
+                            }}
+                            placeholder="0"
+                            className="text-start text-xs sm:text-sm"
+                            step={1}
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
+                          <div className="w-fit flex flex-col items-start gap-1">
+                            {/* <Badge
                             variant="outline"
                             className="cursor-pointer text-xs"
                             title="Jump to section"
@@ -1371,28 +1377,28 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           >
                             {formatClassificationForDisplay(row.classification)}
                           </Badge> */}
-                          <ClassificationCombos
-                            key={row.id}
-                            rowId={row.id}
-                            classification={row.classification}
-                            onChange={handleClassificationChange}
-                            memoizedLevel1Options={memoizedLevel1Options}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-20 border border-b-secondary ">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteRow(row.id)}
-                          className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
-                          aria-label="Delete row"
-                        >
-                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <ClassificationCombos
+                              key={row.id}
+                              rowId={row.id}
+                              classification={row.classification}
+                              onChange={handleClassificationChange}
+                              memoizedLevel1Options={memoizedLevel1Options}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-20 border border-b-secondary ">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteRow(row.id)}
+                            className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
