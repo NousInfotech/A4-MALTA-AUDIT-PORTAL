@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { ReviewNotesProvider } from "@/contexts/ReviewNotesContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
+import { TourProvider } from "@/contexts/TourContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
@@ -66,8 +67,9 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrandingProvider>
       <AuthProvider>
-        <DataProvider>
-        <SidebarStatsProvider>  
+        <TourProvider>
+          <DataProvider>
+          <SidebarStatsProvider>  
           <ReviewNotesProvider>
             <TooltipProvider>
             <Toaster />
@@ -154,7 +156,8 @@ const App = () => (
             </TooltipProvider>
           </ReviewNotesProvider>
           </SidebarStatsProvider>
-        </DataProvider>
+          </DataProvider>
+        </TourProvider>
       </AuthProvider>
     </BrandingProvider>
   </QueryClientProvider>

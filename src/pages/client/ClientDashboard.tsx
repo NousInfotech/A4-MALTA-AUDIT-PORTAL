@@ -55,7 +55,7 @@ export const ClientDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="min-h-screen bg-brand-body flex items-center justify-center">
         <EnhancedLoader size="lg" text="Loading..." />
       </div>
     );
@@ -193,7 +193,7 @@ export const ClientDashboard = () => {
                         </span>
                     </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        engagement.status === "active" ? "bg-brand-hover text-white" :
+                        engagement.status === "active" ? "bg-primary text-primary-foreground" :
                         engagement.status === "completed" ? "bg-gray-700 text-white" :
                         "bg-gray-600 text-white"
                       }`}>
@@ -243,7 +243,7 @@ export const ClientDashboard = () => {
                       {new Date(request.requestedAt).toLocaleDateString()}
                     </span>
                   </div>
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-brand-hover text-white">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground">
                         Pending
                       </span>
                     </div>
@@ -260,28 +260,27 @@ export const ClientDashboard = () => {
 
       {/* User Information */}
             <div 
-              className="backdrop-blur-md border rounded-2xl p-6"
+              className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
               style={{ 
-                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
-                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+                borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
-              <h3 className="text-lg font-semibold text-white mb-2">Account Information</h3>
-              <p className="text-gray-300 mb-4">
+              <h3 className="text-lg font-semibold text-primary-foreground mb-2">Account Information</h3>
+              <p className="text-primary-foreground/80 mb-4">
                 Welcome to your client portal. Track your audit engagements and manage document requests.
               </p>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">User ID:</span>
-                  <span className="text-white text-sm font-mono">{user?.id?.slice(0, 8)}...</span>
+                  <span className="text-primary-foreground/60 text-sm">User ID:</span>
+                  <span className="text-primary-foreground text-sm font-mono">{user?.id?.slice(0, 8)}...</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Role:</span>
-                  <span className="text-white text-sm">{user?.role || 'Client'}</span>
+                  <span className="text-primary-foreground/60 text-sm">Role:</span>
+                  <span className="text-primary-foreground text-sm">{user?.role || 'Client'}</span>
             </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Email:</span>
-                  <span className="text-white text-sm truncate">{user?.email || 'N/A'}</span>
+                  <span className="text-primary-foreground/60 text-sm">Email:</span>
+                  <span className="text-primary-foreground text-sm truncate">{user?.email || 'N/A'}</span>
             </div>
           </div>
             </div>

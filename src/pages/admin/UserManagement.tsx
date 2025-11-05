@@ -377,7 +377,7 @@ export const UserManagement = () => {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
               <Button 
-            className="bg-brand-hover hover:bg-brand-active text-white rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto" 
+            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto" 
                 onClick={fetchUsers}
               >
                 <RefreshCw className="h-5 w-5 mr-2" />
@@ -436,8 +436,8 @@ export const UserManagement = () => {
           <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
-                <Users className="h-5 w-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
                   <h3 className="text-lg font-semibold text-gray-900">All Users</h3>
@@ -555,7 +555,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
+                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-primary-foreground bg-transparent rounded-xl"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -585,7 +585,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleApprove(user.id)}
-                                        className="bg-brand-hover text-white hover:bg-brand-sidebar"
+                                        className="bg-primary text-primary-foreground hover:bg-primary"
                                     >
                                       Approve
                                     </AlertDialogAction>
@@ -598,7 +598,7 @@ export const UserManagement = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
+                                      className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-primary-foreground bg-transparent rounded-xl"
                                     disabled={
                                       actionLoading === user.id ||
                                       deletingId === user.id
@@ -628,7 +628,7 @@ export const UserManagement = () => {
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => handleReject(user.id)}
-                                        className="bg-brand-hover text-white hover:bg-brand-sidebar"
+                                        className="bg-primary text-primary-foreground hover:bg-primary"
                                     >
                                       Reject
                                     </AlertDialogAction>
@@ -644,7 +644,7 @@ export const UserManagement = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                  className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-white bg-transparent rounded-xl"
+                                  className="text-gray-600 border-gray-600 hover:bg-gray-600 hover:text-primary-foreground bg-transparent rounded-xl"
                                 disabled={
                                   deletingId === user.id ||
                                   actionLoading === user.id
@@ -671,7 +671,7 @@ export const UserManagement = () => {
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleDelete(user.id)}
-                                    className="bg-brand-hover text-white hover:bg-brand-sidebar"
+                                    className="bg-primary text-primary-foreground hover:bg-primary"
                                 >
                                   Delete
                                 </AlertDialogAction>

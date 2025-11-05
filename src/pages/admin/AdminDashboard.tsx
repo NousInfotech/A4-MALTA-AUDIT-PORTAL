@@ -365,7 +365,7 @@ import {
   
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-64">
+        <div className="min-h-screen bg-brand-body flex items-center justify-center">
           <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
@@ -462,10 +462,10 @@ import {
               {/* Circular Progress Charts */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
                 {[
-                  { status: 'Pending', count: pendingUsers.length, total: users.length, color: 'text-gray-700', bgColor: 'bg-brand-hover', ringColor: 'ring-gray-800/20' },
+                  { status: 'Pending', count: pendingUsers.length, total: users.length, color: 'text-gray-700', bgColor: 'bg-primary', ringColor: 'ring-primary/20' },
                   { status: 'Approved', count: approvedUsers.length, total: users.length, color: 'text-gray-600', bgColor: 'bg-gray-700', ringColor: 'ring-gray-700/20' },
                   { status: 'Rejected', count: users.filter(u => u.status === 'rejected').length, total: users.length, color: 'text-gray-500', bgColor: 'bg-gray-600', ringColor: 'ring-gray-600/20' },
-                  { status: 'Total', count: users.length, total: users.length, color: 'text-gray-800', bgColor: 'bg-brand-sidebar', ringColor: 'ring-gray-900/20' }
+                  { status: 'Total', count: users.length, total: users.length, color: 'text-gray-800', bgColor: 'bg-primary', ringColor: 'ring-primary/20' }
                 ].map((item, index) => {
                   const percentage = users.length > 0 ? (item.count / item.total) * 100 : 0;
                   const circumference = 2 * Math.PI * 30;
@@ -514,7 +514,7 @@ import {
                 <h4 className="text-sm font-medium text-gray-800 mb-4">User Status Distribution</h4>
                 <div className="space-y-3">
                   {[
-                    { status: 'Pending', count: pendingUsers.length, color: 'bg-brand-hover', percentage: users.length > 0 ? (pendingUsers.length / users.length) * 100 : 0 },
+                    { status: 'Pending', count: pendingUsers.length, color: 'bg-primary', percentage: users.length > 0 ? (pendingUsers.length / users.length) * 100 : 0 },
                     { status: 'Approved', count: approvedUsers.length, color: 'bg-gray-700', percentage: users.length > 0 ? (approvedUsers.length / users.length) * 100 : 0 },
                     { status: 'Rejected', count: users.filter(u => u.status === 'rejected').length, color: 'bg-gray-600', percentage: users.length > 0 ? (users.filter(u => u.status === 'rejected').length / users.length) * 100 : 0 }
                   ].map((item, index) => (
@@ -562,8 +562,8 @@ import {
                     className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                        <Users className="h-4 w-4 text-white" />
+                      <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <Users className="h-4 w-4 text-primary-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-gray-900 truncate group-hover:text-gray-700 transition-colors duration-300 text-sm">
@@ -609,7 +609,7 @@ import {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction 
                               onClick={() => handleApprove(user.id)}
-                              className="bg-brand-hover text-white hover:bg-brand-active"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                             >
                               Approve
                             </AlertDialogAction>
@@ -646,7 +646,7 @@ import {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleReject(user.id)}
-                              className="bg-brand-hover text-white hover:bg-brand-active"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                             >
                               Reject
                             </AlertDialogAction>
@@ -676,8 +676,8 @@ import {
                     className="group flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-all duration-300 hover:shadow-lg"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 bg-brand-hover rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                        <Activity className="h-4 w-4 text-white" />
+                      <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <Activity className="h-4 w-4 text-primary-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-gray-900 truncate group-hover:text-gray-700 transition-colors duration-300 text-sm">
@@ -708,26 +708,25 @@ import {
 
             {/* System Overview */}
             <div 
-              className="backdrop-blur-md border rounded-2xl p-6"
+              className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
               style={{ 
-                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
-                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+                borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
-              <h3 className="text-lg font-semibold text-white mb-2">System Overview</h3>
-              <p className="text-gray-300 mb-4">
+              <h3 className="text-lg font-semibold text-primary-foreground mb-2">System Overview</h3>
+              <p className="text-primary-foreground/80 mb-4">
                 {pendingUsers.length > 0 ? `${pendingUsers.length} pending approval${pendingUsers.length !== 1 ? 's' : ''}` : 'All users processed'}
               </p>
-              <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
+              <div className="w-full bg-primary-foreground/20 rounded-full h-2 mb-4">
                 <div 
-                  className="bg-white h-2 rounded-full transition-all duration-1000 ease-out" 
+                  className="bg-primary-foreground h-2 rounded-full transition-all duration-1000 ease-out" 
                   style={{ width: `${users.length > 0 ? (approvedUsers.length / users.length) * 100 : 0}%` }}
                 ></div>
               </div>
-              <p className="text-gray-300 text-sm mb-4">
+              <p className="text-primary-foreground/80 text-sm mb-4">
                 {approvedUsers.length} of {users.length} users approved
               </p>
-              <button className="w-full bg-white text-gray-900 py-2 px-4 rounded-xl font-medium hover:bg-gray-100 transition-colors duration-200">
+              <button className="w-full bg-primary-foreground text-primary py-2 px-4 rounded-xl font-medium hover:bg-primary-foreground/90 transition-colors duration-200">
                 View all users
               </button>
             </div>
@@ -762,19 +761,18 @@ import {
 
             {/* Admin Status */}
             <div 
-              className="backdrop-blur-md border rounded-2xl p-6"
+              className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
               style={{ 
-                backgroundColor: 'hsl(var(--sidebar-background) / 0.8)',
-                borderColor: 'hsl(var(--sidebar-border) / 0.5)'
+                borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
               <div className="flex items-center space-x-2 mb-2">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
-                <span className="text-white font-medium">
+                <div className="w-2 h-2 bg-primary-foreground rounded-full"></div>
+                <span className="text-primary-foreground font-medium">
                   {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
-              <p className="text-gray-300 text-sm">
+              <p className="text-primary-foreground/80 text-sm">
                 {pendingUsers.length > 0 
                   ? `You have ${pendingUsers.length} pending approval${pendingUsers.length !== 1 ? 's' : ''} and ${users.length} total users to manage.`
                   : 'All users have been processed. System is up to date.'
@@ -787,3 +785,5 @@ import {
     </div>
   );
   };
+
+

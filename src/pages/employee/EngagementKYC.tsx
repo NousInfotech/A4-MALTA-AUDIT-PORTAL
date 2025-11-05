@@ -471,8 +471,8 @@ export function EngagementKYC() {
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
-                <Shield className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <Shield className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
                 <CardTitle className="text-xl font-bold text-gray-900">
@@ -513,7 +513,7 @@ export function EngagementKYC() {
                   engagementName={engagement?.title}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-brand-hover hover:bg-brand-active text-white">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First KYC Workflow
                     </Button>
@@ -527,8 +527,8 @@ export function EngagementKYC() {
                 <div key={workflow._id} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-white" />
+                      <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                        <FileText className="h-6 w-6 text-primary-foreground" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-gray-900">KYC Workflow</h3>
@@ -558,8 +558,8 @@ export function EngagementKYC() {
           <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
-                  <Shield className="h-5 w-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-xl font-bold text-gray-900">KYC Workflow Details</CardTitle>
@@ -598,7 +598,7 @@ export function EngagementKYC() {
                     clientId={kycWorkflows[0].clientId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
-                      <Button className="bg-brand-hover hover:bg-brand-active text-white">
+                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Document Request
                       </Button>
@@ -644,7 +644,7 @@ export function EngagementKYC() {
                     {workflow.status !== 'completed' && (
                       <Button
                         size="sm"
-                        className="bg-brand-hover hover:bg-brand-active text-white"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => handleStatusUpdate(workflow._id, 'completed')}
                       >
                         <CheckCircle className="h-4 w-4 mr-1" />
@@ -906,7 +906,7 @@ export function EngagementKYC() {
                   engagementName={engagement?.title}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-brand-hover hover:bg-brand-active text-white">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First KYC Workflow
                     </Button>

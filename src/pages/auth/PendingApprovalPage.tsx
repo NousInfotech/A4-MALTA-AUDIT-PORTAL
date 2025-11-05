@@ -2,10 +2,15 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import { Clock, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 
 export const PendingApprovalPage = () => {
   const { logout } = useAuth();
+  const { branding } = useBranding();
+  
+  const logoUrl = branding?.logo_url || '/logo.png';
+  const orgName = branding?.organization_name || 'Audit Portal';
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
@@ -14,8 +19,8 @@ export const PendingApprovalPage = () => {
           <CardHeader className="bg-gray-50/50 border-b border-gray-200/50 text-center pb-8">
             <div className="flex justify-center mb-6">
               <div className="relative">
-                <div className="w-20 h-20 bg-brand-hover rounded-2xl flex items-center justify-center shadow-lg">
-                  <img src="/logo.png" alt="Logo" className="h-16 w-16 object-cover rounded" />
+                <div className="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center shadow-lg">
+                  <img src={logoUrl} alt="Logo" className="h-16 w-16 object-cover rounded" />
                 </div>
                 <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gray-700 rounded-xl flex items-center justify-center shadow-lg border-2 border-white">
                   <Clock className="h-4 w-4 text-white" />
@@ -32,7 +37,7 @@ export const PendingApprovalPage = () => {
           
           <CardContent className="p-8 text-center space-y-6">
             <p className="text-gray-600 text-lg leading-relaxed">
-              Thank you for registering with Audit Portal. Your account has been created successfully, 
+              Thank you for registering with {orgName}. Your account has been created successfully, 
               but it requires approval from an administrator before you can access the system.
             </p>
             

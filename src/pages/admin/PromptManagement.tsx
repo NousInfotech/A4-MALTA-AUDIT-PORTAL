@@ -311,7 +311,7 @@ export const PromptManagement = () => {
                                                 <Button
                                                     onClick={() => savePrompt(editingPrompt)}
                                                     disabled={saving === prompt._id}
-                                                    className="rounded-xl bg-brand-sidebar text-white hover:bg-brand-hover"
+                                                    className="rounded-xl bg-primary text-primary-foreground hover:bg-primary"
                                                 >
                                                     {saving === prompt._id ? (
                                                         <>

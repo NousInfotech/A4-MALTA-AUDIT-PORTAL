@@ -148,7 +148,7 @@ export const ClientManagement = () => {
         {/* Action Button */}
         <div className="mb-8">
           <Button 
-            className="bg-brand-hover hover:bg-brand-active text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
+            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
             variant='default' 
             asChild
           >
@@ -191,8 +191,8 @@ export const ClientManagement = () => {
               <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-white" />
+                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-primary-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -239,7 +239,7 @@ export const ClientManagement = () => {
                   </div>
                   
                   <Button 
-                    className="w-full bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
                     size="sm" 
                     variant="default" 
                     asChild
@@ -274,7 +274,7 @@ export const ClientManagement = () => {
             </p>
             {!searchTerm && (
               <Button 
-                className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3" 
                 variant='default' 
                 asChild
               >

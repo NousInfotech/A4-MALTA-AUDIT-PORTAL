@@ -190,6 +190,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
 
   const logoUrl = branding?.logo_url || '/logo.png';
   const orgName = branding?.organization_name || 'Audit Portal';
+  const orgSubname = branding?.organization_subname || 'AUDIT & COMPLIANCE';
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(user.role));
 
@@ -272,7 +273,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                 className="text-xs font-medium uppercase tracking-wider opacity-70"
                 style={{ color: `hsl(var(--sidebar-foreground))` }}
               >
-                Audit & Compliance
+                {orgSubname}
               </p>
             </div>
           </div>

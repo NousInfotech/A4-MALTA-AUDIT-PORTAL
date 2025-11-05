@@ -170,8 +170,8 @@ export const ClientDetail: React.FC = () => {
                 </Link>
               </Button>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                  <Building2 className="h-6 w-6 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-primary-foreground" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-semibold text-brand-body">
@@ -187,7 +187,7 @@ export const ClientDetail: React.FC = () => {
               variant="default"
               size="sm"
               asChild
-              className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto ml-4"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto ml-4"
             >
               <Link to={`/employee/clients/edit/${client.id}`}>
                 <Edit className="h-4 w-4 mr-2" />
@@ -206,7 +206,7 @@ export const ClientDetail: React.FC = () => {
               <Button
                 variant="default"
                 size="sm"
-                className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto ml-4"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto ml-4"
               >
                 <Delete className="h-4 w-4 mr-2" />
                 Delete Client
@@ -224,8 +224,8 @@ export const ClientDetail: React.FC = () => {
           <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
             <div className="bg-gray-50 border-b border-gray-200 p-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
-                  <Users className="h-5 w-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                  <Users className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
                   Contact Information
@@ -288,8 +288,8 @@ export const ClientDetail: React.FC = () => {
           <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
             <div className="bg-gray-50 border-b border-gray-200 p-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-hover rounded-xl flex items-center justify-center">
-                  <Building2 className="h-5 w-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                  <Building2 className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
                   Company Details
@@ -369,8 +369,8 @@ export const ClientDetail: React.FC = () => {
         {/* Engagements Section */}
         <div className="space-y-6 mt-8">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-              <Briefcase className="h-6 w-6 text-white" />
+            <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+              <Briefcase className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">
@@ -393,8 +393,8 @@ export const ClientDetail: React.FC = () => {
                     <div className="p-6">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
                         <div className="flex items-center gap-4 w-full">
-                          <div className="w-14 h-14 bg-brand-hover rounded-xl flex items-center justify-center">
-                            <Briefcase className="h-7 w-7 text-white" />
+                          <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center">
+                            <Briefcase className="h-7 w-7 text-primary-foreground" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-xl font-semibold text-gray-900 truncate">
@@ -410,10 +410,10 @@ export const ClientDetail: React.FC = () => {
                           variant="outline"
                           className={`rounded-xl px-4 py-2 text-sm font-semibold ${
                             engagement.status === "active"
-                              ? "bg-brand-hover text-white border-gray-800"
+                              ? "bg-primary text-primary-foreground border-gray-800"
                               : engagement.status === "completed"
-                              ? "bg-gray-700 text-white border-gray-700"
-                              : "bg-gray-600 text-white border-gray-600"
+                              ? "bg-gray-700 text-primary-foreground border-gray-700"
+                              : "bg-gray-600 text-primary-foreground border-gray-600"
                           }`}
                         >
                           {engagement.status}
@@ -440,7 +440,7 @@ export const ClientDetail: React.FC = () => {
                         </span>
                       </div>
                       <Button
-                        className="w-full bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"
                         size="sm"
                         variant="default"
                         asChild

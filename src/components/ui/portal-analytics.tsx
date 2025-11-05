@@ -2,6 +2,7 @@ import React from 'react';
 import { useEngagements } from '@/hooks/useEngagements';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import {
   BarChart3,
   TrendingUp,
@@ -117,8 +118,8 @@ export const PortalAnalytics: React.FC = () => {
       percentage: analyticsData.completionRate,
       icon: CheckCircle,
       color: "text-gray-800",
-      bgColor: "bg-brand-sidebar",
-      ringColor: "ring-gray-900/20",
+      bgColor: "bg-primary",
+      ringColor: "ring-primary/20",
       description: `${analyticsData.completedEngagements} of ${analyticsData.totalEngagements} completed`,
       trend: analyticsData.completionRate > 70 ? "+12%" : "-3%",
       trendColor: analyticsData.completionRate > 70 ? "text-gray-800" : "text-gray-600"
@@ -128,8 +129,8 @@ export const PortalAnalytics: React.FC = () => {
       percentage: analyticsData.totalClients > 0 ? Math.min((analyticsData.newClientsThisMonth / analyticsData.totalClients) * 100, 100) : 0,
       icon: Users,
       color: "text-gray-700",
-      bgColor: "bg-brand-hover",
-      ringColor: "ring-gray-800/20",
+      bgColor: "bg-primary",
+      ringColor: "ring-primary/20",
       description: `${analyticsData.newClientsThisMonth} new clients this month`,
       trend: analyticsData.newClientsThisMonth > 0 ? "+25%" : "0%",
       trendColor: analyticsData.newClientsThisMonth > 0 ? "text-gray-800" : "text-gray-500"
@@ -168,8 +169,8 @@ export const PortalAnalytics: React.FC = () => {
           </div>
           <h3 className="text-lg font-semibold text-gray-900">Analytics</h3>
         </div>
-        <div className="flex items-center space-x-1 px-2 py-1 bg-brand-hover/20 rounded-full">
-          <div className="w-1.5 h-1.5 bg-brand-hover rounded-full animate-pulse"></div>
+        <div className="flex items-center space-x-1 px-2 py-1 bg-primary/20 rounded-full">
+          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
           <span className="text-xs text-gray-800">Live</span>
         </div>
       </div>
@@ -212,7 +213,10 @@ export const PortalAnalytics: React.FC = () => {
                 
                 {/* Icon in center */}
                 <div className={`absolute inset-0 flex items-center justify-center rounded-full ${metric.bgColor}`}>
-                  <Icon className="h-4 w-4 text-white" />
+                  <Icon className={cn(
+                    "h-4 w-4",
+                    metric.bgColor === "bg-primary" ? "text-primary-foreground" : "text-white"
+                  )} />
                 </div>
               </div>
               

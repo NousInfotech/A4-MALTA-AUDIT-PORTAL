@@ -300,8 +300,8 @@ export default function GlobalLibraryPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-              <Library className="h-6 w-6 text-white" />
+            <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+              <Library className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-3xl font-semibold text-brand-body animate-fade-in">Global Document Library</h1>
@@ -337,7 +337,7 @@ export default function GlobalLibraryPage() {
                   <Button 
                     onClick={handleCreateFolder} 
                     disabled={!newFolderName.trim() || creating} 
-                    className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                   >
                     {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
                     Create Folder
@@ -379,7 +379,7 @@ export default function GlobalLibraryPage() {
                     <Button 
                       onClick={handleRenameFolder} 
                       disabled={!renameFolderName.trim() || renaming}
-                      className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                     >
                       {renaming ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
                       Rename
@@ -405,8 +405,8 @@ export default function GlobalLibraryPage() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3 text-gray-700 font-medium">
-                  <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
-                    <Home className="h-4 w-4 text-white" />
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <Home className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <span>Global Library</span>
                   {selectedFolder ? (
@@ -420,7 +420,7 @@ export default function GlobalLibraryPage() {
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
                   <Button
-                    className="rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-lg"
                     variant={viewMode === "list" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setViewMode("list")}
@@ -428,7 +428,7 @@ export default function GlobalLibraryPage() {
                     <List className="h-4 w-4" />
                   </Button>
                   <Button
-                    className="rounded-lg data-[state=active]:bg-brand-hover data-[state=active]:text-white data-[state=active]:shadow-lg"
+                    className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-lg"
                     variant={viewMode === "grid" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setViewMode("grid")}
@@ -480,8 +480,8 @@ export default function GlobalLibraryPage() {
                         )}
                         onClick={() => setSelectedFolder(folder)}
                       >
-                        <div className="w-8 h-8 bg-brand-hover rounded-xl flex items-center justify-center">
-                          <Folder className="h-4 w-4 text-white" />
+                        <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                          <Folder className="h-4 w-4 text-primary-foreground" />
                         </div>
                         <span className="text-sm truncate font-medium">{folder.name}</span>
                         <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -547,7 +547,7 @@ export default function GlobalLibraryPage() {
                     <Button
                       disabled={!selectedFolder || uploading}
                       onClick={() => fileInputRef.current?.click()}
-                      className="hidden md:flex bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
+                      className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl px-6 py-3 h-auto"
                     >
                       <Upload className="h-5 w-5" />
                     </Button>
@@ -752,7 +752,7 @@ export default function GlobalLibraryPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
               onClick={handleDeleteFolder}
               disabled={deleting}
             >
@@ -776,7 +776,7 @@ export default function GlobalLibraryPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
               onClick={handleDeleteFile}
               disabled={deleting}
             >

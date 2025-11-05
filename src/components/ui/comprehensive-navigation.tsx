@@ -59,7 +59,7 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
       href: "/employee",
       icon: BarChart3,
       color: "text-gray-800",
-      bgColor: "bg-brand-sidebar",
+      bgColor: "bg-primary",
       percentage: 100,
       description: "Overview & Analytics"
     },
@@ -68,13 +68,13 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
       href: "/employee/clients",
       icon: Building2,
       color: "text-gray-700",
-      bgColor: "bg-brand-hover",
+      bgColor: "bg-primary",
       percentage: 75,
       description: "Client Management",
       subPages: [
-        { title: "All Clients", href: "/employee/clients", icon: Building2, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 75, description: "View all clients" },
-        { title: "Add Client", href: "/employee/clients/new", icon: Plus, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 0, description: "Add new client" },
-        { title: "Client Reports", href: "/employee/clients/reports", icon: FileText, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 60, description: "Client analytics" }
+        { title: "All Clients", href: "/employee/clients", icon: Building2, color: "text-gray-700", bgColor: "bg-primary", percentage: 75, description: "View all clients" },
+        { title: "Add Client", href: "/employee/clients/new", icon: Plus, color: "text-gray-700", bgColor: "bg-primary", percentage: 0, description: "Add new client" },
+        { title: "Client Reports", href: "/employee/clients/reports", icon: FileText, color: "text-gray-700", bgColor: "bg-primary", percentage: 60, description: "Client analytics" }
       ]
     },
     {
@@ -111,14 +111,14 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
       href: "/employee/isqm",
       icon: Shield,
       color: "text-gray-800",
-      bgColor: "bg-brand-sidebar",
+      bgColor: "bg-primary",
       percentage: 45,
       description: "Quality Management",
       badge: "New",
       subPages: [
-        { title: "Questionnaire", href: "/employee/isqm", icon: Shield, color: "text-gray-800", bgColor: "bg-brand-sidebar", percentage: 45, description: "Quality assessment" },
-        { title: "Reports", href: "/employee/isqm/reports", icon: BarChart3, color: "text-gray-800", bgColor: "bg-brand-sidebar", percentage: 30, description: "Quality reports" },
-        { title: "Compliance", href: "/employee/isqm/compliance", icon: Target, color: "text-gray-800", bgColor: "bg-brand-sidebar", percentage: 65, description: "Compliance status" }
+        { title: "Questionnaire", href: "/employee/isqm", icon: Shield, color: "text-gray-800", bgColor: "bg-primary", percentage: 45, description: "Quality assessment" },
+        { title: "Reports", href: "/employee/isqm/reports", icon: BarChart3, color: "text-gray-800", bgColor: "bg-primary", percentage: 30, description: "Quality reports" },
+        { title: "Compliance", href: "/employee/isqm/compliance", icon: Target, color: "text-gray-800", bgColor: "bg-primary", percentage: 65, description: "Compliance status" }
       ]
     },
     {
@@ -126,14 +126,14 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
       href: "/employee/kyc",
       icon: UserCheck,
       color: "text-gray-700",
-      bgColor: "bg-brand-hover",
+      bgColor: "bg-primary",
       percentage: 70,
       description: "Know Your Client",
       badge: "New",
       subPages: [
-        { title: "KYC Forms", href: "/employee/kyc", icon: UserCheck, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 70, description: "Client verification" },
-        { title: "Due Diligence", href: "/employee/kyc/due-diligence", icon: Eye, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 55, description: "Due diligence checks" },
-        { title: "Risk Assessment", href: "/employee/kyc/risk", icon: Shield, color: "text-gray-700", bgColor: "bg-brand-hover", percentage: 40, description: "Risk evaluation" }
+        { title: "KYC Forms", href: "/employee/kyc", icon: UserCheck, color: "text-gray-700", bgColor: "bg-primary", percentage: 70, description: "Client verification" },
+        { title: "Due Diligence", href: "/employee/kyc/due-diligence", icon: Eye, color: "text-gray-700", bgColor: "bg-primary", percentage: 55, description: "Due diligence checks" },
+        { title: "Risk Assessment", href: "/employee/kyc/risk", icon: Shield, color: "text-gray-700", bgColor: "bg-primary", percentage: 40, description: "Risk evaluation" }
       ]
     },
     {
@@ -204,7 +204,10 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
                 "absolute inset-0 flex items-center justify-center rounded-full",
                 item.bgColor
               )}>
-                <Icon className="h-5 w-5 text-white" />
+                <Icon className={cn(
+                  "h-5 w-5",
+                  item.bgColor === "bg-primary" ? "text-primary-foreground" : "text-white"
+                )} />
               </div>
             </div>
             
@@ -215,7 +218,7 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
                   {item.title}
                 </h4>
                 {item.badge && (
-                  <span className="px-2 py-0.5 bg-brand-hover/20 text-gray-800 text-xs rounded-full font-medium">
+                  <span className="px-2 py-0.5 bg-primary/20 text-gray-800 text-xs rounded-full font-medium">
                     {item.badge}
                   </span>
                 )}

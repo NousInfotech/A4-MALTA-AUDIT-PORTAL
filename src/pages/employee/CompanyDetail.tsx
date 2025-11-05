@@ -195,8 +195,8 @@ export const CompanyDetail: React.FC = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                  <Building2 className="h-6 w-6 text-white" />
+                <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-primary-foreground" />
                 </div>
                 <div>
                   <h1 className="text-3xl font-semibold text-brand-body">
@@ -213,7 +213,7 @@ export const CompanyDetail: React.FC = () => {
               variant="default"
               size="sm"
               onClick={() => setIsEditModalOpen(true)}
-              className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Company

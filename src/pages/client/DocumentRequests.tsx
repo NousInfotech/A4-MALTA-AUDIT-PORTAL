@@ -415,25 +415,25 @@ export const DocumentRequests = () => {
           <TabsList className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-1">
             <TabsTrigger
               value="pending"
-              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               Pending ({pendingRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="completed"
-              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               Completed ({completedRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="pbc"
-              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               PBC ({pbcRequests.length})
             </TabsTrigger>
             <TabsTrigger
               value="kyc"
-              className="rounded-xl data-[state=active]:bg-brand-hover data-[state=active]:text-white"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               KYC ({kycRequests.length})
             </TabsTrigger>
@@ -469,7 +469,7 @@ export const DocumentRequests = () => {
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-brand-hover text-white border-gray-800"
+                        className="bg-primary text-primary-foreground border-gray-800"
                       >
                         Pending
                       </Badge>
@@ -593,7 +593,7 @@ export const DocumentRequests = () => {
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-gray-700 text-white border-gray-700"
+                        className="bg-gray-700 text-primary-foreground border-gray-700"
                       >
                         Completed
                       </Badge>

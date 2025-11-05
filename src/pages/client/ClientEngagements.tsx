@@ -175,8 +175,8 @@ export const ClientEngagements = () => {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-12 h-12 bg-brand-hover rounded-2xl flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-6 w-6 text-white" />
+                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-6 w-6 text-primary-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -193,10 +193,10 @@ export const ClientEngagements = () => {
                       variant="outline"
                       className={
                         engagement.status === "active"
-                          ? "bg-brand-hover text-white border-gray-800"
+                          ? "bg-primary text-primary-foreground border-gray-800"
                           : engagement.status === "completed"
-                          ? "bg-gray-700 text-white border-gray-700"
-                          : "bg-gray-600 text-white border-gray-600"
+                          ? "bg-gray-700 text-primary-foreground border-gray-700"
+                          : "bg-gray-600 text-primary-foreground border-gray-600"
                       }
                     >
                       {getPBCStatusLabel(engagement.status) ||

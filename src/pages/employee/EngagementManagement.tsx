@@ -231,7 +231,7 @@ export const EngagementManagement = () => {
         {/* Action Button */}
         <div className="mb-8">
           <Button 
-            className="bg-brand-hover hover:bg-brand-active text-white rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
+            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
             asChild
           >
             <Link to="/employee/engagements/new">
@@ -290,7 +290,7 @@ export const EngagementManagement = () => {
                     onClick={() => setStatusFilter(status as any)}
                     className={`rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300 ${
                       statusFilter === status 
-                        ? 'bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg'
+                        ? 'bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg'
                         : 'border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800'
                     }`}
                   >
@@ -318,8 +318,8 @@ export const EngagementManagement = () => {
               <div key={engagement._id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                      <Briefcase className="h-6 w-6 text-white" />
+                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                      <Briefcase className="h-6 w-6 text-primary-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -331,9 +331,9 @@ export const EngagementManagement = () => {
                       </p>
                     </div>
                     <Badge variant="outline" className={`rounded-xl px-3 py-1 text-sm font-semibold ${
-                      engagement.status === 'active' ? 'bg-brand-hover text-white border-brand-sidebar' :
-                      engagement.status === 'completed' ? 'bg-gray-700 text-white border-gray-700' :
-                      'bg-gray-600 text-white border-gray-600'
+                      engagement.status === 'active' ? 'bg-primary text-primary-foreground border-brand-sidebar' :
+                      engagement.status === 'completed' ? 'bg-gray-700 text-primary-foreground border-gray-700' :
+                      'bg-gray-600 text-primary-foreground border-gray-600'
                     }`}>
                       {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                     </Badge>
@@ -356,12 +356,12 @@ export const EngagementManagement = () => {
                   
 
                   {/* <div>
-                    <Button size="sm" className="w-full bg-brand-hover hover:bg-brand-active text-white rounded-xl  shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate(`/employee/review/${engagement._id}`)}>Review Manager</Button>
+                    <Button size="sm" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl  shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate(`/employee/review/${engagement._id}`)}>Review Manager</Button>
                   </div> */}
                   <div className="flex gap-3">
                     
                     <Button
-                      className="flex-1 bg-brand-hover hover:bg-brand-active text-white rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
                       variant="default"
                       size="sm"
                       asChild
@@ -372,7 +372,7 @@ export const EngagementManagement = () => {
                       </Link>
                     </Button>
                     <Button
-                      className="bg-gray-700 hover:bg-brand-hover text-white rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="bg-gray-700 hover:bg-primary text-primary-foreground rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
                       variant="default"
                       size="sm"
                       onClick={() => {
@@ -403,7 +403,7 @@ export const EngagementManagement = () => {
             </p>
             {!searchTerm && (
               <Button 
-                className="bg-brand-hover hover:bg-brand-active text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3" 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3" 
                 asChild
               >
                 <Link to="/employee/engagements/new">

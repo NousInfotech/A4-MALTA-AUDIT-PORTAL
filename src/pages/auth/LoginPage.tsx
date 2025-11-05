@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,11 +18,15 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { login, isLoading } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
 
   const from = location.state?.from?.pathname || '/';
+  const logoUrl = branding?.logo_url || '/logo.png';
+  const orgName = branding?.organization_name || 'Audit Portal';
+  const orgSubname = branding?.organization_subname || 'AUDIT & COMPLIANCE';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,15 +55,18 @@ export const LoginPage = () => {
             {/* Logo */}
             <div className="flex items-center justify-center space-x-4 mb-8">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30">
-                <img src="/logo.png" alt="Logo" className="h-14 w-14 object-cover rounded" />
+                <img src={logoUrl} alt="Logo" className="h-14 w-14 object-cover rounded" />
               </div>
-              <span className="text-3xl font-bold">Audit Portal</span>
+              <div className="text-left">
+                <span className="text-3xl font-bold block">{orgName}</span>
+                <span className="text-xs font-medium uppercase tracking-wider opacity-70 block">{orgSubname}</span>
+              </div>
         </div>
 
             <h1 className="text-5xl font-bold leading-tight">
               Welcome to
               <span className="block text-gray-300">
-                Audit Portal
+                {orgName}
               </span>
             </h1>
             
@@ -102,10 +110,13 @@ export const LoginPage = () => {
           {/* Header */}
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
-              <div className="w-12 h-12 bg-brand-hover rounded-xl flex items-center justify-center">
-                <img src="/logo.png" alt="Logo" className="h-10 w-10 object-cover rounded" />
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <img src={logoUrl} alt="Logo" className="h-10 w-10 object-cover rounded" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Audit Portal</span>
+              <div>
+                <span className="text-2xl font-bold text-gray-900 block">{orgName}</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-gray-600">{orgSubname}</span>
+              </div>
             </div>
             
             <div className="space-y-3">
@@ -168,7 +179,7 @@ export const LoginPage = () => {
                     
                     <Button 
                       type="submit" 
-                className="w-full h-12 bg-brand-hover hover:bg-brand-active text-white rounded-lg font-semibold" 
+                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-semibold" 
                       disabled={isLoading}
                     >
                       {isLoading ? (
