@@ -186,6 +186,7 @@ import axiosInstance from "@/lib/axiosInstance";
 
 import ProcedureView from "../procedures/ProcedureView";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
+import { AdjustmentManager } from "../adjustments/AdjustmentManager";
 
 
 
@@ -765,7 +766,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const [procedureLoading, setProcedureLoading] = useState(false);
 
-
+  const [etbId, setEtbId] = useState<string>("");
 
   const [loading, setLoading] = useState(true); // global loader (ETB / lead-sheet)
 
@@ -1412,11 +1413,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         if (!mountedRef.current) return;
 
+        // Store ETB ID for adjustments
+        if (etb._id) {
+          setEtbId(etb._id);
+        }
+
         setSectionData(
 
           isAdjustments(classification)
 
-            ? rows.filter((r) => Number(r.adjustments) !== 0)
+            ? rows
 
             : rows
 
@@ -3248,6 +3254,19 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
+  // Special content for Adjustments
+  if (isAdjustments(classification) && etbId) {
+    return (
+      <div className="h-full flex flex-col">
+        <AdjustmentManager
+          engagement={engagement}
+          etbRows={sectionData}
+          etbId={etbId}
+        />
+      </div>
+    );
+  }
+
   const content = (
 
     <Card className="flex-1">
@@ -4664,7 +4683,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-function renderLeadSheetContent() {
+  function renderLeadSheetContent() {
 
     console.log("my sectionData", sectionData)
     const subSections = groupBySubCategory(sectionData);
@@ -6946,7 +6965,7 @@ function renderLeadSheetContent() {
 
               <tbody>
 
-                {sectionData.map((row,index) => (
+                {sectionData.map((row, index) => (
 
                   <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
@@ -7318,7 +7337,7 @@ function renderLeadSheetContent() {
 
               <tbody>
 
-                {sectionData.map((row,index) => (
+                {sectionData.map((row, index) => (
 
                   <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
