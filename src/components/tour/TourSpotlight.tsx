@@ -50,8 +50,18 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
     setTimeout(() => {
       const element = document.querySelector(step.target) as HTMLElement;
       if (element) {
-        // Scroll element into view
-        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        // Scroll element into view with better positioning to avoid cutoff
+        // Use 'nearest' block to prevent unnecessary scrolling and maintain visibility
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        
+        // Additional scroll adjustment to ensure top text isn't cut off by adding padding
+        setTimeout(() => {
+          const rect = element.getBoundingClientRect();
+          // If element is too close to top, add more padding for breathing room
+          if (rect.top < 150) {
+            window.scrollBy({ top: -120, behavior: 'smooth' });
+          }
+        }, 300);
         
         // Update position on scroll and resize
         const updatePosition = () => {
@@ -165,10 +175,10 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
             <mask id="spotlight-mask">
               <rect width="100%" height="100%" fill="white" />
               <rect
-                x={targetRect.left - 8}
-                y={targetRect.top - 8}
-                width={targetRect.width + 16}
-                height={targetRect.height + 16}
+                x={targetRect.left - 25}
+                y={targetRect.top - 30}
+                width={targetRect.width + 50}
+                height={targetRect.height + 60}
                 rx="12"
                 fill="black"
               />
@@ -186,10 +196,10 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
         <div
           className="absolute animate-pulse pointer-events-none"
           style={{
-            top: targetRect.top - 12,
-            left: targetRect.left - 12,
-            width: targetRect.width + 24,
-            height: targetRect.height + 24,
+            top: targetRect.top - 30,
+            left: targetRect.left - 25,
+            width: targetRect.width + 50,
+            height: targetRect.height + 60,
             border: '4px solid hsl(var(--accent))',
             borderRadius: '16px',
             boxShadow: '0 0 0 4px hsl(var(--accent) / 0.2), 0 0 40px hsl(var(--accent))',
@@ -263,37 +273,40 @@ export const TourSpotlight: React.FC<TourSpotlightProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex gap-1">
-              {!isFirstStep && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onPrevious}
-                  className="gap-1 h-8 text-xs"
-                >
-                  <ArrowLeft className="h-3 w-3" />
-                  Back
-                </Button>
-              )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-1">
+                {!isFirstStep && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onPrevious}
+                    className="gap-1 h-8 text-xs"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    Back
+                  </Button>
+                )}
+              </div>
+              
               <Button
-                variant="ghost"
+                onClick={isLastStep ? onComplete : onNext}
                 size="sm"
-                onClick={onSkip}
-                className="gap-1 text-gray-600 h-8 text-xs"
+                className="gap-1 bg-primary text-primary-foreground hover:bg-primary/90 h-8 text-xs"
               >
-                <SkipForward className="h-3 w-3" />
-                Skip
+                {isLastStep ? 'Finish' : 'Next'}
+                {!isLastStep && <ArrowRight className="h-3 w-3" />}
               </Button>
             </div>
             
             <Button
-              onClick={isLastStep ? onComplete : onNext}
+              variant="ghost"
               size="sm"
-              className="gap-1 bg-primary text-primary-foreground hover:bg-primary/90 h-8 text-xs"
+              onClick={onSkip}
+              className="gap-1 text-gray-600 h-8 text-xs w-full"
             >
-              {isLastStep ? 'Finish' : 'Next'}
-              {!isLastStep && <ArrowRight className="h-3 w-3" />}
+              <SkipForward className="h-3 w-3" />
+              Skip for now
             </Button>
           </div>
         </div>
