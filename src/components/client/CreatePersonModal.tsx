@@ -288,6 +288,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-gray-700 font-semibold">
               Name <span className="text-red-500">*</span>
@@ -302,6 +303,27 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
               required
               className="rounded-xl border-gray-200 capitalize"
             />
+          </div>
+          <div className="space-y-2">
+              <Label htmlFor="nationality" className="font-semibold">
+                Nationality <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.nationality}
+                onValueChange={(v) => setFormData({ ...formData, nationality: v })}
+              >
+                <SelectTrigger id="nationality" className="rounded-xl border-gray-200">
+                  <SelectValue placeholder="Select nationality" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {nationalityOptions.map((opt) => (
+                    <SelectItem key={opt.label} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -349,7 +371,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700 font-semibold">
                 Email
@@ -383,7 +405,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
                 className="rounded-xl border-gray-200"
               />
             </div>
-          </div>
+          </div> */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {isShareholderSelected && (
@@ -417,30 +439,11 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="nationality" className="text-gray-700 font-semibold">
-                Nationality <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.nationality}
-                onValueChange={(v) => setFormData({ ...formData, nationality: v })}
-              >
-                <SelectTrigger id="nationality" className="rounded-xl border-gray-200">
-                  <SelectValue placeholder="Select nationality" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {nationalityOptions.map((opt) => (
-                    <SelectItem key={opt.label} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            
           </div>
 
           {/* Supporting Documents */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label className="text-gray-700 font-semibold">Supporting Documents</Label>
             <input
               type="file"
@@ -481,7 +484,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           <DialogFooter className="flex gap-2">
             <Button
