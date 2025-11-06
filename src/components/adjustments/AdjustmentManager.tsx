@@ -207,7 +207,16 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
 
   // Update entry amount
   const handleUpdateAmount = (entryId: string, type: "DR" | "CR", value: string) => {
-    const numValue = parseFloat(value) || 0;
+    // Parse the value properly, handling empty string and converting to number
+    let numValue = 0;
+    if (value === "" || value === null || value === undefined) {
+      numValue = 0;
+    } else {
+      // Remove leading zeros and parse
+      const cleaned = value.replace(/^0+(?=\d)/, ''); // Remove leading zeros but keep single 0
+      numValue = parseFloat(cleaned) || 0;
+    }
+    
     setEntries((prev) =>
       prev.map((e) =>
         e.id === entryId
@@ -641,11 +650,17 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
                             <td className="px-4 py-2 border-r">
                               <Input
                                 type="number"
-                                value={currentAmount}
+                                value={currentAmount || ""}
                                 onChange={(e) =>
                                   handleUpdateAmount(entry.id, currentType, e.target.value)
                                 }
+                                onBlur={(e) => {
+                                  // Clean up the value on blur to remove leading zeros
+                                  const cleaned = parseFloat(e.target.value) || 0;
+                                  handleUpdateAmount(entry.id, currentType, cleaned.toString());
+                                }}
                                 className="h-7 text-xs text-right"
+                                step="any"
                               />
                             </td>
                             <td className="px-4 py-2 border-r">
