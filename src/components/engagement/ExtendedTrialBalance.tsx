@@ -39,7 +39,9 @@ import {
   ExternalLink,
   CloudUpload,
   CloudDownload,
+  X,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -95,6 +97,7 @@ interface ETBRow {
   grouping2?: string;
   grouping3?: string;
   grouping4?: string;
+  visibleLevels?: number; // Track how many classification levels are visible (1-4)
 }
 
 interface ExtendedTrialBalanceProps {
@@ -303,11 +306,20 @@ async function authFetch(url: string, options: RequestInit = {}) {
 
 // Create a separate component for classification combos with proper key to prevent re-renders
 // Define it outside the main component to avoid hook issues
-const ClassificationCombos = React.memo(({ rowId, classification, onChange, memoizedLevel1Options }: {
+const ClassificationCombos = React.memo(({ 
+  rowId, 
+  classification, 
+  onChange, 
+  memoizedLevel1Options,
+  visibleLevels = 4,
+  onVisibleLevelsChange
+}: {
   rowId: string;
   classification: string;
   onChange: (rowId: string, classification: string) => void;
   memoizedLevel1Options: string[];
+  visibleLevels?: number;
+  onVisibleLevelsChange?: (rowId: string, levels: number) => void;
 }) => {
   // Use a ref to store the internal state to prevent re-initialization
   const stateRef = useRef<{
@@ -385,45 +397,160 @@ const ClassificationCombos = React.memo(({ rowId, classification, onChange, memo
     onChange(rowId, buildClassification(newState.level1, newState.level2, newState.level3, v));
   }, [rowId, onChange]);
 
+  // Handle removing a level
+  const handleRemoveLevel = useCallback((level: number) => {
+    if (!onVisibleLevelsChange) return;
+
+    if (level === 1) {
+      // Removing level 1 clears all
+      const newState = { level1: "", level2: "", level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, "");
+      onVisibleLevelsChange(rowId, 0);
+    } else if (level === 2) {
+      // Removing level 2 clears level 2, 3, 4
+      const newState = { ...stateRef.current, level2: "", level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, "", ""));
+      onVisibleLevelsChange(rowId, 1);
+    } else if (level === 3) {
+      // Removing level 3 clears level 3, 4
+      const newState = { ...stateRef.current, level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, newState.level2, ""));
+      onVisibleLevelsChange(rowId, 2);
+    } else if (level === 4) {
+      // Removing level 4 only
+      const newState = { ...stateRef.current, level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, newState.level2, newState.level3));
+      onVisibleLevelsChange(rowId, 3);
+    }
+  }, [rowId, onChange, onVisibleLevelsChange]);
+
+  // Handle adding a level
+  const handleAddLevel = useCallback(() => {
+    if (!onVisibleLevelsChange) return;
+    onVisibleLevelsChange(rowId, Math.min((visibleLevels || 0) + 1, 4));
+  }, [rowId, onVisibleLevelsChange, visibleLevels]);
+
   return (
-    <div className="flex flex-wrap gap-1 sm:gap-2">
-      <SearchableSelect
-        value={internalState.level1}
-        onChange={handleL1Change}
-        options={memoizedLevel1Options}
-        placeholder="Level 1"
-        className="max-h-44 overflow-y-auto"
-        widthClass="w-fit"
-      />
-      {level2Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level2}
-          className="max-h-44 overflow-y-auto"
-          onChange={handleL2Change}
-          options={level2Options}
-          placeholder="Level 2"
-          widthClass="w-fit"
-        />
+    <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+      {visibleLevels >= 1 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level1}
+            onChange={handleL1Change}
+            options={memoizedLevel1Options}
+            placeholder="Level 1"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(1)}
+              title="Remove Level 1"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       )}
-      {level3Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level3}
-          onChange={handleL3Change}
-          options={level3Options}
-          placeholder="Level 3"
-          className="max-h-44 overflow-y-auto"
-          widthClass="w-fit"
-        />
+      {visibleLevels >= 2 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level2}
+            className="max-h-44 overflow-y-auto"
+            onChange={handleL2Change}
+            options={level2Options}
+            placeholder="Level 2"
+            widthClass="w-fit"
+            disabled={level2Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(2)}
+              title="Remove Level 2"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       )}
-      {level4Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level4}
-          onChange={handleL4Change}
-          options={level4Options}
-          placeholder="Level 4"
-          className="max-h-44 overflow-y-auto"
-          widthClass="w-fit"
-        />
+      {visibleLevels >= 3 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level3}
+            onChange={handleL3Change}
+            options={level3Options}
+            placeholder="Level 3"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+            disabled={level3Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(3)}
+              title="Remove Level 3"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+      {visibleLevels >= 4 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level4}
+            onChange={handleL4Change}
+            options={level4Options}
+            placeholder="Level 4"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+            disabled={level4Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(4)}
+              title="Remove Level 4"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+      {onVisibleLevelsChange && visibleLevels < 4 && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={handleAddLevel}
+          title="Add Level"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Level
+        </Button>
       )}
     </div>
   );
@@ -458,6 +585,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
   // CRITICAL: Add a global flag to track if we're in a push operation
   const [isPushingToCloudGlobal, setIsPushingToCloudGlobal] = useState(false);
+
+  // State for row selection and bulk classification editing
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [bulkClassification, setBulkClassification] = useState<string>("");
+  const [bulkVisibleLevels, setBulkVisibleLevels] = useState<number>(4);
 
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
@@ -667,7 +799,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (etbResponse.ok) {
         const existingETB = await etbResponse.json();
         if (existingETB.rows && existingETB.rows.length > 0) {
-          const rowsWithIds = withClientIds(existingETB.rows);
+          const rowsWithIds = withClientIds(existingETB.rows).map((row: ETBRow) => {
+            // Calculate visibleLevels if not present
+            // Show at least 1 level by default for rows without classification
+            if (row.visibleLevels === undefined || row.visibleLevels === null) {
+              const parts = (row.classification || "").split(" > ").filter(Boolean);
+              return { ...row, visibleLevels: parts.length > 0 ? parts.length : 1 };
+            }
+            return row;
+          });
           setEtbRows(rowsWithIds);
           refreshClassificationSummary(rowsWithIds);
           // only seed from props if we don't already have one (effect above also handles this)
@@ -743,6 +883,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             classification = "";
           }
 
+          // Calculate initial visible levels based on classification
+          // If classification exists, show those levels; otherwise show 1 level by default
+          const parts = (classification || "").split(" > ").filter(Boolean);
+          const initialVisibleLevels = parts.length > 0 ? parts.length : 1;
+
           return {
             id: `row-${index}-${Date.now()}`,
             code,
@@ -757,6 +902,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             grouping2: g2,
             grouping3: g3,
             grouping4: g4,
+            visibleLevels: initialVisibleLevels,
           };
         })
         // Keep row if at least ONE of these has a value (Code OR Account Name OR Current Year)
@@ -795,6 +941,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       grouping2: "",
       grouping3: "",
       grouping4: "",
+      visibleLevels: 1, // Start with Level 1 dropdown visible
     };
     setEtbRows(prevRows => {
       const newRows = [...prevRows, newRow];
@@ -1050,10 +1197,19 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       );
       if (!res.ok) throw new Error("Failed to fetch data from Excel Online.");
       const etb = await res.json();
-      const withIds = (etb.rows || []).map((r: any, i: number) => ({
-        id: r.id || `row-${i}-${Date.now()}`,
-        ...r,
-      }));
+      const withIds = (etb.rows || []).map((r: any, i: number) => {
+        const row = {
+          id: r.id || `row-${i}-${Date.now()}`,
+          ...r,
+        };
+        // Calculate visibleLevels if not present
+        // Show at least 1 level by default for rows without classification
+        if (row.visibleLevels === undefined || row.visibleLevels === null) {
+          const parts = (row.classification || "").split(" > ").filter(Boolean);
+          row.visibleLevels = parts.length > 0 ? parts.length : 1;
+        }
+        return row;
+      });
       setEtbRows(withIds);
       refreshClassificationSummary(withIds);
       toast({
@@ -1130,6 +1286,135 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       });
     });
   }, []);
+
+  // Toggle individual row selection
+  const toggleRowSelection = useCallback((rowId: string) => {
+    setSelectedRowIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId);
+      } else {
+        newSet.add(rowId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Toggle all rows selection
+  const toggleAllRows = useCallback(() => {
+    setSelectedRowIds(prev => {
+      const filteredRows = etbRows.filter((row) => {
+        const code = (row.code || "").toString().trim().toUpperCase();
+        return !code.startsWith("TOTALS");
+      });
+      
+      if (prev.size === filteredRows.length) {
+        return new Set();
+      } else {
+        return new Set(filteredRows.map(row => row.id));
+      }
+    });
+  }, [etbRows]);
+
+  // Apply bulk classification to selected rows
+  const applyBulkClassification = useCallback((classification: string) => {
+    setBulkClassification(classification);
+    
+    // Extract classification parts to sync with grouping fields
+    const parts = (classification || "").split(" > ").filter(Boolean).map(s => s.trim());
+    
+    // Calculate visible levels based on classification depth
+    const newVisibleLevels = parts.length > 0 ? parts.length : 1;
+    
+    // Update bulk visible levels to match
+    setBulkVisibleLevels(newVisibleLevels);
+    
+    setEtbRows(prevRows => {
+      const updatedRows = prevRows.map((row) => {
+        if (!selectedRowIds.has(row.id)) return row;
+
+        // Update classification, grouping fields, AND visible levels to keep them in sync
+        const updatedRow = {
+          ...row,
+          classification,
+          grouping1: parts[0] || "",
+          grouping2: parts[1] || "",
+          grouping3: parts[2] || "",
+          grouping4: parts[3] || "",
+          visibleLevels: newVisibleLevels,
+        };
+
+        return updatedRow;
+      });
+      
+      // Refresh classification summary after bulk update
+      refreshClassificationSummary(updatedRows);
+      
+      return updatedRows;
+    });
+  }, [selectedRowIds, refreshClassificationSummary]);
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelectedRowIds(new Set());
+    setBulkClassification("");
+    setBulkVisibleLevels(4); // Reset bulk visible levels
+  }, []);
+
+  // Update bulk classification when selection changes (not when rows update)
+  // We track previous selection to only update when selection actually changes
+  const prevSelectionRef = useRef<Set<string>>(new Set());
+  
+  useEffect(() => {
+    // Check if selection actually changed
+    const selectionChanged = 
+      prevSelectionRef.current.size !== selectedRowIds.size ||
+      ![...selectedRowIds].every(id => prevSelectionRef.current.has(id));
+    
+    if (!selectionChanged) {
+      return; // Don't update if selection didn't change
+    }
+    
+    prevSelectionRef.current = new Set(selectedRowIds);
+    
+    if (selectedRowIds.size > 0) {
+      // Get the classification of the first selected row
+      const firstSelectedRow = etbRows.find(row => selectedRowIds.has(row.id));
+      if (firstSelectedRow) {
+        setBulkClassification(firstSelectedRow.classification || "");
+        // Use the row's visibleLevels property, not calculated from classification
+        setBulkVisibleLevels(firstSelectedRow.visibleLevels ?? 1);
+      }
+    } else {
+      setBulkClassification("");
+      setBulkVisibleLevels(4); // Reset to show all levels when no selection
+    }
+  }, [selectedRowIds, etbRows]);
+
+  // Handle visible levels change for individual rows
+  const handleVisibleLevelsChange = useCallback((rowId: string, levels: number) => {
+    // Check if this is the bulk editor
+    if (rowId === "bulk") {
+      // Update bulk visible levels
+      setBulkVisibleLevels(levels);
+      
+      // Apply to all selected rows
+      setEtbRows(prevRows => {
+        return prevRows.map((row) => {
+          if (!selectedRowIds.has(row.id)) return row;
+          return { ...row, visibleLevels: levels };
+        });
+      });
+    } else {
+      // Update individual row
+      setEtbRows(prevRows => {
+        return prevRows.map((row) => {
+          if (row.id !== rowId) return row;
+          return { ...row, visibleLevels: levels };
+        });
+      });
+    }
+  }, [selectedRowIds]);
 
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
@@ -1250,6 +1535,45 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         </CardHeader>
 
         <CardContent className="pt-4">
+          {/* Bulk Classification Editor */}
+          {selectedRowIds.size > 0 && (
+            <div className="mb-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Bulk Classification Editor
+                    </h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedRowIds.size} row{selectedRowIds.size > 1 ? 's' : ''} selected
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Change classification for all selected rows
+                  </p>
+                  <ClassificationCombos
+                    key="bulk-editor"
+                    rowId="bulk"
+                    classification={bulkClassification}
+                    onChange={(_, classification) => applyBulkClassification(classification)}
+                    memoizedLevel1Options={memoizedLevel1Options}
+                    visibleLevels={bulkVisibleLevels}
+                    onVisibleLevelsChange={handleVisibleLevelsChange}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearSelection}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Unclassified notice */}
           {unclassifiedRows.length > 0 && (
             <Alert className="mb-4">
@@ -1267,6 +1591,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className=" bg-muted/50">
                   <TableRow>
+                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[3rem] text-xs sm:text-sm">
+                      <Checkbox
+                        checked={selectedRowIds.size > 0 && selectedRowIds.size === etbRows.filter((row) => {
+                          const code = (row.code || "").toString().trim().toUpperCase();
+                          return !code.startsWith("TOTALS");
+                        }).length}
+                        onCheckedChange={toggleAllRows}
+                        aria-label="Select all rows"
+                        className="hidden"
+                      />
+                    </TableHead>
                     <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">
                       Code
                     </TableHead>
@@ -1305,17 +1640,25 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                         key={row.id}
                         className={cn(
                           idx % 2 === 1 && "bg-muted/20",
-                          "hover:bg-muted/40 transition-colors"
+                          "hover:bg-muted/40 transition-colors",
+                          selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
                         )}
                       >
-                        <TableCell className="border border-r-secondary border-b-secondary ">
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
+                          <Checkbox
+                            checked={selectedRowIds.has(row.id)}
+                            onCheckedChange={() => toggleRowSelection(row.id)}
+                            aria-label={`Select row ${row.code || row.accountName}`}
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             value={row.code}
                             onChange={(val) => updateRow(row.id, "code", val)}
                             className="font-mono text-xs sm:text-sm"
                           />
                         </TableCell>
-                        <TableCell className="border border-r-secondary border-b-secondary ">
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             value={row.accountName}
                             onChange={(val) =>
@@ -1325,7 +1668,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             placeholder="-"
                           />
                         </TableCell>
-                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             type="number"
                             step={1}
@@ -1337,7 +1680,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             className="text-start text-xs sm:text-sm"
                           />
                         </TableCell>
-                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             type="number"
                             value={row.adjustments}
@@ -1349,10 +1692,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             step={1}
                           />
                         </TableCell>
-                        <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
+                        <TableCell className="w-fit border border-r-secondary border-b-secondary align-middle text-center font-medium tabular-nums text-xs sm:text-sm">
                           {Math.round(Number(row.finalBalance)).toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-start border border-r-secondary border-b-secondary ">
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             type="number"
                             value={row.priorYear}
@@ -1364,8 +1707,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             step={1}
                           />
                         </TableCell>
-                        <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
-                          <div className="w-fit flex flex-col items-start gap-1">
+                        <TableCell className="border border-r-secondary border-b-secondary align-top">
+                          <div className="w-fit flex flex-col items-start gap-1 min-h-[2.5rem] py-1">
                             {/* <Badge
                             variant="outline"
                             className="cursor-pointer text-xs"
@@ -1383,10 +1726,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                               classification={row.classification}
                               onChange={handleClassificationChange}
                               memoizedLevel1Options={memoizedLevel1Options}
+                              visibleLevels={row.visibleLevels ?? 0}
+                              onVisibleLevelsChange={handleVisibleLevelsChange}
                             />
                           </div>
                         </TableCell>
-                        <TableCell className="w-20 border border-b-secondary ">
+                        <TableCell className="w-20 border border-b-secondary align-middle">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1402,6 +1747,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
+                    <TableCell className="border border-r-secondary"></TableCell>
                     <TableCell
                       colSpan={2}
                       className="border font-bold border-r-secondary text-xs sm:text-sm"
