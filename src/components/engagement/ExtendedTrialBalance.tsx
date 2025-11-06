@@ -20,6 +20,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -39,13 +46,17 @@ import {
   ExternalLink,
   CloudUpload,
   CloudDownload,
+  X,
+  Info,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import EditableText from "../ui/editable-text";
-import { NEW_CLASSIFICATION_OPTIONS,NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
+import { NEW_CLASSIFICATION_OPTIONS, NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
+import { adjustmentApi } from "@/services/api";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -55,19 +66,19 @@ import { NEW_CLASSIFICATION_OPTIONS,NEW_CLASSIFICATION_RULESET } from "./classif
 // Removes parentheses and special characters, preserves any existing minus sign
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
-  
+
   // If already a number, return it
   if (typeof value === "number") return value;
-  
+
   // Convert to string and clean
   let str = String(value).trim();
-  
+
   // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
   str = str.replace(/[(),\$€£¥]/g, "").trim();
-  
+
   // Parse to number
   const num = Number(str);
-  
+
   // Return the number (no negative conversion for parentheses)
   return isNaN(num) ? 0 : num;
 };
@@ -84,6 +95,7 @@ const withClientIds = <T extends object>(rows: T[]) =>
 
 interface ETBRow {
   id: string;
+  _id?: string;
   code: string;
   accountName: string;
   currentYear: number;
@@ -91,10 +103,13 @@ interface ETBRow {
   adjustments: number;
   finalBalance: number;
   classification: string;
+  reclassification?: string; // New field for re-classification
   grouping1?: string;
   grouping2?: string;
   grouping3?: string;
   grouping4?: string;
+  visibleLevels?: number; // Track how many classification levels are visible (1-4)
+  adjustmentRefs?: string[]; // References to adjustments affecting this row
 }
 
 interface ExtendedTrialBalanceProps {
@@ -303,11 +318,20 @@ async function authFetch(url: string, options: RequestInit = {}) {
 
 // Create a separate component for classification combos with proper key to prevent re-renders
 // Define it outside the main component to avoid hook issues
-const ClassificationCombos = React.memo(({ rowId, classification, onChange, memoizedLevel1Options }: {
+const ClassificationCombos = React.memo(({ 
+  rowId, 
+  classification, 
+  onChange, 
+  memoizedLevel1Options,
+  visibleLevels = 4,
+  onVisibleLevelsChange
+}: {
   rowId: string;
   classification: string;
   onChange: (rowId: string, classification: string) => void;
   memoizedLevel1Options: string[];
+  visibleLevels?: number;
+  onVisibleLevelsChange?: (rowId: string, levels: number) => void;
 }) => {
   // Use a ref to store the internal state to prevent re-initialization
   const stateRef = useRef<{
@@ -385,45 +409,160 @@ const ClassificationCombos = React.memo(({ rowId, classification, onChange, memo
     onChange(rowId, buildClassification(newState.level1, newState.level2, newState.level3, v));
   }, [rowId, onChange]);
 
+  // Handle removing a level
+  const handleRemoveLevel = useCallback((level: number) => {
+    if (!onVisibleLevelsChange) return;
+
+    if (level === 1) {
+      // Removing level 1 clears all
+      const newState = { level1: "", level2: "", level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, "");
+      onVisibleLevelsChange(rowId, 0);
+    } else if (level === 2) {
+      // Removing level 2 clears level 2, 3, 4
+      const newState = { ...stateRef.current, level2: "", level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, "", ""));
+      onVisibleLevelsChange(rowId, 1);
+    } else if (level === 3) {
+      // Removing level 3 clears level 3, 4
+      const newState = { ...stateRef.current, level3: "", level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, newState.level2, ""));
+      onVisibleLevelsChange(rowId, 2);
+    } else if (level === 4) {
+      // Removing level 4 only
+      const newState = { ...stateRef.current, level4: "" };
+      stateRef.current = newState;
+      setInternalState(newState);
+      onChange(rowId, buildClassification(newState.level1, newState.level2, newState.level3));
+      onVisibleLevelsChange(rowId, 3);
+    }
+  }, [rowId, onChange, onVisibleLevelsChange]);
+
+  // Handle adding a level
+  const handleAddLevel = useCallback(() => {
+    if (!onVisibleLevelsChange) return;
+    onVisibleLevelsChange(rowId, Math.min((visibleLevels || 0) + 1, 4));
+  }, [rowId, onVisibleLevelsChange, visibleLevels]);
+
   return (
-    <div className="flex flex-wrap gap-1 sm:gap-2">
-      <SearchableSelect
-        value={internalState.level1}
-        onChange={handleL1Change}
-        options={memoizedLevel1Options}
-        placeholder="Level 1"
-        className="max-h-44 overflow-y-auto"
-        widthClass="w-fit"
-      />
-      {level2Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level2}
-          className="max-h-44 overflow-y-auto"
-          onChange={handleL2Change}
-          options={level2Options}
-          placeholder="Level 2"
-          widthClass="w-fit"
-        />
+    <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+      {visibleLevels >= 1 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level1}
+            onChange={handleL1Change}
+            options={memoizedLevel1Options}
+            placeholder="Level 1"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(1)}
+              title="Remove Level 1"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       )}
-      {level3Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level3}
-          onChange={handleL3Change}
-          options={level3Options}
-          placeholder="Level 3"
-          className="max-h-44 overflow-y-auto"
-          widthClass="w-fit"
-        />
+      {visibleLevels >= 2 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level2}
+            className="max-h-44 overflow-y-auto"
+            onChange={handleL2Change}
+            options={level2Options}
+            placeholder="Level 2"
+            widthClass="w-fit"
+            disabled={level2Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(2)}
+              title="Remove Level 2"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       )}
-      {level4Options.length > 0 && (
-        <SearchableSelect
-          value={internalState.level4}
-          onChange={handleL4Change}
-          options={level4Options}
-          placeholder="Level 4"
-          className="max-h-44 overflow-y-auto"
-          widthClass="w-fit"
-        />
+      {visibleLevels >= 3 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level3}
+            onChange={handleL3Change}
+            options={level3Options}
+            placeholder="Level 3"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+            disabled={level3Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(3)}
+              title="Remove Level 3"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+      {visibleLevels >= 4 && (
+        <div className="flex items-center gap-1">
+          <SearchableSelect
+            value={internalState.level4}
+            onChange={handleL4Change}
+            options={level4Options}
+            placeholder="Level 4"
+            className="max-h-44 overflow-y-auto"
+            widthClass="w-fit"
+            disabled={level4Options.length === 0}
+          />
+          {onVisibleLevelsChange && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+              onClick={() => handleRemoveLevel(4)}
+              title="Remove Level 4"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+      {onVisibleLevelsChange && visibleLevels < 4 && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={handleAddLevel}
+          title="Add Level"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Level
+        </Button>
       )}
     </div>
   );
@@ -458,6 +597,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
   // CRITICAL: Add a global flag to track if we're in a push operation
   const [isPushingToCloudGlobal, setIsPushingToCloudGlobal] = useState(false);
+
+  // State for row selection and bulk classification editing
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [bulkClassification, setBulkClassification] = useState<string>("");
+  const [bulkVisibleLevels, setBulkVisibleLevels] = useState<number>(4);
+
+  // State for adjustment details dialog
+  const [showAdjustmentDetails, setShowAdjustmentDetails] = useState(false);
+  const [selectedRowForAdjustments, setSelectedRowForAdjustments] = useState<ETBRow | null>(null);
+  const [adjustmentsForRow, setAdjustmentsForRow] = useState<any[]>([]);
+  const [loadingAdjustments, setLoadingAdjustments] = useState(false);
 
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
@@ -591,15 +741,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Additional effect to watch for localStorage changes (in case of re-renders from loadExistingData)
   // This is critical to restore state after re-renders caused by saveETB/loadExistingData
   useEffect(() => {
-  try {
-    const pushedState = localStorage.getItem(pushedKey);
-    if (pushedState === "true" && !hasBeenPushed) {
-      setHasBeenPushed(true);
+    try {
+      const pushedState = localStorage.getItem(pushedKey);
+      if (pushedState === "true" && !hasBeenPushed) {
+        setHasBeenPushed(true);
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-}, [pushedKey]);
+  }, [pushedKey]);
 
 
   // Poll localStorage periodically to catch changes immediately
@@ -667,7 +817,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (etbResponse.ok) {
         const existingETB = await etbResponse.json();
         if (existingETB.rows && existingETB.rows.length > 0) {
-          const rowsWithIds = withClientIds(existingETB.rows);
+          const rowsWithIds = withClientIds(existingETB.rows).map((row: ETBRow) => {
+            // Calculate visibleLevels if not present
+            // Show at least 1 level by default for rows without classification
+            if (row.visibleLevels === undefined || row.visibleLevels === null) {
+              const parts = (row.classification || "").split(" > ").filter(Boolean);
+              return { ...row, visibleLevels: parts.length > 0 ? parts.length : 1 };
+            }
+            return row;
+          });
           setEtbRows(rowsWithIds);
           refreshClassificationSummary(rowsWithIds);
           // only seed from props if we don't already have one (effect above also handles this)
@@ -697,7 +855,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       const priorYearIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("prior year")
       );
-      
+
       // Find optional grouping column indices
       const grouping1Index = headers.findIndex((h: string) =>
         h.toLowerCase().trim() === "grouping 1"
@@ -716,24 +874,24 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         .map((row: any[], index: number) => {
           const code = row[codeIndex] || "";
           const accountName = row[nameIndex] || "";
-          
+
           // Parse numeric values - remove parentheses and commas: (55,662) → 55662
           const currentYear = parseAccountingNumber(row[currentYearIndex]);
           const priorYear = parseAccountingNumber(row[priorYearIndex]);
           const adjustments = 0;
-          
+
           // Extract grouping values from file if available
           const g1 = grouping1Index !== -1 ? (row[grouping1Index] || "").trim() : "";
           const g2 = grouping2Index !== -1 ? (row[grouping2Index] || "").trim() : "";
           const g3 = grouping3Index !== -1 ? (row[grouping3Index] || "").trim() : "";
           const g4 = grouping4Index !== -1 ? (row[grouping4Index] || "").trim() : "";
-          
+
           // Determine classification:
           // - If file has grouping values, build classification from them (no autoClassify)
           // - If no grouping values, use autoClassify
           const hasFileGrouping = g1 || g2 || g3 || g4;
           let classification = "";
-          
+
           if (hasFileGrouping) {
             // Build classification from file grouping values
             classification = [g1, g2, g3, g4].filter(Boolean).join(" > ");
@@ -742,7 +900,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             // classification = autoClassify(accountName);
             classification = "";
           }
-          
+
+          // Calculate initial visible levels based on classification
+          // If classification exists, show those levels; otherwise show 1 level by default
+          const parts = (classification || "").split(" > ").filter(Boolean);
+          const initialVisibleLevels = parts.length > 0 ? parts.length : 1;
+
           return {
             id: `row-${index}-${Date.now()}`,
             code,
@@ -752,11 +915,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             adjustments,
             finalBalance: currentYear + adjustments,
             classification,
+            reclassification: "", // Initialize re-classification as empty string
             // Store file grouping (will be overwritten when user changes classification)
             grouping1: g1,
             grouping2: g2,
             grouping3: g3,
             grouping4: g4,
+            visibleLevels: initialVisibleLevels,
           };
         })
         // Keep row if at least ONE of these has a value (Code OR Account Name OR Current Year)
@@ -791,10 +956,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       adjustments: 0,
       finalBalance: 0,
       classification: "",
+      reclassification: "", // Initialize re-classification as empty string
       grouping1: "",
       grouping2: "",
       grouping3: "",
       grouping4: "",
+      visibleLevels: 1, // Start with Level 1 dropdown visible
     };
     setEtbRows(prevRows => {
       const newRows = [...prevRows, newRow];
@@ -1050,10 +1217,19 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       );
       if (!res.ok) throw new Error("Failed to fetch data from Excel Online.");
       const etb = await res.json();
-      const withIds = (etb.rows || []).map((r: any, i: number) => ({
-        id: r.id || `row-${i}-${Date.now()}`,
-        ...r,
-      }));
+      const withIds = (etb.rows || []).map((r: any, i: number) => {
+        const row = {
+          id: r.id || `row-${i}-${Date.now()}`,
+          ...r,
+        };
+        // Calculate visibleLevels if not present
+        // Show at least 1 level by default for rows without classification
+        if (row.visibleLevels === undefined || row.visibleLevels === null) {
+          const parts = (row.classification || "").split(" > ").filter(Boolean);
+          row.visibleLevels = parts.length > 0 ? parts.length : 1;
+        }
+        return row;
+      });
       setEtbRows(withIds);
       refreshClassificationSummary(withIds);
       toast({
@@ -1110,10 +1286,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setEtbRows(prevRows => {
       return prevRows.map((row) => {
         if (row.id !== rowId) return row;
-        
+
         // Extract classification parts to sync with grouping fields
         const parts = (classification || "").split(" > ").map(s => s.trim());
-        
+
         // Update BOTH classification AND grouping fields to keep them in sync
         // Backend will use grouping fields with classification as fallback
         const updatedRow = {
@@ -1125,11 +1301,175 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           grouping3: parts[2] || "",
           grouping4: parts[3] || "",
         };
-        
+
         return updatedRow;
       });
     });
   }, []);
+
+  // Toggle individual row selection
+  const toggleRowSelection = useCallback((rowId: string) => {
+    setSelectedRowIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId);
+      } else {
+        newSet.add(rowId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Toggle all rows selection
+  const toggleAllRows = useCallback(() => {
+    setSelectedRowIds(prev => {
+      const filteredRows = etbRows.filter((row) => {
+        const code = (row.code || "").toString().trim().toUpperCase();
+        return !code.startsWith("TOTALS");
+      });
+      
+      if (prev.size === filteredRows.length) {
+        return new Set();
+      } else {
+        return new Set(filteredRows.map(row => row.id));
+      }
+    });
+  }, [etbRows]);
+
+  // Apply bulk classification to selected rows
+  const applyBulkClassification = useCallback((classification: string) => {
+    setBulkClassification(classification);
+    
+    // Extract classification parts to sync with grouping fields
+    const parts = (classification || "").split(" > ").filter(Boolean).map(s => s.trim());
+    
+    // Calculate visible levels based on classification depth
+    const newVisibleLevels = parts.length > 0 ? parts.length : 1;
+    
+    // Update bulk visible levels to match
+    setBulkVisibleLevels(newVisibleLevels);
+    
+    setEtbRows(prevRows => {
+      const updatedRows = prevRows.map((row) => {
+        if (!selectedRowIds.has(row.id)) return row;
+
+        // Update classification, grouping fields, AND visible levels to keep them in sync
+        const updatedRow = {
+          ...row,
+          classification,
+          grouping1: parts[0] || "",
+          grouping2: parts[1] || "",
+          grouping3: parts[2] || "",
+          grouping4: parts[3] || "",
+          visibleLevels: newVisibleLevels,
+        };
+
+        return updatedRow;
+      });
+      
+      // Refresh classification summary after bulk update
+      refreshClassificationSummary(updatedRows);
+      
+      return updatedRows;
+    });
+  }, [selectedRowIds, refreshClassificationSummary]);
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelectedRowIds(new Set());
+    setBulkClassification("");
+    setBulkVisibleLevels(4); // Reset bulk visible levels
+  }, []);
+
+  // Update bulk classification when selection changes (not when rows update)
+  // We track previous selection to only update when selection actually changes
+  const prevSelectionRef = useRef<Set<string>>(new Set());
+  
+  useEffect(() => {
+    // Check if selection actually changed
+    const selectionChanged = 
+      prevSelectionRef.current.size !== selectedRowIds.size ||
+      ![...selectedRowIds].every(id => prevSelectionRef.current.has(id));
+    
+    if (!selectionChanged) {
+      return; // Don't update if selection didn't change
+    }
+    
+    prevSelectionRef.current = new Set(selectedRowIds);
+    
+    if (selectedRowIds.size > 0) {
+      // Get the classification of the first selected row
+      const firstSelectedRow = etbRows.find(row => selectedRowIds.has(row.id));
+      if (firstSelectedRow) {
+        setBulkClassification(firstSelectedRow.classification || "");
+        // Use the row's visibleLevels property, not calculated from classification
+        setBulkVisibleLevels(firstSelectedRow.visibleLevels ?? 1);
+      }
+    } else {
+      setBulkClassification("");
+      setBulkVisibleLevels(4); // Reset to show all levels when no selection
+    }
+  }, [selectedRowIds, etbRows]);
+
+  // Handle visible levels change for individual rows
+  const handleVisibleLevelsChange = useCallback((rowId: string, levels: number) => {
+    // Check if this is the bulk editor
+    if (rowId === "bulk") {
+      // Update bulk visible levels
+      setBulkVisibleLevels(levels);
+      
+      // Apply to all selected rows
+      setEtbRows(prevRows => {
+        return prevRows.map((row) => {
+          if (!selectedRowIds.has(row.id)) return row;
+          return { ...row, visibleLevels: levels };
+        });
+      });
+    } else {
+      // Update individual row
+      setEtbRows(prevRows => {
+        return prevRows.map((row) => {
+          if (row.id !== rowId) return row;
+          return { ...row, visibleLevels: levels };
+        });
+      });
+    }
+  }, [selectedRowIds]);
+
+  // Show adjustment details for a specific row
+  const showAdjustmentDetailsForRow = useCallback(async (row: ETBRow) => {
+    setSelectedRowForAdjustments(row);
+    setShowAdjustmentDetails(true);
+    setLoadingAdjustments(true);
+    setAdjustmentsForRow([]);
+
+    try {
+      // Fetch all adjustments for this engagement
+      const response = await adjustmentApi.getByEngagement(engagement._id);
+      
+      if (response.success) {
+        // Filter to adjustments that affect this specific row
+        const rowId = row._id || row.id || row.code;
+        const relevantAdjustments = response.data.filter((adj: any) =>
+          adj.entries.some((entry: any) => 
+            entry.etbRowId === rowId || 
+            entry.code === row.code
+          )
+        );
+
+        setAdjustmentsForRow(relevantAdjustments);
+      }
+    } catch (error: any) {
+      console.error("Error fetching adjustments:", error);
+      toast({
+        title: "Failed to load adjustments",
+        description: error.message || "Could not fetch adjustment details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdjustments(false);
+    }
+  }, [engagement._id, toast]);
 
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
@@ -1250,6 +1590,45 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         </CardHeader>
 
         <CardContent className="pt-4">
+          {/* Bulk Classification Editor */}
+          {selectedRowIds.size > 0 && (
+            <div className="mb-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Bulk Classification Editor
+                    </h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedRowIds.size} row{selectedRowIds.size > 1 ? 's' : ''} selected
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Change classification for all selected rows
+                  </p>
+                  <ClassificationCombos
+                    key="bulk-editor"
+                    rowId="bulk"
+                    classification={bulkClassification}
+                    onChange={(_, classification) => applyBulkClassification(classification)}
+                    memoizedLevel1Options={memoizedLevel1Options}
+                    visibleLevels={bulkVisibleLevels}
+                    onVisibleLevelsChange={handleVisibleLevelsChange}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={clearSelection}
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Unclassified notice */}
           {unclassifiedRows.length > 0 && (
             <Alert className="mb-4">
@@ -1267,6 +1646,19 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className=" bg-muted/50">
                   <TableRow>
+                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[3.5rem] text-xs sm:text-sm text-center px-2 flex items-center justify-center">
+                      <div>
+                        <Checkbox
+                          checked={selectedRowIds.size > 0 && selectedRowIds.size === etbRows.filter((row) => {
+                            const code = (row.code || "").toString().trim().toUpperCase();
+                            return !code.startsWith("TOTALS");
+                          }).length}
+                          onCheckedChange={toggleAllRows}
+                          aria-label="Select all rows"
+                          className="hidden"
+                        />
+                      </div>
+                    </TableHead>
                     <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">
                       Code
                     </TableHead>
@@ -1275,6 +1667,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     </TableHead>
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
+                    </TableHead>
+                    <TableHead className="w-48 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">
+                      Re-Classification
                     </TableHead>
                     <TableHead className="text-start  border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Adjustments
@@ -1294,73 +1689,103 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {etbRows.map((row, idx) => (
-                    <TableRow
-                      key={row.id}
-                      className={cn(
-                        idx % 2 === 1 && "bg-muted/20",
-                        "hover:bg-muted/40 transition-colors"
-                      )}
-                    >
-                      <TableCell className="border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          value={row.code}
-                          onChange={(val) => updateRow(row.id, "code", val)}
-                          className="font-mono text-xs sm:text-sm"
-                        />
-                      </TableCell>
-                      <TableCell className="border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          value={row.accountName}
-                          onChange={(val) =>
-                            updateRow(row.id, "accountName", val)
-                          }
-                          className="w-48 text-xs sm:text-sm"
-                          placeholder="-"
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          step={1}
-                          value={row.currentYear}
-                          onChange={(val) =>
-                            updateRow(row.id, "currentYear", val)
-                          }
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                        />
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          value={row.adjustments}
-                          onChange={(val) => {
-                            updateRow(row.id, "adjustments", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="w-fit border border-r-secondary border-b-secondary  text-center font-medium tabular-nums text-xs sm:text-sm">
-                        {Math.round(Number(row.finalBalance)).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-start border border-r-secondary border-b-secondary ">
-                        <EditableText
-                          type="number"
-                          value={row.priorYear}
-                          onChange={(val) => {
-                            updateRow(row.id, "priorYear", val);
-                          }}
-                          placeholder="0"
-                          className="text-start text-xs sm:text-sm"
-                          step={1}
-                        />
-                      </TableCell>
-                      <TableCell className="border border-r-secondary border-b-secondary flex justify-start">
-                        <div className="w-fit flex flex-col items-start gap-1">
-                          {/* <Badge
+                  {etbRows
+                    .filter((row) => {
+                      // Filter out rows where code starts with "TOTALS" (case-insensitive)
+                      const code = (row.code || "").toString().trim().toUpperCase();
+                      return !code.startsWith("TOTALS");
+                    })
+                    .map((row, idx) => (
+                      <TableRow
+                        key={row.id}
+                        className={cn(
+                          idx % 2 === 1 && "bg-muted/20",
+                          "hover:bg-muted/40 transition-colors",
+                          selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
+                        )}
+                      >
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle text-center px-2">
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={selectedRowIds.has(row.id)}
+                              onCheckedChange={() => toggleRowSelection(row.id)}
+                              aria-label={`Select row ${row.code || row.accountName}`}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            value={row.code}
+                            onChange={(val) => updateRow(row.id, "code", val)}
+                            className="font-mono text-xs sm:text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            value={row.accountName}
+                            onChange={(val) =>
+                              updateRow(row.id, "accountName", val)
+                            }
+                            className="w-48 text-xs sm:text-sm"
+                            placeholder="-"
+                          />
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            type="number"
+                            step={1}
+                            value={row.currentYear}
+                            onChange={(val) =>
+                              updateRow(row.id, "currentYear", val)
+                            }
+                            placeholder="0"
+                            className="text-start text-xs sm:text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            value={row.reclassification || ""}
+                            onChange={(val) => updateRow(row.id, "reclassification", val)}
+                            className="w-48 text-xs sm:text-sm"
+                            placeholder="Enter re-classification"
+                          />
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium tabular-nums text-xs sm:text-sm">
+                              {Math.round(Number(row.adjustments)).toLocaleString()}
+                            </span>
+                            {row.adjustments !== 0 && row.adjustments != null && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 hover:bg-blue-100"
+                                onClick={() => showAdjustmentDetailsForRow(row)}
+                                title="View adjustment details"
+                              >
+                                <Info className="h-3 w-3 text-blue-600" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-fit border border-r-secondary border-b-secondary align-middle text-center font-medium tabular-nums text-xs sm:text-sm">
+                          {Math.round(Number(row.finalBalance)).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            type="number"
+                            value={row.priorYear}
+                            onChange={(val) => {
+                              updateRow(row.id, "priorYear", val);
+                            }}
+                            placeholder="0"
+                            className="text-start text-xs sm:text-sm"
+                            step={1}
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-top">
+                          <div className="w-fit flex flex-col items-start gap-1 min-h-[2.5rem] py-1">
+                            {/* <Badge
                             variant="outline"
                             className="cursor-pointer text-xs"
                             title="Jump to section"
@@ -1371,31 +1796,34 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           >
                             {formatClassificationForDisplay(row.classification)}
                           </Badge> */}
-                          <ClassificationCombos
-                            key={row.id}
-                            rowId={row.id}
-                            classification={row.classification}
-                            onChange={handleClassificationChange}
-                            memoizedLevel1Options={memoizedLevel1Options}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-20 border border-b-secondary ">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteRow(row.id)}
-                          className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
-                          aria-label="Delete row"
-                        >
-                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <ClassificationCombos
+                              key={row.id}
+                              rowId={row.id}
+                              classification={row.classification}
+                              onChange={handleClassificationChange}
+                              memoizedLevel1Options={memoizedLevel1Options}
+                              visibleLevels={row.visibleLevels ?? 0}
+                              onVisibleLevelsChange={handleVisibleLevelsChange}
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-20 border border-b-secondary align-middle">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteRow(row.id)}
+                            className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
+                    <TableCell className="border border-r-secondary px-2"></TableCell>
                     <TableCell
                       colSpan={2}
                       className="border font-bold border-r-secondary text-xs sm:text-sm"
@@ -1405,6 +1833,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
                       {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
+                    <TableCell className="border border-r-secondary"></TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
@@ -1472,6 +1901,149 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Adjustment Details Dialog */}
+      <Dialog open={showAdjustmentDetails} onOpenChange={setShowAdjustmentDetails}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adjustment Details</DialogTitle>
+            <DialogDescription>
+              Adjustments affecting{" "}
+              <span className="font-semibold">
+                {selectedRowForAdjustments?.code} - {selectedRowForAdjustments?.accountName}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {loadingAdjustments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-600">Loading adjustments...</span>
+              </div>
+            ) : adjustmentsForRow.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Info className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No adjustments found for this row</p>
+                <p className="text-xs mt-1">
+                  The adjustment value may have been set directly or come from a different source.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {adjustmentsForRow.map((adj: any) => {
+                  // Get the row ID for highlighting
+                  const rowId = selectedRowForAdjustments?._id || selectedRowForAdjustments?.id || selectedRowForAdjustments?.code;
+                  
+                  // Calculate net impact on this specific row
+                  const netImpactOnRow = adj.entries
+                    .filter((entry: any) => 
+                      entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code
+                    )
+                    .reduce((sum: number, e: any) => sum + (e.dr || 0) - (e.cr || 0), 0);
+
+                  return (
+                    <Card key={adj._id} className="border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          {/* Adjustment Header */}
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="font-mono">
+                              {adj.adjustmentNo}
+                            </Badge>
+                            <Badge variant={adj.status === "posted" ? "default" : "secondary"}>
+                              {adj.status.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              {adj.description || "No description"}
+                            </span>
+                          </div>
+
+                          {/* ALL Entries in the adjustment */}
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left border-r">Code</th>
+                                  <th className="px-3 py-2 text-left border-r">Account</th>
+                                  <th className="px-3 py-2 text-right border-r">Debit</th>
+                                  <th className="px-3 py-2 text-right border-r">Credit</th>
+                                  <th className="px-3 py-2 text-left">Details</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {adj.entries.map((entry: any, idx: number) => {
+                                  // Highlight the row we clicked on
+                                  const isClickedRow = entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code;
+                                  
+                                  return (
+                                    <tr 
+                                      key={idx} 
+                                      className={cn(
+                                        "border-t",
+                                        isClickedRow && "bg-blue-50 font-semibold"
+                                      )}
+                                    >
+                                      <td className="px-3 py-2 border-r font-mono text-xs">
+                                        {entry.code}
+                                        {isClickedRow && (
+                                          <Badge variant="outline" className="ml-2 text-xs">
+                                            You are here
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 border-r">{entry.accountName}</td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.dr > 0 ? entry.dr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.cr > 0 ? entry.cr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-gray-600">
+                                        {entry.details || "-"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                
+                                {/* Totals Row */}
+                                <tr className="border-t bg-gray-100 font-semibold">
+                                  <td colSpan={2} className="px-3 py-2 border-r">
+                                    TOTAL
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {adj.totalDr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {adj.totalCr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Badge variant={adj.totalDr === adj.totalCr ? "default" : "destructive"}>
+                                      {adj.totalDr === adj.totalCr ? "Balanced" : "Unbalanced"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Net Impact on THIS account */}
+                          <div className="flex items-center justify-between text-sm bg-blue-50 p-3 rounded border border-blue-200">
+                            <span className="font-medium">Net impact on {selectedRowForAdjustments?.accountName}:</span>
+                            <span className="font-bold text-lg">
+                              {netImpactOnRow.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

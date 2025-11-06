@@ -443,23 +443,21 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </Button>
                     )}
 
-                    {adjustmentsCount > 0 && (
-                      <Button
-                        variant={
-                          selectedClassification === "Adjustments"
-                            ? "default"
-                            : "outline"
-                        }
-                        className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                        onClick={() => setSelectedClassification("Adjustments")}
-                      >
-                        <span className="flex items-center gap-2">
-                          <Wrench className="h-4 w-4" />
-                          Adjustments
-                        </span>
-                        <Badge variant="secondary">{adjustmentsCount}</Badge>
-                      </Button>
-                    )}
+                    <Button
+                      variant={
+                        selectedClassification === "Adjustments"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => setSelectedClassification("Adjustments")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Wrench className="h-4 w-4" />
+                        Adjustments
+                      </span>
+                      <Badge variant="secondary">{adjustmentsCount}</Badge>
+                    </Button>
 
                     {(etbCount > 0 || adjustmentsCount > 0) && (
                       <div className="text-xs uppercase text-gray-500 px-3 pt-3">

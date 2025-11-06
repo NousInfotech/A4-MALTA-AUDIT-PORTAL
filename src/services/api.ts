@@ -1223,3 +1223,115 @@ export const isqmApi = {
     return apiCall(endpoint);
   }
 };
+
+// Adjustment API
+export const adjustmentApi = {
+  /**
+   * Create a new adjustment (draft status)
+   */
+  create: async (data: {
+    engagementId: string;
+    etbId: string;
+    adjustmentNo: string;
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Creating Adjustment...');
+    console.log('📋 Adjustment Data:', data);
+    
+    try {
+      const result = await apiCall('/api/adjustments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('✅ Adjustment created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Adjustment creation failed:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all adjustments for an engagement
+   */
+  getByEngagement: async (engagementId: string) => {
+    console.log('📝 Fetching adjustments for engagement:', engagementId);
+    return apiCall(`/api/adjustments/engagement/${engagementId}`);
+  },
+
+  /**
+   * Get all adjustments for an ETB
+   */
+  getByETB: async (etbId: string) => {
+    console.log('📝 Fetching adjustments for ETB:', etbId);
+    return apiCall(`/api/adjustments/etb/${etbId}`);
+  },
+
+  /**
+   * Get a single adjustment by ID
+   */
+  getById: async (id: string) => {
+    console.log('📝 Fetching adjustment by ID:', id);
+    return apiCall(`/api/adjustments/${id}`);
+  },
+
+  /**
+   * Update a draft adjustment
+   */
+  update: async (id: string, data: {
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Updating adjustment:', id, data);
+    return apiCall(`/api/adjustments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Post a draft adjustment (apply to ETB)
+   */
+  post: async (id: string) => {
+    console.log('📝 Posting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}/post`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Unpost a posted adjustment (reverse ETB impact)
+   */
+  unpost: async (id: string) => {
+    console.log('📝 Unposting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}/unpost`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a draft adjustment
+   */
+  delete: async (id: string) => {
+    console.log('📝 Deleting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
