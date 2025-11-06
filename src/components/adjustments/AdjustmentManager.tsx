@@ -369,17 +369,25 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
     
     let confirmMessage = "Are you sure you want to delete this adjustment?";
     if (adj?.status === "posted") {
-      confirmMessage = "⚠️ WARNING: This is a POSTED adjustment!\n\n" +
-                       "Deleting it will NOT reverse its impact on the ETB.\n" +
-                       "This feature is temporary and for testing only.\n\n" +
-                       "Are you sure you want to delete?";
+      confirmMessage = "Delete this POSTED adjustment?\n\n" +
+                       "This will:\n" +
+                       "• Reverse its impact on the ETB\n" +
+                       "• Remove all affected adjustment values from accounts\n" +
+                       "• Permanently delete the adjustment record\n\n" +
+                       "Are you sure?";
     }
     
     if (!confirm(confirmMessage)) return;
 
     try {
-      await deleteAdjustment(adjustmentId);
-      toast.success("Adjustment deleted");
+      const response = await deleteAdjustment(adjustmentId);
+      
+      if (response?.wasPosted) {
+        toast.success("Adjustment deleted and ETB impact reversed");
+      } else {
+        toast.success("Adjustment deleted");
+      }
+      
       await refetch();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete adjustment");
@@ -557,7 +565,8 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
                     Editing Posted Adjustment (Temporary Feature)
                   </h4>
                   <p className="text-sm text-amber-700">
-                    This adjustment has already been posted to the ETB. Changes here will NOT automatically update the ETB. 
+                    This adjustment has already been posted to the ETB. Changes here will NOT automatically update the ETB.
+                    To apply changes, you need to delete and recreate the adjustment.
                     This edit capability is temporary and will be removed in future versions.
                   </p>
                 </div>
@@ -863,9 +872,10 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
                         size="sm"
                         variant="destructive"
                         onClick={() => handleDelete(adj._id)}
+                        title={adj.status === "posted" ? "Delete and reverse ETB impact" : "Delete adjustment"}
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
-                        Delete
+                        {adj.status === "posted" ? "Delete & Reverse" : "Delete"}
                       </Button>
                       
                       {adj.status === "posted" && (
