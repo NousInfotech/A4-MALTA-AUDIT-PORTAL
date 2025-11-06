@@ -186,7 +186,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-sm text-brand-text">
+            <div className="h-full flex items-center justify-center text-xl md:text-3xl text-gray-600">
               No share percentage data available
             </div>
           )}

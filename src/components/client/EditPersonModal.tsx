@@ -152,6 +152,9 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     setSupportingDocuments(updated);
   };
 
+  // Check if person is a representative (from shareholding company)
+  const isRepresentative = person?.companyName ? true : false;
+
   useEffect(() => {
     if (person) {
       setFormData({
@@ -364,32 +367,33 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </div>
           </div> */}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="sharePercentage"
-                className="text-gray-700 font-semibold"
-              >
-                Share Percentage <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="sharePercentage"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                placeholder="Enter share percentage"
-                value={formData.sharePercentage}
-                onChange={(e) =>
-                  setFormData({ ...formData, sharePercentage: e.target.value })
-                }
-                className="rounded-xl border-gray-200"
-                required
-              />
+          {/* Share Percentage - Optional for representatives */}
+          {!isRepresentative && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="sharePercentage"
+                  className="text-gray-700 font-semibold"
+                >
+                  Share Percentage <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="sharePercentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="Enter share percentage"
+                  value={formData.sharePercentage}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sharePercentage: e.target.value })
+                  }
+                  className="rounded-xl border-gray-200"
+                  required
+                />
+              </div>
             </div>
-
-           
-          </div>
+          )}
 
           {/* Supporting Documents */}
           {/* <div className="space-y-2">
@@ -446,7 +450,14 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name || !formData.nationality || !formData.address || formData.roles.length === 0 || !formData.sharePercentage}
+              disabled={
+                isSubmitting || 
+                !formData.name || 
+                !formData.nationality || 
+                !formData.address || 
+                formData.roles.length === 0 || 
+                (!isRepresentative && !formData.sharePercentage)
+              }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
