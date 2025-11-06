@@ -11,6 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
@@ -52,6 +59,62 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const [nationalityOptions, setNationalityOptions] = useState<
+    { value: string; label: string; isEuropean: boolean }[]
+  >([]);
+
+  useEffect(() => {
+    const fetchNationalities = async () => {
+      try {
+        const res = await fetch(
+          "https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json"
+        );
+        if (!res.ok) throw new Error("Failed to load nationalities");
+        const raw = await res.json();
+
+        const items: { value: string; label: string; isEuropean: boolean }[] = [];
+        const seen = new Set<string>();
+
+        (Array.isArray(raw) ? raw : []).forEach((entry: any) => {
+          const region = entry?.region || "";
+          const demonym = entry?.demonyms?.eng?.m || entry?.demonyms?.eng?.f || "";
+          const label = demonym || entry?.name?.common || "";
+          if (!label) return;
+          const key = label.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push({
+            value: label,
+            label,
+            isEuropean: region === "Europe",
+          });
+        });
+
+        items.sort((a, b) => {
+          if (a.isEuropean !== b.isEuropean) return a.isEuropean ? -1 : 1;
+          return a.label.localeCompare(b.label);
+        });
+
+        setNationalityOptions(items);
+      } catch (e) {
+        console.error(e);
+        const fallback = [
+          { value: "Maltese", label: "Maltese", isEuropean: true },
+          { value: "Italian", label: "Italian", isEuropean: true },
+          { value: "French", label: "French", isEuropean: true },
+          { value: "German", label: "German", isEuropean: true },
+          { value: "Spanish", label: "Spanish", isEuropean: true },
+          { value: "British", label: "British", isEuropean: true },
+          { value: "American", label: "American", isEuropean: false },
+          { value: "Canadian", label: "Canadian", isEuropean: false },
+          { value: "Australian", label: "Australian", isEuropean: false },
+        ];
+        setNationalityOptions(fallback);
+      }
+    };
+
+    fetchNationalities();
+  }, []);
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -187,6 +250,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-gray-700 font-semibold">
               Name <span className="text-red-500">*</span>
@@ -202,10 +266,30 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
               className="rounded-xl border-gray-200 capitalize"
             />
           </div>
-
+          <div className="space-y-2">
+              <Label htmlFor="nationality" className="text-gray-700 font-semibold">
+                Nationality <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.nationality}
+                onValueChange={(v) => setFormData({ ...formData, nationality: v })}
+              >
+                <SelectTrigger id="nationality" className="rounded-xl border-gray-200">
+                  <SelectValue placeholder="Select nationality" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {nationalityOptions.map((opt) => (
+                    <SelectItem key={opt.label} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+</div>
           <div className="space-y-2">
             <Label htmlFor="address" className="text-gray-700 font-semibold">
-              Address
+              Address <span className="text-red-500">*</span>
             </Label>
             <Textarea
               id="address"
@@ -216,11 +300,12 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
               }
               className="rounded-xl border-gray-200 capitalize"
               rows={2}
+              required
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Roles</Label>
+            <Label className="text-gray-700 font-semibold">Roles <span className="text-red-500">*</span></Label>
             <div className="grid grid-cols-2 gap-4 mt-2">
               {ROLES.map((role) => (
                 <div key={role} className="flex items-center space-x-2">
@@ -243,11 +328,11 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700 font-semibold">
                 Email
-              </Label>
+              </Label>  
               <Input
                 id="email"
                 type="email"
@@ -277,7 +362,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 className="rounded-xl border-gray-200"
               />
             </div>
-          </div>
+          </div> */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -285,7 +370,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 htmlFor="sharePercentage"
                 className="text-gray-700 font-semibold"
               >
-                Share Percentage
+                Share Percentage <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="sharePercentage"
@@ -299,27 +384,15 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   setFormData({ ...formData, sharePercentage: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
+                required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="nationality" className="text-gray-700 font-semibold">
-                Nationality
-              </Label>
-              <Input
-                id="nationality"
-                placeholder="Enter nationality"
-                value={formData.nationality}
-                onChange={(e) =>
-                  setFormData({ ...formData, nationality: e.target.value })
-                }
-                className="rounded-xl border-gray-200"
-              />
-            </div>
+           
           </div>
 
           {/* Supporting Documents */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label className="text-gray-700 font-semibold">Supporting Documents</Label>
             <input
               type="file"
@@ -360,7 +433,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           <DialogFooter className="flex gap-2">
             <Button
@@ -373,7 +446,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name}
+              disabled={isSubmitting || !formData.name || !formData.nationality || !formData.address || formData.roles.length === 0 || !formData.sharePercentage}
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
