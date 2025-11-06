@@ -186,6 +186,7 @@ import axiosInstance from "@/lib/axiosInstance";
 
 import ProcedureView from "../procedures/ProcedureView";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
+import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
 
 
 
@@ -253,6 +254,8 @@ interface ETBRow {
   reference?: string;
 
   referenceData?: ReferenceData;
+
+  reclassification?: string;
 
   grouping1?: string;
 
@@ -893,6 +896,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     () => getTabFromSearch()
 
   );
+
+  // ⬇️ NEW: Grouping mode state
+  const [isGroupingMode, setIsGroupingMode] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [grouping4Value, setGrouping4Value] = useState<string>("");
 
 
   const groupBySubCategory = (data) => {
@@ -4660,6 +4668,185 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
   }
 
+  // Helper to get unique row identifier
+  function getRowId(row: ETBRow): string {
+    const id = row.id || `${row.code}-${row.accountName}`;
+    return id;
+  }
+
+  // Grouping functions - Using function declarations for hoisting
+  function toggleRowSelection(rowId: string) {
+    console.log('toggleRowSelection called with rowId:', rowId);
+    setSelectedRowIds(prev => {
+      const newSet = new Set(prev);
+      console.log('Previous selection:', Array.from(prev));
+      if (newSet.has(rowId)) {
+        console.log('Removing rowId:', rowId);
+        newSet.delete(rowId);
+      } else {
+        console.log('Adding rowId:', rowId);
+        newSet.add(rowId);
+      }
+      console.log('New selection:', Array.from(newSet));
+      return newSet;
+    });
+  }
+
+  function startGroupingMode() {
+    setIsGroupingMode(true);
+    // Don't clear selection - keep the rows that were already selected
+    // setSelectedRowIds(new Set()); // REMOVED: This was clearing the selection
+    setGrouping4Value("");
+  }
+
+  function cancelGroupingMode() {
+    console.log('Exiting grouping mode. Clearing selection and resetting UI.');
+    setIsGroupingMode(false);
+    setSelectedRowIds(new Set());
+    setGrouping4Value("");
+  }
+
+  // Update row field (for editable fields like reclassification)
+  function updateRowField(rowId: string, field: keyof ETBRow, value: any) {
+    setSectionData(prevData => {
+      return prevData.map(row => {
+        const currentRowId = getRowId(row);
+        if (currentRowId !== rowId) return row;
+        
+        return {
+          ...row,
+          [field]: value,
+        };
+      });
+    });
+  }
+
+  // Save section data back to ETB (for updates like reclassification)
+  async function saveSectionDataToETB() {
+    setLoading(true);
+    try {
+      // First, fetch the entire ETB
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch ETB data");
+      
+      const etbData = await response.json();
+      const allRows = etbData.rows || [];
+
+      // Update the matching rows with the current sectionData
+      const updatedRows = allRows.map((row: any) => {
+        // Find matching row in sectionData by code and accountName
+        const matchingRow = sectionData.find(
+          sectionRow => 
+            sectionRow.code === row.code && 
+            sectionRow.accountName === row.accountName
+        );
+        
+        if (matchingRow) {
+          // Update with all fields from sectionData, including reclassification
+          return {
+            ...row,
+            ...matchingRow,
+          };
+        }
+        return row;
+      });
+
+      // Save updated ETB back to backend
+      const saveResponse = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: updatedRows }),
+        }
+      );
+
+      if (!saveResponse.ok) throw new Error("Failed to save ETB");
+
+      toast.success("Changes saved successfully");
+      console.log('Section data saved to ETB successfully');
+    } catch (error: any) {
+      console.error("Error saving section data to ETB:", error);
+      toast.error(`Save failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function completeGrouping() {
+    if (selectedRowIds.size === 0 || !grouping4Value) {
+      toast.error("Please select rows and choose a grouping value");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Get selected rows from sectionData using getRowId helper
+      const selectedRows = sectionData.filter(row => selectedRowIds.has(getRowId(row)));
+      
+      // Update ETB with new grouping 4 data
+      const response = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch ETB data");
+      
+      const etbData = await response.json();
+      const updatedRows = (etbData.rows || []).map((row: any) => {
+        // Match by code and accountName to find the corresponding row
+        const isSelected = selectedRows.some(
+          selectedRow => 
+            selectedRow.code === row.code && 
+            selectedRow.accountName === row.accountName
+        );
+        
+        if (isSelected) {
+          return {
+            ...row,
+            grouping4: grouping4Value,
+          };
+        }
+        return row;
+      });
+
+      // Save updated ETB
+      const saveResponse = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: updatedRows }),
+        }
+      );
+
+      if (!saveResponse.ok) throw new Error("Failed to update ETB");
+
+      // Reload section data to get fresh data with updated grouping
+      await loadSectionData();
+
+      // Reset UI state after successful grouping
+      cancelGroupingMode();
+      
+      toast.success("Grouping updated successfully");
+      
+      console.log('Grouping completed successfully. UI reset.');
+    } catch (error: any) {
+      console.error("Error completing grouping:", error);
+      toast.error(`Grouping failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
 
 
@@ -6902,6 +7089,27 @@ function renderLeadSheetContent() {
 
 
 
+  // Helper function to get all available Grouping 4 values
+  // Shows ALL Level 4 values from NEW_CLASSIFICATION_OPTIONS
+  function getAvailableGrouping4Values(data: ETBRow[]): string[] {
+    // Get all unique Level 4 values from NEW_CLASSIFICATION_OPTIONS
+    const allGrouping4Values = new Set<string>();
+    
+    NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
+      const parts = opt.split(" > ").map(p => p.trim());
+      const level4 = parts[3]; // Level 4 is at index 3
+      if (level4) {
+        allGrouping4Values.add(level4);
+      }
+    });
+
+    const result = Array.from(allGrouping4Values).sort();
+    console.log('Available Grouping 4 values:', result.length, 'items', result);
+    
+    // Return as sorted array - shows ALL possible Level 4 values
+    return result;
+  }
+
   function renderDataTable(sectionData, sectionTotals = null) {
 
     // Calculate totals from sectionData if sectionTotals is not provided
@@ -6937,6 +7145,8 @@ function renderLeadSheetContent() {
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Adjustments</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Final Balance</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[8rem] text-xs sm:text-sm">Re-Classification</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold w-[4rem] text-xs sm:text-sm">Classification</th>
 
@@ -6976,6 +7186,23 @@ function renderLeadSheetContent() {
 
                       {row.finalBalance.toLocaleString()}
 
+                    </td>
+
+                    <td className="px-4 py-2 border-b border-secondary border-r">
+                      <Input
+                        value={row.reclassification || ""}
+                        onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            saveSectionDataToETB();
+                          }
+                        }}
+                        placeholder="Enter re-classification"
+                        className="h-7 text-xs"
+                        disabled={isSignedOff}
+                        readOnly={isSignedOff}
+                      />
                     </td>
 
                     <td className="border-b border-secondary">
@@ -7020,9 +7247,10 @@ function renderLeadSheetContent() {
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                       {currentTotals.adjustments.toLocaleString()}
                     </td>
-                    <td className="px-4 py-2 font-bold text-right">
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                       {currentTotals.finalBalance.toLocaleString()}
                     </td>
+                    <td colSpan={2}></td>
                   </tr>
                 )}
 
@@ -7032,7 +7260,7 @@ function renderLeadSheetContent() {
 
                     <td
 
-                      colSpan={7}
+                      colSpan={8}
 
                       className="px-4 py-8 text-center text-gray-500"
 
@@ -7112,7 +7340,9 @@ function renderLeadSheetContent() {
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
 
-                        <th className="px-4 py-2 font-bold border-secondary border-b text-right">Final Balance</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
+
+                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Re-Classification</th>
 
                       </tr>
 
@@ -7150,10 +7380,27 @@ function renderLeadSheetContent() {
 
                           </td>
 
-                          <td className="px-4 py-2 border-secondary border-b text-right">
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                             {row.finalBalance.toLocaleString()}
 
+                          </td>
+
+                          <td className="px-4 py-2 border-secondary border-b">
+                            <Input
+                              value={row.reclassification || ""}
+                              onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  saveSectionDataToETB();
+                                }
+                              }}
+                              placeholder="Enter re-classification"
+                              className="h-7 text-xs"
+                              disabled={isSignedOff}
+                              readOnly={isSignedOff}
+                            />
                           </td>
 
                         </tr>
@@ -7186,11 +7433,13 @@ function renderLeadSheetContent() {
 
                         </td>
 
-                        <td className="px-4 py-2 border-secondary text-right">
+                        <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.finalBalance.toLocaleString()}
 
                         </td>
+
+                        <td className="px-4 py-2 border-secondary"></td>
 
                       </tr>
 
@@ -7285,145 +7534,388 @@ function renderLeadSheetContent() {
       );
 
     } else {
-
       // Normal classification/category table
+      // Separate rows by grouping4 status
+      const groupedRows = sectionData.filter(row => row.grouping4 && row.grouping4.trim() !== '');
+      const ungroupedRows = sectionData.filter(row => !row.grouping4 || row.grouping4.trim() === '');
+
+      // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
+      // based on the classifications present in sectionData
+      const availableGrouping4Values = getAvailableGrouping4Values(sectionData);
+      
+      // Also include any existing grouping4 values from the data (for backwards compatibility)
+      const existingGrouping4Values = [
+        ...new Set(
+          sectionData
+            .map(row => row.grouping4)
+            .filter(g4 => g4 && g4.trim() !== '')
+        )
+      ];
+      
+      // Combine both lists and remove duplicates
+      const uniqueGrouping4Values = [
+        ...new Set([...availableGrouping4Values, ...existingGrouping4Values])
+      ].sort();
 
       return (
-
-        <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
-
-          <div className="overflow-x-auto max-h-96">
-
-            <table className="w-full text-sm">
-
-              <thead className="bg-gray-50 sticky top-0">
-
-                <tr>
-
-                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-
-                  <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
-
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
-
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-
-                  <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-
-                  <th className="px-4 py-2 border-secondary border-b text-right">Final Balance</th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {sectionData.map((row,index) => (
-
-                  <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                      {row.currentYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                      {row.priorYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                      {row.adjustments.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-secondary border-b text-right font-medium">
-
-                      {row.finalBalance.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
-                {sectionData.length === 0 && (
-
-                  <tr>
-
-                    <td
-
-                      colSpan={6}
-
-                      className="px-4 py-8 text-center text-gray-500"
-
+        <div className="space-y-6">
+          {/* Grouping Controls */}
+          {isGroupingMode && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Grouping Mode Active
+                    </h4>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedRowIds.size} row{selectedRowIds.size !== 1 ? 's' : ''} selected
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="grouping4-select" className="text-xs text-gray-600">
+                      Select Grouping 4 value:
+                    </Label>
+                    <Select value={grouping4Value} onValueChange={setGrouping4Value}>
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue placeholder="Choose grouping value" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueGrouping4Values.map((value,index) => (
+                          <SelectItem key={index} value={value}>
+                            {value}
+                          </SelectItem>
+                        ))}
+                        {/* Option to add custom value */}
+                        <div className="p-2 border-t">
+                          <Input
+                            placeholder="Or type new value..."
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const newValue = e.currentTarget.value.trim();
+                                if (newValue) {
+                                  setGrouping4Value(newValue);
+                                  e.currentTarget.value = '';
+                                }
+                              }
+                            }}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedRowIds.size > 0 && grouping4Value && (
+                    <Button
+                      onClick={completeGrouping}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
                     >
+                      <Check className="h-4 w-4 mr-2" />
+                      Complete Grouping
+                    </Button>
+                  )}
+                  <Button
+                    onClick={cancelGroupingMode}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
-                      No data available for this classification
-
-                    </td>
-
-                  </tr>
-
+          {/* Already Grouped 4 Section */}
+          {groupedRows.length > 0 && (
+            <div className="border border-secondary rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                  Already Grouped (Grouping 4)
+                </h4>
+                {!isGroupingMode && (
+                  <Button
+                    onClick={startGroupingMode}
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    disabled={isSignedOff}
+                  >
+                    <Edit2 className="h-3 w-3 mr-1" />
+                    Change Grouping
+                  </Button>
                 )}
+              </div>
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {isGroupingMode && (
+                        <th 
+                          className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={groupedRows.length > 0 && groupedRows.every(row => selectedRowIds.has(getRowId(row)))}
+                              onCheckedChange={(checked) => {
+                                console.log('Select all grouped rows:', checked);
+                                if (checked) {
+                                  setSelectedRowIds(new Set([...selectedRowIds, ...groupedRows.map(r => getRowId(r))]));
+                                } else {
+                                  const newSet = new Set(selectedRowIds);
+                                  groupedRows.forEach(r => newSet.delete(getRowId(r)));
+                                  setSelectedRowIds(newSet);
+                                }
+                              }}
+                              aria-label="Select all grouped rows"
+                              disabled={isSignedOff}
+                            />
+                          </div>
+                        </th>
+                      )}
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRows.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                      >
+                        {isGroupingMode && (
+                          <td 
+                            className="px-4 py-2 border-r border-secondary border-b text-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-center">
+                              <Checkbox
+                                checked={selectedRowIds.has(getRowId(row))}
+                                onCheckedChange={(checked) => {
+                                  console.log('Grouped row checkbox clicked:', row.accountName, 'checked:', checked);
+                                  toggleRowSelection(getRowId(row));
+                                }}
+                                aria-label={`Select ${row.accountName}`}
+                                disabled={isSignedOff}
+                              />
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.currentYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.priorYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.adjustments.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b">
+                          <Input
+                            value={row.reclassification || ""}
+                            onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                saveSectionDataToETB();
+                              }
+                            }}
+                            placeholder="Enter re-classification"
+                            className="h-7 text-xs"
+                            disabled={isSignedOff}
+                            readOnly={isSignedOff}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Totals row for grouped section */}
+                    {groupedRows.length > 0 && (
+                      <tr className="bg-muted/50 font-medium">
+                        {isGroupingMode && <td className="px-4 py-2 border-r-secondary border"></td>}
+                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                          TOTALS
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-                {sectionData.length > 0 && (
+          {/* Not Grouped Section */}
+          {ungroupedRows.length > 0 && (
+            <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
+              {/* Action Buttons */}
+              {!isGroupingMode && selectedRowIds.size > 0 && (
+                <div className="p-3 bg-green-50 dark:bg-green-950/20 border-b border-green-200 flex justify-end">
+                  <Button
+                    onClick={startGroupingMode}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Grouping
+                  </Button>
+                </div>
+              )}
 
-                  <tr className="bg-muted/50 font-medium">
-
-                    <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
-
-                      TOTALS
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-
-                      {currentTotals.currentYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-
-                      {currentTotals.priorYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-
-                      {currentTotals.adjustments.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 font-bold text-right">
-
-                      {currentTotals.finalBalance.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                )}
-
-              </tbody>
-
-            </table>
-
-          </div>
-
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th 
+                        className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={ungroupedRows.length > 0 && ungroupedRows.every(row => selectedRowIds.has(getRowId(row)))}
+                            onCheckedChange={(checked) => {
+                              console.log('Select all ungrouped rows:', checked);
+                              if (checked) {
+                                setSelectedRowIds(new Set([...selectedRowIds, ...ungroupedRows.map(r => getRowId(r))]));
+                              } else {
+                                const newSet = new Set(selectedRowIds);
+                                ungroupedRows.forEach(r => newSet.delete(getRowId(r)));
+                                setSelectedRowIds(newSet);
+                              }
+                            }}
+                            aria-label="Select all ungrouped rows"
+                            disabled={isSignedOff}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ungroupedRows.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                      >
+                        <td 
+                          className="px-4 py-2 border-r border-secondary border-b text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={selectedRowIds.has(getRowId(row))}
+                              onCheckedChange={(checked) => {
+                                console.log('Checkbox clicked for row:', row.accountName, 'checked:', checked);
+                                toggleRowSelection(getRowId(row));
+                              }}
+                              aria-label={`Select ${row.accountName}`}
+                              disabled={isSignedOff}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.currentYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.priorYear.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.adjustments.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b">
+                          <Input
+                            value={row.reclassification || ""}
+                            onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                saveSectionDataToETB();
+                              }
+                            }}
+                            placeholder="Enter re-classification"
+                            className="h-7 text-xs"
+                            disabled={isSignedOff}
+                            readOnly={isSignedOff}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                    {ungroupedRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          className="px-4 py-8 text-center text-gray-500"
+                        >
+                          All rows are grouped
+                        </td>
+                      </tr>
+                    )}
+                    {ungroupedRows.length > 0 && (
+                      <tr className="bg-muted/50 font-medium">
+                        <td className="px-4 py-2 border-r-secondary border"></td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                          TOTALS
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-
       );
-
     }
-
   }
 
 

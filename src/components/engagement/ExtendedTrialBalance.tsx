@@ -1594,7 +1594,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className=" bg-muted/50">
                   <TableRow>
-                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[3.5rem] text-xs sm:text-sm text-center px-2 flex items-center justify-center">
+                    <TableHead className="border border-r-secondary border-b-secondary align-middle text-center min-w-[3.5rem] w-[3.5rem] px-2">
                       <div>
                         <Checkbox
                           checked={selectedRowIds.size > 0 && selectedRowIds.size === etbRows.filter((row) => {
@@ -1652,7 +1652,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
                         )}
                       >
-                        <TableCell className="border border-r-secondary border-b-secondary align-middle text-center px-2">
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle text-center min-w-[3.5rem] w-[3.5rem] px-2">
                           <div className="flex items-center justify-center">
                             <Checkbox
                               checked={selectedRowIds.has(row.id)}
