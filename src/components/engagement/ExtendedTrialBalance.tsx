@@ -103,6 +103,7 @@ interface ETBRow {
   adjustments: number;
   finalBalance: number;
   classification: string;
+  reclassification?: string; // New field for re-classification
   grouping1?: string;
   grouping2?: string;
   grouping3?: string;
@@ -914,6 +915,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             adjustments,
             finalBalance: currentYear + adjustments,
             classification,
+            reclassification: "", // Initialize re-classification as empty string
             // Store file grouping (will be overwritten when user changes classification)
             grouping1: g1,
             grouping2: g2,
@@ -954,6 +956,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       adjustments: 0,
       finalBalance: 0,
       classification: "",
+      reclassification: "", // Initialize re-classification as empty string
       grouping1: "",
       grouping2: "",
       grouping3: "",
@@ -1643,16 +1646,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               <Table>
                 <TableHeader className=" bg-muted/50">
                   <TableRow>
-                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[3rem] text-xs sm:text-sm">
-                      <Checkbox
-                        checked={selectedRowIds.size > 0 && selectedRowIds.size === etbRows.filter((row) => {
-                          const code = (row.code || "").toString().trim().toUpperCase();
-                          return !code.startsWith("TOTALS");
-                        }).length}
-                        onCheckedChange={toggleAllRows}
-                        aria-label="Select all rows"
-                        className="hidden"
-                      />
+                    <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[3.5rem] text-xs sm:text-sm text-center px-2 flex items-center justify-center">
+                      <div>
+                        <Checkbox
+                          checked={selectedRowIds.size > 0 && selectedRowIds.size === etbRows.filter((row) => {
+                            const code = (row.code || "").toString().trim().toUpperCase();
+                            return !code.startsWith("TOTALS");
+                          }).length}
+                          onCheckedChange={toggleAllRows}
+                          aria-label="Select all rows"
+                          className="hidden"
+                        />
+                      </div>
                     </TableHead>
                     <TableHead className="border-b border-secondary sticky top-0 font-bold border-r w-[4rem] text-xs sm:text-sm">
                       Code
@@ -1662,6 +1667,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     </TableHead>
                     <TableHead className="text-start border-b border-r border-secondary sticky top-0 font-bold w-24 text-xs sm:text-sm">
                       Current Year
+                    </TableHead>
+                    <TableHead className="w-48 text-xs border-b border-r border-secondary sticky top-0 font-bold sm:text-sm">
+                      Re-Classification
                     </TableHead>
                     <TableHead className="text-start  border-b border-r border-secondary sticky top-0 font-bold w-20 text-xs sm:text-sm">
                       Adjustments
@@ -1696,12 +1704,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
                         )}
                       >
-                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
-                          <Checkbox
-                            checked={selectedRowIds.has(row.id)}
-                            onCheckedChange={() => toggleRowSelection(row.id)}
-                            aria-label={`Select row ${row.code || row.accountName}`}
-                          />
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle text-center px-2">
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={selectedRowIds.has(row.id)}
+                              onCheckedChange={() => toggleRowSelection(row.id)}
+                              aria-label={`Select row ${row.code || row.accountName}`}
+                            />
+                          </div>
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-middle">
                           <EditableText
@@ -1730,6 +1740,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             }
                             placeholder="0"
                             className="text-start text-xs sm:text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="border border-r-secondary border-b-secondary align-middle">
+                          <EditableText
+                            value={row.reclassification || ""}
+                            onChange={(val) => updateRow(row.id, "reclassification", val)}
+                            className="w-48 text-xs sm:text-sm"
+                            placeholder="Enter re-classification"
                           />
                         </TableCell>
                         <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
@@ -1805,7 +1823,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
                   {/* Totals Row */}
                   <TableRow className="bg-muted/60 font-medium">
-                    <TableCell className="border border-r-secondary"></TableCell>
+                    <TableCell className="border border-r-secondary px-2"></TableCell>
                     <TableCell
                       colSpan={2}
                       className="border font-bold border-r-secondary text-xs sm:text-sm"
@@ -1815,6 +1833,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
                       {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
+                    <TableCell className="border border-r-secondary"></TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
