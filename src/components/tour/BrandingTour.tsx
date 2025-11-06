@@ -80,6 +80,12 @@ export const BrandingTour: React.FC<BrandingTourProps> = ({ onComplete }) => {
       position: 'right',
     },
     {
+      target: '[data-tour="logo-upload"]',
+      title: 'AI Color Palette Suggestions 🤖',
+      description: 'After uploading your logo, our AI will analyze it and suggest matching color palettes! You can apply these suggestions to instantly match your brand colors, or skip them and keep your custom colors. It\'s a quick way to create a cohesive look!',
+      position: 'right',
+    },
+    {
       target: '[data-tour="save-button"]',
       title: 'Save & Apply Changes ✅',
       description: 'Click here to save your branding settings. Changes apply instantly across the entire portal - sidebar, dashboards, login pages, and all authentication screens!',
