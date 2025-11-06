@@ -52,6 +52,11 @@ interface Company {
     sharePercentage: number;
   }>;
   representative?: (Person & { type?: string }) | (Person & { type?: string })[] | null;
+  shareHolders?: Array<{
+    personId?: { _id: string; name: string } | string;
+    companyId?: { _id: string; name: string } | string;
+    sharesData?: { percentage?: number; totalShares?: number; class?: string };
+  }>;
   createdAt?: string;
 }
 
@@ -229,7 +234,7 @@ export const CompanyDetail: React.FC = () => {
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-              Representatives ({(company.persons?.length || 0) + (company.shareHoldingCompanies?.length || 0)})
+              Involvements
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
               Distribution
@@ -238,7 +243,7 @@ export const CompanyDetail: React.FC = () => {
 
             <TabsContent value="details" className="p-6 space-y-6 mt-6">
               {/* Status */}
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
                   className={`rounded-xl px-3 py-1 text-sm font-semibold ${
@@ -249,6 +254,14 @@ export const CompanyDetail: React.FC = () => {
                 >
                   {company.status}
                 </Badge>
+              </div> */}
+
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">{company.name}</h1>
+                <p className="text-gray-600">
+                 {company.registrationNumber}
+                </p>
+            
               </div>
 
               {/* Address */}
@@ -263,7 +276,7 @@ export const CompanyDetail: React.FC = () => {
               )}
 
               {/* Timeline */}
-              {(company.timelineStart || company.timelineEnd) && (
+              {/* {(company.timelineStart || company.timelineEnd) && (
                 <div className="grid grid-cols-2 gap-4">
                   {company.timelineStart && (
                     <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
@@ -292,46 +305,46 @@ export const CompanyDetail: React.FC = () => {
                     </div>
                   )}
                 </div>
-              )}
+              )} */}
 
-              {/* Representative(s) */}
-              {company.representative && (
-                <div className="space-y-2">
-                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                    <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm text-blue-900 font-medium">
-                        Representative{Array.isArray(company.representative) ? 's' : ''} (Highest Shareholder{Array.isArray(company.representative) ? 's' : ''})
-                      </p>
-                      {Array.isArray(company.representative) ? (
+              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders */}
+              {Array.isArray(company.shareHolders) && company.shareHolders.length > 0 && (() => {
+                const percentages = company.shareHolders
+                  .map((s) => (s.sharesData?.percentage ?? 0))
+                  .filter((p) => typeof p === 'number');
+                const maxPercent = percentages.length ? Math.max(...percentages) : null;
+                const topHolders = maxPercent === null ? [] : company.shareHolders.filter((s) => (s.sharesData?.percentage ?? 0) === maxPercent);
+                if (!topHolders.length) return null;
+                const displayItems = topHolders.map((s, idx) => {
+                  const entity = (s.personId && typeof s.personId === 'object') ? s.personId :
+                                 (s.companyId && typeof s.companyId === 'object') ? s.companyId : null;
+                  const name = (entity && 'name' in entity) ? entity.name : 'Unknown';
+                  const type = s.companyId ? 'company' : 'person';
+                  const percentage = s.sharesData?.percentage ?? 0;
+                  return { key: `${idx}-${name}`, name, type, percentage };
+                });
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                      <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-blue-900 font-medium">
+                          Representative{displayItems.length > 1 ? 's' : ''} (Highest Shareholder{displayItems.length > 1 ? 's' : ''})
+                        </p>
                         <div className="space-y-1 mt-2">
-                          {company.representative.map((rep: any, idx: number) => (
-                            <p key={idx} className="text-blue-700">
+                          {displayItems.map((rep) => (
+                            <p key={rep.key} className="text-blue-700 capitalize">
                               {rep.name}
-                              {rep.type && (
-                                <span className="text-xs text-blue-600 ml-1">
-                                  ({rep.type === 'company' ? 'Company' : 'Person'})
-                                </span>
-                              )}
-                              {' '}({rep.sharePercentage}%)
+                              <span className="text-xs text-blue-600 ml-1">({rep.type === 'company' ? 'Company' : 'Person'})</span>
+                              {' '}({rep.percentage}%)
                             </p>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-blue-700 mt-1">
-                          {company.representative.name}
-                          {company.representative.type && (
-                            <span className="text-xs text-blue-600 ml-1">
-                              ({company.representative.type === 'company' ? 'Company' : 'Person'})
-                            </span>
-                          )}
-                          {' '}({company.representative.sharePercentage}%)
-                        </p>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Supporting Documents */}
               {company.supportingDocuments && company.supportingDocuments.length > 0 && (
@@ -408,7 +421,7 @@ export const CompanyDetail: React.FC = () => {
                               {companyName}
                             </p>
                             <p className="text-xs text-gray-600">
-                              {share.sharePercentage}% owned
+                              {share.sharesData.percentage}% owned
                             </p>
                           </div>
                         );
