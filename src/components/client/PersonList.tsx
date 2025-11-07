@@ -663,6 +663,38 @@ export const PersonList: React.FC<PersonListProps> = ({
     }, 0),
   };
 
+  // Get shareholders from company.shareHolders array directly (not from persons array)
+  // Sort by totalShares (biggest first)
+  const personShareholders = (company?.shareHolders || [])
+    .map((shareHolder: any) => {
+      const personData = shareHolder.personId || {};
+      const sharesData = shareHolder.sharesData || {};
+      return {
+        ...personData,
+        sharePercentage: sharesData.percentage || 0,
+        totalShares: sharesData.totalShares || 0,
+        shareClass: sharesData.class,
+      };
+    })
+    .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
+
+  // ✅ MUST BE RIGHT AFTER personShareholders
+  const highestSharePerson = personShareholders?.[0] ?? null;
+
+  // Get person shareholder IDs for sorting representatives
+  const personShareholderIds = new Set(
+    personShareholders.map((sh: any) => sh._id || sh.id).filter(Boolean)
+  );
+
+  const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
+    if (!highestSharePerson) return { isUBO: false };
+    const isUltimateBeneficialOwner = highestSharePerson._id === person._id;
+    return {
+      isUBO: isUltimateBeneficialOwner,
+      companyName: isUltimateBeneficialOwner ? company?.name : undefined,
+    };
+  };
+
   // Get representatives from company.representationalSchema directly
   // Representatives are persons with roles EXCEPT those who ONLY have "Shareholder" role
   // role is now an array of strings in the schema
@@ -687,45 +719,32 @@ export const PersonList: React.FC<PersonListProps> = ({
       return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
     });
 
-  
-
-  // Get shareholders from company.shareHolders array directly (not from persons array)
-  // Sort by totalShares (biggest first)
-  const personShareholders = (company?.shareHolders || [])
-  .map((shareHolder: any) => {
-    const personData = shareHolder.personId || {};
-    const sharesData = shareHolder.sharesData || {};
-    return {
-      ...personData,
-      sharePercentage: sharesData.percentage || 0,
-      totalShares: sharesData.totalShares || 0,
-      shareClass: sharesData.class,
-    };
-  })
-  .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
-
-// ✅ MUST BE RIGHT AFTER personShareholders
-const highestSharePerson = personShareholders?.[0] ?? null;
-
-const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
-  if (!highestSharePerson) return { isUBO: false };
-  const isUltimateBeneficialOwner = highestSharePerson._id === person._id;
-  return {
-    isUBO: isUltimateBeneficialOwner,
-    companyName: isUltimateBeneficialOwner ? company?.name : undefined,
-  };
-};
-  
-  // Ensure highestSharePerson (UBO) appears first in representatives list
+  // Sort representatives: person shareholders first, then people from shareholding companies
+  // Within each group, maintain UBO priority (UBO appears first)
   const sortedRepresentatives = [...representatives].sort((a: any, b: any) => {
-    if (!highestSharePerson) return 0;
-    const highestId = highestSharePerson._id || highestSharePerson.id;
-    const aId = a._id || a.id;
-    const bId = b._id || b.id;
-    const aIsHighest = aId === highestId;
-    const bIsHighest = bId === highestId;
-    if (aIsHighest === bIsHighest) return 0;
-    return aIsHighest ? -1 : 1;
+    // UBO always comes first
+    if (highestSharePerson) {
+      const highestId = highestSharePerson._id || highestSharePerson.id;
+      const aId = a._id || a.id;
+      const bId = b._id || b.id;
+      const aIsHighest = aId === highestId;
+      const bIsHighest = bId === highestId;
+      if (aIsHighest && !bIsHighest) return -1;
+      if (!aIsHighest && bIsHighest) return 1;
+    }
+
+    // Check if person is a person shareholder (exists in personShareholders)
+    const aIsPersonShareholder = personShareholderIds.has(a._id || a.id);
+    const bIsPersonShareholder = personShareholderIds.has(b._id || b.id);
+
+    // Person shareholders come before people from shareholding companies
+    if (aIsPersonShareholder && !bIsPersonShareholder) return -1;
+    if (!aIsPersonShareholder && bIsPersonShareholder) return 1;
+
+    // Within same group, maintain alphabetical order by name
+    const nameA = (a.name || "").toLowerCase();
+    const nameB = (b.name || "").toLowerCase();
+    return nameA.localeCompare(nameB);
   });
 
 
