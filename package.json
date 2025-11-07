@@ -54,6 +54,7 @@
     "country-nationality-list": "^0.0.1-security",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "firebase": "^12.5.0",
     "framer-motion": "^12.23.12",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
