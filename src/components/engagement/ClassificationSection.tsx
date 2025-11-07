@@ -257,7 +257,7 @@ interface ETBRow {
 
   referenceData?: ReferenceData;
 
-  reclassification?: string;
+  reclassification?: number;
 
   grouping1?: string;
 
@@ -306,6 +306,8 @@ interface ViewRowData {
     priorYear: number;
 
     adjustments: number;
+
+    reclassification: number;
 
     finalBalance: number;
 
@@ -2524,6 +2526,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           priorYear: acc.priorYear + (Number(row.priorYear) || 0),
 
           adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+
+          reclassification: acc.reclassification + (Number(row.reclassification) || 0),
 
           finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
 
@@ -7365,7 +7369,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
 
-                        
+
 
                       </tr>
 
@@ -7442,6 +7446,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.adjustments.toLocaleString()}
+
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary text-left">
+
+                          {subtotal.reclassification.toLocaleString()}
 
                         </td>
 
@@ -7773,6 +7782,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {groupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
                         </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-left">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
+                        </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {groupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
                         </td>
@@ -7917,6 +7929,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-left">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
