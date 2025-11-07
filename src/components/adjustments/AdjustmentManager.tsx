@@ -83,7 +83,6 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
   const [currentDescription, setCurrentDescription] = useState("");
   const [entries, setEntries] = useState<AdjustmentEntry[]>([]);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
 
   // Use the adjustment hook
   const {
@@ -103,17 +102,6 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
   useEffect(() => {
     refetch();
   }, []);
-
-  // Filtered ETB rows for selection
-  const filteredETBRows = useMemo(() => {
-    if (!searchTerm) return etbRows;
-    const term = searchTerm.toLowerCase();
-    return etbRows.filter(
-      (row) =>
-        row.code.toLowerCase().includes(term) ||
-        row.accountName.toLowerCase().includes(term)
-    );
-  }, [etbRows, searchTerm]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -399,6 +387,18 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
     const [tempAmount, setTempAmount] = useState("");
     const [tempType, setTempType] = useState<"DR" | "CR">("DR");
     const [selectedRow, setSelectedRow] = useState<ETBRow | null>(null);
+    const [localSearchTerm, setLocalSearchTerm] = useState("");
+
+    // Local filtered rows - doesn't cause parent re-render
+    const filteredRows = useMemo(() => {
+      if (!localSearchTerm) return etbRows;
+      const term = localSearchTerm.toLowerCase();
+      return etbRows.filter(
+        (row) =>
+          row.code.toLowerCase().includes(term) ||
+          row.accountName.toLowerCase().includes(term)
+      );
+    }, [localSearchTerm]);
 
     return (
       <Dialog open={showAccountSelector} onOpenChange={setShowAccountSelector}>
@@ -414,14 +414,14 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
             {/* Search */}
             <Input
               placeholder="Search by code or account name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={localSearchTerm}
+              onChange={(e) => setLocalSearchTerm(e.target.value)}
             />
 
             {/* Account List */}
             <ScrollArea className="h-[40vh]">
               <div className="space-y-2">
-                {filteredETBRows.map((row) => {
+                {filteredRows.map((row) => {
                   const rowId = getRowId(row);
                   const selectedRowId = getRowId(selectedRow);
                   
