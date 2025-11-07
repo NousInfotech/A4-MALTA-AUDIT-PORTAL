@@ -4747,7 +4747,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       return prevData.map(row => {
         const currentRowId = getRowId(row);
         if (currentRowId !== rowId) return row;
-        
+
         return {
           ...row,
           [field]: value,
@@ -4769,7 +4769,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       );
 
       if (!response.ok) throw new Error("Failed to fetch ETB data");
-      
+
       const etbData = await response.json();
       const allRows = etbData.rows || [];
 
@@ -4777,11 +4777,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const updatedRows = allRows.map((row: any) => {
         // Find matching row in sectionData by code and accountName
         const matchingRow = sectionData.find(
-          sectionRow => 
-            sectionRow.code === row.code && 
+          sectionRow =>
+            sectionRow.code === row.code &&
             sectionRow.accountName === row.accountName
         );
-        
+
         if (matchingRow) {
           // Update with all fields from sectionData, including reclassification
           return {
@@ -4824,7 +4824,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     try {
       // Get selected rows from sectionData using getRowId helper
       const selectedRows = sectionData.filter(row => selectedRowIds.has(getRowId(row)));
-      
+
       // Update ETB with new grouping 4 data
       const response = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
@@ -4834,16 +4834,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       );
 
       if (!response.ok) throw new Error("Failed to fetch ETB data");
-      
+
       const etbData = await response.json();
       const updatedRows = (etbData.rows || []).map((row: any) => {
         // Match by code and accountName to find the corresponding row
         const isSelected = selectedRows.some(
-          selectedRow => 
-            selectedRow.code === row.code && 
+          selectedRow =>
+            selectedRow.code === row.code &&
             selectedRow.accountName === row.accountName
         );
-        
+
         if (isSelected) {
           return {
             ...row,
@@ -4870,9 +4870,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Reset UI state after successful grouping
       cancelGroupingMode();
-      
+
       toast.success("Grouping updated successfully");
-      
+
       console.log('Grouping completed successfully. UI reset.');
     } catch (error: any) {
       console.error("Error completing grouping:", error);
@@ -7129,7 +7129,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   function getAvailableGrouping4Values(data: ETBRow[]): string[] {
     // Get all unique Level 4 values from NEW_CLASSIFICATION_OPTIONS
     const allGrouping4Values = new Set<string>();
-    
+
     NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
       const parts = opt.split(" > ").map(p => p.trim());
       const level4 = parts[3]; // Level 4 is at index 3
@@ -7140,7 +7140,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     const result = Array.from(allGrouping4Values).sort();
     console.log('Available Grouping 4 values:', result.length, 'items', result);
-    
+
     // Return as sorted array - shows ALL possible Level 4 values
     return result;
   }
@@ -7224,7 +7224,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r">
-                     {row.reclassification?.toLocaleString()}
+                      {row.reclassification}
                     </td>
 
                     <td className="border-b border-secondary">
@@ -7362,9 +7362,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
 
+                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Re-Classification</th>
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
 
-                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Re-Classification</th>
+                        
 
                       </tr>
 
@@ -7402,28 +7403,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
+                          <td className="px-4 py-2 border-secondary border-b">
+                            {row.reclassification.toLocaleString()}
+                          </td>
+
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                             {row.finalBalance.toLocaleString()}
 
                           </td>
 
-                          <td className="px-4 py-2 border-secondary border-b">
-                            <Input
-                              value={row.reclassification || ""}
-                              onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  saveSectionDataToETB();
-                                }
-                              }}
-                              placeholder="Enter re-classification"
-                              className="h-7 text-xs"
-                              disabled={isSignedOff}
-                              readOnly={isSignedOff}
-                            />
-                          </td>
+
 
                         </tr>
 
@@ -7564,7 +7554,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
       // based on the classifications present in sectionData
       const availableGrouping4Values = getAvailableGrouping4Values(sectionData);
-      
+
       // Also include any existing grouping4 values from the data (for backwards compatibility)
       const existingGrouping4Values = [
         ...new Set(
@@ -7573,7 +7563,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             .filter(g4 => g4 && g4.trim() !== '')
         )
       ];
-      
+
       // Combine both lists and remove duplicates
       const uniqueGrouping4Values = [
         ...new Set([...availableGrouping4Values, ...existingGrouping4Values])
@@ -7603,7 +7593,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <SelectValue placeholder="Choose grouping value" />
                       </SelectTrigger>
                       <SelectContent>
-                        {uniqueGrouping4Values.map((value,index) => (
+                        {uniqueGrouping4Values.map((value, index) => (
                           <SelectItem key={index} value={value}>
                             {value}
                           </SelectItem>
@@ -7677,7 +7667,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       {isGroupingMode && (
-                        <th 
+                        <th
                           className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -7705,8 +7695,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                       <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7716,7 +7706,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                       >
                         {isGroupingMode && (
-                          <td 
+                          <td
                             className="px-4 py-2 border-r border-secondary border-b text-center"
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -7744,11 +7734,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
-                          {row.finalBalance.toLocaleString()}
-                        </td>
                         <td className="px-4 py-2 border-secondary border-b">
-                          <Input
+                          {/* <Input
                             value={row.reclassification || ""}
                             onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
                             onKeyDown={(e) => {
@@ -7761,8 +7748,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             className="h-7 text-xs"
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
-                          />
+                          /> */}
+                          {row.reclassification.toLocaleString()}
                         </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+
                       </tr>
                     ))}
                     {/* Totals row for grouped section */}
@@ -7814,7 +7806,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th 
+                      <th
                         className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -7841,8 +7833,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                       <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7851,7 +7843,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         key={index}
                         className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                       >
-                        <td 
+                        <td
                           className="px-4 py-2 border-r border-secondary border-b text-center"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -7878,11 +7870,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
-                          {row.finalBalance.toLocaleString()}
-                        </td>
                         <td className="px-4 py-2 border-secondary border-b">
-                          <Input
+                          {/* <Input
                             value={row.reclassification || ""}
                             onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
                             onKeyDown={(e) => {
@@ -7895,8 +7884,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             className="h-7 text-xs"
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
-                          />
+                          /> */}
+                          {row.reclassification.toLocaleString()}
                         </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {row.finalBalance.toLocaleString()}
+                        </td>
+
                       </tr>
                     ))}
                     {ungroupedRows.length === 0 && (
