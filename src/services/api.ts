@@ -1223,3 +1223,227 @@ export const isqmApi = {
     return apiCall(endpoint);
   }
 };
+
+// Adjustment API
+export const adjustmentApi = {
+  /**
+   * Create a new adjustment (draft status)
+   */
+  create: async (data: {
+    engagementId: string;
+    etbId: string;
+    adjustmentNo: string;
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Creating Adjustment...');
+    console.log('📋 Adjustment Data:', data);
+    
+    try {
+      const result = await apiCall('/api/adjustments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('✅ Adjustment created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Adjustment creation failed:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all adjustments for an engagement
+   */
+  getByEngagement: async (engagementId: string) => {
+    console.log('📝 Fetching adjustments for engagement:', engagementId);
+    return apiCall(`/api/adjustments/engagement/${engagementId}`);
+  },
+
+  /**
+   * Get all adjustments for an ETB
+   */
+  getByETB: async (etbId: string) => {
+    console.log('📝 Fetching adjustments for ETB:', etbId);
+    return apiCall(`/api/adjustments/etb/${etbId}`);
+  },
+
+  /**
+   * Get a single adjustment by ID
+   */
+  getById: async (id: string) => {
+    console.log('📝 Fetching adjustment by ID:', id);
+    return apiCall(`/api/adjustments/${id}`);
+  },
+
+  /**
+   * Update a draft adjustment
+   */
+  update: async (id: string, data: {
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Updating adjustment:', id, data);
+    return apiCall(`/api/adjustments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Post a draft adjustment (apply to ETB)
+   */
+  post: async (id: string) => {
+    console.log('📝 Posting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}/post`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Unpost a posted adjustment (reverse ETB impact)
+   */
+  unpost: async (id: string) => {
+    console.log('📝 Unposting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}/unpost`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a draft adjustment
+   */
+  delete: async (id: string) => {
+    console.log('📝 Deleting adjustment:', id);
+    return apiCall(`/api/adjustments/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Reclassification API
+export const reclassificationApi = {
+  /**
+   * Create a new reclassification (draft status)
+   */
+  create: async (data: {
+    engagementId: string;
+    etbId: string;
+    reclassificationNo: string;
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Creating Reclassification...');
+    console.log('📋 Reclassification Data:', data);
+
+    try {
+      const result = await apiCall('/api/reclassifications', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+
+      console.log('✅ Reclassification created successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Reclassification creation failed:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all reclassifications for an engagement
+   */
+  getByEngagement: async (engagementId: string) => {
+    console.log('📝 Fetching reclassifications for engagement:', engagementId);
+    return apiCall(`/api/reclassifications/engagement/${engagementId}`);
+  },
+
+  /**
+   * Get all reclassifications for an ETB
+   */
+  getByETB: async (etbId: string) => {
+    console.log('📝 Fetching reclassifications for ETB:', etbId);
+    return apiCall(`/api/reclassifications/etb/${etbId}`);
+  },
+
+  /**
+   * Get a single reclassification by ID
+   */
+  getById: async (id: string) => {
+    console.log('📝 Fetching reclassification by ID:', id);
+    return apiCall(`/api/reclassifications/${id}`);
+  },
+
+  /**
+   * Update a draft reclassification
+   */
+  update: async (id: string, data: {
+    description?: string;
+    entries?: Array<{
+      etbRowId: string;
+      code: string;
+      accountName: string;
+      dr?: number;
+      cr?: number;
+      details?: string;
+    }>;
+  }) => {
+    console.log('📝 Updating reclassification:', id, data);
+    return apiCall(`/api/reclassifications/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Post a draft reclassification (apply to ETB)
+   */
+  post: async (id: string) => {
+    console.log('📝 Posting reclassification:', id);
+    return apiCall(`/api/reclassifications/${id}/post`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Unpost a posted reclassification (reverse ETB impact)
+   */
+  unpost: async (id: string) => {
+    console.log('📝 Unposting reclassification:', id);
+    return apiCall(`/api/reclassifications/${id}/unpost`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a reclassification
+   */
+  delete: async (id: string) => {
+    console.log('📝 Deleting reclassification:', id);
+    return apiCall(`/api/reclassifications/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};

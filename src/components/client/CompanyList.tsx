@@ -25,7 +25,7 @@ interface Company {
   registrationNumber?: string;
   address?: string;
   status: "active" | "record";
-  persons?: Person[];
+  shareHolders?: Person[];
   supportingDocuments?: string[];
   timelineStart?: string;
   timelineEnd?: string;
@@ -203,7 +203,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+                    {/* <div className="flex items-center gap-2">
                       <Badge
                         variant="outline"
                         className={`rounded-xl px-3 py-1 text-sm font-semibold ${
@@ -214,11 +214,11 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
                       >
                         {company.status}
                       </Badge>
-                    </div>
+                    </div> */}
 
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Users className="h-4 w-4" />
-                      <span>{company.persons?.length || 0} Persons</span>
+                      <span>{company.shareHolders?.length || 0} Persons</span>
                     </div>
 
                     {company.shareHoldingCompanies &&
@@ -306,7 +306,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
         }}
         onConfirm={handleDeleteConfirm}
         companyName={companyToDelete?.name || ""}
-        personCount={Array.isArray(companyToDelete?.persons) ? companyToDelete.persons.length : 0}
+        personCount={Array.isArray(companyToDelete?.shareHolders) ? companyToDelete.shareHolders.length : 0}
         isLoading={isDeleting}
       />
     </>

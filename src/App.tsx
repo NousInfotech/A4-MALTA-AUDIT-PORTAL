@@ -17,6 +17,9 @@ import { LoginPage } from "@/pages/auth/LoginPage";
 import { SignupPage } from "@/pages/auth/SignupPage";
 import { PendingApprovalPage } from "@/pages/auth/PendingApprovalPage";
 
+// Super Admin pages
+import SuperAdminDashboard from "@/pages/SuperAdminDashboard.jsx";
+
 // Admin pages
 import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { UserManagement } from "@/pages/admin/UserManagement";
@@ -87,6 +90,18 @@ const App = () => (
                   path="/pending-approval"
                   element={<PendingApprovalPage />}
                 />
+
+              {/* Super Admin Routes */}
+              <Route
+                path="/super-admin"
+                element={
+                  <ProtectedRoute allowedRoles={["super-admin"]}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="dashboard" element={<SuperAdminDashboard />} />
+              </Route>
 
               {/* Admin Routes */}
               <Route

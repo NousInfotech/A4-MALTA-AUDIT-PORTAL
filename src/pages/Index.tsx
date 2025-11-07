@@ -10,10 +10,12 @@ const Index = () => {
     if (!isLoading) {
       if (!user) {
         navigate('/login');
-      } else if (user.status !== 'approved') {
+      } else if (user.role !== 'super-admin' && user.status !== 'approved') {
         navigate('/pending-approval');
       } else {
-        navigate(`/${user.role}`);
+        // Handle super-admin redirect to dashboard
+        const redirectPath = user.role === 'super-admin' ? '/super-admin/dashboard' : `/${user.role}`;
+        navigate(redirectPath);
       }
     }
   }, [user, isLoading, navigate]);
