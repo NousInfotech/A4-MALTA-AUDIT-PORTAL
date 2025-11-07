@@ -56,7 +56,7 @@ import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import EditableText from "../ui/editable-text";
 import { NEW_CLASSIFICATION_OPTIONS, NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
-import { adjustmentApi } from "@/services/api";
+import { adjustmentApi, reclassificationApi } from "@/services/api";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -103,13 +103,14 @@ interface ETBRow {
   adjustments: number;
   finalBalance: number;
   classification: string;
-  reclassification?: string; // New field for re-classification
+  reclassification?: number;
   grouping1?: string;
   grouping2?: string;
   grouping3?: string;
   grouping4?: string;
   visibleLevels?: number; // Track how many classification levels are visible (1-4)
   adjustmentRefs?: string[]; // References to adjustments affecting this row
+  reclassificationRefs?: string[];
 }
 
 interface ExtendedTrialBalanceProps {
@@ -195,6 +196,9 @@ const formatClassificationForDisplay = (c: string) => {
 
 const hasNonZeroAdjustments = (rows: ETBRow[]) =>
   rows.some((r) => Number(r.adjustments) !== 0);
+
+const hasNonZeroReclassifications = (rows: ETBRow[]) =>
+  rows.some((r) => Number(r.reclassification) !== 0);
 
 /* -------------------------------------------------------
    Searchable Combobox (shadcn style)
@@ -609,6 +613,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [adjustmentsForRow, setAdjustmentsForRow] = useState<any[]>([]);
   const [loadingAdjustments, setLoadingAdjustments] = useState(false);
 
+  // State for reclassification details dialog
+  const [showReclassificationDetails, setShowReclassificationDetails] = useState(false);
+  const [selectedRowForReclassifications, setSelectedRowForReclassifications] = useState<ETBRow | null>(null);
+  const [reclassificationsForRow, setReclassificationsForRow] = useState<any[]>([]);
+  const [loadingReclassifications, setLoadingReclassifications] = useState(false);
+
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
   const pushingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -637,13 +647,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         if (row.id !== id) return row;
         // Convert to number if the field is numeric
         const numericValue = (field === "currentYear" || field === "priorYear" ||
-          field === "adjustments" || field === "finalBalance")
+          field === "adjustments" || field === "reclassification" || field === "finalBalance")
           ? Number(value) || 0
           : value;
         const updatedRow = { ...row, [field]: numericValue };
-        if (field === "adjustments" || field === "currentYear") {
+        if (field === "adjustments" || field === "currentYear" || field === "reclassification") {
           updatedRow.finalBalance =
-            Number(updatedRow.currentYear) + Number(updatedRow.adjustments);
+            Number(updatedRow.currentYear) + Number(updatedRow.adjustments) + Number(updatedRow.reclassification || 0);
         }
         return updatedRow;
       });
@@ -655,6 +665,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const refreshClassificationSummary = useCallback((rows: ETBRow[]) => {
     const unique = new Set(rows.map((r) => r.classification).filter(Boolean));
     if (hasNonZeroAdjustments(rows)) unique.add("Adjustments");
+    if (hasNonZeroReclassifications(rows)) unique.add("Reclassifications");
     onClassificationChange([...unique]);
   }, [onClassificationChange]);
 
@@ -906,6 +917,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           const parts = (classification || "").split(" > ").filter(Boolean);
           const initialVisibleLevels = parts.length > 0 ? parts.length : 1;
 
+          const initialReclassification = 0;
           return {
             id: `row-${index}-${Date.now()}`,
             code,
@@ -913,9 +925,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             currentYear,
             priorYear,
             adjustments,
-            finalBalance: currentYear + adjustments,
+            reclassification: initialReclassification,
+            finalBalance: currentYear + adjustments + initialReclassification,
             classification,
-            reclassification: "", // Initialize re-classification as empty string
             // Store file grouping (will be overwritten when user changes classification)
             grouping1: g1,
             grouping2: g2,
@@ -954,9 +966,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       currentYear: 0,
       priorYear: 0,
       adjustments: 0,
+      reclassification: 0,
       finalBalance: 0,
       classification: "",
-      reclassification: "", // Initialize re-classification as empty string
       grouping1: "",
       grouping2: "",
       grouping3: "",
@@ -1259,9 +1271,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           currentYear: acc.currentYear + (Number(row.currentYear) || 0),
           priorYear: acc.priorYear + (Number(row.priorYear) || 0),
           adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+          reclassification: acc.reclassification + (Number(row.reclassification) || 0),
           finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
         }),
-        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+        { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
       ),
     [etbRows]
   );
@@ -1468,6 +1481,38 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       });
     } finally {
       setLoadingAdjustments(false);
+    }
+  }, [engagement._id, toast]);
+
+  const showReclassificationDetailsForRow = useCallback(async (row: ETBRow) => {
+    setSelectedRowForReclassifications(row);
+    setShowReclassificationDetails(true);
+    setLoadingReclassifications(true);
+    setReclassificationsForRow([]);
+
+    try {
+      const response = await reclassificationApi.getByEngagement(engagement._id);
+
+      if (response.success) {
+        const rowId = row._id || row.id || row.code;
+        const relevantReclassifications = response.data.filter((rc: any) =>
+          rc.entries.some((entry: any) =>
+            entry.etbRowId === rowId ||
+            entry.code === row.code
+          )
+        );
+
+        setReclassificationsForRow(relevantReclassifications);
+      }
+    } catch (error: any) {
+      console.error("Error fetching reclassifications:", error);
+      toast({
+        title: "Failed to load reclassifications",
+        description: error.message || "Could not fetch reclassification details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingReclassifications(false);
     }
   }, [engagement._id, toast]);
 
@@ -1743,12 +1788,22 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           />
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-middle">
-                          <EditableText
-                            value={row.reclassification || ""}
-                            onChange={(val) => updateRow(row.id, "reclassification", val)}
-                            className="w-48 text-xs sm:text-sm"
-                            placeholder="Enter re-classification"
-                          />
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium tabular-nums text-xs sm:text-sm">
+                              {Math.round(Number(row.reclassification || 0)).toLocaleString()}
+                            </span>
+                            {row.reclassification !== 0 && row.reclassification != null && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 hover:bg-blue-100"
+                                onClick={() => showReclassificationDetailsForRow(row)}
+                                title="View reclassification details"
+                              >
+                                <Info className="h-3 w-3 text-blue-600" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
                           <div className="flex items-center gap-2">
@@ -1833,7 +1888,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     <TableCell className="text-start font-bold text-xs border border-r-secondary  sm:text-sm">
                       {Math.round(totals.currentYear).toLocaleString()}
                     </TableCell>
-                    <TableCell className="border border-r-secondary"></TableCell>
+                    <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
+                      {Math.round(totals.reclassification).toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-start text-xs border border-r-secondary font-bold sm:text-sm">
                       {Math.round(totals.adjustments).toLocaleString()}
                     </TableCell>
@@ -2030,6 +2087,142 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           {/* Net Impact on THIS account */}
                           <div className="flex items-center justify-between text-sm bg-blue-50 p-3 rounded border border-blue-200">
                             <span className="font-medium">Net impact on {selectedRowForAdjustments?.accountName}:</span>
+                            <span className="font-bold text-lg">
+                              {netImpactOnRow.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reclassification Details Dialog */}
+      <Dialog open={showReclassificationDetails} onOpenChange={setShowReclassificationDetails}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reclassification Details</DialogTitle>
+            <DialogDescription>
+              Reclassifications affecting{" "}
+              <span className="font-semibold">
+                {selectedRowForReclassifications?.code} - {selectedRowForReclassifications?.accountName}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {loadingReclassifications ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-600">Loading reclassifications...</span>
+              </div>
+            ) : reclassificationsForRow.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Info className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No reclassifications found for this row</p>
+                <p className="text-xs mt-1">
+                  The reclassification value may have been set directly or come from a different source.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reclassificationsForRow.map((rc: any) => {
+                  const rowId = selectedRowForReclassifications?._id || selectedRowForReclassifications?.id || selectedRowForReclassifications?.code;
+
+                  const netImpactOnRow = rc.entries
+                    .filter((entry: any) =>
+                      entry.etbRowId === rowId || entry.code === selectedRowForReclassifications?.code
+                    )
+                    .reduce((sum: number, e: any) => sum + (e.dr || 0) - (e.cr || 0), 0);
+
+                  return (
+                    <Card key={rc._id} className="border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="font-mono">
+                              {rc.reclassificationNo}
+                            </Badge>
+                            <Badge variant={rc.status === "posted" ? "default" : "secondary"}>
+                              {rc.status.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              {rc.description || "No description"}
+                            </span>
+                          </div>
+
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left border-r">Code</th>
+                                  <th className="px-3 py-2 text-left border-r">Account</th>
+                                  <th className="px-3 py-2 text-right border-r">Debit</th>
+                                  <th className="px-3 py-2 text-right border-r">Credit</th>
+                                  <th className="px-3 py-2 text-left">Details</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rc.entries.map((entry: any, idx: number) => {
+                                  const isClickedRow = entry.etbRowId === rowId || entry.code === selectedRowForReclassifications?.code;
+
+                                  return (
+                                    <tr
+                                      key={idx}
+                                      className={cn(
+                                        "border-t",
+                                        isClickedRow && "bg-blue-50 font-semibold"
+                                      )}
+                                    >
+                                      <td className="px-3 py-2 border-r font-mono text-xs">
+                                        {entry.code}
+                                        {isClickedRow && (
+                                          <Badge variant="outline" className="ml-2 text-xs">
+                                            You are here
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 border-r">{entry.accountName}</td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.dr > 0 ? entry.dr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.cr > 0 ? entry.cr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-gray-600">
+                                        {entry.details || "-"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+
+                                <tr className="border-t bg-gray-100 font-semibold">
+                                  <td colSpan={2} className="px-3 py-2 border-r">
+                                    TOTAL
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {rc.totalDr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {rc.totalCr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Badge variant={rc.totalDr === rc.totalCr ? "default" : "destructive"}>
+                                      {rc.totalDr === rc.totalCr ? "Balanced" : "Unbalanced"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="flex items-center justify-between text-sm bg-blue-50 p-3 rounded border border-blue-200">
+                            <span className="font-medium">Net impact on {selectedRowForReclassifications?.accountName}:</span>
                             <span className="font-bold text-lg">
                               {netImpactOnRow.toLocaleString()}
                             </span>
