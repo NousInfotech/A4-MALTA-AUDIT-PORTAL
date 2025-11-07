@@ -1,8 +1,9 @@
 // @ts-nocheck
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Search, Menu, Bell, Settings, User, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { LogOut, Search, Menu, Settings, User, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { NotificationBell } from '@/components/notifications';
 
 export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => {
   const { logout, user } = useAuth();
@@ -72,14 +73,7 @@ export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => 
 
       <div className="flex items-center gap-3">
         {/* Notifications */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 rounded-2xl hover:bg-brand-hover"
-        >
-          <Bell className="h-4 w-4 text-brand-sidebar" />
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-        </Button>
+        <NotificationBell className="h-9 w-9 rounded-2xl hover:bg-brand-hover" />
 
         {/* Settings */}
         <Button
