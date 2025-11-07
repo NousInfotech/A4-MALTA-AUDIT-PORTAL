@@ -44,8 +44,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     registrationNumber: "",
     address: "",
     status: "active",
-    timelineStart: "",
-    timelineEnd: "",
+    companyStartedAt: "",
+    totalShares: 0,
+    // timelineEnd: "",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
@@ -64,9 +65,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
       if (error) throw error;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("engagement-documents")
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("engagement-documents").getPublicUrl(fileName);
 
       setSupportingDocuments([...supportingDocuments, publicUrl]);
       toast({
@@ -95,12 +96,13 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         registrationNumber: company.registrationNumber || "",
         address: company.address || "",
         status: company.status || "active",
-        timelineStart: company.timelineStart
-          ? company.timelineStart.substring(0, 10)
+        companyStartedAt: company.companyStartedAt
+          ? company.companyStartedAt.substring(0, 10)
           : "",
-        timelineEnd: company.timelineEnd
-          ? company.timelineEnd.substring(0, 10)
-          : "",
+        totalShares: company.totalShares,
+        // timelineEnd: company.timelineEnd
+        //   ? company.timelineEnd.substring(0, 10)
+        //   : "",
       });
       setSupportingDocuments(company.supportingDocuments || []);
       setShareHoldingCompanies(company.shareHoldingCompanies || []);
@@ -124,7 +126,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       };
 
       const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${company._id}`,
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${
+          company._id
+        }`,
         {
           method: "PUT",
           headers: {
@@ -190,7 +194,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 htmlFor="registrationNumber"
                 className="text-gray-700 font-semibold"
               >
-                Registration Number <span className="text-red-500">*</span> 
+                Registration Number <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="registrationNumber"
@@ -248,24 +252,51 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
             <div className="space-y-2">
               <Label
-                htmlFor="timelineStart"
+                htmlFor="companyStartedAt"
                 className="text-gray-700 font-semibold"
               >
                 Company Start Date <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="timelineStart"
+                id="companyStartedAt"
                 type="date"
-                value={formData.timelineStart}
+                value={formData.companyStartedAt}
                 onChange={(e) =>
-                  setFormData({ ...formData, timelineStart: e.target.value })
+                  setFormData({ ...formData, companyStartedAt: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
                 required
               />
             </div>
+
+            <div className="space-y-2">
+              <Label
+                htmlFor="totalShares"
+                className="text-gray-700 font-semibold"
+              >
+                Total Shares <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="totalShares"
+                min={0}
+                type="number"
+                step={1}
+                placeholder="Enter total number of shares"
+                value={formData.totalShares || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsedVal = val === "" ? 0 : parseInt(val, 10);
+                  setFormData({
+                    ...formData,
+                    totalShares: parsedVal,
+                  });
+                }}
+                required
+                className="rounded-xl border-gray-200"
+              />
+            </div>
           </div>
-{/* 
+          {/* 
           <div className="space-y-2">
             <Label htmlFor="timelineEnd" className="text-gray-700 font-semibold">
               Timeline End
@@ -328,7 +359,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
           {/* Shareholding Companies */}
           {existingCompanies.length > 0 && (
             <ShareholdingCompaniesManager
-              companies={existingCompanies.filter(c => c._id !== company._id)}
+              companies={existingCompanies.filter((c) => c._id !== company._id)}
               value={shareHoldingCompanies}
               onChange={setShareHoldingCompanies}
             />
@@ -345,7 +376,13 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name || !formData.registrationNumber || !formData.address || !formData.timelineStart}
+              disabled={
+                isSubmitting ||
+                !formData.name ||
+                !formData.registrationNumber ||
+                !formData.address ||
+                !formData.companyStartedAt
+              }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (
@@ -363,4 +400,3 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     </Dialog>
   );
 };
-

@@ -29,9 +29,10 @@ interface EditPersonModalProps {
   clientId: string;
   companyId: string;
   onSuccess: () => void;
+  existingShareTotal?: number;
 }
 
-const ROLES = [
+const ALL_ROLES = [
   "Shareholder",
   "Director",
   "Judicial Representative",
@@ -46,6 +47,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   clientId,
   companyId,
   onSuccess,
+  existingShareTotal = 0,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -59,9 +61,32 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const [shareTotalError, setShareTotalError] = useState<string>("");
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[]
   >([]);
+  const originType: string | undefined = person?.origin;
+  const isShareholderContext = originType === "PersonShareholder";
+  const isShareholdingCompanyPerson =
+    originType === "ShareholdingCompany" || (!!person?.companyName && !isShareholderContext);
+  const isRepresentativeContext = !isShareholderContext;
+  const isCurrentShareholder = Boolean(person?.isShareholder);
+  const originalSharePercentage = Number(
+    typeof person?.sharePercentage === "number"
+      ? person.sharePercentage
+      : person?.sharePercentage
+      ? parseFloat(person.sharePercentage)
+      : 0
+  ) || 0;
+  const hasShareholderRole = formData.roles.includes("Shareholder");
+  const availableRoles = isRepresentativeContext
+    ? ALL_ROLES.filter((role) => {
+        if (role === "Shareholder") {
+          return !isShareholdingCompanyPerson && !isCurrentShareholder;
+        }
+        return true;
+      })
+    : [];
 
   useEffect(() => {
     const fetchNationalities = async () => {
@@ -152,15 +177,22 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     setSupportingDocuments(updated);
   };
 
-  // Check if person is a representative (from shareholding company)
-  const isRepresentative = person?.companyName ? true : false;
-
   useEffect(() => {
     if (person) {
+      const initialRoles = Array.isArray(person.roles)
+        ? person.roles.filter((role: string) => {
+            if (!isRepresentativeContext) return true;
+            if (role === "Shareholder" && (isShareholdingCompanyPerson || isCurrentShareholder)) {
+              return false;
+            }
+            return true;
+          })
+        : [];
+
       setFormData({
         name: person.name || "",
         address: person.address || "",
-        roles: person.roles || [],
+        roles: initialRoles,
         email: person.email || "",
         phoneNumber: person.phoneNumber || "",
         sharePercentage: person.sharePercentage?.toString() || "",
@@ -170,18 +202,54 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     }
   }, [person]);
 
-  const handleRoleChange = (role: string, checked: boolean) => {
-    if (checked) {
-      setFormData({
-        ...formData,
-        roles: [...formData.roles, role],
-      });
-    } else {
-      setFormData({
-        ...formData,
-        roles: formData.roles.filter((r) => r !== role),
-      });
+  useEffect(() => {
+    if (isShareholdingCompanyPerson) {
+      setShareTotalError("");
+      return;
     }
+
+    if (!(isShareholderContext || hasShareholderRole)) {
+      setShareTotalError("");
+      return;
+    }
+
+    const enteredShare = parseFloat(formData.sharePercentage || "0");
+    const sanitizedShare = isNaN(enteredShare) ? 0 : enteredShare;
+    const baseTotal = Math.max(0, (existingShareTotal || 0) - originalSharePercentage);
+    const projected = baseTotal + sanitizedShare;
+
+    if (projected > 100) {
+      setShareTotalError(
+        `Total share would be ${projected.toFixed(2)}%, which exceeds 100%.`
+      );
+    } else {
+      setShareTotalError("");
+    }
+  }, [
+    existingShareTotal,
+    formData.sharePercentage,
+    hasShareholderRole,
+    isShareholderContext,
+    isShareholdingCompanyPerson,
+    originalSharePercentage,
+  ]);
+
+  const handleRoleChange = (role: string, checked: boolean) => {
+    setFormData((prev) => {
+      if (checked) {
+        if (prev.roles.includes(role)) return prev;
+        return {
+          ...prev,
+          roles: [...prev.roles, role],
+        };
+      }
+
+      return {
+        ...prev,
+        roles: prev.roles.filter((r) => r !== role),
+        sharePercentage: role === "Shareholder" ? "" : prev.sharePercentage,
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -192,45 +260,156 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
-      // Person is decoupled - only send person fields
-      // Roles and sharePercentage are handled by the backend when companyId is provided
-      const payload = {
-        name: formData.name,
-        address: formData.address,
-        email: formData.email || undefined,
-        phoneNumber: formData.phoneNumber || undefined,
-        nationality: formData.nationality || undefined,
-        supportingDocuments,
-        // Include roles and sharePercentage for company relationship
-        roles: formData.roles.length > 0 ? formData.roles : undefined,
-        sharePercentage: formData.sharePercentage
-          ? parseFloat(formData.sharePercentage)
-          : undefined,
-      };
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${person._id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-          body: JSON.stringify(payload),
+      if (isShareholdingCompanyPerson) {
+        if (formData.roles.length === 0) {
+          throw new Error("Please assign at least one role");
         }
-      );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to update person");
+        if (!formData.name || !formData.address || !formData.nationality) {
+          throw new Error("Please fill in all required fields (Name, Address, Nationality)");
+        }
+
+        // First, update the person data
+        const personId = person?._id || person?.id;
+        if (!personId) {
+          throw new Error("Person ID not found");
+        }
+
+        const personPayload = {
+          name: formData.name,
+          address: formData.address,
+          nationality: formData.nationality,
+          email: formData.email || undefined,
+          phoneNumber: formData.phoneNumber || undefined,
+        };
+
+        const personUpdateResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            body: JSON.stringify(personPayload),
+          }
+        );
+
+        if (!personUpdateResponse.ok) {
+          const error = await personUpdateResponse.json();
+          throw new Error(error.message || "Failed to update person data");
+        }
+
+        // Then, update the roles in representationalSchema
+        const companyResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          }
+        );
+
+        if (!companyResponse.ok) {
+          throw new Error("Failed to load company data");
+        }
+
+        const companyResult = await companyResponse.json();
+        const currentCompany = companyResult.data;
+
+        if (!currentCompany) {
+          throw new Error("Company data not available");
+        }
+
+        const representationalSchema = Array.isArray(currentCompany.representationalSchema)
+          ? currentCompany.representationalSchema
+          : [];
+
+        let entryUpdated = false;
+        const updatedSchema = representationalSchema.map((entry: any) => {
+          const entryPersonId = entry?.personId?._id || entry?.personId;
+          const currentPersonId = person?._id || person?.id;
+          if (entryPersonId === currentPersonId) {
+            entryUpdated = true;
+            return {
+              ...entry,
+              role: formData.roles,
+            };
+          }
+          return entry;
+        });
+
+        if (!entryUpdated) {
+          throw new Error("Unable to locate person entry for role update");
+        }
+
+        const updateResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            body: JSON.stringify({
+              ...currentCompany,
+              representationalSchema: updatedSchema,
+            }),
+          }
+        );
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json();
+          throw new Error(error.message || "Failed to update roles");
+        }
+
+        toast({
+          title: "Success",
+          description: "Person updated successfully",
+        });
+
+        onSuccess();
+      } else {
+        // Person is decoupled - only send person fields
+        // Roles and sharePercentage are handled by the backend when companyId is provided
+        const payload = {
+          name: formData.name,
+          address: formData.address,
+          email: formData.email || undefined,
+          phoneNumber: formData.phoneNumber || undefined,
+          nationality: formData.nationality || undefined,
+          supportingDocuments,
+          // Include roles and sharePercentage for company relationship
+          roles: formData.roles.length > 0 ? formData.roles : undefined,
+          sharePercentage: formData.sharePercentage
+            ? parseFloat(formData.sharePercentage)
+            : undefined,
+        };
+
+        const response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${person._id}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || "Failed to update person");
+        }
+
+        toast({
+          title: "Success",
+          description: "Person updated successfully",
+        });
+
+        onSuccess();
       }
-
-      toast({
-        title: "Success",
-        description: "Person updated successfully",
-      });
-
-      onSuccess();
     } catch (error: any) {
       console.error("Error updating person:", error);
       toast({
@@ -248,28 +427,36 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-semibold text-gray-900">
-            Edit Person
+            {isShareholdingCompanyPerson ? "Edit Person" : "Edit Person"}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          {isShareholdingCompanyPerson && person?.companyName && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-sm text-gray-600">
+                Editing {person.name} from {person.companyName}
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-gray-700 font-semibold">
-              Name <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="name"
-              placeholder="Enter person name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              required
-              className="rounded-xl border-gray-200 capitalize"
-            />
-          </div>
-          <div className="space-y-2">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-gray-700 font-semibold">
+                Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="name"
+                placeholder="Enter person name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                required
+                className="rounded-xl border-gray-200 capitalize"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="nationality" className="text-gray-700 font-semibold">
                 Nationality <span className="text-red-500">*</span>
               </Label>
@@ -289,7 +476,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 </SelectContent>
               </Select>
             </div>
-</div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="address" className="text-gray-700 font-semibold">
               Address <span className="text-red-500">*</span>
@@ -307,29 +494,31 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Roles <span className="text-red-500">*</span></Label>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              {ROLES.map((role) => (
-                <div key={role} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`role-${role}`}
-                    checked={formData.roles.includes(role)}
-                    onCheckedChange={(checked) =>
-                      handleRoleChange(role, checked as boolean)
-                    }
-                    className="rounded"
-                  />
-                  <Label
-                    htmlFor={`role-${role}`}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {role.replace(/([A-Z])/g, " $1").trim()}
-                  </Label>
-                </div>
-              ))}
+          {isRepresentativeContext && (
+            <div className="space-y-2">
+              <Label className="text-gray-700 font-semibold">Roles <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                {availableRoles.map((role) => (
+                  <div key={role} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`role-${role}`}
+                      checked={formData.roles.includes(role)}
+                      onCheckedChange={(checked) =>
+                        handleRoleChange(role, checked === true)
+                      }
+                      className="rounded"
+                    />
+                    <Label
+                      htmlFor={`role-${role}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {role.replace(/([A-Z])/g, " $1").trim()}
+                    </Label>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -368,7 +557,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
           </div> */}
 
           {/* Share Percentage - Optional for representatives */}
-          {!isRepresentative && (
+          {(!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label
@@ -391,6 +580,9 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   className="rounded-xl border-gray-200"
                   required
                 />
+                {shareTotalError && (
+                  <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
+                )}
               </div>
             </div>
           )}
@@ -451,12 +643,15 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             <Button
               type="submit"
               disabled={
-                isSubmitting || 
-                !formData.name || 
-                !formData.nationality || 
-                !formData.address || 
-                formData.roles.length === 0 || 
-                (!isRepresentative && !formData.sharePercentage)
+                isSubmitting ||
+                (isRepresentativeContext && formData.roles.length === 0) ||
+                (!isShareholderContext && (
+                  !formData.name ||
+                  !formData.nationality ||
+                  !formData.address
+                )) ||
+                ((isShareholderContext || hasShareholderRole) && !formData.sharePercentage) ||
+                !!shareTotalError
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >

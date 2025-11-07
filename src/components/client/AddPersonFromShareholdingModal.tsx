@@ -43,6 +43,7 @@ interface AddPersonFromShareholdingModalProps {
   clientId: string;
   companyId: string;
   shareholdingCompanies: ShareholdingCompany[];
+  existingRepresentativeIds: string[];
 }
 
 const ROLES = [
@@ -59,6 +60,7 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
   clientId,
   companyId,
   shareholdingCompanies,
+  existingRepresentativeIds,
 }) => {
   const [personsByCompany, setPersonsByCompany] = useState<Record<string, PersonWithCompany[]>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +74,7 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
     if (isOpen && shareholdingCompanies.length > 0) {
       fetchPersonsFromShareholdingCompanies();
     }
-  }, [isOpen, shareholdingCompanies]);
+  }, [isOpen, shareholdingCompanies, existingRepresentativeIds]);
 
   const fetchPersonsFromShareholdingCompanies = async () => {
     try {
@@ -81,6 +83,7 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const personsByCompanyMap: Record<string, PersonWithCompany[]> = {};
+      const representativeIdSet = new Set(existingRepresentativeIds);
 
       // Fetch all shareholders from each shareholding company
       for (const shareCompany of shareholdingCompanies) {
@@ -89,6 +92,31 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
           : shareCompany.companyId;
 
         try {
+          let activePersonIds: Set<string> | null = null;
+
+          try {
+            const personsResponse = await fetch(
+              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareCompanyId}/person`,
+              {
+                headers: {
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+              }
+            );
+
+            if (personsResponse.ok) {
+              const personsResult = await personsResponse.json();
+              const personsData = Array.isArray(personsResult?.data) ? personsResult.data : [];
+              activePersonIds = new Set(
+                personsData
+                  .map((person: any) => person?._id || person?.id)
+                  .filter((id: string | undefined) => Boolean(id))
+              );
+            }
+          } catch (error) {
+            console.error(`Error fetching persons list for company ${shareCompany.companyName}:`, error);
+          }
+
           // Fetch the shareholding company directly to get all shareholders
           const companyResponse = await fetch(
             `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareCompanyId}`,
@@ -111,11 +139,16 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
           const shareholders: PersonWithCompany[] = shareHolders
             .map((shareHolder: any) => {
               const personData = shareHolder.personId;
-              if (!personData || !personData._id) return null;
+              if (!personData) return null;
+
+              const personId = personData._id || personData.id;
+              if (!personId) return null;
+              if (representativeIdSet.has(personId)) return null;
+              if (activePersonIds && !activePersonIds.has(personId)) return null;
 
               // All persons in shareHolders are shareholders by definition
               return {
-                _id: personData._id,
+                _id: personId,
                 name: personData.name || '',
                 roles: ['Shareholder'], // They are shareholders
                 email: personData.email,
@@ -137,6 +170,30 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
       }
 
       setPersonsByCompany(personsByCompanyMap);
+      const validIds = new Set<string>();
+      Object.values(personsByCompanyMap).forEach((persons) => {
+        persons.forEach((person) => validIds.add(person._id));
+      });
+
+      setSelectedPersons((prevSelected) => {
+        const filtered = new Set<string>();
+        prevSelected.forEach((id) => {
+          if (validIds.has(id)) {
+            filtered.add(id);
+          }
+        });
+        return filtered;
+      });
+
+      setPersonRoles((prevRoles) => {
+        const filteredRoles: Record<string, string[]> = {};
+        Object.entries(prevRoles).forEach(([id, roles]) => {
+          if (validIds.has(id)) {
+            filteredRoles[id] = roles;
+          }
+        });
+        return filteredRoles;
+      });
     } catch (error) {
       console.error("Error fetching persons from shareholding companies:", error);
       toast({

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,12 @@ interface Person {
   nationality?: string;
   address?: string;
   supportingDocuments?: string[];
+  companyId?: string;
+  companyName?: string;
+  origin?: string;
+  isShareholder?: boolean;
 }
+type PersonWithExtras = Person & Record<string, unknown>;
 
 interface PersonListProps {
   companyId: string;
@@ -77,7 +82,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<PersonWithExtras | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [personToDelete, setPersonToDelete] = useState<Person | null>(null);
   const [isDeletingRepresentative, setIsDeletingRepresentative] = useState(false);
@@ -220,22 +225,47 @@ export const PersonList: React.FC<PersonListProps> = ({
           description: "Representative removed successfully",
         });
       } else {
-        // Delete person completely (from Shareholders tab)
+        // Remove shareholder relationship only (keep person record)
+        const currentShareholders = company?.shareHolders || [];
+        const targetId =
+          getEntityId(personToDelete?._id) ||
+          getEntityId((personToDelete as any)?.id) ||
+          getEntityId(personToDelete);
+
+        if (!targetId) {
+          throw new Error("Unable to determine person identifier for shareholder removal");
+        }
+
+        const updatedShareholders = currentShareholders.filter((share: any) => {
+          const sharePersonId = getEntityId(share?.personId);
+          return sharePersonId !== targetId;
+        });
+
         response = await fetch(
-          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personToDelete._id}`,
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
           {
-            method: "DELETE",
+            method: "PUT",
             headers: {
+              "Content-Type": "application/json",
               Authorization: `Bearer ${sessionData.session.access_token}`,
             },
+            body: JSON.stringify({
+              ...company,
+              shareHolders: updatedShareholders,
+            }),
           }
         );
 
-        if (!response.ok) throw new Error("Failed to delete person");
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || "Failed to remove shareholder");
+        }
+
+        await removePersonFromOtherRepresentatives(targetId, sessionData.session.access_token);
 
         toast({
           title: "Success",
-          description: "Person deleted successfully",
+          description: "Shareholder removed successfully",
         });
       }
 
@@ -243,12 +273,6 @@ export const PersonList: React.FC<PersonListProps> = ({
       setPersonToDelete(null);
       setIsDeletingRepresentative(false);
       fetchPersons();
-      try {
-        const next = persons.filter((p) => p._id !== personToDelete._id);
-        window.dispatchEvent(
-          new CustomEvent("persons-updated", { detail: next })
-        );
-      } catch (_) {}
       onUpdate();
     } catch (error) {
       console.error("Error deleting person:", error);
@@ -262,8 +286,38 @@ export const PersonList: React.FC<PersonListProps> = ({
     }
   };
 
-  const handleEditPerson = (person: Person) => {
-    setSelectedPerson(person);
+  const getPersonWithDetails = (person: PersonWithExtras | null): PersonWithExtras | null => {
+    if (!person) return person;
+    const personId = (person._id || (person as { id?: string }).id) as string | undefined;
+    if (!personId) return person;
+
+    const detailed = persons.find((p) => p._id === personId);
+    if (!detailed) return person;
+
+    const merged: Record<string, unknown> = {
+      ...detailed,
+      ...person,
+    };
+
+    const detailedRoles = Array.isArray(person.roles) && person.roles.length > 0
+      ? person.roles
+      : detailed.roles || [];
+
+    return {
+      ...(merged as PersonWithExtras),
+      roles: detailedRoles,
+      sharePercentage: person.sharePercentage ?? detailed.sharePercentage,
+      address: person.address ?? detailed.address,
+      nationality: person.nationality ?? detailed.nationality,
+      phoneNumber: person.phoneNumber ?? detailed.phoneNumber,
+      email: person.email ?? detailed.email,
+      supportingDocuments: person.supportingDocuments ?? detailed.supportingDocuments,
+    };
+  };
+
+  const handleEditPerson = (person: PersonWithExtras) => {
+    const mergedPerson = getPersonWithDetails(person) ?? person;
+    setSelectedPerson(mergedPerson);
     setIsEditModalOpen(true);
   };
 
@@ -648,6 +702,81 @@ export const PersonList: React.FC<PersonListProps> = ({
     return "bg-gray-100 text-gray-700 border-gray-200";
   };
 
+  function getEntityId(entity: any): string | undefined {
+    if (!entity) return undefined;
+    if (typeof entity === "string") return entity;
+    if (typeof entity === "object") {
+      return entity._id || entity.id || entity.value;
+    }
+    return undefined;
+  }
+
+  async function removePersonFromOtherRepresentatives(
+    personId: string,
+    accessToken: string
+  ) {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch companies for representative cleanup");
+      }
+
+      const result = await response.json();
+      const companies: any[] = Array.isArray(result?.data) ? result.data : [];
+
+      const updates = companies
+        .filter((c) => c && c._id && c._id !== companyId && Array.isArray(c.representationalSchema))
+        .map(async (companyItem) => {
+          const currentSchema = companyItem.representationalSchema || [];
+          const filteredSchema = currentSchema.filter((entry: any) => {
+            const entryId =
+              getEntityId(entry?.personId?._id) ||
+              getEntityId(entry?.personId?.id) ||
+              getEntityId(entry?.personId);
+            return entryId !== personId;
+          });
+
+          if (filteredSchema.length === currentSchema.length) {
+            return;
+          }
+
+          await fetch(
+            `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyItem._id}`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                ...companyItem,
+                representationalSchema: filteredSchema,
+              }),
+            }
+          );
+        });
+
+      await Promise.all(updates);
+    } catch (error) {
+      console.error("Error removing person from other representatives:", error);
+    }
+  }
+
+  const isFromShareholdingCompany = (person: Partial<Person> | null | undefined) => {
+    if (!person) return false;
+    if (person.origin === "ShareholdingCompany") return true;
+    if (typeof person.companyName === "string" && person.companyName.trim().length > 0) return true;
+    return false;
+  };
+
   // Calculate share totals - count all persons with shares and all companies
   // Use company.shareHolders directly for person totals
   const shareTotals = {
@@ -674,6 +803,8 @@ export const PersonList: React.FC<PersonListProps> = ({
         sharePercentage: sharesData.percentage || 0,
         totalShares: sharesData.totalShares || 0,
         shareClass: sharesData.class,
+        origin: "PersonShareholder",
+        isShareholder: true,
       };
     })
     .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
@@ -683,7 +814,9 @@ export const PersonList: React.FC<PersonListProps> = ({
 
   // Get person shareholder IDs for sorting representatives
   const personShareholderIds = new Set(
-    personShareholders.map((sh: any) => sh._id || sh.id).filter(Boolean)
+    personShareholders
+      .map((sh: any) => getEntityId(sh?._id) || getEntityId(sh?.id) || getEntityId(sh))
+      .filter(Boolean)
   );
 
   const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
@@ -706,11 +839,19 @@ export const PersonList: React.FC<PersonListProps> = ({
       // Get companyId if person is from a shareholding company
       const companyIdData = rep.companyId || null;
       const companyName = companyIdData?.name || null;
+      const repPersonId = getEntityId(personData);
+      const linkedPersonId =
+        repPersonId ||
+        getEntityId(rep?.personId) ||
+        getEntityId(personData?._id) ||
+        getEntityId((personData as any)?.id);
       return {
         ...personData,
         roles: roles,
         companyId: companyIdData?._id || companyIdData || null,
         companyName: companyName,
+        origin: companyName ? "ShareholdingCompany" : "DirectPerson",
+        isShareholder: Boolean(linkedPersonId && personShareholderIds.has(linkedPersonId)),
       };
     })
     .filter((person: any) => {
@@ -718,6 +859,23 @@ export const PersonList: React.FC<PersonListProps> = ({
       const roles = person.roles || [];
       return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
     });
+
+  const representativeIdSet = useMemo(() => {
+    const ids = new Set<string>();
+    (company?.representationalSchema || []).forEach((rep: any) => {
+      const personData = rep.personId || {};
+      const repId =
+        getEntityId(personData?._id) ||
+        getEntityId(personData?.id) ||
+        getEntityId(rep?.personId);
+      if (repId) {
+        ids.add(repId);
+      }
+    });
+    return ids;
+  }, [company?.representationalSchema]);
+
+  const existingRepresentativeIds = useMemo(() => Array.from(representativeIdSet), [representativeIdSet]);
 
   // Sort representatives: person shareholders first, then people from shareholding companies
   // Within each group, maintain UBO priority (UBO appears first)
@@ -1000,6 +1158,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                   const rolesArray = Array.isArray(person.roles) 
                     ? person.roles.filter((r: string) => r !== "Shareholder")
                     : [];
+                  const isShareholdingCompanyPerson = isFromShareholdingCompany(person);
                     
                   return (
                     <Card
@@ -1076,22 +1235,45 @@ export const PersonList: React.FC<PersonListProps> = ({
                           </div>
 
                           <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditPerson(person)}
-                              className="rounded-xl hover:bg-gray-100"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(person, true)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {isShareholdingCompanyPerson ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditPerson(person)}
+                                  className="rounded-xl hover:bg-gray-100"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(person, true)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditPerson(person)}
+                                  className="rounded-xl hover:bg-gray-100"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(person, true)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -1119,7 +1301,7 @@ export const PersonList: React.FC<PersonListProps> = ({
             <div className="mb-4">
               <h4 className="text-md font-semibold text-gray-900">Shareholders</h4>
               <p className="text-sm text-gray-600">
-                Individuals and companies holding shares in this company
+                Individuals and companies holding shares in this company 
               </p>
             </div>
               
@@ -1323,6 +1505,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         person={selectedPerson}
         clientId={clientId}
         companyId={companyId}
+        existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
         onSuccess={() => {
           setIsEditModalOpen(false);
           setSelectedPerson(null);
@@ -1587,6 +1770,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           companyId: share.companyId,
           companyName: share.companyName,
         }))}
+        existingRepresentativeIds={existingRepresentativeIds}
       />
     </>
   );
