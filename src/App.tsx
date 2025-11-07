@@ -10,6 +10,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { TourProvider } from "@/contexts/TourContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { NotificationInitializer } from "@/components/notifications";
 
 // Auth pages
 import { LoginPage } from "@/pages/auth/LoginPage";
@@ -60,6 +61,8 @@ import { AnalyticalReviewSection } from "./components/analitical review/Analytic
 
 import { EditClient } from "./pages/employee/EditClient";
 import { SidebarStatsProvider } from "./contexts/SidebarStatsContext";
+import { NotificationSettingsPage } from "./pages/settings/NotificationSettingsPage";
+import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
 
 
 
@@ -70,6 +73,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrandingProvider>
       <AuthProvider>
+        <NotificationInitializer />
         <TourProvider>
           <DataProvider>
           <SidebarStatsProvider>  
@@ -115,6 +119,7 @@ const App = () => (
                 <Route path="logs" element={<AuditorLogs />} />
                 <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
                 <Route path="branding" element={<BrandingSettings />} />
+                <Route path="settings/notifications" element={<NotificationSettingsPage />} />
               </Route>
 
               {/* Employee Routes */}
@@ -146,6 +151,7 @@ const App = () => (
                 <Route path="mockapideck" element={<MockApideckHome />} />
                 <Route path="audit-workbook" element={<WorkBookApp engagementId={null} classification={null} />} />
                 <Route path="analytics" element={<AnalyticalReviewSection />} />
+                <Route path="settings/notifications" element={<NotificationSettingsPage />} />
               </Route>
 
                 {/* Client Routes */}
@@ -162,9 +168,16 @@ const App = () => (
                   <Route path="requests" element={<DocumentRequests />} />
               
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
+                  <Route path="settings/notifications" element={<NotificationSettingsPage />} />
                   
                 </Route>
 
+                {/* Redirect /settings/notifications to role-based path */}
+                <Route 
+                  path="/settings/notifications" 
+                  element={<NotificationSettingsRedirect />} 
+                />
+                
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

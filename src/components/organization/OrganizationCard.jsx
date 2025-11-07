@@ -4,6 +4,7 @@ import { Building2, User, Users, UserCircle, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function OrganizationCard({ organization }) {
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
