@@ -462,7 +462,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         <Wrench className="h-4 w-4" />
                         Adjustments
                       </span>
-                      <Badge variant="secondary">{adjustmentsCount === 0 ? "" : adjustmentsCount}</Badge>
+                      {adjustmentsCount === 0 ? "" : <Badge variant="secondary">{adjustmentsCount}</Badge>}
                     </Button>
 
                     <Button
@@ -478,7 +478,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         <ArrowLeftRight className="h-4 w-4" />
                         Reclassifications
                       </span>
-                      <Badge variant="secondary">{reclassificationsCount === 0 ? "" : reclassificationsCount}</Badge>
+                      {reclassificationsCount === 0 ? "" : <Badge variant="secondary">{reclassificationsCount}</Badge>}
                     </Button>
 
                     {(etbCount > 0 || adjustmentsCount > 0 || reclassificationsCount > 0) && (
