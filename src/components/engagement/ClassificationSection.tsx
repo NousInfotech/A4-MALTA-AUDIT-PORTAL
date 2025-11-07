@@ -7403,7 +7403,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
-                          <td className="px-4 py-2 border-secondary border-b">
+                          <td className="px-4 py-2 border-secondary border-b border-r">
                             {row.reclassification.toLocaleString()}
                           </td>
 
@@ -7734,7 +7734,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b">
+                        <td className="px-4 py-2 border-secondary border-b border-r">
                           {/* <Input
                             value={row.reclassification || ""}
                             onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
@@ -7870,7 +7870,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b">
+                        <td className="px-4 py-2 border-secondary border-b border-r">
                           {/* <Input
                             value={row.reclassification || ""}
                             onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
