@@ -7362,7 +7362,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
 
-                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Re-Classification</th>
+                        <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
 
                         
@@ -7695,7 +7695,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
@@ -7833,7 +7833,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Re-Classification</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
