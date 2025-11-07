@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Loader2,
   Wrench,
+  ArrowLeftRight,
 } from "lucide-react";
 import { TrialBalanceUpload } from "./TrialBalanceUpload";
 import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
@@ -63,6 +64,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   // counts for special sections
   const [etbCount, setEtbCount] = useState(0);
   const [adjustmentsCount, setAdjustmentsCount] = useState(0);
+  const [reclassificationsCount, setReclassificationsCount] = useState(0);
 
   // notification counts for classifications
   const [
@@ -108,7 +110,11 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
         const adjCount = rows.filter(
           (r: any) => Number(r?.adjustments) !== 0
         ).length;
+        const rclsCount = rows.filter(
+          (r: any) => Number(r?.reclassification) !== 0
+        ).length;
         setAdjustmentsCount(adjCount);
+        setReclassificationsCount(rclsCount);
 
         const uniqueClassifications = [
           ...new Set(rows.map((r: any) => r.classification).filter(Boolean)),
@@ -459,7 +465,23 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       <Badge variant="secondary">{adjustmentsCount}</Badge>
                     </Button>
 
-                    {(etbCount > 0 || adjustmentsCount > 0) && (
+                    <Button
+                      variant={
+                        selectedClassification === "Reclassifications"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => setSelectedClassification("Reclassifications")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ArrowLeftRight className="h-4 w-4" />
+                        Reclassifications
+                      </span>
+                      <Badge variant="secondary">{reclassificationsCount}</Badge>
+                    </Button>
+
+                    {(etbCount > 0 || adjustmentsCount > 0 || reclassificationsCount > 0) && (
                       <div className="text-xs uppercase text-gray-500 px-3 pt-3">
                         Classifications
                       </div>
@@ -476,7 +498,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                       Object.entries(groupedClassifications).forEach(
                         ([key, classificationList]) => {
-                          if (key === "Adjustments") return;
+                          if (key === "Adjustments" || key === "Reclassifications") return;
 
                           const parts = key.split(" > ");
                           if (parts.length < 3) return;
@@ -594,6 +616,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                     {etbCount === 0 &&
                       adjustmentsCount === 0 &&
+                      reclassificationsCount === 0 &&
                       Object.keys(groupedClassifications).length === 0 && (
                         <div className="text-center text-sm text-gray-500 py-6">
                           No sections available yet.
@@ -622,7 +645,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </h3>
                       <p className="text-gray-500">
                         Pick <strong>Extended Trial Balance</strong>,{" "}
-                        <strong>Adjustments</strong>, or any classification from
+                        <strong>Adjustments</strong>, <strong>Reclassifications</strong>, or any classification from
                         the sidebar.
                       </p>
                     </div>

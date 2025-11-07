@@ -188,6 +188,7 @@ import ProcedureView from "../procedures/ProcedureView";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
 import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
 import { AdjustmentManager } from "../adjustments/AdjustmentManager";
+import { ReclassificationManager } from "../reclassification/ReclassificationManager";
 
 
 
@@ -457,6 +458,7 @@ const isTopCategory = (c: string) =>
   ["Equity", "Income", "Expenses"].includes(c);
 
 const isAdjustments = (c: string) => c === "Adjustments";
+const isReclassifications = (c: string) => c === "Reclassifications";
 
 const isETB = (c: string) => c === "ETB";
 
@@ -468,7 +470,7 @@ const TOP_CATEGORIES = ["Equity", "Income", "Expenses"];
 
 const shouldHaveWorkingPapers = (classification: string) => {
 
-  return !isETB(classification) && !isAdjustments(classification);
+  return !isETB(classification) && !isAdjustments(classification) && !isReclassifications(classification);
 
 };
 
@@ -515,6 +517,7 @@ const formatClassificationForDisplay = (c: string) => {
   if (!c) return "—";
 
   if (isAdjustments(c)) return "Adjustments";
+  if (isReclassifications(c)) return "Reclassifications";
 
   if (isETB(c)) return "Extended Trial Balance";
 
@@ -1405,7 +1408,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
 
-      if (isAdjustments(classification) || isETB(classification)) {
+      if (isAdjustments(classification) || isReclassifications(classification) || isETB(classification)) {
 
         const etbResp = await authFetch(
 
@@ -1482,7 +1485,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
 
-      if (isAdjustments(classification) || isETB(classification)) {
+      if (isAdjustments(classification) || isReclassifications(classification) || isETB(classification)) {
 
         await loadSectionData();
 
@@ -3261,6 +3264,19 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   );
 
 
+
+  // Special content for Reclassifications
+  if (isReclassifications(classification) && etbId) {
+    return (
+      <div className="h-full flex flex-col">
+        <ReclassificationManager
+          engagement={engagement}
+          etbRows={sectionData}
+          etbId={etbId}
+        />
+      </div>
+    );
+  }
 
   // Special content for Adjustments
   if (isAdjustments(classification) && etbId) {
@@ -7208,20 +7224,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r">
-                      <Input
-                        value={row.reclassification || ""}
-                        onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            saveSectionDataToETB();
-                          }
-                        }}
-                        placeholder="Enter re-classification"
-                        className="h-7 text-xs"
-                        disabled={isSignedOff}
-                        readOnly={isSignedOff}
-                      />
+                     {row.reclassification?.toLocaleString()}
                     </td>
 
                     <td className="border-b border-secondary">
