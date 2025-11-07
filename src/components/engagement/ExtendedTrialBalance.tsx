@@ -20,6 +20,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -40,6 +47,7 @@ import {
   CloudUpload,
   CloudDownload,
   X,
+  Info,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +56,7 @@ import { cn } from "@/lib/utils";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 import EditableText from "../ui/editable-text";
 import { NEW_CLASSIFICATION_OPTIONS, NEW_CLASSIFICATION_RULESET } from "./classificationOptions";
+import { adjustmentApi } from "@/services/api";
 
 /* -------------------------------------------------------
    Helpers & Types
@@ -86,6 +95,7 @@ const withClientIds = <T extends object>(rows: T[]) =>
 
 interface ETBRow {
   id: string;
+  _id?: string;
   code: string;
   accountName: string;
   currentYear: number;
@@ -99,6 +109,7 @@ interface ETBRow {
   grouping3?: string;
   grouping4?: string;
   visibleLevels?: number; // Track how many classification levels are visible (1-4)
+  adjustmentRefs?: string[]; // References to adjustments affecting this row
 }
 
 interface ExtendedTrialBalanceProps {
@@ -591,6 +602,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [bulkClassification, setBulkClassification] = useState<string>("");
   const [bulkVisibleLevels, setBulkVisibleLevels] = useState<number>(4);
+
+  // State for adjustment details dialog
+  const [showAdjustmentDetails, setShowAdjustmentDetails] = useState(false);
+  const [selectedRowForAdjustments, setSelectedRowForAdjustments] = useState<ETBRow | null>(null);
+  const [adjustmentsForRow, setAdjustmentsForRow] = useState<any[]>([]);
+  const [loadingAdjustments, setLoadingAdjustments] = useState(false);
 
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
@@ -1419,6 +1436,41 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
   }, [selectedRowIds]);
 
+  // Show adjustment details for a specific row
+  const showAdjustmentDetailsForRow = useCallback(async (row: ETBRow) => {
+    setSelectedRowForAdjustments(row);
+    setShowAdjustmentDetails(true);
+    setLoadingAdjustments(true);
+    setAdjustmentsForRow([]);
+
+    try {
+      // Fetch all adjustments for this engagement
+      const response = await adjustmentApi.getByEngagement(engagement._id);
+      
+      if (response.success) {
+        // Filter to adjustments that affect this specific row
+        const rowId = row._id || row.id || row.code;
+        const relevantAdjustments = response.data.filter((adj: any) =>
+          adj.entries.some((entry: any) => 
+            entry.etbRowId === rowId || 
+            entry.code === row.code
+          )
+        );
+
+        setAdjustmentsForRow(relevantAdjustments);
+      }
+    } catch (error: any) {
+      console.error("Error fetching adjustments:", error);
+      toast({
+        title: "Failed to load adjustments",
+        description: error.message || "Could not fetch adjustment details",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdjustments(false);
+    }
+  }, [engagement._id, toast]);
+
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
     return (
@@ -1699,16 +1751,22 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           />
                         </TableCell>
                         <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
-                          <EditableText
-                            type="number"
-                            value={row.adjustments}
-                            onChange={(val) => {
-                              updateRow(row.id, "adjustments", val);
-                            }}
-                            placeholder="0"
-                            className="text-start text-xs sm:text-sm"
-                            step={1}
-                          />
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium tabular-nums text-xs sm:text-sm">
+                              {Math.round(Number(row.adjustments)).toLocaleString()}
+                            </span>
+                            {row.adjustments !== 0 && row.adjustments != null && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 hover:bg-blue-100"
+                                onClick={() => showAdjustmentDetailsForRow(row)}
+                                title="View adjustment details"
+                              >
+                                <Info className="h-3 w-3 text-blue-600" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="w-fit border border-r-secondary border-b-secondary align-middle text-center font-medium tabular-nums text-xs sm:text-sm">
                           {Math.round(Number(row.finalBalance)).toLocaleString()}
@@ -1843,6 +1901,149 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Adjustment Details Dialog */}
+      <Dialog open={showAdjustmentDetails} onOpenChange={setShowAdjustmentDetails}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adjustment Details</DialogTitle>
+            <DialogDescription>
+              Adjustments affecting{" "}
+              <span className="font-semibold">
+                {selectedRowForAdjustments?.code} - {selectedRowForAdjustments?.accountName}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {loadingAdjustments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-600">Loading adjustments...</span>
+              </div>
+            ) : adjustmentsForRow.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Info className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No adjustments found for this row</p>
+                <p className="text-xs mt-1">
+                  The adjustment value may have been set directly or come from a different source.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {adjustmentsForRow.map((adj: any) => {
+                  // Get the row ID for highlighting
+                  const rowId = selectedRowForAdjustments?._id || selectedRowForAdjustments?.id || selectedRowForAdjustments?.code;
+                  
+                  // Calculate net impact on this specific row
+                  const netImpactOnRow = adj.entries
+                    .filter((entry: any) => 
+                      entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code
+                    )
+                    .reduce((sum: number, e: any) => sum + (e.dr || 0) - (e.cr || 0), 0);
+
+                  return (
+                    <Card key={adj._id} className="border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          {/* Adjustment Header */}
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="font-mono">
+                              {adj.adjustmentNo}
+                            </Badge>
+                            <Badge variant={adj.status === "posted" ? "default" : "secondary"}>
+                              {adj.status.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              {adj.description || "No description"}
+                            </span>
+                          </div>
+
+                          {/* ALL Entries in the adjustment */}
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left border-r">Code</th>
+                                  <th className="px-3 py-2 text-left border-r">Account</th>
+                                  <th className="px-3 py-2 text-right border-r">Debit</th>
+                                  <th className="px-3 py-2 text-right border-r">Credit</th>
+                                  <th className="px-3 py-2 text-left">Details</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {adj.entries.map((entry: any, idx: number) => {
+                                  // Highlight the row we clicked on
+                                  const isClickedRow = entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code;
+                                  
+                                  return (
+                                    <tr 
+                                      key={idx} 
+                                      className={cn(
+                                        "border-t",
+                                        isClickedRow && "bg-blue-50 font-semibold"
+                                      )}
+                                    >
+                                      <td className="px-3 py-2 border-r font-mono text-xs">
+                                        {entry.code}
+                                        {isClickedRow && (
+                                          <Badge variant="outline" className="ml-2 text-xs">
+                                            You are here
+                                          </Badge>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 border-r">{entry.accountName}</td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.dr > 0 ? entry.dr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 border-r text-right">
+                                        {entry.cr > 0 ? entry.cr.toLocaleString() : "-"}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-gray-600">
+                                        {entry.details || "-"}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                
+                                {/* Totals Row */}
+                                <tr className="border-t bg-gray-100 font-semibold">
+                                  <td colSpan={2} className="px-3 py-2 border-r">
+                                    TOTAL
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {adj.totalDr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 border-r text-right">
+                                    {adj.totalCr.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Badge variant={adj.totalDr === adj.totalCr ? "default" : "destructive"}>
+                                      {adj.totalDr === adj.totalCr ? "Balanced" : "Unbalanced"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Net Impact on THIS account */}
+                          <div className="flex items-center justify-between text-sm bg-blue-50 p-3 rounded border border-blue-200">
+                            <span className="font-medium">Net impact on {selectedRowForAdjustments?.accountName}:</span>
+                            <span className="font-bold text-lg">
+                              {netImpactOnRow.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

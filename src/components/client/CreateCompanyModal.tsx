@@ -184,7 +184,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 htmlFor="registrationNumber"
                 className="text-gray-700 font-semibold"
               >
-                Registration Number
+                Registration Number <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="registrationNumber"
@@ -197,13 +197,14 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   })
                 }
                 className="rounded-xl border-gray-200"
+                required
               />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="address" className="text-gray-700 font-semibold">
-              Address
+              Address <span className="text-red-500">*</span>
             </Label>
             <Textarea
               id="address"
@@ -214,11 +215,12 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               }
               className="rounded-xl border-gray-200"
               rows={3}
+              required
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="status" className="text-gray-700 font-semibold">
                 Status
               </Label>
@@ -236,14 +238,14 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   <SelectItem value="record">Record</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
 
             <div className="space-y-2">
               <Label
                 htmlFor="timelineStart"
                 className="text-gray-700 font-semibold"
               >
-                Timeline Start
+                Company Start Date <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="timelineStart"
@@ -253,10 +255,35 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   setFormData({ ...formData, timelineStart: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
+                required
               />
             </div>
+            <div className="space-y-2">
+          <Label htmlFor="totalShares" className="text-gray-700 font-semibold">
+            Total Shares <span className="text-red-500">*</span>
+          </Label>
+            <Input
+            id="totalShares"
+            min={0}
+            type="number"
+            step={1}
+            placeholder="Enter total number of shares"
+            value={formData.totalShares === 0 ? "" : formData.totalShares}
+            onChange={(e) => {
+            const val = e.target.value;
+            const parsedVal = val === "" ? 0 : parseInt(val, 10);
+            setFormData({
+            ...formData,
+            totalShares: parsedVal,
+            });
+            }}
+            required
+            className="rounded-xl border-gray-200"
+            />
+
+        </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="timelineEnd" className="text-gray-700 font-semibold">
               Timeline End
@@ -271,32 +298,11 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               className="rounded-xl border-gray-200"
             />
           </div>
-          <div className="space-y-2">
-          <Label htmlFor="totalShares" className="text-gray-700 font-semibold">
-            Total Shares <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="totalShares"
-            type="number"
-            step={1}
-            placeholder="Enter total number of shares"
-            value={formData.totalShares}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                totalShares: Number.isNaN(parseInt(e.target.value, 10))
-                  ? 0
-                  : parseInt(e.target.value, 10),
-              })
-            }
-            required
-            className="rounded-xl border-gray-200"
-          />
-        </div>
-          </div>
+      
+          </div> */}
 
           {/* Supporting Documents */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label className="text-gray-700 font-semibold">Supporting Documents</Label>
             <input
               type="file"
@@ -337,7 +343,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Shareholding Companies */}
           {existingCompanies.length > 0 && (
@@ -362,7 +368,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name}
+              disabled={isSubmitting || !formData.name || !formData.registrationNumber || !formData.address || !formData.timelineStart || !formData.totalShares}
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (

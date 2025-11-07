@@ -173,7 +173,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
 
                 <TabsContent value="details" className="space-y-6 mt-6">
                   {/* Status */}
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <Badge
                       variant="outline"
                       className={`rounded-xl px-3 py-1 text-sm font-semibold ${
@@ -184,7 +184,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
                     >
                       {fullCompanyData?.status}
                     </Badge>
-                  </div>
+                  </div> */}
 
                   {/* Address */}
                   {fullCompanyData?.address && (

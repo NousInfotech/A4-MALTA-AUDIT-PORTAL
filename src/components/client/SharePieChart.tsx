@@ -22,7 +22,14 @@ type ShareholdingCompany = {
     name: string;
     registrationNumber?: string;
   };
-  sharePercentage: number;
+  // Old format
+  sharePercentage?: number;
+  // New normalized format from backend
+  sharesData?: {
+    percentage?: number;
+    totalShares?: number;
+    class?: string;
+  };
 };
 
 interface SharePieChartProps {
@@ -72,9 +79,13 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
             companyName = "Unknown Company";
           }
         }
+        const percentage =
+          share?.sharePercentage !== undefined && share?.sharePercentage !== null
+            ? Number(share.sharePercentage)
+            : Number(share?.sharesData?.percentage ?? 0);
         return {
           name: companyName,
-          value: Number(share.sharePercentage ?? 0),
+          value: percentage,
           type: "Company",
         };
       })
@@ -175,7 +186,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-sm text-brand-text">
+            <div className="h-full flex items-center justify-center text-xl md:text-3xl text-gray-600">
               No share percentage data available
             </div>
           )}
