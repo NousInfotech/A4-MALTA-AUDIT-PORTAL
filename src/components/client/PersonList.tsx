@@ -199,6 +199,11 @@ export const PersonList: React.FC<PersonListProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
+      const resolvedPersonId =
+        getEntityId(personToDelete?._id) ||
+        getEntityId((personToDelete as any)?.id) ||
+        getEntityId(personToDelete);
+
       // Check if person is a representative (has companyName or is only in representationalSchema)
       const isRepresentative = isDeletingRepresentative || 
         (personToDelete as any).companyName || 
@@ -224,13 +229,16 @@ export const PersonList: React.FC<PersonListProps> = ({
           title: "Success",
           description: "Representative removed successfully",
         });
+
+        await maybeDeletePersonRecord(
+          personToDelete,
+          resolvedPersonId,
+          sessionData.session.access_token
+        );
       } else {
         // Remove shareholder relationship only (keep person record)
         const currentShareholders = company?.shareHolders || [];
-        const targetId =
-          getEntityId(personToDelete?._id) ||
-          getEntityId((personToDelete as any)?.id) ||
-          getEntityId(personToDelete);
+        const targetId = resolvedPersonId;
 
         if (!targetId) {
           throw new Error("Unable to determine person identifier for shareholder removal");
@@ -262,6 +270,12 @@ export const PersonList: React.FC<PersonListProps> = ({
         }
 
         await removePersonFromOtherRepresentatives(targetId, sessionData.session.access_token);
+
+        await maybeDeletePersonRecord(
+          personToDelete,
+          targetId,
+          sessionData.session.access_token
+        );
 
         toast({
           title: "Success",
@@ -767,6 +781,79 @@ export const PersonList: React.FC<PersonListProps> = ({
       await Promise.all(updates);
     } catch (error) {
       console.error("Error removing person from other representatives:", error);
+    }
+  }
+
+  async function maybeDeletePersonRecord(
+    person: Person | null | undefined,
+    personId: string | undefined,
+    accessToken: string
+  ) {
+    if (!personId) return;
+    if (!person) return;
+
+    const origin = (person as any)?.origin;
+    if (origin === "ShareholdingCompany") return;
+
+    try {
+      const companyResponse = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!companyResponse.ok) {
+        throw new Error("Failed to verify company state for person deletion");
+      }
+
+      const companyResult = await companyResponse.json();
+      const updatedCompany = companyResult?.data;
+
+      const stillShareholder = Array.isArray(updatedCompany?.shareHolders)
+        ? updatedCompany.shareHolders.some((share: any) => {
+            const sharePersonId = getEntityId(share?.personId);
+            const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage ?? 0;
+            return sharePersonId === personId && Number(sharePct) > 0;
+          })
+        : false;
+
+      if (stillShareholder) {
+        return;
+      }
+
+      const stillRepresentative = Array.isArray(updatedCompany?.representationalSchema)
+        ? updatedCompany.representationalSchema.some((entry: any) => {
+            const entryId =
+              getEntityId(entry?.personId?._id) ||
+              getEntityId(entry?.personId?.id) ||
+              getEntityId(entry?.personId);
+            return entryId === personId;
+          })
+        : false;
+
+      if (stillRepresentative) {
+        return;
+      }
+
+      const deleteResponse = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!deleteResponse.ok) {
+        const error = await deleteResponse.json().catch(() => ({}));
+        throw new Error(error?.message || "Failed to delete person record");
+      }
+    } catch (error) {
+      console.error("Failed to delete person record if unused:", error);
     }
   }
 

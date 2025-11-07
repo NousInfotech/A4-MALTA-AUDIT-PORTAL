@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonList } from "@/components/client/PersonList";
 import { EditCompanyModal } from "@/components/client/EditCompanyModal";
 import SharePieChart from "@/components/client/SharePieChart";
+import CompanyHierarchy from "@/components/client/CompanyHierarchy";
+
+const VALID_COMPANY_TABS = ["details", "persons", "pie-chart", "company-hierarchy"] as const;
 
 interface Person {
   _id: string;
@@ -39,6 +42,7 @@ interface Company {
   registrationNumber?: string;
   address?: string;
   status: "active" | "record";
+  totalShares?: number;
   persons?: Person[];
   supportingDocuments?: string[];
   timelineStart?: string;
@@ -50,6 +54,12 @@ interface Company {
       registrationNumber?: string;
     };
     sharePercentage: number;
+    sharesData?: {
+      percentage?: number;
+      totalShares?: number;
+      class?: string;
+    };
+    companyName?: string;
   }>;
   representative?: (Person & { type?: string }) | (Person & { type?: string })[] | null;
   shareHolders?: Array<{
@@ -69,27 +79,60 @@ export const CompanyDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
+  const [hierarchyRoot, setHierarchyRoot] = useState<any>(null);
+  const hierarchyData = useMemo(() => {
+    const convertNode = (node: any | null | undefined): any => {
+      if (!node) return null;
+      const {
+        id,
+        name,
+        type,
+        percentage,
+        class: className,
+        totalShares,
+        shareholders,
+        children,
+        address,
+      } = node;
+
+      const nextChildren = (children || shareholders || []).map((child: any) =>
+        convertNode(child)
+      );
+
+      return {
+        id: String(id),
+        name,
+        type,
+        percentage,
+        class: className,
+        totalShares,
+        address,
+        children: nextChildren,
+      };
+    };
+
+    return convertNode(hierarchyRoot);
+  }, [hierarchyRoot]);
   
-  // Get active tab from query parameter, default to "details"
   const activeTab = searchParams.get("tab");
-  
-  // Validate tab value
-  const validTabs = ["details", "persons", "pie-chart"];
-  const currentTab = activeTab && validTabs.includes(activeTab) ? activeTab : "details";
-  
-  // Set default tab to "details" in URL if no tab parameter exists (only on mount)
+  const currentTabFromQuery =
+    activeTab && VALID_COMPANY_TABS.includes(activeTab as typeof VALID_COMPANY_TABS[number])
+      ? activeTab
+      : "details";
+
+  // Ensure the URL always has a valid tab parameter
   useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (!tab || !validTabs.includes(tab)) {
+    if (!activeTab || !VALID_COMPANY_TABS.includes(activeTab as typeof VALID_COMPANY_TABS[number])) {
       const newParams = new URLSearchParams(searchParams);
       newParams.set("tab", "details");
       setSearchParams(newParams, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeTab, searchParams, setSearchParams]);
 
   const handleTabChange = (value: string) => {
-    setSearchParams({ tab: value }, { replace: false });
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", value);
+    setSearchParams(params, { replace: false });
   };
 
   const handleBackClick = () => {
@@ -101,6 +144,7 @@ export const CompanyDetail: React.FC = () => {
     if (companyId && clientId) {
       fetchCompanyData();
       fetchPersonsForChart();
+      fetchCompanyHierarchy();
     }
   }, [companyId, clientId]);
 
@@ -174,6 +218,40 @@ export const CompanyDetail: React.FC = () => {
     }
   };
 
+  const fetchCompanyHierarchy = async () => {
+    if (!companyId || !clientId) return;
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Not authenticated");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/hierarchy`,
+        {
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch company hierarchy");
+      }
+
+      const result = await response.json();
+      if (result?.success && result?.data) {
+        setHierarchyRoot(result.data);
+      } else if (result) {
+        setHierarchyRoot(result);
+      } else {
+        setHierarchyRoot(null);
+      }
+    } catch (error: any) {
+      console.error("Error fetching hierarchy data:", error);
+      setHierarchyRoot(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -228,7 +306,7 @@ export const CompanyDetail: React.FC = () => {
 
         {/* Main Content */}
         <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs value={currentTab} onValueChange={handleTabChange} className="mt-6">
+          <Tabs value={currentTabFromQuery} onValueChange={handleTabChange} className="mt-6">
             <TabsList className="rounded-xl m-6 mb-0">
               <TabsTrigger value="details" className="rounded-lg">
                 Company Details
@@ -238,6 +316,9 @@ export const CompanyDetail: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
               Distribution
+              </TabsTrigger>
+              <TabsTrigger value="company-hierarchy" className="rounded-lg">
+              Company Hierarchy
               </TabsTrigger>
             </TabsList>
 
@@ -437,7 +518,10 @@ export const CompanyDetail: React.FC = () => {
                   companyId={company._id}
                   clientId={clientId}
                   company={company}
-                  onUpdate={fetchCompanyData}
+                  onUpdate={() => {
+                    fetchCompanyData();
+                    fetchCompanyHierarchy();
+                  }}
                 />
               )}
             </TabsContent>
@@ -447,6 +531,9 @@ export const CompanyDetail: React.FC = () => {
                 companies={company?.shareHoldingCompanies || []}
                 title="Distribution" 
               />
+            </TabsContent>
+            <TabsContent value="company-hierarchy" className="p-6 mt-6">
+              <CompanyHierarchy rootData={hierarchyData} />
             </TabsContent>
           </Tabs>
         </div>
@@ -462,6 +549,7 @@ export const CompanyDetail: React.FC = () => {
           onSuccess={() => {
             setIsEditModalOpen(false);
             fetchCompanyData();
+            fetchCompanyHierarchy();
           }}
           existingCompanies={[]}
         />

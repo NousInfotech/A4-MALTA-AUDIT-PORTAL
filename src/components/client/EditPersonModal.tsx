@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -79,14 +79,25 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
       : 0
   ) || 0;
   const hasShareholderRole = formData.roles.includes("Shareholder");
-  const availableRoles = isRepresentativeContext
-    ? ALL_ROLES.filter((role) => {
-        if (role === "Shareholder") {
-          return !isShareholdingCompanyPerson && !isCurrentShareholder;
-        }
-        return true;
-      })
-    : [];
+  const availableRoles = useMemo(() => {
+    const roles = ALL_ROLES.filter((role) => {
+      if (role === "Shareholder") {
+        if (isShareholdingCompanyPerson) return false;
+        if (isShareholderContext) return false;
+        if (isCurrentShareholder) return false;
+      }
+      return true;
+    });
+
+    if (isRepresentativeContext || isShareholderContext) {
+      return roles;
+    }
+
+    return [];
+  }, [isShareholdingCompanyPerson, isShareholderContext, isRepresentativeContext, isCurrentShareholder]);
+
+  const shouldShowRolesSection =
+    (isRepresentativeContext || isShareholderContext) && availableRoles.length > 0;
 
   useEffect(() => {
     const fetchNationalities = async () => {
@@ -494,7 +505,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             />
           </div>
 
-          {isRepresentativeContext && (
+          {shouldShowRolesSection && (
             <div className="space-y-2">
               <Label className="text-gray-700 font-semibold">Roles <span className="text-red-500">*</span></Label>
               <div className="grid grid-cols-2 gap-4 mt-2">
