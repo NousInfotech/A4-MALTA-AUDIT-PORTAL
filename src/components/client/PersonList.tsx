@@ -25,6 +25,7 @@ import { CreatePersonModal } from "./CreatePersonModal";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { EditPersonModal } from "./EditPersonModal";
 import { DeletePersonConfirmation } from "./DeletePersonConfirmation";
+import { AddPersonFromShareholdingModal } from "./AddPersonFromShareholdingModal";
 import {
   Popover,
   PopoverContent,
@@ -79,6 +80,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [personToDelete, setPersonToDelete] = useState<Person | null>(null);
+  const [isDeletingRepresentative, setIsDeletingRepresentative] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCompanyCreateModalOpen, setIsCompanyCreateModalOpen] = useState(false);
   const [isAddCompanyDropdownOpen, setIsAddCompanyDropdownOpen] = useState(false);
@@ -93,6 +95,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isDeleteCompanyShareDialogOpen, setIsDeleteCompanyShareDialogOpen] = useState(false);
   const [companyShareToDelete, setCompanyShareToDelete] = useState<any | null>(null);
   const [isDeletingCompanyShare, setIsDeletingCompanyShare] = useState(false);
+  const [isAddPersonFromShareholdingModalOpen, setIsAddPersonFromShareholdingModalOpen] = useState(false);
   const { toast } = useToast();
 
   const apiCompany = null;
@@ -177,8 +180,9 @@ export const PersonList: React.FC<PersonListProps> = ({
     }
   }, [isAddCompanyDropdownOpen, clientId]);
 
-  const handleDeleteClick = (person: Person) => {
+  const handleDeleteClick = (person: Person, isRepresentative: boolean = false) => {
     setPersonToDelete(person);
+    setIsDeletingRepresentative(isRepresentative);
     setIsDeleteDialogOpen(true);
   };
 
@@ -190,25 +194,54 @@ export const PersonList: React.FC<PersonListProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personToDelete._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
+      // Check if person is a representative (has companyName or is only in representationalSchema)
+      const isRepresentative = isDeletingRepresentative || 
+        (personToDelete as any).companyName || 
+        (sortedRepresentatives.some((rep: any) => rep._id === personToDelete._id) && 
+         !personShareholders.some((sh: any) => sh._id === personToDelete._id));
 
-      if (!response.ok) throw new Error("Failed to delete person");
+      let response;
+      if (isRepresentative) {
+        // Remove only from representationalSchema (not delete person)
+        response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/representative/${personToDelete._id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          }
+        );
 
-      toast({
-        title: "Success",
-        description: "Person deleted successfully",
-      });
+        if (!response.ok) throw new Error("Failed to remove representative");
+
+        toast({
+          title: "Success",
+          description: "Representative removed successfully",
+        });
+      } else {
+        // Delete person completely (from Shareholders tab)
+        response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personToDelete._id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          }
+        );
+
+        if (!response.ok) throw new Error("Failed to delete person");
+
+        toast({
+          title: "Success",
+          description: "Person deleted successfully",
+        });
+      }
 
       setIsDeleteDialogOpen(false);
       setPersonToDelete(null);
+      setIsDeletingRepresentative(false);
       fetchPersons();
       try {
         const next = persons.filter((p) => p._id !== personToDelete._id);
@@ -221,7 +254,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       console.error("Error deleting person:", error);
       toast({
         title: "Error",
-        description: "Failed to delete person",
+        description: error instanceof Error ? error.message : "Failed to delete person",
         variant: "destructive",
       });
     } finally {
@@ -630,6 +663,38 @@ export const PersonList: React.FC<PersonListProps> = ({
     }, 0),
   };
 
+  // Get shareholders from company.shareHolders array directly (not from persons array)
+  // Sort by totalShares (biggest first)
+  const personShareholders = (company?.shareHolders || [])
+    .map((shareHolder: any) => {
+      const personData = shareHolder.personId || {};
+      const sharesData = shareHolder.sharesData || {};
+      return {
+        ...personData,
+        sharePercentage: sharesData.percentage || 0,
+        totalShares: sharesData.totalShares || 0,
+        shareClass: sharesData.class,
+      };
+    })
+    .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
+
+  // ✅ MUST BE RIGHT AFTER personShareholders
+  const highestSharePerson = personShareholders?.[0] ?? null;
+
+  // Get person shareholder IDs for sorting representatives
+  const personShareholderIds = new Set(
+    personShareholders.map((sh: any) => sh._id || sh.id).filter(Boolean)
+  );
+
+  const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
+    if (!highestSharePerson) return { isUBO: false };
+    const isUltimateBeneficialOwner = highestSharePerson._id === person._id;
+    return {
+      isUBO: isUltimateBeneficialOwner,
+      companyName: isUltimateBeneficialOwner ? company?.name : undefined,
+    };
+  };
+
   // Get representatives from company.representationalSchema directly
   // Representatives are persons with roles EXCEPT those who ONLY have "Shareholder" role
   // role is now an array of strings in the schema
@@ -638,9 +703,14 @@ export const PersonList: React.FC<PersonListProps> = ({
       const personData = rep.personId || {};
       // role is already an array of strings
       const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+      // Get companyId if person is from a shareholding company
+      const companyIdData = rep.companyId || null;
+      const companyName = companyIdData?.name || null;
       return {
         ...personData,
         roles: roles,
+        companyId: companyIdData?._id || companyIdData || null,
+        companyName: companyName,
       };
     })
     .filter((person: any) => {
@@ -649,45 +719,32 @@ export const PersonList: React.FC<PersonListProps> = ({
       return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
     });
 
-  
-
-  // Get shareholders from company.shareHolders array directly (not from persons array)
-  // Sort by totalShares (biggest first)
-  const personShareholders = (company?.shareHolders || [])
-  .map((shareHolder: any) => {
-    const personData = shareHolder.personId || {};
-    const sharesData = shareHolder.sharesData || {};
-    return {
-      ...personData,
-      sharePercentage: sharesData.percentage || 0,
-      totalShares: sharesData.totalShares || 0,
-      shareClass: sharesData.class,
-    };
-  })
-  .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
-
-// ✅ MUST BE RIGHT AFTER personShareholders
-const highestSharePerson = personShareholders?.[0] ?? null;
-
-const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
-  if (!highestSharePerson) return { isUBO: false };
-  const isUltimateBeneficialOwner = highestSharePerson._id === person._id;
-  return {
-    isUBO: isUltimateBeneficialOwner,
-    companyName: isUltimateBeneficialOwner ? company?.name : undefined,
-  };
-};
-  
-  // Ensure highestSharePerson (UBO) appears first in representatives list
+  // Sort representatives: person shareholders first, then people from shareholding companies
+  // Within each group, maintain UBO priority (UBO appears first)
   const sortedRepresentatives = [...representatives].sort((a: any, b: any) => {
-    if (!highestSharePerson) return 0;
-    const highestId = highestSharePerson._id || highestSharePerson.id;
-    const aId = a._id || a.id;
-    const bId = b._id || b.id;
-    const aIsHighest = aId === highestId;
-    const bIsHighest = bId === highestId;
-    if (aIsHighest === bIsHighest) return 0;
-    return aIsHighest ? -1 : 1;
+    // UBO always comes first
+    if (highestSharePerson) {
+      const highestId = highestSharePerson._id || highestSharePerson.id;
+      const aId = a._id || a.id;
+      const bId = b._id || b.id;
+      const aIsHighest = aId === highestId;
+      const bIsHighest = bId === highestId;
+      if (aIsHighest && !bIsHighest) return -1;
+      if (!aIsHighest && bIsHighest) return 1;
+    }
+
+    // Check if person is a person shareholder (exists in personShareholders)
+    const aIsPersonShareholder = personShareholderIds.has(a._id || a.id);
+    const bIsPersonShareholder = personShareholderIds.has(b._id || b.id);
+
+    // Person shareholders come before people from shareholding companies
+    if (aIsPersonShareholder && !bIsPersonShareholder) return -1;
+    if (!aIsPersonShareholder && bIsPersonShareholder) return 1;
+
+    // Within same group, maintain alphabetical order by name
+    const nameA = (a.name || "").toLowerCase();
+    const nameB = (b.name || "").toLowerCase();
+    return nameA.localeCompare(nameB);
   });
 
 
@@ -714,8 +771,12 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
       const sharePercentage = share?.sharesData?.percentage ?? share?.sharePercentage;
       const totalShares = share?.sharesData?.totalShares ?? 0;
       const companyName = share.companyId?.name || share.companyId || "Unknown Company";
+      // Handle companyId - check if it's an object and not null before accessing _id
+      const companyId = share.companyId && typeof share.companyId === 'object' && share.companyId !== null
+        ? share.companyId._id
+        : share.companyId;
       return {
-        companyId: typeof share.companyId === 'object' ? share.companyId._id : share.companyId,
+        companyId: companyId,
         companyName,
         sharePercentage,
         totalShares,
@@ -723,6 +784,7 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
         registrationNumber: share.companyId?.registrationNumber,
       };
     })
+    .filter((share: any) => share.companyId !== null && share.companyId !== undefined) // Filter out invalid entries
     .sort((a, b) => (b.totalShares || 0) - (a.totalShares || 0));
 
   return (
@@ -750,6 +812,17 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
               <Plus className="h-4 w-4 mr-2" />
               Add Person
             </Button>
+            {shareholdingCompanies.length > 0 && (
+              <Button
+                onClick={() => setIsAddPersonFromShareholdingModalOpen(true)}
+                size="sm"
+                variant="outline"
+                className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Add Person from Shareholding Companies
+              </Button>
+            )}
                       <Popover 
             open={isAddCompanyDropdownOpen} 
             onOpenChange={(open) => {
@@ -937,9 +1010,23 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-3">
-                              <h4 className="text-lg font-semibold capitalize">
-                                {person.name}
-                              </h4>
+                              <div className="flex items-center gap-1">
+                                  <h4 className="text-lg font-semibold capitalize">
+                                  {person.name}
+                                  </h4>
+
+                                  {person.companyName && (
+                                  <div className="flex items-center gap-1 text-gray-600">
+                                  <span className="text-sm italic font-medium">(from)</span>
+                                  <Badge
+                                  variant="outline"
+                                  className="rounded-xl px-3 py-1 text-xs font-semibold bg-brand-hover text-white border-brand-hover"
+                                  >
+                                  {person.companyName}
+                                  </Badge>
+                                  </div>
+                                  )}
+                              </div>
                               {uboInfo.isUBO && (
                                 <Badge
                                   variant="outline"
@@ -1000,7 +1087,7 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteClick(person)}
+                              onClick={() => handleDeleteClick(person, true)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1098,7 +1185,7 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteClick(person)}
+                              onClick={() => handleDeleteClick(person, false)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1250,6 +1337,7 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
         onClose={() => {
           setIsDeleteDialogOpen(false);
           setPersonToDelete(null);
+          setIsDeletingRepresentative(false);
         }}
         onConfirm={handleDeleteConfirm}
         personName={personToDelete?.name || ""}
@@ -1483,6 +1571,23 @@ const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Person from Shareholding Companies Modal */}
+      <AddPersonFromShareholdingModal
+        isOpen={isAddPersonFromShareholdingModalOpen}
+        onClose={() => setIsAddPersonFromShareholdingModalOpen(false)}
+        onSuccess={() => {
+          setIsAddPersonFromShareholdingModalOpen(false);
+          fetchPersons();
+          onUpdate();
+        }}
+        clientId={clientId}
+        companyId={companyId}
+        shareholdingCompanies={shareholdingCompanies.map((share) => ({
+          companyId: share.companyId,
+          companyName: share.companyName,
+        }))}
+      />
     </>
   );
 };
