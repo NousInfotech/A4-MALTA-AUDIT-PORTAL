@@ -23,12 +23,15 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (user.status !== 'approved') {
+  // Super admins bypass status checks
+  if (user.role !== 'super-admin' && user.status !== 'approved') {
     return <Navigate to="/pending-approval" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={`/${user.role}`} replace />;
+    // Handle super-admin redirect
+    const redirectPath = user.role === 'super-admin' ? '/super-admin/dashboard' : `/${user.role}`;
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <>{children}</>;

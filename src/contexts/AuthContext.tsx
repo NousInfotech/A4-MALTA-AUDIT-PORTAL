@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-export type UserRole = 'admin' | 'employee' | 'client';
+export type UserRole = 'admin' | 'employee' | 'client' | 'super-admin';
 
 export interface User {
   id: string;
@@ -13,6 +13,7 @@ export interface User {
   role: UserRole;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+  organizationId?: string | null;
   companyName?: string; // for clients
   companyNumber?: string; // for clients
   industry?: string; // for clients
@@ -26,7 +27,8 @@ interface AuthContextType {
   logout: () => void;
   signup: (userData: Partial<User> & { password: string }) => Promise<boolean>;
   isLoading: boolean;
-  refreshUser: () => Promise<void>; // Added refreshUser to the context type
+  refreshUser: () => Promise<void>;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: profile.role as UserRole,
         status: profile.status as 'pending' | 'approved' | 'rejected',
         createdAt: profile.created_at,
+        organizationId: profile.organization_id ?? undefined,
         companyName: profile.company_name ?? undefined,
         companyNumber: profile.company_number ?? undefined,
         industry: profile.industry ?? undefined,
@@ -187,8 +190,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, [fetchUserProfile]); // Depends on fetchUserProfile
 
+  // Helper to check if current user is super admin
+  const isSuperAdmin = user?.role === 'super-admin';
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, isLoading, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, isLoading, refreshUser, isSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );
