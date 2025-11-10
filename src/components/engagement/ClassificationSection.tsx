@@ -2533,7 +2533,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         }),
 
-        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+        { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
 
       ),
 
@@ -4701,9 +4701,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         currentYear: acc.currentYear + (Number(row.currentYear) || 0),
         priorYear: acc.priorYear + (Number(row.priorYear) || 0),
         adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+        reclassification: acc.reclassification + (Number(row.reclassification) || 0),
         finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
       }),
-      { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+      { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
     );
   }
 
@@ -7175,7 +7176,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Code</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Account Name</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[12rem] max-w-[12rem] text-xs sm:text-sm">Account Name</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
 
@@ -7201,7 +7202,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
 
-                    <td className="px-4 py-2 border-b border-secondary border-r">{row.accountName}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r text-right">
 
@@ -7228,7 +7229,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r">
-                      {row.reclassification}
+                      {(Number(row.reclassification) || 0).toLocaleString()}
                     </td>
 
                     <td className="border-b border-secondary">
@@ -7330,11 +7331,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 adjustments: acc.adjustments + (Number(r.adjustments) || 0),
 
+                reclassification: acc.reclassification + (Number(r.reclassification) || 0),
+
                 finalBalance: acc.finalBalance + (Number(r.finalBalance) || 0),
 
               }),
 
-              { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+              { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
 
             );
 
@@ -7358,7 +7361,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Code</th>
 
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Account Name</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
 
@@ -7387,7 +7390,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
-                          <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                          <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
 
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
@@ -7408,7 +7411,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </td>
 
                           <td className="px-4 py-2 border-secondary border-b border-r">
-                            {row.reclassification.toLocaleString()}
+                            {(Number(row.reclassification) || 0).toLocaleString()}
                           </td>
 
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
@@ -7450,7 +7453,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </td>
                         <td className="px-4 py-2 border-r border-secondary text-left">
 
-                          {subtotal.reclassification.toLocaleString()}
+                          {(Number(subtotal.reclassification) || 0).toLocaleString()}
 
                         </td>
 
@@ -7700,7 +7703,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </th>
                       )}
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
@@ -7733,7 +7736,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </td>
                         )}
                         <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
@@ -7758,7 +7761,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
                           /> */}
-                          {row.reclassification.toLocaleString()}
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
@@ -7841,7 +7844,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </div>
                       </th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
@@ -7872,7 +7875,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </div>
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
@@ -7897,7 +7900,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
                           /> */}
-                          {row.reclassification.toLocaleString()}
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
