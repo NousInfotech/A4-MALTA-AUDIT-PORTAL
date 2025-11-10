@@ -879,25 +879,66 @@ export const PersonList: React.FC<PersonListProps> = ({
     }, 0),
   };
 
-  // Get shareholders from company.shareHolders array directly (not from persons array)
-  // Sort by totalShares (biggest first)
-  const personShareholders = (company?.shareHolders || [])
-    .map((shareHolder: any) => {
-      const personData = shareHolder.personId || {};
-      const sharesData = shareHolder.sharesData || {};
-      return {
-        ...personData,
-        sharePercentage: sharesData.percentage || 0,
-        totalShares: sharesData.totalShares || 0,
-        shareClass: sharesData.class,
-        origin: "PersonShareholder",
-        isShareholder: true,
-      };
-    })
-    .sort((a, b) => (b.sharePercentage ?? 0) - (a.sharePercentage ?? 0));
+  const getNormalizedShareClass = (shareClass: unknown) => {
+    if (typeof shareClass !== "string") return "";
+    return shareClass.trim().toUpperCase();
+  };
 
-  // ✅ MUST BE RIGHT AFTER personShareholders
-  const highestSharePerson = personShareholders?.[0] ?? null;
+  const getShareClassPriority = (shareClass: unknown) => {
+    const normalized = getNormalizedShareClass(shareClass);
+    if (normalized === "CLASS A" || normalized === "A") return 0;
+    if (!normalized || normalized === "CLASS GENERAL" || normalized === "GENERAL") return 3;
+    if (normalized === "CLASS B" || normalized === "B") return 2;
+    return 1;
+  };
+
+  const getNumericPercentage = (value: unknown) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const compareShareholderEntries = (
+    a: { shareClass?: string; sharePercentage?: number; name?: string; companyName?: string },
+    b: { shareClass?: string; sharePercentage?: number; name?: string; companyName?: string }
+  ) => {
+    const shareDiff =
+      getNumericPercentage(b.sharePercentage) - getNumericPercentage(a.sharePercentage);
+    if (shareDiff !== 0) return shareDiff;
+    const classDiff = getShareClassPriority(a.shareClass) - getShareClassPriority(b.shareClass);
+    if (classDiff !== 0) return classDiff;
+    const nameA = (a.name || a.companyName || "").toLowerCase();
+    const nameB = (b.name || b.companyName || "").toLowerCase();
+    return nameA.localeCompare(nameB);
+  };
+
+  const rawPersonShareholders = useMemo(
+    () =>
+      (company?.shareHolders || []).map((shareHolder: any) => {
+        const personData = shareHolder.personId || {};
+        const sharesData = shareHolder.sharesData || {};
+        return {
+          ...personData,
+          sharePercentage: getNumericPercentage(sharesData.percentage),
+          totalShares: getNumericPercentage(sharesData.totalShares),
+          shareClass: sharesData.class,
+          origin: "PersonShareholder",
+          isShareholder: true,
+        };
+      }),
+    [company?.shareHolders]
+  );
+
+  const highestSharePerson = useMemo(() => {
+    return rawPersonShareholders.reduce((best: any | null, current: any) => {
+      if (!best) return current;
+      return (current?.sharePercentage ?? 0) > (best?.sharePercentage ?? 0) ? current : best;
+    }, null);
+  }, [rawPersonShareholders]);
+
+  const personShareholders = useMemo(
+    () => [...rawPersonShareholders].sort(compareShareholderEntries),
+    [rawPersonShareholders]
+  );
 
   // Get person shareholder IDs for sorting representatives
   const personShareholderIds = new Set(
@@ -1001,6 +1042,70 @@ export const PersonList: React.FC<PersonListProps> = ({
  
  
 
+  // Get shareholding companies data with proper structure
+  // Sort by share class priority, then share percentage (desc), then name
+  const shareholdingCompanies = useMemo(
+    () =>
+      (company?.shareHoldingCompanies || [])
+        .map((share: any) => {
+          const sharePercentage = getNumericPercentage(
+            share?.sharesData?.percentage ?? share?.sharePercentage
+          );
+          const totalShares = getNumericPercentage(share?.sharesData?.totalShares);
+          const companyName = share.companyId?.name || share.companyId || "Unknown Company";
+          // Handle companyId - check if it's an object and not null before accessing _id
+          const companyId =
+            share.companyId && typeof share.companyId === "object" && share.companyId !== null
+              ? share.companyId._id
+              : share.companyId;
+          const shareClass = share?.sharesData?.class;
+          return {
+            companyId,
+            companyName,
+            sharePercentage,
+            totalShares,
+            shareClass,
+            registrationNumber: share.companyId?.registrationNumber,
+          };
+        })
+        .filter((share: any) => share.companyId !== null && share.companyId !== undefined) // Filter out invalid entries
+        .sort((a, b) => {
+          const primaryDiff = compareShareholderEntries(a, b);
+          if (primaryDiff !== 0) return primaryDiff;
+          return b.totalShares - a.totalShares;
+        }),
+    [company?.shareHoldingCompanies]
+  );
+
+  const combinedShareholders = useMemo(
+    () =>
+      [
+        ...personShareholders.map((person: any) => ({
+          type: "person" as const,
+          displayName: person.name ?? "Unknown",
+          shareClass: person.shareClass,
+          sharePercentage: getNumericPercentage(person.sharePercentage),
+          totalShares: getNumericPercentage(person.totalShares),
+          payload: person,
+        })),
+        ...shareholdingCompanies.map((companyShare: any) => ({
+          type: "company" as const,
+          displayName: companyShare.companyName ?? "Unknown Company",
+          shareClass: companyShare.shareClass,
+          sharePercentage: getNumericPercentage(companyShare.sharePercentage),
+          totalShares: getNumericPercentage(companyShare.totalShares),
+          payload: companyShare,
+        })),
+      ].sort((a, b) => {
+        const shareDiff = b.sharePercentage - a.sharePercentage;
+        if (shareDiff !== 0) return shareDiff;
+        const classDiff = getShareClassPriority(a.shareClass) - getShareClassPriority(b.shareClass);
+        if (classDiff !== 0) return classDiff;
+        return a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase());
+      }),
+    [personShareholders, shareholdingCompanies]
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1008,29 +1113,6 @@ export const PersonList: React.FC<PersonListProps> = ({
       </div>
     );
   }
-
-  // Get shareholding companies data with proper structure
-  // Sort by totalShares (biggest first)
-  const shareholdingCompanies = (company?.shareHoldingCompanies || [])
-    .map((share: any) => {
-      const sharePercentage = share?.sharesData?.percentage ?? share?.sharePercentage;
-      const totalShares = share?.sharesData?.totalShares ?? 0;
-      const companyName = share.companyId?.name || share.companyId || "Unknown Company";
-      // Handle companyId - check if it's an object and not null before accessing _id
-      const companyId = share.companyId && typeof share.companyId === 'object' && share.companyId !== null
-        ? share.companyId._id
-        : share.companyId;
-      return {
-        companyId: companyId,
-        companyName,
-        sharePercentage,
-        totalShares,
-        shareClass: share?.sharesData?.class,
-        registrationNumber: share.companyId?.registrationNumber,
-      };
-    })
-    .filter((share: any) => share.companyId !== null && share.companyId !== undefined) // Filter out invalid entries
-    .sort((a, b) => (b.totalShares || 0) - (a.totalShares || 0));
 
   return (
     <>
@@ -1236,8 +1318,8 @@ export const PersonList: React.FC<PersonListProps> = ({
           </TabsList>
 
           {/* Representatives Tab */}
-          <TabsContent value="representatives" className="space-y-4 mt-6">
-            {sortedRepresentatives.length > 0 ? (
+          <TabsContent value="representatives" className="space-y-4 mt-6 h-80 overflow-y-auto">
+             {sortedRepresentatives.length > 0 ? (
               <div className="space-y-4">
                 {sortedRepresentatives.map((person) => {
                   const uboInfo = isUBO(person);
@@ -1381,10 +1463,10 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </Button>
               </div>
             )}
-          </TabsContent>
+           </TabsContent>
 
           {/* Shareholders Tab */}
-          <TabsContent value="shareholders" className="space-y-4 mt-6">
+          <TabsContent value="shareholders" className="space-y-4 mt-6 h-80 overflow-y-auto">
             <div className="mb-4">
               <h4 className="text-md font-semibold text-gray-900">Shareholders</h4>
               <p className="text-sm text-gray-600">
@@ -1392,61 +1474,124 @@ export const PersonList: React.FC<PersonListProps> = ({
               </p>
             </div>
               
-            {/* Person Shareholders */}
-            {personShareholders.length > 0 && (
+            {combinedShareholders.length > 0 ? (
               <div className="space-y-4">
-                {personShareholders.map((person: any) => {
-                  const totalShares = person.totalShares || 0;
-                  const sharePercentage = person.sharePercentage || 0;
-                  const shareClass = person.shareClass || "General";
+                {combinedShareholders.map((entry, index) => {
+                  if (entry.type === "person") {
+                    const person = entry.payload;
+                    const totalShares = entry.totalShares;
+                    const sharePercentage = entry.sharePercentage;
+                    const shareClass = entry.shareClass || "General";
+                    return (
+                      <Card
+                        key={person._id || person.id || `person-shareholder-${index}`}
+                        className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-3">
+                                <h4 className="text-lg font-semibold text-gray-900 capitalize">
+                                  {person.name}
+                                </h4>
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                                >
+                                  {shareClass}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                                >
+                                  {totalShares.toLocaleString()} shares ({sharePercentage}%)
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                {person.address && (
+                                  <div className="flex items-start gap-2 text-sm text-gray-600">
+                                    <span className="text-xs">{person.address}</span>
+                                  </div>
+                                )}
+                                {person.nationality && (
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Globe className="h-4 w-4" />
+                                    <span>{person.nationality}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditPerson(person)}
+                                className="rounded-xl hover:bg-gray-100"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(person, false)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
+                  const share = entry.payload;
                   return (
                     <Card
-                      key={person._id || person.id}
+                      key={share.companyId || `company-shareholder-${index}`}
                       className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
                     >
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => handleNavigateToCompany(share.companyId)}
+                          >
                             <div className="flex items-center gap-3 mb-3">
-                              <h4 className="text-lg font-semibold text-gray-900 capitalize">
-                                {person.name}
+                              <Building2 className="h-5 w-5 text-gray-600" />
+                              <h4 className="text-lg font-semibold text-gray-900 hover:text-brand-hover transition-colors">
+                                {share.companyName}
                               </h4>
+                              {share.shareClass && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                                >
+                                  {share.shareClass}
+                                </Badge>
+                              )}
                               <Badge
                                 variant="outline"
-                                className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                                className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
                               >
-                                {shareClass}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                              >
-                                {totalShares.toLocaleString()} shares ({sharePercentage}%)
+                                {share.totalShares.toLocaleString()} shares ({share.sharePercentage}
+                                %)
                               </Badge>
                             </div>
-                        
-                            {/* Address and Nationality */}
-                            <div className="space-y-2">
-                              {person.address && (
-                                <div className="flex items-start gap-2 text-sm text-gray-600">
-
-                                  <span className="text-xs">{person.address}</span>
-                                </div>
-                              )}
-                              {person.nationality && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <Globe className="h-4 w-4" />
-                                  <span>{person.nationality}</span>
-                                </div>
-                              )}
-                            </div>
+                            {share.registrationNumber && (
+                              <div className="text-sm text-gray-600">
+                                Registration: {share.registrationNumber}
+                              </div>
+                            )}
                           </div>
-
                           <div className="flex gap-2 ml-4">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleEditPerson(person)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditCompanyShare(share);
+                              }}
                               className="rounded-xl hover:bg-gray-100"
                             >
                               <Edit className="h-4 w-4" />
@@ -1454,7 +1599,10 @@ export const PersonList: React.FC<PersonListProps> = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteClick(person, false)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCompanyShareClick(share);
+                              }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1466,82 +1614,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                   );
                 })}
               </div>
-            )}
-
-
-            {/* Company Shareholders */}
-            {shareholdingCompanies.length > 0 && (
-              <div className="space-y-4">
-                {shareholdingCompanies.map((share : any, index : number) => (
-                  <Card
-                    key={`company-shareholder-${index}`}
-                    className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div 
-                          className="flex-1 cursor-pointer"
-                          onClick={() => handleNavigateToCompany(share.companyId)}
-                        >
-                          <div className="flex items-center gap-3 mb-3">
-                            <Building2 className="h-5 w-5 text-gray-600" />
-                            <h4 className="text-lg font-semibold text-gray-900 hover:text-brand-hover transition-colors">
-                              {share.companyName} 
-                            </h4>
-                            {share.shareClass && (
-                              <Badge
-                                variant="outline"
-                                className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                              >
-                                {share.shareClass}
-                              </Badge>
-                            )}
-                            <Badge
-                              variant="outline"
-                              className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                            >
-                              {share.totalShares.toLocaleString()} shares ({share.sharePercentage}%)
-                            </Badge>
-                          </div>
-                          {share.registrationNumber && (
-                            <div className="text-sm text-gray-600">
-                              Registration: {share.registrationNumber}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditCompanyShare(share);
-                            }}
-                            className="rounded-xl hover:bg-gray-100"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCompanyShareClick(share);
-                            }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {/* Empty State */}
-            {personShareholders.length === 0 && shareholdingCompanies.length === 0 && (
+            ) : (
               <div className="text-center py-12 bg-gray-50 rounded-xl">
                 <Percent className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 mb-4">No shareholders yet</p>

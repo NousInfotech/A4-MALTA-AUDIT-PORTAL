@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useCallback } from "react";
 import type { ReactNode } from "react";
 import ReactFlow, {
@@ -14,11 +16,14 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-// --- Professional Style Enhancements ---
-const levelGapX = 380;
-const levelGapY = 250;
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { Button } from "../ui/button";
+
+// GAP settings for TOP -> BOTTOM
+const levelGapY = 250; // vertical gap between levels
+const levelGapX = 380; // horizontal spacing
 const nodeWidth = 300;
-const nodeHeight = 150;
 
 interface HierarchyTreeNode {
   id: string;
@@ -41,9 +46,45 @@ interface HierarchyNodeData {
 }
 
 export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState<HierarchyNodeData>([]);
+  const [nodes, setNodes, onNodesChange] =
+    useNodesState<HierarchyNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
 
+  /* ------------------------
+        ✅ Export to PDF
+  -------------------------*/
+  const exportToPDF = async () => {
+    const el = document.getElementById("hierarchy-wrapper");
+    if (!el) return;
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("l", "pt", "a4");
+
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+
+    let y = 0;
+    while (y < imgH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, -y, imgW, imgH);
+      y += pageH;
+    }
+
+    pdf.save("hierarchy.pdf");
+  };
+
+  /* ------------------------
+      ✅ Generate Nodes
+  -------------------------*/
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!rootData) return { initialNodes: [], initialEdges: [] };
 
@@ -61,25 +102,25 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
       const descendants = node.children ?? node.shareholders ?? [];
 
       const baseNodeStyle = {
-        // Gradient border with inner white card handled inside label
         background:
           "linear-gradient(135deg, #6366f1 0%, #22d3ee 50%, #10b981 100%)",
         padding: 2,
         borderRadius: 16,
         width: nodeWidth,
-        minHeight: nodeHeight,
-        boxShadow: "0 10px 20px rgba(0,0,0,0.06)",
-        transition: "transform 0.25s ease, box-shadow 0.25s ease",
+        height: "auto", // ✅ AUTO HEIGHT
+        boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
       } as const;
 
       const labelContent = (
-        <div className="relative animate-fadeIn group rounded-[14px] bg-white p-3">
-          {/* top gradient bar */}
+        <div className="relative animate-fadeIn group rounded-[14px] bg-white p-3 h-auto">
           <div className="pointer-events-none absolute inset-x-0 -top-[2px] h-1 rounded-t-[14px] bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400" />
 
-          <div className="space-y-1 transition-transform duration-300 ease-out group-hover:-translate-y-0.5 group-hover:drop-shadow-sm">
+          <div className="space-y-1">
             <div className="flex flex-col items-center gap-2">
-              <strong className="block text-sm capitalize leading-tight">{node.name}</strong>
+              <strong className="block text-sm capitalize leading-tight">
+                {node.name}
+              </strong>
+
               {(node.percentage !== undefined || node.class) && (
                 <div className="flex items-center gap-1">
                   {node.percentage !== undefined && (
@@ -95,40 +136,46 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
                 </div>
               )}
             </div>
-            {node.address && (
-              <div className="text-black">{node.address}</div>
-            )}
-               {node.totalShares !== undefined && (
+
+            {node.address && <div className="text-black">{node.address}</div>}
+
+            {node.totalShares !== undefined && (
               <div className="font-bold text-lg">
-                Total: {node.totalShares?.toLocaleString?.() ?? node.totalShares}
+                Total: {node.totalShares?.toLocaleString?.()}
               </div>
             )}
 
             <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
             <div className="flex items-center gap-1 text-[10px] font-medium">
-              <span className="inline-block h-2 w-2 rounded-full" style={{
-                background: isCompany ? "#4f46e5" : "#059669",
-              }} />
-              <span className="text-gray-600">{isCompany ? "Company" : "Person"}</span>
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{
+                  background: isCompany ? "#4f46e5" : "#059669",
+                }}
+              />
+              <span className="text-gray-600">
+                {isCompany ? "Company" : "Person"}
+              </span>
             </div>
           </div>
         </div>
       );
 
+      /* ✅ LEAF NODE */
       if (!descendants.length) {
-        const y = leafIndex * levelGapY;
+        const y = leafIndex * levelGapX;
         leafIndex += 1;
 
         nodeMap.set(nodeId, {
           id: nodeId,
           data: { label: labelContent },
-          position: { x: level * levelGapX, y },
+          position: { x: y, y: level * levelGapY }, // ✅ TOP → BOTTOM
           draggable: false,
           selectable: false,
           style: baseNodeStyle,
-          sourcePosition: Position.Right,
-          targetPosition: Position.Left,
+          sourcePosition: Position.Bottom,
+          targetPosition: Position.Top,
         });
 
         if (parentId) {
@@ -136,13 +183,13 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
             id: `${parentId}-${nodeId}`,
             source: parentId,
             target: nodeId,
-            animated: false,
             type: "smoothstep",
           });
         }
         return { top: y, bottom: y };
       }
 
+      /* ✅ NON LEAF NODE */
       let top = Infinity;
       let bottom = -Infinity;
 
@@ -152,17 +199,18 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
         bottom = Math.max(bottom, range.bottom);
       });
 
-      const centerY = top === Infinity ? leafIndex * levelGapY : (top + bottom) / 2;
+      const centerY =
+        top === Infinity ? leafIndex * levelGapX : (top + bottom) / 2;
 
       nodeMap.set(nodeId, {
         id: nodeId,
         data: { label: labelContent },
-        position: { x: level * levelGapX, y: centerY },
+        position: { x: centerY, y: level * levelGapY },
         draggable: false,
         selectable: false,
         style: baseNodeStyle,
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
+        sourcePosition: Position.Bottom,
+        targetPosition: Position.Top,
       });
 
       if (parentId) {
@@ -170,7 +218,6 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           id: `${parentId}-${nodeId}`,
           source: parentId,
           target: nodeId,
-          animated: false,
           type: "smoothstep",
         });
       }
@@ -182,18 +229,9 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
     };
 
     buildNodesAndEdges(rootData, null, 0);
+
     const generatedNodes = Array.from(nodeMap.values());
-
-    const uniqueEdges = new Map<string, Edge>();
-    generatedEdges.forEach((edge) => {
-      const key = `${edge.source}-${edge.target}`;
-      if (!uniqueEdges.has(key)) uniqueEdges.set(key, edge);
-    });
-
-    return {
-      initialNodes: generatedNodes,
-      initialEdges: Array.from(uniqueEdges.values()),
-    };
+    return { initialNodes: generatedNodes, initialEdges: generatedEdges };
   }, [rootData]);
 
   useEffect(() => {
@@ -203,33 +241,45 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
   const onConnect = useCallback(
     (params: Edge | Connection) =>
-      setEdges((eds) => addEdge({ ...params, animated: true, type: "smoothstep" }, eds)),
+      setEdges((eds) =>
+        addEdge({ ...params, type: "smoothstep", animated: true }, eds)
+      ),
     [setEdges]
   );
 
   if (!rootData) {
     return (
-      <div className="flex items-center justify-center h-64 rounded-xl border border-dashed border-gray-300 text-gray-500">
+      <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500">
         No hierarchy data available.
       </div>
     );
   }
 
   return (
-    <div style={{ width: "100%", height: "600px" }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        fitView
-        proOptions={{ hideAttribution: true }}
+    <div>
+      {/* ✅ Download Button */}
+      <Button
+        onClick={exportToPDF}
+        variant="default"
       >
-        <MiniMap pannable zoomable style={{ background: "#f8fafc" }} />
-        <Controls showInteractive={false} />
-        <Background gap={16} color="#e5e7eb" />
-      </ReactFlow>
+        Download PDF
+      </Button>
+
+      <div id="hierarchy-wrapper" style={{ width: "100%", height: "800px" }}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <MiniMap pannable zoomable style={{ background: "#f8fafc" }} />
+          <Controls showInteractive={false} />
+          <Background gap={16} color="#e5e7eb" />
+        </ReactFlow>
+      </div>
     </div>
   );
 };

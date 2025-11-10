@@ -113,6 +113,128 @@ export const CompanyDetail: React.FC = () => {
 
     return convertNode(hierarchyRoot);
   }, [hierarchyRoot]);
+  const highestShareholders = useMemo(() => {
+    if (!company) return [];
+
+    type Holder = {
+      key: string;
+      name: string;
+      type: "person" | "company";
+      percentage: number;
+    };
+
+    const resolvePersonName = (personRef: any) => {
+      if (personRef && typeof personRef === "object" && "name" in personRef) {
+        return personRef.name as string;
+      }
+      if (typeof personRef === "string" && Array.isArray(company.persons)) {
+        const match = company.persons.find((p) => p._id === personRef);
+        if (match) return match.name;
+      }
+      return "Unknown";
+    };
+
+    const resolveCompanyName = (companyRef: any) => {
+      if (companyRef && typeof companyRef === "object" && "name" in companyRef) {
+        return companyRef.name as string;
+      }
+      if (typeof companyRef === "string") {
+        const match =
+          Array.isArray(company.shareHoldingCompanies) &&
+          company.shareHoldingCompanies.find((c) => {
+            if (!c?.companyId) return false;
+            if (typeof c.companyId === "string") return c.companyId === companyRef;
+            return c.companyId?._id === companyRef;
+          });
+        if (match && typeof match.companyName === "string") {
+          return match.companyName;
+        }
+      }
+      return "Unknown Company";
+    };
+
+    const holderMap = new Map<string, Holder>();
+
+    if (Array.isArray(company.shareHolders)) {
+      company.shareHolders.forEach((share, index) => {
+        const rawPercentage = Number(share?.sharesData?.percentage ?? 0);
+        if (!Number.isFinite(rawPercentage)) return;
+
+        const isCompany = Boolean(share.companyId);
+        const idRef =
+          (isCompany
+            ? typeof share.companyId === "object"
+              ? share.companyId?._id
+              : share.companyId
+            : typeof share.personId === "object"
+            ? share.personId?._id
+            : share.personId) ?? `shareholder-${index}`;
+
+        const key = `${isCompany ? "company" : "person"}:${idRef}`;
+        const name = isCompany
+          ? resolveCompanyName(share.companyId)
+          : resolvePersonName(share.personId);
+
+        const holder: Holder = {
+          key,
+          name,
+          type: isCompany ? "company" : "person",
+          percentage: rawPercentage,
+        };
+
+        const existing = holderMap.get(key);
+        if (!existing || holder.percentage > existing.percentage) {
+          holderMap.set(key, holder);
+        }
+      });
+    }
+
+    if (Array.isArray(company.shareHoldingCompanies)) {
+      company.shareHoldingCompanies.forEach((share, index) => {
+        const rawPercentage = Number(
+          share?.sharesData?.percentage ?? share?.sharePercentage ?? 0
+        );
+        if (!Number.isFinite(rawPercentage)) return;
+
+        const companyRef =
+          typeof share.companyId === "object" && share.companyId?._id
+            ? share.companyId._id
+            : typeof share.companyId === "string"
+            ? share.companyId
+            : `shareholding-company-${index}`;
+
+        const key = `company:${companyRef}`;
+        const name =
+          resolveCompanyName(share.companyId) ??
+          (typeof share.companyName === "string" ? share.companyName : "Unknown Company");
+
+        const holder: Holder = {
+          key,
+          name,
+          type: "company",
+          percentage: rawPercentage,
+        };
+
+        const existing = holderMap.get(key);
+        if (!existing || holder.percentage > existing.percentage) {
+          holderMap.set(key, holder);
+        }
+      });
+    }
+
+    const holders = Array.from(holderMap.values()).filter((holder) =>
+      Number.isFinite(holder.percentage)
+    );
+
+    if (!holders.length) return [];
+
+    const maxPercentage = Math.max(...holders.map((holder) => holder.percentage));
+    if (!Number.isFinite(maxPercentage)) return [];
+
+    return holders.filter(
+      (holder) => Math.abs(holder.percentage - maxPercentage) < 0.0001
+    );
+  }, [company]);
   
   const activeTab = searchParams.get("tab");
   const currentTabFromQuery =
@@ -388,44 +510,31 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )} */}
 
-              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders */}
-              {Array.isArray(company.shareHolders) && company.shareHolders.length > 0 && (() => {
-                const percentages = company.shareHolders
-                  .map((s) => (s.sharesData?.percentage ?? 0))
-                  .filter((p) => typeof p === 'number');
-                const maxPercent = percentages.length ? Math.max(...percentages) : null;
-                const topHolders = maxPercent === null ? [] : company.shareHolders.filter((s) => (s.sharesData?.percentage ?? 0) === maxPercent);
-                if (!topHolders.length) return null;
-                const displayItems = topHolders.map((s, idx) => {
-                  const entity = (s.personId && typeof s.personId === 'object') ? s.personId :
-                                 (s.companyId && typeof s.companyId === 'object') ? s.companyId : null;
-                  const name = (entity && 'name' in entity) ? entity.name : 'Unknown';
-                  const type = s.companyId ? 'company' : 'person';
-                  const percentage = s.sharesData?.percentage ?? 0;
-                  return { key: `${idx}-${name}`, name, type, percentage };
-                });
-                return (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                      <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm text-blue-900 font-medium">
-                          Representative{displayItems.length > 1 ? 's' : ''} (Highest Shareholder{displayItems.length > 1 ? 's' : ''})
-                        </p>
-                        <div className="space-y-1 mt-2">
-                          {displayItems.map((rep) => (
-                            <p key={rep.key} className="text-blue-700 capitalize">
-                              {rep.name}
-                              <span className="text-xs text-blue-600 ml-1">({rep.type === 'company' ? 'Company' : 'Person'})</span>
-                              {' '}({rep.percentage}%)
-                            </p>
-                          ))}
-                        </div>
+              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
+              {highestShareholders.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-900 font-medium">
+                        Representative{highestShareholders.length > 1 ? "s" : ""} (Highest
+                        Shareholder{highestShareholders.length > 1 ? "s" : ""})
+                      </p>
+                      <div className="space-y-1 mt-2">
+                        {highestShareholders.map((rep) => (
+                          <p key={rep.key} className="text-blue-700 capitalize">
+                            {rep.name}
+                            <span className="text-xs text-blue-600 ml-1">
+                              ({rep.type === "company" ? "Company" : "Person"})
+                            </span>{" "}
+                            ({rep.percentage}%)
+                          </p>
+                        ))}
                       </div>
                     </div>
                   </div>
-                );
-              })()}
+                </div>
+              )}
 
               {/* Supporting Documents */}
               {company.supportingDocuments && company.supportingDocuments.length > 0 && (
