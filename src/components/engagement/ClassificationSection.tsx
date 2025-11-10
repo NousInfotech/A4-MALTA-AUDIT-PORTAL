@@ -7817,7 +7817,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 </div>
               )}
 
-              <div className="overflow-x-auto max-h-96">
+              <div className="overflow-x-auto max-h-96 -mr-1">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
@@ -7849,7 +7849,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7902,7 +7902,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           /> */}
                           {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                        <td className="px-4 py-2 border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
                         </td>
 
@@ -7936,7 +7936,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r-secondary border font-bold text-left">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                        <td className="px-4 py-2 border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
                         </td>
                         <td></td>
