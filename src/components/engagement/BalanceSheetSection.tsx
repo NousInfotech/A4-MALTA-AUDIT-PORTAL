@@ -9,7 +9,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Download, Scale, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Loader2, Download, Scale, ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, FileText, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useClient } from "@/hooks/useClient";
 import jsPDF from "jspdf";
@@ -199,8 +207,134 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     setExpandedSections(allCollapsed);
   };
 
+  // Helper to check if a row is Retained Earnings (defined outside calculations for reuse)
+  const isRetainedEarningsRow = (row: ETBRow): boolean => {
+    return (
+      row.grouping3 === "Retained earnings" ||
+      row.accountName?.toLowerCase().includes("retained earnings") ||
+      row.classification?.toLowerCase().includes("retained earnings")
+    );
+  };
+
   // Calculate totals
   const calculations = useMemo(() => {
+    // Use the same GROUPING_SIGNS as Income Statement (must be defined first)
+    const GROUPING_SIGNS: { [key: string]: "+" | "-" } = {
+      Revenue: "+",
+      "Cost of sales": "-",
+      "Sales and marketing expenses": "-",
+      "Administrative expenses": "-",
+      "Other operating income": "+",
+      "Investment income": "+",
+      "Investment losses": "-",
+      "Finance costs": "-",
+      "Share of profit of subsidiary": "+",
+      "PBT Expenses": "-",
+      "Income tax expense": "-",
+    };
+
+    // STEP 2: Calculate Net Profit After Tax using EXACT same logic as IncomeStatementSection.tsx
+    const calculateNetProfitAfterTax = (year: "current" | "prior"): number => {
+      // Helper function - exact copy from IncomeStatementSection.tsx
+      const getValueForGroup = (grouping3: string): number => {
+        // Filter Income Statement rows and group by group4
+        const incomeRows = etbRows.filter(
+          (row) =>
+            row.grouping1 === "Equity" &&
+            row.grouping2 === "Current Year Profits & Losses" &&
+            row.grouping3 === grouping3
+        );
+
+        // Group by group4
+        const group4Map: { [key: string]: ETBRow[] } = {};
+        incomeRows.forEach((row) => {
+          const group4 = row.grouping4 || "_direct_";
+          if (!group4Map[group4]) {
+            group4Map[group4] = [];
+          }
+          group4Map[group4].push(row);
+        });
+
+        // Sum all rows
+        const sum = Object.values(group4Map).reduce((g4Acc, rows) => {
+          const rowSum = rows.reduce((acc, row) => {
+            const value = year === "current" ? row.currentYear : row.priorYear;
+            return acc + (value || 0);
+          }, 0);
+          return g4Acc + rowSum;
+        }, 0);
+
+        // Apply sign based on GROUPING_SIGNS
+        const sign = GROUPING_SIGNS[grouping3] || "+";
+        const signedValue = sign === "+" ? sum : -sum;
+        
+        if (sum !== 0) {
+          console.log(`  ${grouping3}: rawSum=${sum}, sign=${sign}, result=${signedValue}`);
+        }
+        
+        return signedValue;
+      };
+      
+      // Net Profit Before Tax section
+      const investmentIncome = getValueForGroup("Investment income");
+      const investmentLosses = getValueForGroup("Investment losses");
+      const financeCosts = getValueForGroup("Finance costs");
+      const shareOfProfit = getValueForGroup("Share of profit of subsidiary");
+      const pbtExpenses = getValueForGroup("PBT Expenses");
+      
+      // Net Profit After Tax section
+      const incomeTax = getValueForGroup("Income tax expense");
+
+      // Calculate Net Profit After Tax (sum all components)
+      const netProfitAfterTax = 
+        investmentIncome + investmentLosses + financeCosts + shareOfProfit + 
+        pbtExpenses + incomeTax;
+
+      return netProfitAfterTax;
+    };
+
+    // Only calculate for current year
+    console.log("📊 Calculating Net Profit After Tax:");
+    const netProfitAfterTaxCurrent = calculateNetProfitAfterTax("current");
+    console.log("  Total Net Profit After Tax:", netProfitAfterTaxCurrent);
+
+    // STEP 1: Get Retained Earnings from Prior Year (from the row data)
+    const getRetainedEarningsPriorYear = (): number => {
+      let retainedEarningsPrior = 0;
+      
+      // Search directly in etbRows for Retained Earnings
+      etbRows.forEach((row) => {
+        if (
+          row.grouping1 === "Equity" &&
+          row.grouping2 === "Equity" &&
+          isRetainedEarningsRow(row)
+        ) {
+          retainedEarningsPrior = row.priorYear || 0;
+        }
+      });
+
+      return retainedEarningsPrior;
+    };
+
+    const retainedEarningsPriorYear = getRetainedEarningsPriorYear();
+    
+    // STEP 3: Calculate Current Year Retained Earnings
+    // Formula: Current Retained Earnings = Prior Retained Earnings + Net Profit After Tax
+    // Example: Prior RE = €3,000 + Net Profit = €1,000 → Current RE = €4,000
+    // Example: Prior RE = €3,000 + Net Loss = -€2,000 → Current RE = €1,000
+    const calculatedRetainedEarningsCurrent = retainedEarningsPriorYear + netProfitAfterTaxCurrent;
+
+    // Debug logging
+    console.log("🔢 Retained Earnings Calculation (Current Year Only):");
+    console.log("  Total ETB Rows:", etbRows.length);
+    console.log("  Income Statement Rows:", etbRows.filter(r => r.grouping1 === "Equity" && r.grouping2 === "Current Year Profits & Losses").length);
+    console.log("  STEP 1 - Prior Year Retained Earnings:", retainedEarningsPriorYear);
+    console.log("  STEP 2 - Current Year Net Profit After Tax:", netProfitAfterTaxCurrent);
+    console.log("  STEP 3 - Calculated Current Year Retained Earnings:", calculatedRetainedEarningsCurrent);
+    console.log("  Formula:", `${retainedEarningsPriorYear} + (${netProfitAfterTaxCurrent}) = ${calculatedRetainedEarningsCurrent}`);
+    console.log("  Status:", netProfitAfterTaxCurrent >= 0 ? "✓ PROFIT" : "✗ LOSS");
+
+    // Now define getGroup1Total with access to calculated retained earnings
     const getGroup1Total = (
       group1: string,
       year: "current" | "prior"
@@ -219,7 +353,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
             const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
               const rowSum = rows.reduce((rowAcc, row) => {
-                const value = year === "current" ? row.currentYear : row.priorYear;
+                // Special case: Use calculated value for Retained Earnings current year
+                let value: number;
+                if (year === "current" && isRetainedEarningsRow(row)) {
+                  value = calculatedRetainedEarningsCurrent;
+                } else {
+                  value = year === "current" ? row.currentYear : row.priorYear;
+                }
                 return rowAcc + (value || 0);
               }, 0);
               return g4Acc + rowSum;
@@ -240,7 +380,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       return Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
         const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
           const rowSum = rows.reduce((rowAcc, row) => {
-            const value = year === "current" ? row.currentYear : row.priorYear;
+            // Special case for Retained Earnings current year
+            let value: number;
+            if (year === "current" && isRetainedEarningsRow(row)) {
+              value = calculatedRetainedEarningsCurrent;
+            } else {
+              value = year === "current" ? row.currentYear : row.priorYear;
+            }
             return rowAcc + (value || 0);
           }, 0);
           return g4Acc + rowSum;
@@ -259,7 +405,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
 
       return Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((rowAcc, row) => {
-          const value = year === "current" ? row.currentYear : row.priorYear;
+          // Special case for Retained Earnings current year
+          let value: number;
+          if (year === "current" && isRetainedEarningsRow(row)) {
+            value = calculatedRetainedEarningsCurrent;
+          } else {
+            value = year === "current" ? row.currentYear : row.priorYear;
+          }
           return rowAcc + (value || 0);
         }, 0);
         return g4Acc + rowSum;
@@ -276,7 +428,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3] || !groupedData[group1][group2][group3][group4]) return 0;
 
       return groupedData[group1][group2][group3][group4].reduce((acc, row) => {
-        const value = year === "current" ? row.currentYear : row.priorYear;
+        // Special case for Retained Earnings current year
+        let value: number;
+        if (year === "current" && isRetainedEarningsRow(row)) {
+          value = calculatedRetainedEarningsCurrent;
+        } else {
+          value = year === "current" ? row.currentYear : row.priorYear;
+        }
         return acc + (value || 0);
       }, 0);
     };
@@ -307,8 +465,11 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       equityPrior,
       balanceCurrent,
       balancePrior,
+      netProfitAfterTaxCurrent,
+      retainedEarningsPriorYear,
+      calculatedRetainedEarningsCurrent,
     };
-  }, [groupedData]);
+  }, [groupedData, etbRows]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -316,6 +477,14 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  };
+
+  // Helper to get the display value for a row (handles Retained Earnings calculation)
+  const getRowCurrentYearValue = (row: ETBRow): number => {
+    if (isRetainedEarningsRow(row)) {
+      return calculations.calculatedRetainedEarningsCurrent;
+    }
+    return row.currentYear || 0;
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
@@ -437,10 +606,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                 if (includeDetailRows) {
                   const indent = hasGroup3 && hasGroup4 ? "      " : hasGroup3 || hasGroup4 ? "    " : "  ";
                   rows.forEach((row) => {
+                    // Use calculated value for Retained Earnings current year
+                    const currentYearValue = isRetainedEarningsRow(row) 
+                      ? calculatedRetainedEarningsCurrent 
+                      : (row.currentYear || 0);
+                    
                     tableData.push([
                       `${indent}${row.accountName}`,
                       row.code || "",
-                      formatCurrency(row.currentYear || 0),
+                      formatCurrency(currentYearValue),
                       formatCurrency(row.priorYear || 0),
                     ]);
                   });
@@ -823,7 +997,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.currentYear || 0)}
+                                                {formatCurrency(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
                                                 {formatCurrency(row.priorYear || 0)}
@@ -1034,7 +1208,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.currentYear || 0)}
+                                                {formatCurrency(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
                                                 {formatCurrency(row.priorYear || 0)}
@@ -1246,7 +1420,53 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.currentYear || 0)}
+                                                <div className="flex items-center justify-end gap-1">
+                                                  {formatCurrency(getRowCurrentYearValue(row))}
+                                                  {isRetainedEarningsRow(row) && (
+                                                    <Dialog>
+                                                      <DialogTrigger asChild>
+                                                        <button 
+                                                          className="text-blue-600 hover:text-blue-800"
+                                                          onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                          <Info className="h-3 w-3" />
+                                                        </button>
+                                                      </DialogTrigger>
+                                                      <DialogContent className="max-w-md">
+                                                        <DialogHeader>
+                                                          <DialogTitle>Retained Earnings Calculation</DialogTitle>
+                                                          <DialogDescription>
+                                                            Auto-calculated for {currentYearLabel}
+                                                          </DialogDescription>
+                                                        </DialogHeader>
+                                                        <div className="space-y-3">
+                                                          <div className="flex justify-between items-center py-2 border-b">
+                                                            <span className="text-sm">Prior Year ({priorYearLabel}) Retained Earnings:</span>
+                                                            <strong className="text-sm">{formatCurrency(calculations.retainedEarningsPriorYear)}</strong>
+                                                          </div>
+                                                          <div className="flex justify-between items-center py-2 border-b">
+                                                            <span className="text-sm">Current Year Net Result:</span>
+                                                            <div className="text-right">
+                                                              <strong className={`text-sm ${calculations.netProfitAfterTaxCurrent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {calculations.netProfitAfterTaxCurrent >= 0 ? '✓ Profit' : '✗ Loss'}
+                                                              </strong>
+                                                              <div className="text-sm font-semibold">
+                                                                {formatCurrency(calculations.netProfitAfterTaxCurrent)}
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                          <div className="flex justify-between items-center py-3 bg-blue-50 rounded px-3">
+                                                            <span className="font-semibold">Calculated {currentYearLabel} Retained Earnings:</span>
+                                                            <strong className="text-lg">{formatCurrency(calculations.calculatedRetainedEarningsCurrent)}</strong>
+                                                          </div>
+                                                          <div className="text-xs text-gray-600 italic mt-2 p-2 bg-gray-50 rounded">
+                                                            <strong>Formula:</strong> {formatCurrency(calculations.retainedEarningsPriorYear)} + ({formatCurrency(calculations.netProfitAfterTaxCurrent)}) = {formatCurrency(calculations.calculatedRetainedEarningsCurrent)}
+                                                          </div>
+                                                        </div>
+                                                      </DialogContent>
+                                                    </Dialog>
+                                                  )}
+                                                </div>
                                               </td>
                                               <td className="p-2 text-right text-xs">
                                                 {formatCurrency(row.priorYear || 0)}
