@@ -111,6 +111,7 @@ interface ETBRow {
   visibleLevels?: number; // Track how many classification levels are visible (1-4)
   adjustmentRefs?: string[]; // References to adjustments affecting this row
   reclassificationRefs?: string[];
+  isNewAccount?: boolean; // Flag to indicate this account code didn't exist in previous year
 }
 
 interface ExtendedTrialBalanceProps {
@@ -584,9 +585,6 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   onClassificationJump,
 }) => {
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL, BEFORE ANY CONDITIONALS
-  useEffect(() => {
-    console.log("CUREENT-Engagement", engagement);
-  }, [engagement]);
 
   const [isPushingToCloud, setIsPushingToCloud] = useState(false);
   const [etbRows, setEtbRows] = useState<ETBRow[]>([]);
@@ -618,6 +616,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [selectedRowForReclassifications, setSelectedRowForReclassifications] = useState<ETBRow | null>(null);
   const [reclassificationsForRow, setReclassificationsForRow] = useState<any[]>([]);
   const [loadingReclassifications, setLoadingReclassifications] = useState(false);
+  
+  // State for prior year population
+  const [isPopulatingPriorYear, setIsPopulatingPriorYear] = useState(false);
 
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
@@ -794,10 +795,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
   }, [pushingToCloud]); // Watch pushingToCloud state - restore if ref is true but state is false
 
-  // init rows once
-  useEffect(() => {
-    if (trialBalanceData && etbRows.length === 0) initializeETB();
-  }, [trialBalanceData, etbRows.length]);
+  // Track if we've initialized for this trial balance data
+  const tbDataRef = useRef<any>(null);
 
   const autoClassify = useCallback((accountName: string): string => {
     const name = (accountName || "").toLowerCase();
@@ -827,6 +826,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       if (etbResponse.ok) {
         const existingETB = await etbResponse.json();
+        
         if (existingETB.rows && existingETB.rows.length > 0) {
           const rowsWithIds = withClientIds(existingETB.rows).map((row: ETBRow) => {
             // Calculate visibleLevels if not present
@@ -837,6 +837,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             }
             return row;
           });
+          
+          // DEBUG: Log new accounts detection
+          const newAccounts = rowsWithIds.filter((row: ETBRow) => row.isNewAccount === true);
+          console.log('[ETB] Total rows loaded:', rowsWithIds.length);
+          console.log('[ETB] New accounts detected:', newAccounts.length);
+          if (newAccounts.length > 0) {
+            console.log('[ETB] New account codes:', newAccounts.map((r: ETBRow) => r.code));
+          }
+          
           setEtbRows(rowsWithIds);
           refreshClassificationSummary(rowsWithIds);
           // only seed from props if we don't already have one (effect above also handles this)
@@ -854,6 +863,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (!trialBalanceData?.data) return;
 
       const [headers, ...rows] = trialBalanceData.data;
+      
       const codeIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("code")
       );
@@ -948,6 +958,50 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       refreshClassificationSummary(etbData);
 
       // Auto-save the newly initialized ETB data to database (only if rows exist)
+      // IMPORTANT: Check if backend ETB already exists first to avoid overwriting
+      const checkResponse = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        }
+      );
+      
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        if (checkData.rows && checkData.rows.length > 0) {
+          // Don't save - backend ETB takes precedence
+          // Instead, refetch from backend to get the correct data
+          const refetchResponse = await fetch(
+            `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
+            }
+          );
+          if (refetchResponse.ok) {
+            const refetchedETB = await refetchResponse.json();
+            if (refetchedETB.rows && refetchedETB.rows.length > 0) {
+              const rowsWithIds = withClientIds(refetchedETB.rows).map((row: ETBRow) => {
+                if (row.visibleLevels === undefined || row.visibleLevels === null) {
+                  const parts = (row.classification || "").split(" > ").filter(Boolean);
+                  return { ...row, visibleLevels: parts.length > 0 ? parts.length : 1 };
+                }
+                return row;
+              });
+              setEtbRows(rowsWithIds);
+              refreshClassificationSummary(rowsWithIds);
+            }
+          }
+          return;
+        }
+      }
+      
+      // Backend ETB doesn't exist - safe to save
       if (etbData && etbData.length > 0) {
         await saveETB(false, etbData);
       }
@@ -957,6 +1011,23 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       setLoading(false);
     }
   }, [engagement._id, excelUrl, engagement?.excelURL, storageKey, trialBalanceData, autoClassify, refreshClassificationSummary]);
+
+  // init rows when trialBalanceData changes OR when component mounts
+  // This MUST be after initializeETB is defined
+  useEffect(() => {
+    // Always initialize if we don't have rows yet
+    if (trialBalanceData && etbRows.length === 0) {
+      tbDataRef.current = trialBalanceData;
+      initializeETB();
+      return;
+    }
+    
+    // Re-initialize if trialBalanceData has changed (new upload)
+    if (trialBalanceData && tbDataRef.current !== trialBalanceData) {
+      tbDataRef.current = trialBalanceData;
+      initializeETB();
+    }
+  }, [trialBalanceData, etbRows.length, initializeETB]);
 
   const addNewRow = useCallback(() => {
     const newRow: ETBRow = {
@@ -1284,6 +1355,12 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     [etbRows]
   );
 
+  // Calculate new accounts count
+  const newAccountsCount = useMemo(() =>
+    etbRows.filter((row) => row.isNewAccount === true).length,
+    [etbRows]
+  );
+
   // CRITICAL: Derive actual pushing state from both state and ref
   // If ref says we're pushing, always show loader (even if state was reset)
   const actualPushing = pushing || isPushingRef.current;
@@ -1516,6 +1593,55 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
   }, [engagement._id, toast]);
 
+  // Manually trigger prior year population
+  const populatePriorYearManually = useCallback(async () => {
+    setIsPopulatingPriorYear(true);
+    try {
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance/populate-prior-year`,
+        {
+          method: "POST",
+        }
+      );
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to populate prior year data");
+      }
+      
+      const result = await res.json();
+      
+      console.log('[ETB] Populate Prior Year Result:', result);
+      
+      if (result.populated) {
+        toast({
+          title: "Prior Year Data Populated",
+          description: result.details || "Prior year values have been updated",
+        });
+        
+        console.log('[ETB] Reloading ETB data to show updated flags...');
+        // Reload the ETB data to show the updated flags
+        await initializeETB();
+      } else {
+        console.warn('[ETB] Prior year not populated:', result.message);
+        toast({
+          title: "No Changes Made",
+          description: result.message || "No prior year data found to populate",
+          variant: "default",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error populating prior year:", error);
+      toast({
+        title: "Failed to Populate Prior Year",
+        description: error.message || "Could not populate prior year data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPopulatingPriorYear(false);
+    }
+  }, [engagement._id, toast, initializeETB]);
+
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
     return (
@@ -1674,6 +1800,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             </div>
           )}
 
+          {/* New accounts notice */}
+          {newAccountsCount > 0 && (
+            <Alert className="mb-4 border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800 dark:text-blue-200">
+                <strong>{newAccountsCount}</strong> new account{newAccountsCount > 1 ? 's' : ''} detected that {newAccountsCount > 1 ? 'were' : 'was'} not present in the previous year's data.
+                {newAccountsCount > 1 ? ' These accounts are' : ' This account is'} marked with a "NEW" badge.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Unclassified notice */}
           {unclassifiedRows.length > 0 && (
             <Alert className="mb-4">
@@ -1747,6 +1884,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           idx % 2 === 1 && "bg-muted/20",
                           "hover:bg-muted/40 transition-colors",
                           selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
+                          // Removed yellow highlighting - only showing badge now
                         )}
                       >
                         <TableCell className="border border-r-secondary border-b-secondary align-middle text-center min-w-[3.5rem] w-[3.5rem] px-2">
@@ -1759,11 +1897,22 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           </div>
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-middle">
-                          <EditableText
-                            value={row.code}
-                            onChange={(val) => updateRow(row.id, "code", val)}
-                            className="font-mono text-xs sm:text-sm"
-                          />
+                          <div className="flex items-center gap-2">
+                            <EditableText
+                              value={row.code}
+                              onChange={(val) => updateRow(row.id, "code", val)}
+                              className="font-mono text-xs sm:text-sm"
+                            />
+                            {row.isNewAccount && (
+                              <Badge 
+                                variant="outline" 
+                                className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1 py-0 h-4"
+                                title="This account code is new and was not found in the previous year"
+                              >
+                                NEW
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-middle">
                           <EditableText

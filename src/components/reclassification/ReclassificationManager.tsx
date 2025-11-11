@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2, History } from "lucide-react";
 import { toast } from "sonner";
 import { useReclassification } from "@/hooks/useReclassification";
+import { ReclassificationHistory } from "./ReclassificationHistory";
 
 interface ETBRow {
   _id?: string;
@@ -78,11 +79,13 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
 
   // State
   const [isCreating, setIsCreating] = useState(false);
+  const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [editingReclassificationId, setEditingReclassificationId] = useState<string | null>(null);
   const [currentReclassificationNo, setCurrentReclassificationNo] = useState("");
   const [currentDescription, setCurrentDescription] = useState("");
   const [entries, setEntries] = useState<ReclassificationEntry[]>([]);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [selectedReclassificationForHistory, setSelectedReclassificationForHistory] = useState<any>(null);
 
   // Use the reclassification hook
   const {
@@ -91,6 +94,9 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
     isCreating: isSaving,
     isUpdating,
     isPosting,
+    history,
+    isFetchingHistory,
+    fetchHistory,
     createReclassification,
     updateReclassification,
     postReclassification,
@@ -382,6 +388,23 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
     }
   };
 
+  // View reclassification history
+  const handleViewHistory = async (reclassification: any) => {
+    try {
+      setSelectedReclassificationForHistory(reclassification);
+      await fetchHistory(reclassification._id);
+      setIsViewingHistory(true);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load reclassification history");
+    }
+  };
+
+  // Back from history view
+  const handleBackFromHistory = () => {
+    setIsViewingHistory(false);
+    setSelectedReclassificationForHistory(null);
+  };
+
   // Account Selector Dialog
   const AccountSelectorDialog = () => {
     const [tempAmount, setTempAmount] = useState("");
@@ -532,7 +555,7 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
           <h2 className="text-2xl font-bold">Reclassifications</h2>
           <p className="text-gray-500">Manage audit reclassifications for this engagement</p>
         </div>
-        {!isCreating && (
+        {!isCreating && !isViewingHistory && (
           <Button onClick={handleStartCreating}>
             <Plus className="h-4 w-4 mr-2" />
             Create Reclassification
@@ -540,8 +563,18 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
         )}
       </div>
 
+      {/* History View */}
+      {isViewingHistory && (
+        <ReclassificationHistory
+          history={history}
+          reclassificationNo={selectedReclassificationForHistory?.reclassificationNo || ""}
+          loading={isFetchingHistory}
+          onBack={handleBackFromHistory}
+        />
+      )}
+
       {/* Create/Edit Reclassification Form */}
-      {isCreating && (
+      {isCreating && !isViewingHistory && (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -770,9 +803,10 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
       )}
 
       {/* Existing Reclassifications List */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Existing Reclassifications</h3>
-        {reclassifications.length === 0 ? (
+      {!isViewingHistory && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Existing Reclassifications</h3>
+          {reclassifications.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-gray-500">
               <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -843,6 +877,16 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 ml-4">
+                      {/* History Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewHistory(adj)}
+                      >
+                        <History className="h-3 w-3 mr-1" />
+                        History
+                      </Button>
+
                       {/* TEMPORARY: Allow editing posted reclassifications */}
                       <Button
                         size="sm"
@@ -891,7 +935,8 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
             ))}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Account Selector Dialog */}
       <AccountSelectorDialog />
