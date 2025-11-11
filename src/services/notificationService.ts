@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from '@/integrations/supabase/client';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
 
 export interface Notification {
   _id: string;
