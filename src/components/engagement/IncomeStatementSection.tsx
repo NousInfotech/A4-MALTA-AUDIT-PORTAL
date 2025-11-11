@@ -40,7 +40,9 @@ interface IncomeStatementSectionProps {
 }
 
 interface GroupedRows {
-  [grouping3: string]: ETBRow[];
+  [grouping3: string]: {
+    [grouping4: string]: ETBRow[];
+  };
 }
 
 const GROUPING_ORDER = [
@@ -116,20 +118,30 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
           row.grouping3
       );
 
-      // Group by grouping3
+      // Group by grouping3 and grouping4
       const grouped: GroupedRows = {};
       incomeRows.forEach((row) => {
-        const group = row.grouping3 || "Other";
-        if (!grouped[group]) {
-          grouped[group] = [];
+        const group3 = row.grouping3 || "Other";
+        const group4 = row.grouping4 || "_direct_"; // Use placeholder if no group4
+
+        if (!grouped[group3]) {
+          grouped[group3] = {};
         }
-        grouped[group].push(row);
+        if (!grouped[group3][group4]) {
+          grouped[group3][group4] = [];
+        }
+        grouped[group3][group4].push(row);
       });
 
       // Initialize all sections as expanded by default
       const initialExpanded: { [key: string]: boolean } = {};
-      Object.keys(grouped).forEach((key) => {
-        initialExpanded[key] = true;
+      Object.entries(grouped).forEach(([group3, group4Map]) => {
+        initialExpanded[group3] = true;
+        Object.keys(group4Map).forEach((group4) => {
+          if (group4 !== "_direct_") {
+            initialExpanded[`${group3}-${group4}`] = true;
+          }
+        });
       });
       setExpandedSections(initialExpanded);
 
@@ -151,8 +163,13 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   // Expand all sections
   const expandAll = () => {
     const allExpanded: { [key: string]: boolean } = {};
-    Object.keys(groupedData).forEach((key) => {
-      allExpanded[key] = true;
+    Object.entries(groupedData).forEach(([group3, group4Map]) => {
+      allExpanded[group3] = true;
+      Object.keys(group4Map).forEach((group4) => {
+        if (group4 !== "_direct_") {
+          allExpanded[`${group3}-${group4}`] = true;
+        }
+      });
     });
     setExpandedSections(allExpanded);
   };
@@ -160,8 +177,13 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   // Collapse all sections
   const collapseAll = () => {
     const allCollapsed: { [key: string]: boolean } = {};
-    Object.keys(groupedData).forEach((key) => {
-      allCollapsed[key] = false;
+    Object.entries(groupedData).forEach(([group3, group4Map]) => {
+      allCollapsed[group3] = false;
+      Object.keys(group4Map).forEach((group4) => {
+        if (group4 !== "_direct_") {
+          allCollapsed[`${group3}-${group4}`] = false;
+        }
+      });
     });
     setExpandedSections(allCollapsed);
   };
@@ -169,7 +191,26 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   // Calculate subtotals
   const calculations = useMemo(() => {
     const getValue = (grouping3: string, year: "current" | "prior") => {
-      const rows = groupedData[grouping3] || [];
+      const group4Map = groupedData[grouping3] || {};
+      const sum = Object.values(group4Map).reduce((g4Acc, rows) => {
+        const rowSum = rows.reduce((acc, row) => {
+          const value = year === "current" ? row.currentYear : row.priorYear;
+          return acc + (value || 0);
+        }, 0);
+        return g4Acc + rowSum;
+      }, 0);
+      const sign = GROUPING_SIGNS[grouping3] || "+";
+      return sign === "+" ? sum : -sum;
+    };
+
+    const getGroup4Total = (
+      grouping3: string,
+      grouping4: string,
+      year: "current" | "prior"
+    ): number => {
+      if (!groupedData[grouping3] || !groupedData[grouping3][grouping4]) return 0;
+
+      const rows = groupedData[grouping3][grouping4];
       const sum = rows.reduce((acc, row) => {
         const value = year === "current" ? row.currentYear : row.priorYear;
         return acc + (value || 0);
@@ -216,6 +257,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
 
     return {
       getValue,
+      getGroup4Total,
       grossProfitCurrent,
       grossProfitPrior,
       operatingProfitCurrent,
@@ -265,17 +307,17 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
 
       // Determine which sections have data for subtotals
       const operatingSections = ["Sales and marketing expenses", "Administrative expenses", "Other operating income"];
-      const lastOperatingSection = operatingSections.reverse().find(section => groupedData[section]?.length > 0);
+      const lastOperatingSection = operatingSections.reverse().find(section => groupedData[section] && Object.keys(groupedData[section]).length > 0);
       const netProfitSections = ["Investment income", "Investment losses", "Finance costs", "Share of profit of subsidiary", "PBT Expenses"];
-      const lastNetProfitSection = netProfitSections.reverse().find(section => groupedData[section]?.length > 0);
+      const lastNetProfitSection = netProfitSections.reverse().find(section => groupedData[section] && Object.keys(groupedData[section]).length > 0);
 
       // Add each grouping in order with subtotals
       GROUPING_ORDER.forEach((grouping3) => {
-        if (groupedData[grouping3] && groupedData[grouping3].length > 0) {
+        if (groupedData[grouping3] && Object.keys(groupedData[grouping3]).length > 0) {
           const currentValue = calculations.getValue(grouping3, "current");
           const priorValue = calculations.getValue(grouping3, "prior");
 
-          // Add grouping header
+          // Add grouping3 header
           tableData.push([
             grouping3,
             "",
@@ -283,20 +325,49 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
             formatCurrency(priorValue),
           ]);
 
-          // Add detail rows (only if includeDetailRows is true)
+          // Iterate through group4
           if (includeDetailRows) {
-            groupedData[grouping3].forEach((row) => {
-              tableData.push([
-                `  ${row.accountName}`,
-                row.code || "",
-                formatCurrency(row.currentYear || 0),
-                formatCurrency(row.priorYear || 0),
-              ]);
+            Object.entries(groupedData[grouping3]).forEach(([group4, rows]) => {
+              const hasGroup4 = group4 !== "_direct_";
+
+              // Add group4 header if it exists
+              if (hasGroup4) {
+                const group4Current = calculations.getGroup4Total(grouping3, group4, "current");
+                const group4Prior = calculations.getGroup4Total(grouping3, group4, "prior");
+                
+                tableData.push([
+                  { content: `  ${group4}`, styles: { fontStyle: "italic" } },
+                  "",
+                  {
+                    content: formatCurrency(group4Current),
+                    styles: { fontStyle: "italic" },
+                  },
+                  {
+                    content: formatCurrency(group4Prior),
+                    styles: { fontStyle: "italic" },
+                  },
+                ]);
+              }
+
+              // Add detail rows
+              const indent = hasGroup4 ? "    " : "  ";
+              rows.forEach((row) => {
+                tableData.push([
+                  `${indent}${row.accountName}`,
+                  row.code || "",
+                  formatCurrency(row.currentYear || 0),
+                  formatCurrency(row.priorYear || 0),
+                ]);
+              });
             });
           }
 
-          // Add Gross Profit after Cost of sales
-          if (grouping3 === "Cost of sales") {
+          // Add Gross Profit after Cost of sales (only if BOTH Revenue and Cost of sales exist)
+          if (grouping3 === "Cost of sales" && 
+              groupedData["Revenue"] && 
+              Object.keys(groupedData["Revenue"]).length > 0 && 
+              groupedData["Cost of sales"] && 
+              Object.keys(groupedData["Cost of sales"]).length > 0) {
             tableData.push([
               { content: "Gross Profit", styles: { fontStyle: "bold", fillColor: [251, 236, 211] } },
               "",
@@ -492,13 +563,13 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                   {(() => {
                     // Determine which sections have data
                     const operatingSections = ["Sales and marketing expenses", "Administrative expenses", "Other operating income"];
-                    const lastOperatingSection = operatingSections.reverse().find(section => groupedData[section]?.length > 0);
+                    const lastOperatingSection = operatingSections.reverse().find(section => groupedData[section] && Object.keys(groupedData[section]).length > 0);
                     const netProfitSections = ["Investment income", "Investment losses", "Finance costs", "Share of profit of subsidiary", "PBT Expenses"];
-                    const lastNetProfitSection = netProfitSections.reverse().find(section => groupedData[section]?.length > 0);
+                    const lastNetProfitSection = netProfitSections.reverse().find(section => groupedData[section] && Object.keys(groupedData[section]).length > 0);
 
                     return GROUPING_ORDER.map((grouping3, idx) => {
-                      const rows = groupedData[grouping3];
-                      if (!rows || rows.length === 0) return null;
+                      const group4Map = groupedData[grouping3];
+                      if (!group4Map || Object.keys(group4Map).length === 0) return null;
 
                       const currentValue = calculations.getValue(
                         grouping3,
@@ -509,18 +580,18 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                       const showOperatingProfit = grouping3 === lastOperatingSection;
                       const showNetProfitBeforeTax = grouping3 === lastNetProfitSection;
 
-                      const isExpanded = expandedSections[grouping3];
+                      const isGroup3Expanded = expandedSections[grouping3];
 
                       return (
                         <React.Fragment key={grouping3}>
-                          {/* Grouping Header with Toggle */}
+                          {/* Grouping3 Header with Toggle */}
                           <tr 
                             className="bg-gray-50 border-t-2 border-gray-300 cursor-pointer hover:bg-gray-100"
                             onClick={() => toggleSection(grouping3)}
                           >
                             <td className="p-3 font-semibold">
                               <div className="flex items-center gap-2">
-                                {isExpanded ? (
+                                {isGroup3Expanded ? (
                                   <ChevronDown className="h-4 w-4 flex-shrink-0" />
                                 ) : (
                                   <ChevronRight className="h-4 w-4 flex-shrink-0" />
@@ -537,30 +608,79 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                             </td>
                           </tr>
 
-                          {/* Detail Rows (only show if expanded) */}
-                          {isExpanded && rows.map((row) => (
-                            <tr
-                              key={row.id}
-                              className="border-b hover:bg-gray-50"
-                            >
-                              <td className="p-3 pl-8 text-sm">
-                                {row.accountName}
-                              </td>
-                              <td className="p-3 text-sm text-gray-600">
-                                {row.code || ""}
-                              </td>
-                              <td className="p-3 text-right text-sm">
-                                {formatCurrency(row.currentYear || 0)}
-                              </td>
-                              <td className="p-3 text-right text-sm">
-                                {formatCurrency(row.priorYear || 0)}
-                              </td>
-                            </tr>
-                          ))}
+                          {/* Group4 level and rows */}
+                          {isGroup3Expanded && Object.entries(group4Map).map(([group4, rows]) => {
+                            const hasGroup4 = group4 !== "_direct_";
+                            const group4Key = `${grouping3}-${group4}`;
+                            const isGroup4Expanded = expandedSections[group4Key];
+
+                            return (
+                              <React.Fragment key={group4}>
+                                {/* Group4 Header (only if not direct) */}
+                                {hasGroup4 && (
+                                  <tr 
+                                    className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleSection(group4Key);
+                                    }}
+                                  >
+                                    <td className="p-2 pl-8 font-medium text-sm">
+                                      <div className="flex items-center gap-2">
+                                        {isGroup4Expanded ? (
+                                          <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                        ) : (
+                                          <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                        )}
+                                        <span>{group4}</span>
+                                      </div>
+                                    </td>
+                                    <td className="p-2"></td>
+                                    <td className="p-2 text-right text-sm font-medium">
+                                      {formatCurrency(
+                                        calculations.getGroup4Total(grouping3, group4, "current")
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-right text-sm font-medium">
+                                      {formatCurrency(
+                                        calculations.getGroup4Total(grouping3, group4, "prior")
+                                      )}
+                                    </td>
+                                  </tr>
+                                )}
+
+                                {/* Detail Rows (only show if group4 expanded or no group4) */}
+                                {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
+                                  <tr
+                                    key={row.id}
+                                    className="border-b hover:bg-gray-50"
+                                  >
+                                    <td className={`p-2 ${hasGroup4 ? 'pl-12' : 'pl-8'} text-xs`}>
+                                      {row.accountName}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-600">
+                                      {row.code || ""}
+                                    </td>
+                                    <td className="p-2 text-right text-xs">
+                                      {formatCurrency(row.currentYear || 0)}
+                                    </td>
+                                    <td className="p-2 text-right text-xs">
+                                      {formatCurrency(row.priorYear || 0)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
 
                           {/* Add subtotals after specific groupings */}
-                          {grouping3 === "Cost of sales" && (
-                            <tr className="bg-blue-50 border-t border-b-2 border-blue-300">
+                          {/* Only show Gross Profit if BOTH Revenue AND Cost of sales exist */}
+                          {grouping3 === "Cost of sales" && 
+                            groupedData["Revenue"] && 
+                            Object.keys(groupedData["Revenue"]).length > 0 && 
+                            groupedData["Cost of sales"] && 
+                            Object.keys(groupedData["Cost of sales"]).length > 0 && (
+                            <tr className="bg-amber-50 border-t border-b-2 border-amber-300">
                               <td className="p-3 font-bold">Gross Profit</td>
                               <td className="p-3"></td>
                               <td className="p-3 text-right font-bold">
