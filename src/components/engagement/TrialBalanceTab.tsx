@@ -12,10 +12,14 @@ import {
   Loader2,
   Wrench,
   ArrowLeftRight,
+  FileText,
+  Scale,
 } from "lucide-react";
 import { TrialBalanceUpload } from "./TrialBalanceUpload";
 import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
 import { ClassificationSection } from "./ClassificationSection";
+import { IncomeStatementSection } from "./IncomeStatementSection";
+import { BalanceSheetSection } from "./BalanceSheetSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
 import WorkBookApp from "../audit-workbooks/TrialBalanceWorkbookApp";
@@ -54,6 +58,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     formatClassificationForDisplay("Equity > Equity > Share Capital")
   );
 
+  console.log(engagement);
+
   const [activeTab, setActiveTab] = useState("upload");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
   const [classifications, setClassifications] = useState<string[]>([]);
@@ -65,6 +71,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   const [etbCount, setEtbCount] = useState(0);
   const [adjustmentsCount, setAdjustmentsCount] = useState(0);
   const [reclassificationsCount, setReclassificationsCount] = useState(0);
+  
+  // ETB rows for Income Statement and Balance Sheet
+  const [etbRows, setEtbRows] = useState<any[]>([]);
 
   // notification counts for classifications
   const [
@@ -106,6 +115,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
         const etbData = await etbResponse.json();
         const rows = Array.isArray(etbData?.rows) ? etbData.rows : [];
 
+        setEtbRows(rows); // Store ETB rows for Income Statement and Balance Sheet
         setEtbCount(rows.length);
         const adjCount = rows.filter(
           (r: any) => Number(r?.adjustments) !== 0
@@ -481,6 +491,36 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       {reclassificationsCount === 0 ? "" : <Badge variant="secondary">{reclassificationsCount}</Badge>}
                     </Button>
 
+                    <Button
+                      variant={
+                        selectedClassification === "IncomeStatement"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => setSelectedClassification("IncomeStatement")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Income Statement
+                      </span>
+                    </Button>
+
+                    <Button
+                      variant={
+                        selectedClassification === "BalanceSheet"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => setSelectedClassification("BalanceSheet")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Scale className="h-4 w-4" />
+                        Balance Sheet
+                      </span>
+                    </Button>
+
                     {(etbCount > 0 || adjustmentsCount > 0 || reclassificationsCount > 0) && (
                       <div className="text-xs uppercase text-gray-500 px-3 pt-3">
                         Classifications
@@ -628,7 +668,21 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
               {/* Content Panel */}
               <div className="flex-1 min-w-0">
-                {selectedClassification ? (
+                {selectedClassification === "IncomeStatement" ? (
+                  <IncomeStatementSection
+                    engagement={engagement}
+                    etbRows={etbRows}
+                    financialYearStart={engagement?.financialYearStart}
+                    financialYearEnd={engagement?.financialYearEnd}
+                  />
+                ) : selectedClassification === "BalanceSheet" ? (
+                  <BalanceSheetSection
+                    engagement={engagement}
+                    etbRows={etbRows}
+                    financialYearStart={engagement?.financialYearStart}
+                    financialYearEnd={engagement?.financialYearEnd}
+                  />
+                ) : selectedClassification ? (
                   <ClassificationSection
                     engagement={engagement}
                     classification={selectedClassification}
@@ -645,7 +699,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </h3>
                       <p className="text-gray-500">
                         Pick <strong>Extended Trial Balance</strong>,{" "}
-                        <strong>Adjustments</strong>, <strong>Reclassifications</strong>, or any classification from
+                        <strong>Adjustments</strong>, <strong>Reclassifications</strong>,{" "}
+                        <strong>Income Statement</strong>, <strong>Balance Sheet</strong>, or any classification from
                         the sidebar.
                       </p>
                     </div>
