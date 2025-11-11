@@ -108,7 +108,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       parts = [...raw];
       const remaining = Math.max(0, 100 - sum);
       if (remaining > 0.0001)
-        parts.push({ name: "No Data", value: remaining });
+        parts.push({ name: "Remaining Shares", value: remaining });
     }
 
     return { 
@@ -147,7 +147,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                   cy="50%"
                   outerRadius="75%"
                   label={(entry) =>
-                    `${entry.name}: ${Number(entry.value).toFixed(1)}%`
+                    `${entry.name}: ${Number(entry.value).toFixed(0)}%`
                   }
                   isAnimationActive
                   className="capitalize"
@@ -156,7 +156,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                     <Cell
                       key={`cell-${index}`}
                       fill={
-                        entry.name === "No Data"
+                        entry.name === "Remaining Shares"
                           ? "#9ca3af"
                           : COLORS[index % COLORS.length]
                       }
@@ -198,18 +198,18 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
         <div className="text-center sm:text-left space-y-1">
           <p className="text-base sm:text-lg">
             Total declared shares:{" "}
-            <span className="font-bold">{totalRaw.toFixed(1)}%</span>
+            <span className="font-bold">{totalRaw.toFixed(0)}%</span>
           </p>
           {(companyTotal > 0 || personTotal > 0) && (
             <div className="flex flex-wrap gap-4 justify-center sm:justify-start text-sm text-gray-600">
               {companyTotal > 0 && (
                 <span>
-                  Company shares: <span className="font-semibold text-gray-900">{companyTotal.toFixed(1)}%</span>
+                  Company shares: <span className="font-semibold text-gray-900">{companyTotal.toFixed(0)}%</span>
                 </span>
               )}
               {personTotal > 0 && (
                 <span>
-                  Person shares: <span className="font-semibold text-gray-900">{personTotal.toFixed(1)}%</span>
+                  Person shares: <span className="font-semibold text-gray-900">{personTotal.toFixed(0)}%</span>
                 </span>
               )}
             </div>

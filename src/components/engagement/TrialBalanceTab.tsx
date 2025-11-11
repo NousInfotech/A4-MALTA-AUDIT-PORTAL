@@ -150,6 +150,56 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     }
   }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 🔧 Refresh ETB data only (without switching tabs) - for use when updating from ClassificationSection
+  const refreshEtbDataOnly = useCallback(async () => {
+    if (!engagement?._id) return;
+    
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      if (!base) {
+        console.warn("VITE_APIURL is not set");
+        return;
+      }
+
+      // Only load Extended Trial Balance data
+      const etbResponse = await authFetch(
+        `${base}/api/engagements/${engagement._id}/etb`
+      );
+      if (etbResponse.ok) {
+        const etbData = await etbResponse.json();
+        const rows = Array.isArray(etbData?.rows) ? etbData.rows : [];
+
+        setEtbCount(rows.length);
+        const adjCount = rows.filter(
+          (r: any) => Number(r?.adjustments) !== 0
+        ).length;
+        const rclsCount = rows.filter(
+          (r: any) => Number(r?.reclassification) !== 0
+        ).length;
+        setAdjustmentsCount(adjCount);
+        setReclassificationsCount(rclsCount);
+
+        const uniqueClassifications = [
+          ...new Set(rows.map((r: any) => r.classification).filter(Boolean)),
+        ];
+        setClassifications(uniqueClassifications);
+
+        // Load notification counts
+        if (uniqueClassifications.length > 0) {
+          setTimeout(() => {
+            loadNotificationCountsForClassifications(uniqueClassifications);
+          }, 100);
+        }
+
+        // DON'T switch tabs - this is the key difference from loadExistingData
+      } else {
+        console.warn("ETB response not OK:", etbResponse.status);
+      }
+    } catch (error) {
+      console.error("Failed to refresh ETB data:", error);
+    }
+  }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 🔧 fetch notification counts for classifications (with direct classifications parameter)
   const loadNotificationCountsForClassifications = useCallback(
     async (classificationsList: string[]) => {
@@ -689,6 +739,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     onClose={() => setSelectedClassification("")}
                     onClassificationJump={jumpToClassification}
                     onReviewStatusChange={loadNotificationCounts}
+                    loadExistingData={refreshEtbDataOnly}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full p-6">

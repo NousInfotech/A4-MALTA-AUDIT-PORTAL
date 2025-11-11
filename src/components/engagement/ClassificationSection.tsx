@@ -121,6 +121,8 @@ import {
   Check,
 
   RotateCcw,
+
+  Info,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -203,6 +205,8 @@ interface ClassificationSectionProps {
   onClassificationJump?: (classification: string) => void;
 
   onReviewStatusChange?: () => void; // Callback to refresh notification counts
+  
+  loadExistingData?: () => void; // Callback to refresh ETB data
 }
 
 interface ReferenceRowData {
@@ -740,6 +744,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   onClassificationJump,
 
   onReviewStatusChange,
+  
+  loadExistingData,
 }) => {
 
 
@@ -2533,7 +2539,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         }),
 
-        { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+        { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
 
       ),
 
@@ -4701,9 +4707,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         currentYear: acc.currentYear + (Number(row.currentYear) || 0),
         priorYear: acc.priorYear + (Number(row.priorYear) || 0),
         adjustments: acc.adjustments + (Number(row.adjustments) || 0),
+        reclassification: acc.reclassification + (Number(row.reclassification) || 0),
         finalBalance: acc.finalBalance + (Number(row.finalBalance) || 0),
       }),
-      { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+      { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
     );
   }
 
@@ -4840,6 +4847,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to fetch ETB data");
 
       const etbData = await response.json();
+      
+      // Track skipped rows for user feedback
+      const skippedRows: string[] = [];
+      
       const updatedRows = (etbData.rows || []).map((row: any) => {
         // Match by code and accountName to find the corresponding row
         const isSelected = selectedRows.some(
@@ -4849,8 +4860,35 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         );
 
         if (isSelected) {
+          // Get existing classification parts
+          const parts = (row.classification || "").split(" > ").map((p: string) => p.trim());
+          
+          // Validate: Ensure row has at least 3 levels before adding Level 4
+          if (!parts[0] || !parts[1] || !parts[2]) {
+            skippedRows.push(`${row.code} - ${row.accountName}`);
+            console.warn(
+              `Row ${row.code} - ${row.accountName} needs complete classification (Levels 1-3) before adding grouping4`
+            );
+            return row; // Skip this row
+          }
+          
+          // Update grouping4 (parts[3]) while keeping other levels intact
+          const updatedClassification = [
+            parts[0],        // Level 1 (already validated)
+            parts[1],        // Level 2 (already validated)
+            parts[2],        // Level 3 (already validated)
+            grouping4Value   // Level 4 - NEW VALUE
+          ].join(" > ");
+
           return {
             ...row,
+            // Update classification string
+            classification: updatedClassification,
+            // Sync ALL grouping fields with classification parts
+            // (This ensures consistency even if data was manually edited)
+            grouping1: parts[0],
+            grouping2: parts[1],
+            grouping3: parts[2],
             grouping4: grouping4Value,
           };
         }
@@ -4871,11 +4909,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Reload section data to get fresh data with updated grouping
       await loadSectionData();
+      
+      // Notify parent to refresh ETB data
+      if (loadExistingData) {
+        loadExistingData();
+      }
 
       // Reset UI state after successful grouping
       cancelGroupingMode();
 
-      toast.success("Grouping updated successfully");
+      // Show appropriate success message based on whether rows were skipped
+      if (skippedRows.length > 0) {
+        toast({
+          title: "Grouping partially completed",
+          description: `${selectedRowIds.size - skippedRows.length} rows updated. ${skippedRows.length} rows skipped (need complete Level 1-3 classification).`,
+          variant: "default",
+        });
+      } else {
+        toast.success("Grouping updated successfully. ETB data refreshed.");
+      }
 
       console.log('Grouping completed successfully. UI reset.');
     } catch (error: any) {
@@ -7128,24 +7180,58 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  // Helper function to get all available Grouping 4 values
-  // Shows ALL Level 4 values from NEW_CLASSIFICATION_OPTIONS
+  // Helper function to get available Grouping 4 values based on selected rows' Level 1-3 classification
+  // Only shows Level 4 options that match the selected rows' existing classification
   function getAvailableGrouping4Values(data: ETBRow[]): string[] {
-    // Get all unique Level 4 values from NEW_CLASSIFICATION_OPTIONS
-    const allGrouping4Values = new Set<string>();
+    // Get selected rows
+    const selectedRows = data.filter(row => selectedRowIds.has(getRowId(row)));
+    
+    // If no rows selected, analyze ALL rows in the current section to find their common Level 1-3
+    const rowsToAnalyze = selectedRows.length > 0 ? selectedRows : data;
+    
+    if (rowsToAnalyze.length === 0) {
+      // Fallback: return all Level 4 values
+      const allGrouping4Values = new Set<string>();
+      NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
+        const parts = opt.split(" > ").map(p => p.trim());
+        const level4 = parts[3];
+        if (level4) {
+          allGrouping4Values.add(level4);
+        }
+      });
+      return Array.from(allGrouping4Values).sort();
+    }
 
+    // Get the Level 1-3 classification from the first row to analyze
+    const firstRow = rowsToAnalyze[0];
+    const parts = (firstRow.classification || "").split(" > ").map(p => p.trim());
+    const level1 = parts[0] || "";
+    const level2 = parts[1] || "";
+    const level3 = parts[2] || "";
+
+    // If Level 1-3 are not complete, return empty array (will show warning)
+    if (!level1 || !level2 || !level3) {
+      console.warn('Rows need complete Level 1-3 classification before adding Level 4');
+      return [];
+    }
+
+    // Filter NEW_CLASSIFICATION_OPTIONS to only show Level 4 values that match this Level 1-3
+    const matchingGrouping4Values = new Set<string>();
+    const prefix = `${level1} > ${level2} > ${level3}`;
+    
     NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
-      const parts = opt.split(" > ").map(p => p.trim());
-      const level4 = parts[3]; // Level 4 is at index 3
-      if (level4) {
-        allGrouping4Values.add(level4);
+      if (opt.startsWith(prefix)) {
+        const parts = opt.split(" > ").map(p => p.trim());
+        const level4 = parts[3];
+        if (level4) {
+          matchingGrouping4Values.add(level4);
+        }
       }
     });
 
-    const result = Array.from(allGrouping4Values).sort();
-    console.log('Available Grouping 4 values:', result.length, 'items', result);
+    const result = Array.from(matchingGrouping4Values).sort();
+    console.log(`Available Grouping 4 values for "${prefix}":`, result.length, 'items', result);
 
-    // Return as sorted array - shows ALL possible Level 4 values
     return result;
   }
 
@@ -7175,7 +7261,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Code</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Account Name</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[12rem] max-w-[12rem] text-xs sm:text-sm">Account Name</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
 
@@ -7201,7 +7287,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
 
-                    <td className="px-4 py-2 border-b border-secondary border-r">{row.accountName}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r text-right">
 
@@ -7228,7 +7314,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r">
-                      {row.reclassification}
+                      {(Number(row.reclassification) || 0).toLocaleString()}
                     </td>
 
                     <td className="border-b border-secondary">
@@ -7330,11 +7416,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                 adjustments: acc.adjustments + (Number(r.adjustments) || 0),
 
+                reclassification: acc.reclassification + (Number(r.reclassification) || 0),
+
                 finalBalance: acc.finalBalance + (Number(r.finalBalance) || 0),
 
               }),
 
-              { currentYear: 0, priorYear: 0, adjustments: 0, finalBalance: 0 }
+              { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
 
             );
 
@@ -7358,7 +7446,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Code</th>
 
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Account Name</th>
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
 
@@ -7387,7 +7475,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
-                          <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                          <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
 
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
@@ -7408,7 +7496,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </td>
 
                           <td className="px-4 py-2 border-secondary border-b border-r">
-                            {row.reclassification.toLocaleString()}
+                            {(Number(row.reclassification) || 0).toLocaleString()}
                           </td>
 
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
@@ -7450,7 +7538,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </td>
                         <td className="px-4 py-2 border-r border-secondary text-left">
 
-                          {subtotal.reclassification.toLocaleString()}
+                          {(Number(subtotal.reclassification) || 0).toLocaleString()}
 
                         </td>
 
@@ -7562,6 +7650,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
       // based on the classifications present in sectionData
+      // For "Change Grouping" mode, pass ALL sectionData (both grouped and ungrouped)
+      // so it can analyze the common Level 1-3 classification
       const availableGrouping4Values = getAvailableGrouping4Values(sectionData);
 
       // Also include any existing grouping4 values from the data (for backwards compatibility)
@@ -7577,6 +7667,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const uniqueGrouping4Values = [
         ...new Set([...availableGrouping4Values, ...existingGrouping4Values])
       ].sort();
+      
+      // Log for debugging
+      console.log('Grouping Mode:', {
+        isGroupingMode,
+        selectedRowsCount: selectedRowIds.size,
+        availableOptionsCount: availableGrouping4Values.length,
+        existingValuesCount: existingGrouping4Values.length,
+        totalUniqueCount: uniqueGrouping4Values.length,
+        values: uniqueGrouping4Values
+      });
 
       return (
         <div className="space-y-6">
@@ -7593,39 +7693,61 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       {selectedRowIds.size} row{selectedRowIds.size !== 1 ? 's' : ''} selected
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="grouping4-select" className="text-xs text-gray-600">
-                      Select Grouping 4 value:
-                    </Label>
-                    <Select value={grouping4Value} onValueChange={setGrouping4Value}>
-                      <SelectTrigger className="max-w-xs">
-                        <SelectValue placeholder="Choose grouping value" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {uniqueGrouping4Values.map((value, index) => (
-                          <SelectItem key={index} value={value}>
-                            {value}
-                          </SelectItem>
-                        ))}
-                        {/* Option to add custom value */}
-                        <div className="p-2 border-t">
-                          <Input
-                            placeholder="Or type new value..."
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const newValue = e.currentTarget.value.trim();
-                                if (newValue) {
-                                  setGrouping4Value(newValue);
-                                  e.currentTarget.value = '';
-                                }
-                              }
-                            }}
-                            className="h-8 text-xs"
-                          />
+                  
+                  {/* Show message if no rows selected */}
+                  {selectedRowIds.size === 0 ? (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Info className="h-4 w-4 text-yellow-700" />
+                        <span className="text-sm font-medium text-yellow-800">
+                          No rows selected
+                        </span>
+                      </div>
+                      <p className="text-xs text-yellow-700">
+                        Please select one or more rows from the table below using the checkboxes, then choose a Grouping 4 value.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="grouping4-select" className="text-xs text-gray-600">
+                        Select Grouping 4 value:
+                      </Label>
+                      {uniqueGrouping4Values.length === 0 ? (
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                          ⚠️ Selected rows need complete Level 1-3 classification before adding Level 4.
                         </div>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      ) : (
+                        <Select value={grouping4Value} onValueChange={setGrouping4Value}>
+                          <SelectTrigger className="max-w-xs">
+                            <SelectValue placeholder="Choose grouping value" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {uniqueGrouping4Values.map((value, index) => (
+                              <SelectItem key={index} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                            {/* Option to add custom value */}
+                            <div className="p-2 border-t">
+                              <Input
+                                placeholder="Or type new value..."
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const newValue = e.currentTarget.value.trim();
+                                    if (newValue) {
+                                      setGrouping4Value(newValue);
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {selectedRowIds.size > 0 && grouping4Value && (
@@ -7700,7 +7822,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </th>
                       )}
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
@@ -7733,7 +7855,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </td>
                         )}
                         <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
@@ -7758,7 +7880,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
                           /> */}
-                          {row.reclassification.toLocaleString()}
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
@@ -7814,7 +7936,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 </div>
               )}
 
-              <div className="overflow-x-auto max-h-96">
+              <div className="overflow-x-auto max-h-96 -mr-1">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
@@ -7841,12 +7963,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </div>
                       </th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-right">Final Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7872,7 +7994,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           </div>
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
@@ -7897,9 +8019,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             disabled={isSignedOff}
                             readOnly={isSignedOff}
                           /> */}
-                          {row.reclassification.toLocaleString()}
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                        <td className="px-4 py-2 border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
                         </td>
 
@@ -7933,7 +8055,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r-secondary border font-bold text-left">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                        <td className="px-4 py-2 border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
                         </td>
                         <td></td>

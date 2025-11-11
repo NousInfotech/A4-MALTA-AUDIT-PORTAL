@@ -10,17 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
-import { ShareholdingCompaniesManager } from "./ShareholdingCompaniesManager";
+ 
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -346,13 +339,13 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
           </div> */}
 
           {/* Shareholding Companies */}
-          {existingCompanies.length > 0 && (
+          {/* {existingCompanies.length > 0 && (
             <ShareholdingCompaniesManager
               companies={existingCompanies}
               value={shareHoldingCompanies}
               onChange={setShareHoldingCompanies}
             />
-          )}
+          )} */}
 
           <DialogFooter className="flex gap-2">
             <Button
