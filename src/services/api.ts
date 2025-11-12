@@ -308,13 +308,17 @@ export const kycApi = {
     clientId?: string;
     companyName?: string;
     auditorId?: string;
-    documentRequestId?: string;
-    documents?: Array<{
-      name: string;
-      type: 'required' | 'optional';
-      description: string;
-      templateUrl?: string;
-    }>;
+    documentRequests:Array<
+    {documentRequest:Array<
+      {
+        name: string;
+        type: 'required' | 'optional';
+        description: string;
+        templateUrl?: string;
+      }
+    >,
+    person: string;}
+    >
   }) => {
     console.log('🌐 KYC API: Creating KYC workflow...');
     try {

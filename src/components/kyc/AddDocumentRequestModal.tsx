@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { kycApi, documentRequestApi } from "@/services/api";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
   name: string;
@@ -48,6 +49,7 @@ interface AddDocumentRequestModalProps {
   kycId: string;
   engagementId: string;
   clientId: string;
+  company?: any;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
@@ -56,24 +58,31 @@ export function AddDocumentRequestModal({
   kycId,
   engagementId,
   clientId,
+  company,
   onSuccess,
   trigger
 }: AddDocumentRequestModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [requestName, setRequestName] = useState('');
-  const [requestDescription, setRequestDescription] = useState('');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [newDocument, setNewDocument] = useState<Partial<Document>>({
     name: '',
     type: 'direct',
-    description: '',
+    description: '',  
     template: {
       instruction: ''
     }
   });
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
+  const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"shareholders" | "involvements">("shareholders");
   const { toast } = useToast();
+
+  const togglePersonSelect = (personId: string) => {
+    setSelectedPersonIds(prev =>
+      prev.includes(personId) ? prev.filter(id => id !== personId) : [...prev, personId]
+    );
+  };
 
   const handleAddDocument = () => {
     if (!newDocument.name?.trim()) {
@@ -144,11 +153,62 @@ export function AddDocumentRequestModal({
     }
   };
 
+  const mergedPersons = React.useMemo(() => {
+    if (!company) return [];
+
+    const personsMap: Record<string, any> = {};
+
+    // STEP 1 — Shareholders
+    company?.shareHolders?.forEach((sh: any) => {
+      const p = sh.personId;
+
+      if (!personsMap[p._id]) {
+        personsMap[p._id] = {
+          personId: p._id,
+          name: p.name,
+          nationality: p.nationality,
+          address: p.address ?? "",
+          roles: [],
+          shareholder: null,
+        };
+      }
+
+      personsMap[p._id].shareholder = {
+        class: sh.sharesData?.class,
+        percentage: sh.sharesData?.percentage,
+        totalShares: sh.sharesData?.totalShares,
+      };
+
+      if (!personsMap[p._id].roles) personsMap[p._id].roles = [];
+      personsMap[p._id].roles.push("Shareholder");
+    });
+
+    // STEP 2 — Representational schema
+    company?.representationalSchema?.forEach((rep: any) => {
+      const p = rep.personId;
+
+      if (!personsMap[p._id]) {
+        personsMap[p._id] = {
+          personId: p._id,
+          name: p.name,
+          nationality: p.nationality,
+          address: p.address ?? "",
+          roles: [],
+          shareholder: null,
+        };
+      }
+
+      personsMap[p._id].roles.push(...rep.role);
+    });
+
+    return Object.values(personsMap);
+  }, [company]);
+
   const handleSubmit = async () => {
-    if (!requestName.trim()) {
+    if (selectedPersonIds.length === 0) {
       toast({
         title: "Error",
-        description: "Request name is required",
+        description: "Please select at least one person",
         variant: "destructive",
       });
       return;
@@ -190,59 +250,38 @@ export function AddDocumentRequestModal({
                 description: `Failed to upload template for "${doc.name}". Please try again.`,
                 variant: "destructive",
               });
-              throw error; // Re-throw to stop the entire process
+              throw error;
             }
           }
           return doc;
         })
       );
       console.log('✅ All templates uploaded successfully');
-      console.log('📋 Processed documents:', JSON.stringify(processedDocuments, null, 2));
 
-      // Step 1: Create a new DocumentRequest
-      const documentRequestData = {
-        engagementId: engagementId,
-        clientId: clientId,
-        name: requestName.trim(),
-        category: 'kyc',
-        description: requestDescription.trim() || 'Additional KYC Document Request',
-        documents: processedDocuments
-      };
+      // Format document requests for each selected person
+      const processedDocumentRequests = selectedPersonIds.map((personId: string) => ({
+        documentRequest: processedDocuments.map((doc: any) => ({
+          name: doc.name,
+          type: (doc.type === "template" || doc.type === "required" ? "required" : "optional") as "required" | "optional",
+          description: doc.description || "",
+          templateUrl: doc.type === "template" ? doc.template?.url : undefined,
+        })),
+        person: personId
+      }));
 
-      console.log('=== Step 1: Creating DocumentRequest ===');
-      console.log('DocumentRequest data:', JSON.stringify(documentRequestData, null, 2));
-      console.log('Engagement ID being used:', engagementId);
-      
-      const response = await documentRequestApi.create(documentRequestData);
-      console.log('Full API response:', JSON.stringify(response, null, 2));
-      
-      // Extract the actual document request from the response
-      const createdDocumentRequest = response.documentRequest || response;
-      console.log('Extracted DocumentRequest:', createdDocumentRequest);
-      console.log('DocumentRequest._id:', createdDocumentRequest._id);
-      console.log('DocumentRequest.engagement:', createdDocumentRequest.engagement);
+      console.log('📋 Adding document requests to KYC:', JSON.stringify(processedDocumentRequests, null, 2));
 
-      // Step 2: Attach the DocumentRequest to the KYC workflow
-      console.log('=== Step 2: Attaching to KYC ===');
-      console.log('KYC ID:', kycId);
-      console.log('DocumentRequest ID to attach:', createdDocumentRequest._id);
-      console.log('Expected engagement match:', engagementId);
-      
-      const attachPayload = {
-        documentRequestId: createdDocumentRequest._id
-      };
-      console.log('Attach payload:', attachPayload);
-      
-      await kycApi.addDocumentRequest(kycId, attachPayload);
+      // Add document requests to KYC
+      await kycApi.addDocumentRequest(kycId, {
+        documentRequests: processedDocumentRequests
+      });
 
       toast({
         title: "Success",
-        description: "Document request added to KYC workflow successfully",
+        description: `Document requests added for ${selectedPersonIds.length} person(s)`,
       });
 
       // Reset form
-      setRequestName('');
-      setRequestDescription('');
       setDocuments([]);
       setNewDocument({
         name: '',
@@ -253,6 +292,7 @@ export function AddDocumentRequestModal({
         }
       });
       setCurrentTemplateFile(null);
+      setSelectedPersonIds([]);
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
@@ -311,33 +351,130 @@ export function AddDocumentRequestModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Request Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Request Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="requestName">Request Name *</Label>
-                <Input
-                  id="requestName"
-                  placeholder="e.g., Additional Financial Documents"
-                  value={requestName}
-                  onChange={(e) => setRequestName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="requestDescription">Description</Label>
-                <Textarea
-                  id="requestDescription"
-                  placeholder="Describe what documents are needed and why..."
-                  value={requestDescription}
-                  onChange={(e) => setRequestDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {/* Persons List */}
+          {mergedPersons.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col gap-2">
+                    <CardTitle className="text-lg">
+                      Select Persons ({mergedPersons.length})
+                    </CardTitle>
+                    <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+                      <SelectTrigger className="w-48 border-gray-300 focus:border-gray-500 rounded-xl">
+                        <SelectValue placeholder="Select view" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="shareholders">Shareholders</SelectItem>
+                        <SelectItem value="involvements">Involvements</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      if (selectedPersonIds.length === mergedPersons.length) {
+                        setSelectedPersonIds([]);
+                      } else {
+                        setSelectedPersonIds(mergedPersons.map(p => p.personId));
+                      }
+                    }}
+                  >
+                    {selectedPersonIds.length === mergedPersons.length ? "Unselect All" : "Select All"}
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {/* SHAREHOLDERS */}
+                {viewMode === "shareholders" && (
+                  <div className="space-y-3">
+                    {mergedPersons
+                      .filter(p => p.shareholder)
+                      .map(p => (
+                        <div
+                          key={p.personId}
+                          onClick={() => togglePersonSelect(p.personId)}
+                          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+                            {p.nationality && (
+                              <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
+                            )}
+                            {p.address && (
+                              <p className="text-sm text-gray-600">Address: {p.address}</p>
+                            )}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {p.shareholder?.class && (
+                                <Badge variant="outline">Class: {p.shareholder.class}</Badge>
+                              )}
+                              {typeof p.shareholder?.percentage === "number" && (
+                                <Badge variant="outline">{p.shareholder.percentage}%</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-blue-600"
+                            checked={selectedPersonIds.includes(p.personId)}
+                            onChange={() => {}}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePersonSelect(p.personId);
+                            }}
+                          />
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* INVOLVEMENTS */}
+                {viewMode === "involvements" && (
+                  <div className="space-y-3">
+                    {mergedPersons.map(p => {
+                      const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
+                      if (roles.length === 0) return null;
+
+                      return (
+                        <div
+                          key={p.personId}
+                          onClick={() => togglePersonSelect(p.personId)}
+                          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+                            {p.nationality && (
+                              <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
+                            )}
+                            {p.address && (
+                              <p className="text-sm text-gray-600">Address: {p.address}</p>
+                            )}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {roles.map((role: string, i: number) => (
+                                <Badge key={i} variant="outline">{role}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-blue-600"
+                            checked={selectedPersonIds.includes(p.personId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePersonSelect(p.personId);
+                            }}
+                            readOnly
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Add New Document */}
           <Card>
@@ -547,7 +684,7 @@ export function AddDocumentRequestModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || documents.length === 0 || !requestName.trim()}
+              disabled={loading || documents.length === 0 || selectedPersonIds.length === 0}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

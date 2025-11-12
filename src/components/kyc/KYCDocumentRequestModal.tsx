@@ -223,18 +223,24 @@ export function KYCDocumentRequestModal({
         })
       );
 
+      const processedDocumentRequests = selectedPersonIds.map((personId:string) => ({
+        documentRequest: processedDocuments.map((doc:any) => ({
+          name: doc.name,
+          type: (doc.type === "template" || doc.type === "required" ? "required" : "optional") as "required" | "optional",
+          description: doc.description || "",
+          templateUrl: doc.type === "template" ? doc.template?.url : undefined,
+        })),
+        person: personId
+      }));
+
       const kycData = {
         engagementId,
         clientId,
-        documentRequest: {
-          category: 'kyc',
-          description: 'KYC Document Request',
-          documents: processedDocuments
-        }
+        documentRequests:processedDocumentRequests
       };
 
-      // await kycApi.create(kycData);
       console.log("KYC Data: ", kycData);
+      await kycApi.create(kycData);
       
 
       toast({
