@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useClient } from "@/hooks/useClient";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ensureRowGroupings } from "@/lib/classification-utils";
 
 interface ETBRow {
   id: string;
@@ -95,17 +96,20 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Filter rows for balance sheet (NOT Equity > Current Year Profits & Losses)
-      const balanceSheetRows = etbRows.filter((row) => {
-        if (!row.grouping1 || !row.grouping2) return false;
-        // Exclude income statement rows
-        if (
-          row.grouping1 === "Equity" &&
-          row.grouping2 === "Current Year Profits & Losses"
-        ) {
-          return false;
-        }
-        return true;
-      });
+      // Ensure groupings are extracted from classification if missing
+      const balanceSheetRows = etbRows
+        .map(row => ensureRowGroupings(row))
+        .filter((row) => {
+          if (!row.grouping1 || !row.grouping2) return false;
+          // Exclude income statement rows
+          if (
+            row.grouping1 === "Equity" &&
+            row.grouping2 === "Current Year Profits & Losses"
+          ) {
+            return false;
+          }
+          return true;
+        });
 
       // Group by grouping1, grouping2, grouping3, and grouping4
       const grouped: GroupedRows = {};
@@ -238,12 +242,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Helper function - exact copy from IncomeStatementSection.tsx
       const getValueForGroup = (grouping3: string): number => {
         // Filter Income Statement rows and group by group4
-        const incomeRows = etbRows.filter(
-          (row) =>
-            row.grouping1 === "Equity" &&
-            row.grouping2 === "Current Year Profits & Losses" &&
-            row.grouping3 === grouping3
-        );
+        // Ensure groupings are extracted from classification if missing
+        const incomeRows = etbRows
+          .map(row => ensureRowGroupings(row))
+          .filter(
+            (row) =>
+              row.grouping1 === "Equity" &&
+              row.grouping2 === "Current Year Profits & Losses" &&
+              row.grouping3 === grouping3
+          );
 
         // Group by group4
         const group4Map: { [key: string]: ETBRow[] } = {};
@@ -303,15 +310,18 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       let retainedEarningsPrior = 0;
       
       // Search directly in etbRows for Retained Earnings
-      etbRows.forEach((row) => {
-        if (
-          row.grouping1 === "Equity" &&
-          row.grouping2 === "Equity" &&
-          isRetainedEarningsRow(row)
-        ) {
-          retainedEarningsPrior = row.priorYear || 0;
-        }
-      });
+      // Ensure groupings are extracted from classification if missing
+      etbRows
+        .map(row => ensureRowGroupings(row))
+        .forEach((row) => {
+          if (
+            row.grouping1 === "Equity" &&
+            row.grouping2 === "Equity" &&
+            isRetainedEarningsRow(row)
+          ) {
+            retainedEarningsPrior = row.priorYear || 0;
+          }
+        });
 
       return retainedEarningsPrior;
     };

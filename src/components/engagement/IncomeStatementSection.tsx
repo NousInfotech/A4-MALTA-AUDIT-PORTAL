@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useClient } from "@/hooks/useClient";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ensureRowGroupings } from "@/lib/classification-utils";
 
 interface ETBRow {
   id: string;
@@ -111,12 +112,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Filter rows for income statement (Equity > Current Year Profits & Losses)
-      const incomeRows = etbRows.filter(
-        (row) =>
-          row.grouping1 === "Equity" &&
-          row.grouping2 === "Current Year Profits & Losses" &&
-          row.grouping3
-      );
+      // Ensure groupings are extracted from classification if missing
+      const incomeRows = etbRows
+        .map(row => ensureRowGroupings(row))
+        .filter(
+          (row) =>
+            row.grouping1 === "Equity" &&
+            row.grouping2 === "Current Year Profits & Losses" &&
+            row.grouping3
+        );
 
       // Group by grouping3 and grouping4
       const grouped: GroupedRows = {};
