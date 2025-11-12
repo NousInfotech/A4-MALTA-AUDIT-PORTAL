@@ -13,6 +13,7 @@ import {
   Loader2,
   Edit,
   ExternalLink,
+  Globe,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +42,7 @@ interface Company {
   name: string;
   registrationNumber?: string;
   address?: string;
+  industry?: string;
   status: "active" | "record";
   totalShares?: number;
   persons?: Person[];
@@ -474,6 +476,16 @@ export const CompanyDetail: React.FC = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Address</p>
                     <p className="text-gray-900">{company.address}</p>
+                  </div>
+                </div>
+              )}
+
+            {company.industry && (
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
+                <Globe className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Industry</p>
+                    <p className="text-gray-900">{company.industry}</p>
                   </div>
                 </div>
               )}

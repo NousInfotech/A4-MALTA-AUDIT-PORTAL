@@ -10,10 +10,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
- 
+
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -38,11 +60,20 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     timelineStart: "",
     timelineEnd: "",
     totalShares: 0,
+    industry: "",
+    customIndustry: "",
+    description: "",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const resolvedIndustry = (
+    formData.industry === "Other"
+      ? formData.customIndustry
+      : formData.industry
+  ).trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +84,15 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const payload = {
-        ...formData,
+        name: formData.name,
+        registrationNumber: formData.registrationNumber,
+        address: formData.address,
+        status: formData.status,
+        timelineStart: formData.timelineStart,
+        timelineEnd: formData.timelineEnd || undefined,
+        totalShares: formData.totalShares,
+        industry: resolvedIndustry || undefined,
+        description: formData.description.trim() || undefined,
         supportingDocuments,
         shareHoldingCompanies: shareHoldingCompanies.filter(
           (s) => s.companyId && s.sharePercentage > 0
@@ -104,6 +143,9 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       timelineStart: "",
       timelineEnd: "",
       totalShares: 0,
+      industry: "",
+      customIndustry: "",
+      description: "",
     });
     setSupportingDocuments([]);
     setShareHoldingCompanies([]);
@@ -252,29 +294,93 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               />
             </div>
             <div className="space-y-2">
-          <Label htmlFor="totalShares" className="text-gray-700 font-semibold">
-            Total Shares <span className="text-red-500">*</span>
-          </Label>
-            <Input
-            id="totalShares"
-            min={0}
-            type="number"
-            step={1}
-            placeholder="Enter total number of shares"
-            value={formData.totalShares === 0 ? "" : formData.totalShares}
-            onChange={(e) => {
-            const val = e.target.value;
-            const parsedVal = val === "" ? 0 : parseInt(val, 10);
-            setFormData({
-            ...formData,
-            totalShares: parsedVal,
-            });
-            }}
-            required
-            className="rounded-xl border-gray-200"
+              <Label
+                htmlFor="totalShares"
+                className="text-gray-700 font-semibold"
+              >
+                Total Shares <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="totalShares"
+                min={0}
+                type="number"
+                step={1}
+                placeholder="Enter total number of shares"
+                value={formData.totalShares === 0 ? "" : formData.totalShares}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsedVal = val === "" ? 0 : parseInt(val, 10);
+                  setFormData({
+                    ...formData,
+                    totalShares: parsedVal,
+                  });
+                }}
+                required
+                className="rounded-xl border-gray-200"
+              />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Label htmlFor="industry" className="text-gray-700 font-semibold">
+              Industry <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={formData.industry}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  industry: value,
+                  customIndustry: value === "Other" ? prev.customIndustry : "",
+                }))
+              }
+            >
+              <SelectTrigger
+                id="industry"
+                className="rounded-xl border-gray-200 text-left"
+              >
+                <SelectValue placeholder="Select an industry" />
+              </SelectTrigger>
+              <SelectContent>
+                {industryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Choose from the list or select "Other" to enter a custom value.
+            </p>
+            {formData.industry === "Other" && (
+              <Input
+                id="customIndustry"
+                placeholder="Enter custom industry"
+                value={formData.customIndustry}
+                onChange={(e) =>
+                  setFormData({ ...formData, customIndustry: e.target.value })
+                }
+                className="rounded-xl border-gray-200"
+                required
+              />
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor="description"
+              className="text-gray-700 font-semibold"
+            >
+              Company Summary
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Provide a brief overview of the company"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              rows={4}
+              className="rounded-xl border-gray-200"
             />
-
-        </div>
           </div>
           {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -361,7 +467,15 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name || !formData.registrationNumber || !formData.address || !formData.timelineStart || !formData.totalShares}
+              disabled={
+                isSubmitting ||
+                !formData.name ||
+                !formData.registrationNumber ||
+                !formData.address ||
+                !formData.timelineStart ||
+                !formData.totalShares ||
+                !resolvedIndustry
+              }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (

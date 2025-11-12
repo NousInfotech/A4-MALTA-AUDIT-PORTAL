@@ -22,6 +22,22 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
 import { ShareholdingCompaniesManager } from "./ShareholdingCompaniesManager";
 
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
+
 interface EditCompanyModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,6 +62,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     status: "active",
     companyStartedAt: "",
     totalShares: 0,
+    industry: "",
+    customIndustry: "",
+    description: "",
     // timelineEnd: "",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
@@ -89,8 +108,15 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     setSupportingDocuments(updated);
   };
 
+  const resolvedIndustry = (
+    formData.industry === "Other" ? formData.customIndustry : formData.industry
+  ).trim();
+
   useEffect(() => {
     if (company) {
+      const companyIndustry = company.industry || "";
+      const isPresetIndustry =
+        companyIndustry && industryOptions.includes(companyIndustry);
       setFormData({
         name: company.name || "",
         registrationNumber: company.registrationNumber || "",
@@ -100,6 +126,13 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
           ? company.companyStartedAt.substring(0, 10)
           : "",
         totalShares: company.totalShares,
+        industry: isPresetIndustry
+          ? companyIndustry
+          : companyIndustry
+          ? "Other"
+          : "",
+        customIndustry: isPresetIndustry ? "" : companyIndustry || "",
+        description: company.description || "",
         // timelineEnd: company.timelineEnd
         //   ? company.timelineEnd.substring(0, 10)
         //   : "",
@@ -118,7 +151,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const payload = {
-        ...formData,
+        name: formData.name,
+        registrationNumber: formData.registrationNumber,
+        address: formData.address,
+        status: formData.status,
+        companyStartedAt: formData.companyStartedAt,
+        totalShares: formData.totalShares,
+        industry: resolvedIndustry || undefined,
+        description: formData.description.trim() || undefined,
         supportingDocuments,
         shareHoldingCompanies: shareHoldingCompanies.filter(
           (s) => s.companyId && s.sharePercentage > 0
@@ -312,6 +352,70 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
             />
           </div> */}
 
+          <div className="space-y-3">
+            <Label htmlFor="industry" className="text-gray-700 font-semibold">
+              Industry <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={formData.industry}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  industry: value,
+                  customIndustry: value === "Other" ? prev.customIndustry : "",
+                }))
+              }
+            >
+              <SelectTrigger
+                id="industry"
+                className="rounded-xl border-gray-200 text-left"
+              >
+                <SelectValue placeholder="Select an industry" />
+              </SelectTrigger>
+              <SelectContent>
+                {industryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Choose from the list or select "Other" to enter a custom value.
+            </p>
+            {formData.industry === "Other" && (
+              <Input
+                id="customIndustry"
+                placeholder="Enter custom industry"
+                value={formData.customIndustry}
+                onChange={(e) =>
+                  setFormData({ ...formData, customIndustry: e.target.value })
+                }
+                className="rounded-xl border-gray-200"
+                required
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="description"
+              className="text-gray-700 font-semibold"
+            >
+             Company Summary
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Provide a brief overview of the company"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              rows={4}
+              className="rounded-xl border-gray-200"
+            />
+          </div>
+
           {/* Supporting Documents */}
           {/* <div className="space-y-2">
             <Label className="text-gray-700 font-semibold">Supporting Documents</Label>
@@ -381,7 +485,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 !formData.name ||
                 !formData.registrationNumber ||
                 !formData.address ||
-                !formData.companyStartedAt
+                !formData.companyStartedAt ||
+                !resolvedIndustry
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
