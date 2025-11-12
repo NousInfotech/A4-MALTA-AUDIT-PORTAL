@@ -1334,6 +1334,14 @@ export const adjustmentApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Get history for an adjustment
+   */
+  getHistory: async (id: string) => {
+    console.log('📝 Fetching adjustment history:', id);
+    return apiCall(`/api/adjustments/${id}/history`);
+  },
 };
 
 // Reclassification API
@@ -1445,5 +1453,13 @@ export const reclassificationApi = {
     return apiCall(`/api/reclassifications/${id}`, {
       method: 'DELETE',
     });
+  },
+
+  /**
+   * Get history for a reclassification
+   */
+  getHistory: async (id: string) => {
+    console.log('📝 Fetching reclassification history:', id);
+    return apiCall(`/api/reclassifications/${id}/history`);
   },
 };
