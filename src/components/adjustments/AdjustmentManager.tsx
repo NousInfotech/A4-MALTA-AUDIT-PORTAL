@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2, ArrowLeftRight } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2, ArrowLeftRight, History } from "lucide-react";
 import { toast } from "sonner";
 import { useAdjustment } from "@/hooks/useAdjustment";
+import { AdjustmentHistory } from "./AdjustmentHistory";
 
 interface ETBRow {
   _id?: string;
@@ -78,11 +79,13 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
 
   // State
   const [isCreating, setIsCreating] = useState(false);
+  const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<string | null>(null);
   const [currentAdjustmentNo, setCurrentAdjustmentNo] = useState("");
   const [currentDescription, setCurrentDescription] = useState("");
   const [entries, setEntries] = useState<AdjustmentEntry[]>([]);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [selectedAdjustmentForHistory, setSelectedAdjustmentForHistory] = useState<any>(null);
 
   // Use the adjustment hook
   const {
@@ -91,6 +94,9 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
     isCreating: isSaving,
     isUpdating,
     isPosting,
+    history,
+    isFetchingHistory,
+    fetchHistory,
     createAdjustment,
     updateAdjustment,
     postAdjustment,
@@ -382,6 +388,23 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
     }
   };
 
+  // View adjustment history
+  const handleViewHistory = async (adjustment: any) => {
+    try {
+      setSelectedAdjustmentForHistory(adjustment);
+      await fetchHistory(adjustment._id);
+      setIsViewingHistory(true);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load adjustment history");
+    }
+  };
+
+  // Back from history view
+  const handleBackFromHistory = () => {
+    setIsViewingHistory(false);
+    setSelectedAdjustmentForHistory(null);
+  };
+
   // Account Selector Dialog
   const AccountSelectorDialog = () => {
     const [tempAmount, setTempAmount] = useState("");
@@ -532,7 +555,7 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
           <h2 className="text-2xl font-bold">Adjustments</h2>
           <p className="text-gray-500">Manage audit adjustments for this engagement</p>
         </div>
-        {!isCreating && (
+        {!isCreating && !isViewingHistory && (
           <Button onClick={handleStartCreating}>
             <Plus className="h-4 w-4 mr-2" />
             Create Adjustment
@@ -540,8 +563,18 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
         )}
       </div>
 
+      {/* History View */}
+      {isViewingHistory && (
+        <AdjustmentHistory
+          history={history}
+          adjustmentNo={selectedAdjustmentForHistory?.adjustmentNo || ""}
+          loading={isFetchingHistory}
+          onBack={handleBackFromHistory}
+        />
+      )}
+
       {/* Create/Edit Adjustment Form */}
-      {isCreating && (
+      {isCreating && !isViewingHistory && (
         <Card>
           <CardHeader>
             <CardTitle>
@@ -770,9 +803,10 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
       )}
 
       {/* Existing Adjustments List */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Existing Adjustments</h3>
-        {adjustments.length === 0 ? (
+      {!isViewingHistory && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Existing Adjustments</h3>
+          {adjustments.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-gray-500">
               <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -843,6 +877,16 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
 
                     {/* Actions */}
                     <div className="flex flex-col gap-2 ml-4">
+                      {/* History Button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewHistory(adj)}
+                      >
+                        <History className="h-3 w-3 mr-1" />
+                        History
+                      </Button>
+
                       {/* TEMPORARY: Allow editing posted adjustments */}
                       <Button
                         size="sm"
@@ -891,7 +935,8 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
             ))}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Account Selector Dialog */}
       <AccountSelectorDialog />

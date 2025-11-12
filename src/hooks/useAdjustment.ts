@@ -43,6 +43,34 @@ export const useAdjustment = (options: UseAdjustmentOptions = {}) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+
+  /**
+   * Fetch history for an adjustment
+   */
+  const fetchHistory = useCallback(async (id: string) => {
+    if (!id) return;
+
+    setIsFetchingHistory(true);
+    setError(null);
+
+    try {
+      const response = await adjustmentApi.getHistory(id);
+      if (response.success) {
+        setHistory(response.data.history || []);
+        return response.data;
+      } else {
+        throw new Error(response.message || "Failed to fetch adjustment history");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setHistory([]);
+      throw err;
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  }, []);
 
   /**
    * Fetch adjustments by engagement ID
@@ -312,6 +340,7 @@ export const useAdjustment = (options: UseAdjustmentOptions = {}) => {
     // Data
     adjustments,
     currentAdjustment,
+    history,
     
     // Loading states
     loading,
@@ -319,6 +348,7 @@ export const useAdjustment = (options: UseAdjustmentOptions = {}) => {
     isUpdating,
     isPosting,
     isDeleting,
+    isFetchingHistory,
     
     // Error
     error,
@@ -327,6 +357,7 @@ export const useAdjustment = (options: UseAdjustmentOptions = {}) => {
     fetchByEngagement,
     fetchByETB,
     fetchById,
+    fetchHistory,
     createAdjustment,
     updateAdjustment,
     postAdjustment,

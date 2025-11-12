@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_APIURL ? `${import.meta.env.VITE_APIURL}/api` : 'http://localhost:8000/api';
 
 /**
  * Get authorization header with Supabase access token

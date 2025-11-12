@@ -43,6 +43,34 @@ export const useReclassification = (options: UseReclassificationOptions = {}) =>
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+
+  /**
+   * Fetch history for a reclassification
+   */
+  const fetchHistory = useCallback(async (id: string) => {
+    if (!id) return;
+
+    setIsFetchingHistory(true);
+    setError(null);
+
+    try {
+      const response = await reclassificationApi.getHistory(id);
+      if (response.success) {
+        setHistory(response.data.history || []);
+        return response.data;
+      } else {
+        throw new Error(response.message || "Failed to fetch reclassification history");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setHistory([]);
+      throw err;
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  }, []);
 
   /**
    * Fetch reclassifications by engagement ID
@@ -300,20 +328,27 @@ export const useReclassification = (options: UseReclassificationOptions = {}) =>
   }, [engagementId, etbId, autoFetch, fetchByEngagement, fetchByETB]);
 
   return {
+    // Data
     reclassifications,
     currentReclassification,
+    history,
 
+    // Loading states
     loading,
     isCreating,
     isUpdating,
     isPosting,
     isDeleting,
+    isFetchingHistory,
 
+    // Error
     error,
 
+    // Methods
     fetchByEngagement,
     fetchByETB,
     fetchById,
+    fetchHistory,
     createReclassification,
     updateReclassification,
     postReclassification,
@@ -321,6 +356,7 @@ export const useReclassification = (options: UseReclassificationOptions = {}) =>
     deleteReclassification,
     refetch,
 
+    // Setters
     setCurrentReclassification,
     clearError: () => setError(null),
   };
