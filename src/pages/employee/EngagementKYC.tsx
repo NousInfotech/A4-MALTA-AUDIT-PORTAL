@@ -45,6 +45,7 @@ interface Engagement {
   yearEndDate: string;
   clientId: string;
   status: string;
+  companyId: any;
 }
 
 interface KYCWorkflow {
@@ -162,8 +163,12 @@ export function EngagementKYC() {
   }, [kycWorkflows.length, loading]); // Only run when workflows are first loaded
 
   const fetchEngagementDetails = async () => {
+
     try {
+      
       const engagementData = await engagementApi.getById(engagementId!);
+      console.log(engagementData);
+      
       setEngagement(engagementData);
     } catch (error: any) {
       console.error('Error fetching engagement details:', error);
@@ -904,6 +909,7 @@ export function EngagementKYC() {
                   engagementId={engagementId}
                   clientId={engagement?.clientId || ''}
                   engagementName={engagement?.title}
+                  company={engagement?.companyId}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
                     <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">

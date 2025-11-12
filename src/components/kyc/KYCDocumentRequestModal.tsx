@@ -36,26 +36,26 @@ import { DefaultDocumentRequestPreview } from "./DefaultDocumentRequestPreview";
 import { DefaultDocument } from "@/data/defaultDocumentRequests";
 
 /* ✅ personsData with address */
-const personsData = [
-  {
-    name: "John Miller",
-    nationality: "Maltese",
-    address: "45 Palm Street, Valletta, Malta",
-    roles: ["Director", "Shareholder"],
-  },
-  {
-    name: "Anna Rossi",
-    nationality: "Italian",
-    address: "22 Rome Via, Rome, Italy",
-    roles: ["Ultimate Beneficial Owner"],
-  },
-  {
-    name: "Wei Zhang",
-    nationality: "Chinese",
-    address: "10 West Shanghai Road, Shanghai, China",
-    roles: ["Shareholder"],
-  },
-];
+// const personsData = [
+//   {
+//     name: "John Miller",
+//     nationality: "Maltese",
+//     address: "45 Palm Street, Valletta, Malta",
+//     roles: ["Director", "Shareholder"],
+//   },
+//   {
+//     name: "Anna Rossi",
+//     nationality: "Italian",
+//     address: "22 Rome Via, Rome, Italy",
+//     roles: ["Ultimate Beneficial Owner"],
+//   },
+//   {
+//     name: "Wei Zhang",
+//     nationality: "Chinese",
+//     address: "10 West Shanghai Road, Shanghai, China",
+//     roles: ["Shareholder"],
+//   },
+// ];
 
 interface Document {
   name: string;
@@ -72,6 +72,7 @@ interface KYCDocumentRequestModalProps {
   engagementId: string;
   clientId: string;
   engagementName?: string;
+  company?: any;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
@@ -80,8 +81,9 @@ export function KYCDocumentRequestModal({
   engagementId,
   clientId,
   engagementName,
+  company,
   onSuccess,
-  trigger
+  trigger,
 }: KYCDocumentRequestModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,15 +100,20 @@ export function KYCDocumentRequestModal({
   const { toast } = useToast();
 
   /* ✅ checkbox state */
-  const [selectedPersonIds, setSelectedPersonIds] = useState<number[]>([]);
-
-  const togglePersonSelect = (index: number) => {
+  const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
+  const togglePersonSelect = (personId: string) => {
     setSelectedPersonIds(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
+      prev.includes(personId) ? prev.filter(id => id !== personId) : [...prev, personId]
     );
   };
+  
+  console.log(company);
+  
+  
+  
+  const [viewMode, setViewMode] =
+  useState<"shareholders" | "involvements">("shareholders");
+
 
   const handleAddDocument = () => {
     if (!newDocument.name?.trim()) {
@@ -226,7 +233,9 @@ export function KYCDocumentRequestModal({
         }
       };
 
-      await kycApi.create(kycData);
+      // await kycApi.create(kycData);
+      console.log("KYC Data: ", kycData);
+      
 
       toast({
         title: "Success",
@@ -275,6 +284,63 @@ export function KYCDocumentRequestModal({
         </Badge>
       );
 
+
+  const mergedPersons = React.useMemo(() => {
+  if (!company) return [];
+
+  const personsMap: Record<string, any> = {};
+
+  // STEP 1 — Shareholders
+  company?.shareHolders?.forEach((sh: any) => {
+    const p = sh.personId; // now an object
+
+    if (!personsMap[p._id]) {
+      personsMap[p._id] = {
+        personId: p._id,
+        name: p.name,
+        nationality: p.nationality,
+        address: p.address ?? "",
+        roles: [],
+        shareholder: null,
+      };
+    }
+
+    personsMap[p._id].shareholder = {
+      class: sh.sharesData?.class,
+      percentage: sh.sharesData?.percentage,
+      totalShares: sh.sharesData?.totalShares,
+    };
+
+    // Ensure roles[] exists
+    if (!personsMap[p._id].roles) personsMap[p._id].roles = [];
+    personsMap[p._id].roles.push("Shareholder");
+  });
+
+  // STEP 2 — Representational schema
+  company?.representationalSchema?.forEach((rep: any) => {
+    const p = rep.personId; // now an object
+
+    if (!personsMap[p._id]) {
+      personsMap[p._id] = {
+        personId: p._id,
+        name: p.name,
+        nationality: p.nationality,
+        address: p.address ?? "",
+        roles: [],
+        shareholder: null,
+      };
+    }
+
+    // Add all roles
+    personsMap[p._id].roles.push(...rep.role);
+  });
+
+  return Object.values(personsMap);
+  }, [company]);
+      
+      
+      
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -286,7 +352,7 @@ export function KYCDocumentRequestModal({
         )}
       </DialogTrigger>
 
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -328,56 +394,157 @@ export function KYCDocumentRequestModal({
           </Card>
 
           {/* ✅ Persons List */}
-          {personsData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Persons Related to this Engagement ({personsData.length})
-                </CardTitle>
-              </CardHeader>
+          {mergedPersons.length > 0 && (
+          <Card>
+          <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div className='flex flex-col gap-2'>
+          <CardTitle className="text-lg">
+          Persons Related to this Engagement ({mergedPersons.length})
+          </CardTitle>
 
-              <CardContent>
-                <div className="space-y-3">
-                  {personsData.map((person, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {person.name}
-                        </p>
+          <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
+          <SelectTrigger className='w-48 border-gray-300 focus:border-gray-500 rounded-xl'>
+          <SelectValue placeholder="Select view" />
+          </SelectTrigger>
+          <SelectContent>
+          <SelectItem value="shareholders">Shareholders</SelectItem>
+          <SelectItem value="involvements">Involvements</SelectItem>
+          </SelectContent>
+          </Select>
+          </div>
+           
+           <Button
+            variant="default"
+            onClick={() => {
+            // If all selected → unselect all
+            if (selectedPersonIds.length === mergedPersons.length) {
+            setSelectedPersonIds([]);
+            } else {
+            // Else → select all
+            setSelectedPersonIds(mergedPersons.map(p => p.personId));
+            }
+            }}
+            >
+            {selectedPersonIds.length === mergedPersons.length
+            ? "Unselect All"
+            : "Select All"}
+            </Button>
+          
+          </div>
+          </CardHeader>
 
-                        <p className="text-sm text-gray-600">
-                          Nationality: {person.nationality}
-                        </p>
+          <CardContent>
 
-                        <p className="text-sm text-gray-600">
-                          Address: {person.address}
-                        </p>
+          {/* ✅ SHAREHOLDERS */}
+          {viewMode === "shareholders" && (
+          <div className="space-y-3">
+          {mergedPersons
+          .filter(p => p.shareholder)
+          .map(p => (
+          <div
+          key={p.personId}
+          onClick={() => togglePersonSelect(p.personId)}
+          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer"
+          >
+          <div>
+            <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+            {p.nationality && (
+              <p className="text-sm text-gray-600">
+                Nationality: {p.nationality}
+              </p>
+            )}
+            {p.address && (
+              <p className="text-sm text-gray-600">
+                Address: {p.address}
+              </p>
+            )}
 
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {person.roles.map((role, i) => (
-                            <Badge key={i} variant="outline">
-                              {role}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {p.shareholder?.class && (
+                <Badge variant="outline">Class: {p.shareholder.class}</Badge>
+              )}
+              {typeof p.shareholder?.percentage === "number" && (
+                <Badge variant="outline">
+                  {p.shareholder.percentage}%
+                </Badge>
+              )}
+            </div>
+          </div>
 
-                      {/* ✅ Checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={selectedPersonIds.includes(index)}
-                        onChange={() => togglePersonSelect(index)}
-                        className="w-4 h-4 accent-blue-600"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+              <input
+              type="checkbox"
+              className="w-4 h-4 accent-blue-600"
+              checked={selectedPersonIds.includes(p.personId)}
+              onChange={() => {}}
+              onClick={(e) => {
+              e.stopPropagation(); // prevent duplicate toggle
+              togglePersonSelect(p.personId);
+              }}
+              />
+
+          </div>
+          ))}
+          </div>
           )}
+
+          {/* ✅ INVOLVEMENTS */}
+          {viewMode === "involvements" && (
+          <div className="space-y-3">
+          {mergedPersons.map(p => {
+          const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
+          if (roles.length === 0) return null;
+
+          return (
+            <div
+            key={p.personId}
+            onClick={() => togglePersonSelect(p.personId)}
+            className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer"
+          >
+            <div>
+              <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+          
+              {p.nationality && (
+                <p className="text-sm text-gray-600">
+                  Nationality: {p.nationality}
+                </p>
+              )}
+          
+              {p.address && (
+                <p className="text-sm text-gray-600">
+                  Address: {p.address}
+                </p>
+              )}
+          
+              <div className="flex flex-wrap gap-2 mt-2">
+                {roles.map((role: string, i: number) => (
+                  <Badge key={i} variant="outline">
+                    {role}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-blue-600"
+              checked={selectedPersonIds.includes(p.personId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePersonSelect(p.personId);
+              }}
+              readOnly
+            />
+          </div>
+          
+          );
+          })}
+          </div>
+          )}
+          </CardContent>
+          </Card>
+          )}
+
 
           {/* ✅ Default Document Request Preview */}
           <DefaultDocumentRequestPreview
