@@ -13,11 +13,13 @@ import { ArrowLeft, Briefcase, Loader2, Users, Calendar, FileText, Sparkles, Che
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
+import { fetchCompanies } from '@/lib/api/company';
 
 export const CreateEngagement = () => {
   const {user} = useAuth();
   const [formData, setFormData] = useState({
     clientId: '',
+    companyId: '',
     title: '',
     yearEndDate: '',
     trialBalanceUrl: '',
@@ -44,12 +46,39 @@ export const CreateEngagement = () => {
   status: "pending" | "approved" | "rejected"
   createdAt: string
   companyName?: string
+  name?: string
   companyNumber?: string
   industry?: string
 }
+  interface Company {
+    _id: string;
+    name: string;
+    registrationNumber?: string;
+    address?: string;
+  }
   const [loading, setLoading] = useState(true)
 
 const [clients, setClients] = useState<User[]>([])
+const [clientCompanies, setClientCompanies] = useState<Company[]>([])
+const [isCompanyLoading, setIsCompanyLoading] = useState(false)
+const [companyError, setCompanyError] = useState<string>('')
+
+  const extractYear = (dateString: string) => {
+    if (!dateString) return ''
+    const [year] = dateString.split('-')
+    return year || ''
+  }
+
+  const buildTitleFromCompany = (companyName: string, yearEndDate: string) => {
+    if (!companyName) return ''
+    const year = extractYear(yearEndDate)
+    return year ? `${companyName} AUDIT-${year}` : companyName
+  }
+
+  const getCompanyNameById = (companyId: string) => {
+    const company = clientCompanies.find((c) => c._id === companyId)
+    return company?.name || ''
+  }
     
     useEffect(() => {
       fetchClients();
@@ -106,6 +135,7 @@ const [clients, setClients] = useState<User[]>([])
             createdAt: profile.created_at,
             companyName: profile.company_name || undefined,
             companyNumber: profile.company_number || undefined,
+            name: profile.name || undefined,
             industry: profile.industry || undefined,
             summary: profile.company_summary || undefined,
           })) || []
@@ -122,6 +152,51 @@ const [clients, setClients] = useState<User[]>([])
         setLoading(false)
       }
     }
+
+  const loadCompaniesForClient = async (clientId: string) => {
+    if (!clientId) {
+      setClientCompanies([])
+      setCompanyError('')
+      setIsCompanyLoading(false)
+      setFormData(prev => ({ ...prev, companyId: '' }))
+      return
+    }
+
+    setIsCompanyLoading(true)
+    setCompanyError('')
+    setClientCompanies([])
+
+    try {
+      const response = await fetchCompanies(clientId)
+      const companiesData = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : []
+      const normalizedCompanies = companiesData || []
+
+      setClientCompanies(normalizedCompanies)
+
+      setFormData(prev => {
+        if (normalizedCompanies.length === 1) {
+          const singleCompany = normalizedCompanies[0]
+          const companyId = singleCompany?._id ?? ''
+          const companyName = singleCompany?.name || ''
+          const newTitle = buildTitleFromCompany(companyName, prev.yearEndDate)
+          return { ...prev, companyId, title: newTitle }
+        }
+        const validId = normalizedCompanies.some(company => company._id === prev.companyId)
+          ? prev.companyId
+          : ''
+        const companyName = normalizedCompanies.find((company) => company._id === validId)?.name || ''
+        const newTitle = buildTitleFromCompany(companyName, prev.yearEndDate)
+        return { ...prev, companyId: validId, title: newTitle }
+      })
+    } catch (error: any) {
+      console.error("Error fetching companies for client:", error)
+      setCompanyError(error?.message || "Failed to load companies for this client.")
+      setClientCompanies([])
+      setFormData(prev => ({ ...prev, companyId: '' }))
+    } finally {
+      setIsCompanyLoading(false)
+    }
+  }
 
   // Validation function to check for duplicate year
   const validateYear = (yearEndDate: string, clientId: string): { isValid: boolean; errorMessage: string; duplicateYear?: number } => {
@@ -226,14 +301,34 @@ const [clients, setClients] = useState<User[]>([])
       setYearError(''); // Clear year error when client changes
       setTitleError(''); // Clear title error when client changes
       const selectedClient = clients.find(client => client.id === value);
-      if (selectedClient && selectedClient.companyName) {
+      if (selectedClient && selectedClient.name) {
         setFormData(prev => ({ 
           ...prev, 
           clientId: value,
-          title: selectedClient.companyName 
+          companyId: '',
+          title: '' 
         }));
       } else {
-        setFormData(prev => ({ ...prev, clientId: value }));
+        setFormData(prev => ({ ...prev, clientId: value, companyId: '', title: '' }));
+      }
+      loadCompaniesForClient(value);
+    } else if (field === 'companyId') {
+      const companyName = getCompanyNameById(value);
+      const newTitle = buildTitleFromCompany(companyName, formData.yearEndDate);
+      setFormData(prev => ({
+        ...prev,
+        companyId: value,
+        title: newTitle
+      }));
+      if (formData.clientId && newTitle) {
+        const titleValidation = validateTitle(newTitle, formData.clientId);
+        if (!titleValidation.isValid) {
+          setTitleError(titleValidation.errorMessage);
+        } else {
+          setTitleError('');
+        }
+      } else {
+        setTitleError('');
       }
     } else if (field === 'title') {
       // Validate title when it changes
@@ -252,11 +347,8 @@ const [clients, setClients] = useState<User[]>([])
   };
 
   const handleYearEndDateChange = (value: string) => {
-    // Extract year from date string (format: YYYY-MM-DD)
-    const year = value.split('-')[0];
-    
-    // Get the current title (should be the company name)
-    const currentTitle = formData.title;
+    // Get the selected company's name
+    const companyName = getCompanyNameById(formData.companyId);
     
     // Validate the year before proceeding
     if (formData.clientId) {
@@ -268,10 +360,9 @@ const [clients, setClients] = useState<User[]>([])
       }
     }
     
-    // If we have a title and it doesn't already end with the year, append it
-    if (currentTitle && year) {
-      const titleWithoutYear = currentTitle.replace(/\s*,?\s*\d{4}$/, '').replace(/\s*Audit\s*$/, '').trim(); // Remove any existing year, comma, or "Audit" word
-      const newTitle = `${titleWithoutYear} Audit ${year}`;
+    // If we have a company name, build the title based on company and year
+    if (companyName) {
+      const newTitle = buildTitleFromCompany(companyName, value);
       
       // Validate the new title if client is selected
       if (formData.clientId) {
@@ -356,8 +447,7 @@ const [clients, setClients] = useState<User[]>([])
                     {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id} className="rounded-lg">
                           <div className="py-1">
-                            <div className="font-semibold text-gray-900">{client.companyName}</div>
-                            <div className="text-sm text-gray-600">{client.industry}</div>
+                            <div className="font-semibold text-gray-900">{client.name}</div>
                         </div>
                       </SelectItem>
                     ))}
@@ -371,6 +461,55 @@ const [clients, setClients] = useState<User[]>([])
                     </div>
                 )}
                 </div>
+
+                {formData.clientId && (
+                  <div className="space-y-3">
+                    <Label htmlFor="companyId" className="text-sm font-medium text-gray-700">Select Company</Label>
+                    {isCompanyLoading ? (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-600">
+                        Loading companies...
+                      </div>
+                    ) : clientCompanies.length > 1 ? (
+                      <Select
+                        value={formData.companyId}
+                        onValueChange={(value) => handleChange('companyId', value)}
+                      >
+                        <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                          <SelectValue placeholder="Choose a company associated with this client" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-gray-200 rounded-xl">
+                          {clientCompanies.map((company) => (
+                            <SelectItem key={company._id} value={company._id} className="rounded-lg">
+                              <div className="py-1">
+                                <div className="font-semibold text-gray-900">{company.name}</div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : clientCompanies.length === 1 ? (
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <p className="text-sm font-semibold text-gray-900">{clientCompanies[0].name}</p>
+                        {clientCompanies[0].registrationNumber && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            Reg No: {clientCompanies[0].registrationNumber}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      !companyError && (
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                          <p className="text-sm text-gray-700 font-medium">
+                            No companies found for this client.
+                          </p>
+                        </div>
+                      )
+                    )}
+                    {companyError && (
+                      <p className="text-sm text-red-600">{companyError}</p>
+                    )}
+                  </div>
+                )}
               </div>
               
               {/* Engagement Details */}
@@ -406,7 +545,7 @@ const [clients, setClients] = useState<User[]>([])
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleChange('title', e.target.value)}
-                  placeholder="e.g., Annual Audit 2024, Interim Review Q3 2024"
+                  placeholder="e.g., Annual Audit-2024, Interim Review Q3 2024"
                       className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg ${titleError ? 'border-red-500' : ''}`}
                   required
                 />

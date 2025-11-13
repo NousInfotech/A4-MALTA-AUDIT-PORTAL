@@ -57,6 +57,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     phoneNumber: "",
     sharePercentage: "",
     nationality: "",
+    shareClass: "",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -208,6 +209,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         phoneNumber: person.phoneNumber || "",
         sharePercentage: person.sharePercentage?.toString() || "",
         nationality: person.nationality || "",
+        shareClass: person.shareClass || "A",
       });
       setSupportingDocuments(person.supportingDocuments || []);
     }
@@ -395,6 +397,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
           sharePercentage: formData.sharePercentage
             ? parseFloat(formData.sharePercentage)
             : undefined,
+          shareClass: formData.shareClass || undefined,
         };
 
         const response = await fetch(
@@ -444,11 +447,11 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           {isShareholdingCompanyPerson && person?.companyName && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            
               <div className="text-sm text-gray-600">
-                Editing {person.name} from {person.companyName}
+                {person.name} from {person.companyName}
               </div>
-            </div>
+             
           )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -595,6 +598,24 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="shareClass" className="text-gray-700 font-semibold">
+                  Class <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.shareClass}
+                  onValueChange={(v) => setFormData({ ...formData, shareClass: v })}
+                >
+                  <SelectTrigger id="shareClass" className="rounded-xl border-gray-200">
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="B">B</SelectItem>
+                    <SelectItem value="Ordinary">Ordinary</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 
@@ -661,7 +682,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   !formData.nationality ||
                   !formData.address
                 )) ||
-                ((isShareholderContext || hasShareholderRole) && !formData.sharePercentage) ||
+                ((isShareholderContext || hasShareholderRole) && (!formData.sharePercentage || !formData.shareClass)) ||
                 !!shareTotalError
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"

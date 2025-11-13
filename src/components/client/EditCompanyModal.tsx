@@ -22,6 +22,22 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
 import { ShareholdingCompaniesManager } from "./ShareholdingCompaniesManager";
 
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
+
 interface EditCompanyModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,12 +61,21 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     address: "",
     status: "active",
     companyStartedAt: "",
-    totalShares: 0,
+    totalShares: 100,
+    industry: "",
+    customIndustry: "",
+    description: "",
     // timelineEnd: "",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalSharesError, setTotalSharesError] = useState<string>("");
+  const [errors, setErrors] = useState({
+    name: "",
+    registrationNumber: "",
+    address: "",
+  });
   const { toast } = useToast();
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,8 +114,60 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     setSupportingDocuments(updated);
   };
 
+  const resolvedIndustry = (
+    formData.industry === "Other" ? formData.customIndustry : formData.industry
+  ).trim();
+
+  const validateField = (fieldName: string, value: string) => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      setErrors((prev) => ({
+        ...prev,
+        [fieldName]: `${fieldName === "name" ? "Company name" : fieldName === "registrationNumber" ? "Registration number" : "Address"} is required`,
+      }));
+      return false;
+    } else {
+      setErrors((prev) => ({
+        ...prev,
+        [fieldName]: "",
+      }));
+      return true;
+    }
+  };
+
+  const validateAllFields = () => {
+    const newErrors = {
+      name: formData.name.trim() ? "" : "Company name is required",
+      registrationNumber: formData.registrationNumber.trim() ? "" : "Registration number is required",
+      address: formData.address.trim() ? "" : "Address is required",
+    };
+    
+    setErrors(newErrors);
+    
+    // Validate total shares
+    let sharesError = "";
+    if (!formData.totalShares || formData.totalShares === 0) {
+      sharesError = "Total shares must be at least 100";
+    } else if (formData.totalShares < 100) {
+      sharesError = "Total shares must be at least 100";
+    }
+    setTotalSharesError(sharesError);
+    
+    const nameValid = !!formData.name.trim();
+    const registrationNumberValid = !!formData.registrationNumber.trim();
+    const addressValid = !!formData.address.trim();
+    const totalSharesValid = !sharesError && formData.totalShares >= 100;
+    
+    return nameValid && registrationNumberValid && addressValid && totalSharesValid;
+  };
+
   useEffect(() => {
     if (company) {
+      const companyIndustry = company.industry || "";
+      const isPresetIndustry =
+        companyIndustry && industryOptions.includes(companyIndustry);
+      const totalShares = company.totalShares || 0;
+      
       setFormData({
         name: company.name || "",
         registrationNumber: company.registrationNumber || "",
@@ -99,18 +176,53 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         companyStartedAt: company.companyStartedAt
           ? company.companyStartedAt.substring(0, 10)
           : "",
-        totalShares: company.totalShares,
+        totalShares: totalShares,
+        industry: isPresetIndustry
+          ? companyIndustry
+          : companyIndustry
+          ? "Other"
+          : "",
+        customIndustry: isPresetIndustry ? "" : companyIndustry || "",
+        description: company.description || "",
         // timelineEnd: company.timelineEnd
         //   ? company.timelineEnd.substring(0, 10)
         //   : "",
       });
+      
+      // Validate totalShares on load
+      if (!totalShares || totalShares === 0) {
+        setTotalSharesError("Total shares must be at least 100");
+      } else if (totalShares < 100) {
+        setTotalSharesError("Total shares must be at least 100");
+      } else {
+        setTotalSharesError("");
+      }
+      
       setSupportingDocuments(company.supportingDocuments || []);
       setShareHoldingCompanies(company.shareHoldingCompanies || []);
+      
+      // Reset errors when company data is loaded
+      setErrors({
+        name: "",
+        registrationNumber: "",
+        address: "",
+      });
     }
   }, [company]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate all fields before submitting
+    if (!validateAllFields()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -118,7 +230,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const payload = {
-        ...formData,
+        name: formData.name,
+        registrationNumber: formData.registrationNumber,
+        address: formData.address,
+        status: formData.status,
+        companyStartedAt: formData.companyStartedAt,
+        totalShares: formData.totalShares,
+        industry: resolvedIndustry || undefined,
+        description: formData.description.trim() || undefined,
         supportingDocuments,
         shareHoldingCompanies: shareHoldingCompanies.filter(
           (s) => s.companyId && s.sharePercentage > 0
@@ -175,18 +294,24 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-gray-700 font-semibold">
-                Company Name <span className="text-red-500">*</span>
+                Company Name
               </Label>
               <Input
                 id="name"
                 placeholder="Enter company name"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
-                className="rounded-xl border-gray-200"
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  validateField("name", e.target.value);
+                }}
+                onBlur={(e) => validateField("name", e.target.value)}
+                className={`rounded-xl border-gray-200 ${
+                  errors.name ? "border-red-500" : ""
+                }`}
               />
+              {errors.name && (
+                <p className="text-sm text-red-500 mt-1">{errors.name}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -194,39 +319,51 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 htmlFor="registrationNumber"
                 className="text-gray-700 font-semibold"
               >
-                Registration Number <span className="text-red-500">*</span>
+                Registration Number
               </Label>
               <Input
                 id="registrationNumber"
                 placeholder="Enter registration number"
                 value={formData.registrationNumber}
-                onChange={(e) =>
+                onChange={(e) => {
                   setFormData({
                     ...formData,
                     registrationNumber: e.target.value,
-                  })
-                }
-                className="rounded-xl border-gray-200"
-                required
+                  });
+                  validateField("registrationNumber", e.target.value);
+                }}
+                onBlur={(e) => validateField("registrationNumber", e.target.value)}
+                className={`rounded-xl border-gray-200 ${
+                  errors.registrationNumber ? "border-red-500" : ""
+                }`}
               />
+              {errors.registrationNumber && (
+                <p className="text-sm text-red-500 mt-1">{errors.registrationNumber}</p>
+              )}
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="address" className="text-gray-700 font-semibold">
-              Address <span className="text-red-500">*</span>
+              Address
             </Label>
             <Textarea
               id="address"
               placeholder="Enter company address"
               value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-              className="rounded-xl border-gray-200"
+              onChange={(e) => {
+                setFormData({ ...formData, address: e.target.value });
+                validateField("address", e.target.value);
+              }}
+              onBlur={(e) => validateField("address", e.target.value)}
+              className={`rounded-xl border-gray-200 ${
+                errors.address ? "border-red-500" : ""
+              }`}
               rows={3}
-              required
             />
+            {errors.address && (
+              <p className="text-sm text-red-500 mt-1">{errors.address}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -255,7 +392,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 htmlFor="companyStartedAt"
                 className="text-gray-700 font-semibold"
               >
-                Company Start Date <span className="text-red-500">*</span>
+                Company Start Date
               </Label>
               <Input
                 id="companyStartedAt"
@@ -265,7 +402,6 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                   setFormData({ ...formData, companyStartedAt: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
-                required
               />
             </div>
 
@@ -274,26 +410,71 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 htmlFor="totalShares"
                 className="text-gray-700 font-semibold"
               >
-                Total Shares <span className="text-red-500">*</span>
+                Total Shares
               </Label>
               <Input
                 id="totalShares"
-                min={0}
+                min={100}
                 type="number"
                 step={1}
                 placeholder="Enter total number of shares"
                 value={formData.totalShares || ""}
                 onChange={(e) => {
                   const val = e.target.value;
-                  const parsedVal = val === "" ? 0 : parseInt(val, 10);
-                  setFormData({
-                    ...formData,
-                    totalShares: parsedVal,
-                  });
+                  
+                  if (val === "") {
+                    setTotalSharesError("Total shares must be at least 100");
+                    setFormData({
+                      ...formData,
+                      totalShares: 0,
+                    });
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    
+                    if (isNaN(parsedVal)) {
+                      setTotalSharesError("Please enter a valid number");
+                      setFormData({
+                        ...formData,
+                        totalShares: 0,
+                      });
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    } else {
+                      setTotalSharesError("");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    }
+                  }
                 }}
-                required
-                className="rounded-xl border-gray-200"
+                onBlur={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    setTotalSharesError("Total shares must be at least 100");
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    if (isNaN(parsedVal) || parsedVal === 0) {
+                      setTotalSharesError("Total shares must be at least 100");
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                    } else {
+                      setTotalSharesError("");
+                    }
+                  }
+                }}
+                
+                className={`rounded-xl border-gray-200 ${
+                  totalSharesError ? "border-red-500" : ""
+                }`}
               />
+              {totalSharesError && (
+                <p className="text-sm text-red-500 mt-1">{totalSharesError}</p>
+              )}
             </div>
           </div>
           {/* 
@@ -311,6 +492,69 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               className="rounded-xl border-gray-200"
             />
           </div> */}
+
+          <div className="space-y-3">
+            <Label htmlFor="industry" className="text-gray-700 font-semibold">
+              Industry
+            </Label>
+            <Select
+              value={formData.industry}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  industry: value,
+                  customIndustry: value === "Other" ? prev.customIndustry : "",
+                }))
+              }
+            >
+              <SelectTrigger
+                id="industry"
+                className="rounded-xl border-gray-200 text-left"
+              >
+                <SelectValue placeholder="Select an industry" />
+              </SelectTrigger>
+              <SelectContent>
+                {industryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Choose from the list or select "Other" to enter a custom value.
+            </p>
+            {formData.industry === "Other" && (
+              <Input
+                id="customIndustry"
+                placeholder="Enter custom industry"
+                value={formData.customIndustry}
+                onChange={(e) =>
+                  setFormData({ ...formData, customIndustry: e.target.value })
+                }
+                className="rounded-xl border-gray-200"
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="description"
+              className="text-gray-700 font-semibold"
+            >
+             Company Summary
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Provide a brief overview of the company"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              rows={4}
+              className="rounded-xl border-gray-200"
+            />
+          </div>
 
           {/* Supporting Documents */}
           {/* <div className="space-y-2">
@@ -378,10 +622,12 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               type="submit"
               disabled={
                 isSubmitting ||
-                !formData.name ||
-                !formData.registrationNumber ||
-                !formData.address ||
-                !formData.companyStartedAt
+                !!totalSharesError ||
+                !formData.totalShares ||
+                formData.totalShares < 100 ||
+                !formData.name.trim() ||
+                !formData.registrationNumber.trim() ||
+                !formData.address.trim()
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >

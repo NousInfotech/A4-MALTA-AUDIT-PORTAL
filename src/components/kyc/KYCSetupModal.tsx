@@ -385,11 +385,15 @@ export function KYCSetupModal({
         engagementId: selectedEngagement?._id,
         clientId: selectedEngagement?.clientId,
         auditorId: user.id,
-        documentRequest: {
-          name: `KYC Documents - ${kycData.clientName || selectedEngagement?.title}`,
-          description: `KYC document requirements for ${kycData.clientName || selectedEngagement?.title}. Required documents: ${processedDocuments.filter(d => d.type === 'required').map(d => d.name).join(', ')}. Additional instructions: ${kycData.instructions || 'Please ensure all documents are clear and legible.'}`,
-          documents: mappedDocuments
-        }
+        documentRequests: mappedDocuments.map((doc:any) => ({
+          documentRequest: doc.map((d:any) => ({
+            name: d.name,
+            type: d.type === "template" || d.type === "required" ? "required" : "optional",
+            description: d.description || "",
+            templateUrl: d.type === "template" ? d.template?.url : undefined,
+          })),
+          person: selectedEngagement?.clientId
+        }))
       };
 
       console.log('📤 Sending KYC workflow data:', JSON.stringify(kycWorkflowData, null, 2));
