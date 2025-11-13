@@ -45,6 +45,7 @@ interface Engagement {
   yearEndDate: string;
   clientId: string;
   status: string;
+  companyId: any;
 }
 
 interface KYCWorkflow {
@@ -59,23 +60,32 @@ interface KYCWorkflow {
   auditorId: string;
   documentRequests?: Array<{
     _id: string;
-    name: string;
-    category: string;
-    description: string;
-    status: string;
-    documents: Array<{
-      name: string;
-      type: 'direct' | 'template';
-      description?: string;
-      url?: string;
-      template?: {
-        url?: string;
-        instruction?: string;
-      };
-      uploadedAt?: string;
+    documentRequest: {
+      _id: string;
+      category: string;
+      description: string;
       status: string;
-      comment?: string;
-    }>;
+      documents: Array<{
+        name: string;
+        type: 'direct' | 'template';
+        description?: string;
+        url?: string;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+        uploadedAt?: string;
+        status: string;
+        comment?: string;
+      }>;
+    };
+    person: {
+      _id: string;
+      name: string;
+      nationality: string;
+      address: string;
+      id: string;
+    };
   }>;
   discussions: Array<{
     _id: string;
@@ -126,16 +136,25 @@ export function EngagementKYC() {
   useEffect(() => {
     if (kycWorkflows.length === 0 || loading) return;
 
+    // Use sessionStorage to track if we've already processed these workflows
+    const workflowIds = kycWorkflows.map(w => w._id).sort().join(',');
+    const storageKey = `kyc_status_updated_${workflowIds}`;
+    
+    // Check if we've already updated these workflows in this session
+    if (sessionStorage.getItem(storageKey)) {
+      return;
+    }
+
     const updateStatuses = async () => {
       let hasUpdates = false;
       for (const workflow of kycWorkflows) {
         if (workflow.documentRequests) {
-          for (const docRequest of workflow.documentRequests) {
-            const calculatedStatus = calculateDocumentRequestStatus(docRequest);
-            if (docRequest.status !== calculatedStatus) {
+          for (const item of workflow.documentRequests) {
+            const calculatedStatus = calculateDocumentRequestStatus(item.documentRequest);
+            if (item.documentRequest.status !== calculatedStatus) {
               hasUpdates = true;
               try {
-                await documentRequestApi.update(docRequest._id, {
+                await documentRequestApi.update(item.documentRequest._id, {
                   status: calculatedStatus
                 });
               } catch (error) {
@@ -145,6 +164,10 @@ export function EngagementKYC() {
           }
         }
       }
+      
+      // Mark as processed to prevent re-runs
+      sessionStorage.setItem(storageKey, 'true');
+      
       // Only refresh if there were updates
       if (hasUpdates) {
         setTimeout(() => {
@@ -153,17 +176,16 @@ export function EngagementKYC() {
       }
     };
 
-    // Small delay to prevent immediate re-run
-    const timer = setTimeout(() => {
-      updateStatuses();
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [kycWorkflows.length, loading]); // Only run when workflows are first loaded
+    updateStatuses();
+  }, [kycWorkflows.length, loading]); // Only track workflow count, not the full array
 
   const fetchEngagementDetails = async () => {
+
     try {
+      
       const engagementData = await engagementApi.getById(engagementId!);
+      console.log(engagementData);
+      
       setEngagement(engagementData);
     } catch (error: any) {
       console.error('Error fetching engagement details:', error);
@@ -379,16 +401,16 @@ export function EngagementKYC() {
   const updateDocumentRequestStatus = async (documentRequestId: string) => {
     try {
       // Get current document request
-      const docRequest = kycWorkflows
+      const item = kycWorkflows
         .flatMap(w => w.documentRequests || [])
-        .find(req => req._id === documentRequestId);
+        .find(item => item.documentRequest._id === documentRequestId);
       
-      if (!docRequest) return;
+      if (!item) return;
 
-      const newStatus = calculateDocumentRequestStatus(docRequest);
+      const newStatus = calculateDocumentRequestStatus(item.documentRequest);
       
       // Only update if status changed
-      if (docRequest.status !== newStatus) {
+      if (item.documentRequest.status !== newStatus) {
         await documentRequestApi.update(documentRequestId, {
           status: newStatus
         });
@@ -537,7 +559,7 @@ export function EngagementKYC() {
                         </p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                           <span>{workflow.documentRequests?.length || 0} Document Requests</span>
-                          <span>{workflow.documentRequests?.reduce((acc, req) => acc + (req.documents?.length || 0), 0) || 0} Total Documents</span>
+                          <span>{workflow.documentRequests?.reduce((acc, item) => acc + (item.documentRequest.documents?.length || 0), 0) || 0} Total Documents</span>
                         </div>
                       </div>
                     </div>
@@ -596,6 +618,7 @@ export function EngagementKYC() {
                     kycId={kycWorkflows[0]._id}
                     engagementId={engagementId}
                     clientId={kycWorkflows[0].clientId}
+                    company={engagement?.companyId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
                       <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -669,7 +692,10 @@ export function EngagementKYC() {
                 {workflow.documentRequests && workflow.documentRequests.length > 0 ? (
                   <div>
                     {(() => {
-                      const requestsWithDocuments = workflow.documentRequests.filter((docRequest) => docRequest.documents && docRequest.documents.length > 0);
+                      const requestsWithDocuments = workflow.documentRequests.filter((item) => 
+                        item.documentRequest?.documents && item.documentRequest.documents.length > 0
+                      );
+                      console.log(workflow.documentRequests);
                       return (
                         <>
                           <div className="flex items-center justify-between mb-4">
@@ -679,7 +705,10 @@ export function EngagementKYC() {
                             </Badge>
                           </div>
                           <div className="space-y-4">
-                            {requestsWithDocuments.map((docRequest, index) => {
+                            {requestsWithDocuments.map((item, index) => {
+                              const docRequest = item.documentRequest;
+                              const person = item.person;
+                              
                               // Calculate progress
                               const totalDocs = docRequest.documents?.length || 0;
                               const completedDocs = docRequest.documents?.filter((doc: any) => 
@@ -689,23 +718,38 @@ export function EngagementKYC() {
                               const calculatedStatus = calculateDocumentRequestStatus(docRequest);
                               
                               return (
-                        <div key={docRequest._id || index} className="bg-gray-50 rounded-xl p-4">
+                        <div key={item._id || index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3 flex-1">
+                              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-lg font-semibold text-blue-700">
+                                  {person?.name?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                              </div>
                               <div className="flex-1">
-                                <h4 className="font-semibold text-gray-900">{docRequest.name}</h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-semibold text-gray-900 text-lg">{person?.name || 'Unknown Person'}</h4>
+                                  <Badge variant="outline" className="text-xs text-blue-700 border-blue-300 bg-blue-50">
+                                    {totalDocs} Document{totalDocs !== 1 ? 's' : ''} Required
+                                  </Badge>
+                                </div>
+                                {person?.nationality && (
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {person.nationality} • {person.address?.split('\n')[0] || 'No address'}
+                                  </p>
+                                )}
                                 {docRequest.description && (
-                                  <p className="text-sm text-gray-600">{docRequest.description}</p>
+                                  <p className="text-sm text-gray-600 mt-1">{docRequest.description}</p>
                                 )}
                                 {/* Progress Bar */}
                                 <div className="mt-3 space-y-1">
                                   <div className="flex items-center justify-between text-xs text-gray-600">
-                                    <span>Progress: {completedDocs} / {totalDocs} documents</span>
-                                    <span>{Math.round(progressPercentage)}%</span>
+                                    <span className="font-medium">Progress: {completedDocs} / {totalDocs} documents</span>
+                                    <span className="font-semibold">{Math.round(progressPercentage)}%</span>
                                   </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div className="w-full bg-gray-200 rounded-full h-2.5">
                                     <div 
-                                      className={`h-2 rounded-full transition-all ${
+                                      className={`h-2.5 rounded-full transition-all ${
                                         progressPercentage === 100 
                                           ? 'bg-green-600' 
                                           : progressPercentage > 0 
@@ -904,6 +948,7 @@ export function EngagementKYC() {
                   engagementId={engagementId}
                   clientId={engagement?.clientId || ''}
                   engagementName={engagement?.title}
+                  company={engagement?.companyId}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
                     <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">

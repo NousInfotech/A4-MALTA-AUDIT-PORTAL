@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,7 @@ export const KYCEnhancedManagement = ({
 }: KYCEnhancedManagementProps) => {
   const { engagementId: urlEngagementId } = useParams<{ engagementId: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // Use URL parameter if available, otherwise use prop
   const engagementId = urlEngagementId || propEngagementId;
@@ -165,6 +166,41 @@ export const KYCEnhancedManagement = ({
     }
   }, [showDetails]);
 
+  // Transform nested documentRequests structure to flat structure
+  const transformKYCData = (kyc: any): KYCWorkflow => {
+    if (!kyc) return kyc;
+    
+    // Transform documentRequests if they exist and have nested structure
+    if (kyc.documentRequests && Array.isArray(kyc.documentRequests)) {
+      const transformedDocumentRequests = kyc.documentRequests.map((dr: any) => {
+        // If it's already in flat format, return as is
+        if (dr._id && dr.name) {
+          return dr;
+        }
+        // If it's nested (documentRequest.person structure), extract documentRequest
+        if (dr.documentRequest) {
+          return {
+            _id: dr.documentRequest._id,
+            name: dr.documentRequest.name || dr.documentRequest.description || 'Untitled Document Request',
+            category: dr.documentRequest.category || 'kyc',
+            description: dr.documentRequest.description || '',
+            status: dr.documentRequest.status || 'pending',
+            documents: dr.documentRequest.documents || [],
+            person: dr.person // Keep person info if needed
+          };
+        }
+        return dr;
+      });
+      
+      return {
+        ...kyc,
+        documentRequests: transformedDocumentRequests
+      };
+    }
+    
+    return kyc;
+  };
+
   const fetchKYCWorkflows = async () => {
     try {
       setLoading(true);
@@ -175,7 +211,12 @@ export const KYCEnhancedManagement = ({
         ? await kycApi.getMyKYCs()
         : await kycApi.getAll(filters);
       
-      setKycWorkflows(workflows);
+      // Transform the workflows to handle nested documentRequests structure
+      const transformedWorkflows = Array.isArray(workflows) 
+        ? workflows.map(transformKYCData)
+        : [transformKYCData(workflows)];
+      
+      setKycWorkflows(transformedWorkflows);
     } catch (error: any) {
       console.error('Error fetching KYC workflows:', error);
       toast({
@@ -295,7 +336,9 @@ export const KYCEnhancedManagement = ({
       await fetchKYCWorkflows();
       if (selectedKYC) {
         const updatedKYC = await kycApi.getById(selectedKYC._id);
-        setSelectedKYC(updatedKYC);
+        // Transform the data to handle nested documentRequests structure
+        const transformedKYC = transformKYCData(updatedKYC);
+        setSelectedKYC(transformedKYC);
       }
       toast({
         title: "Document Deleted",
@@ -346,7 +389,9 @@ export const KYCEnhancedManagement = ({
   const handleViewDetails = async (kyc: KYCWorkflow) => {
     try {
       const fullKYC = await kycApi.getById(kyc._id);
-      setSelectedKYC(fullKYC);
+      // Transform the data to handle nested documentRequests structure
+      const transformedKYC = transformKYCData(fullKYC);
+      setSelectedKYC(transformedKYC);
       setShowDetails(true);
     } catch (error: any) {
       console.error('Error fetching KYC details:', error);
@@ -411,6 +456,18 @@ export const KYCEnhancedManagement = ({
                   }
                 </CardDescription>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {userRole === 'auditor' && (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/employee/kyc/library')}
+                  className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  KYC Library
+                </Button>
+              )}
             </div>
             {/* <div className="flex items-center gap-2">
               {userRole === 'auditor' && engagementId && (
@@ -677,12 +734,22 @@ export const KYCEnhancedManagement = ({
                           kycId={selectedKYC._id}
                           engagementId={selectedKYC.engagement._id}
                           clientId={selectedKYC.clientId}
-                          onSuccess={() => {
-                            fetchKYCWorkflows();
-                            // Refresh the selected KYC data
-                            const updatedKYC = kycWorkflows.find(k => k._id === selectedKYC._id);
-                            if (updatedKYC) {
-                              setSelectedKYC(updatedKYC);
+                          onSuccess={async () => {
+                            // Refresh the workflows list
+                            await fetchKYCWorkflows();
+                            // Fetch the full updated KYC details
+                            try {
+                              const updatedKYC = await kycApi.getById(selectedKYC._id);
+                              // Transform the data to handle nested documentRequests structure
+                              const transformedKYC = transformKYCData(updatedKYC);
+                              setSelectedKYC(transformedKYC);
+                            } catch (error: any) {
+                              console.error('Error refreshing KYC details:', error);
+                              toast({
+                                title: "Warning",
+                                description: "Document request added, but failed to refresh details. Please refresh the page.",
+                                variant: "default",
+                              });
                             }
                           }}
                           trigger={

@@ -138,7 +138,7 @@ const navItems: NavItem[] = [
   { 
     title: 'KYC Management', 
     href: '/employee/kyc', 
-    icon: Shield, 
+    icon: UserCheck, 
     roles: ['employee'],
     description: 'Know Your Client Workflows',
     badge: 'New'

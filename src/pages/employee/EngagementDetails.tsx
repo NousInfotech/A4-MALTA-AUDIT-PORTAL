@@ -23,6 +23,7 @@ import {
   BookOpenText,
   Delete,
   Pencil,
+  Users,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,7 @@ import { DocumentRequestsTab } from "@/components/engagement/DocumentRequestsTab
 import { ProceduresTab } from "@/components/procedures/ProceduresTab";
 import { ChecklistTab } from "@/components/engagement/ChecklistTab";
 import { EngagementKYC } from "./EngagementKYC";
+import { TeamTab } from "@/components/engagement/TeamTab";
 import PbcDialog from "@/components/pbc/PbcDialog";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
@@ -368,6 +370,13 @@ export const EngagementDetails = () => {
                   <Shield className="h-4 w-4 mr-2" />
                   KYC
                 </TabsTrigger>
+                <TabsTrigger
+                  value="team"
+                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Team
+                </TabsTrigger>
                 
               </TabsList>
             </div>
@@ -417,6 +426,10 @@ export const EngagementDetails = () => {
 
             <TabsContent value="kyc" className="space-y-6">
               <EngagementKYC />
+            </TabsContent>
+
+            <TabsContent value="team" className="space-y-6">
+              <TeamTab engagementId={id!} />
             </TabsContent>
             
           </div>

@@ -37,6 +37,7 @@ import { EngagementDetails } from "@/pages/employee/EngagementDetails";
 import GlobalLibraryPage from "./pages/employee/Library";
 import ISQMQuestionnairePage from "@/pages/employee/ISQMQuestionnairePage";
 import KYCEnhancedManagement from "@/pages/employee/KYCEnhancedManagement";
+import KYCLibrary from "@/pages/employee/KYCLibrary";
 
 // Client pages
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
@@ -143,6 +144,7 @@ const App = () => (
                 <Route path="library" element={<GlobalLibraryPage />} />
                 <Route path="isqm" element={<ISQMQuestionnairePage />} />
                 <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
+                <Route path="kyc/library" element={<KYCLibrary />} />
                 <Route path="kyc" element={<KYCEnhancedManagement />} />
                 <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />

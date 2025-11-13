@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +10,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
- 
+import { useParams } from "react-router-dom";
+
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -21,6 +44,10 @@ interface CreateCompanyModalProps {
   onSuccess: () => void;
   clientId: string;
   existingCompanies?: any[];
+  isShareholdingCompany?: boolean;
+  parentCompanyId?: string;
+  parentCompany?: any;
+  existingShareTotal?: number;
 }
 
 export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
@@ -29,6 +56,10 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   onSuccess,
   clientId,
   existingCompanies = [],
+  isShareholdingCompany = false,
+  parentCompanyId,
+  parentCompany,
+  existingShareTotal = 0,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -37,12 +68,50 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     status: "active",
     timelineStart: "",
     timelineEnd: "",
-    totalShares: 0,
+    totalShares: 100,
+    industry: "",
+    customIndustry: "",
+    description: "",
+    sharePercentage: "",
+    shareClass: "General",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalSharesError, setTotalSharesError] = useState<string>("");
+  const [sharePercentageError, setSharePercentageError] = useState<string>("");
   const { toast } = useToast();
+  const params = useParams();
+  const companyId = params.companyId as string;
+  const resolvedIndustry = (
+    formData.industry === "Other"
+      ? formData.customIndustry
+      : formData.industry
+  ).trim();
+
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData({
+        name: "",
+        registrationNumber: "",
+        address: "",
+        status: "active",
+        timelineStart: "",
+        timelineEnd: "",
+        totalShares: 100,
+        industry: "",
+        customIndustry: "",
+        description: "",
+        sharePercentage: "",
+        shareClass: "General",
+      });
+      setSupportingDocuments([]);
+      setShareHoldingCompanies([]);
+      setTotalSharesError("");
+      setSharePercentageError("");
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +121,42 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
+      // Validate share percentage if creating as shareholding company
+      if (isShareholdingCompany) {
+        if (!formData.sharePercentage || formData.sharePercentage.trim() === "") {
+          setSharePercentageError("Share percentage is required");
+          setIsSubmitting(false);
+          return;
+        }
+
+        const sharePct = parseFloat(formData.sharePercentage);
+        if (isNaN(sharePct) || sharePct <= 0 || sharePct > 100) {
+          setSharePercentageError("Share percentage must be between 0 and 100");
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Validate total shares don't exceed 100%
+        const available = 100 - existingShareTotal;
+        if (sharePct > available) {
+          setSharePercentageError(
+            `Total shares cannot exceed 100%. Maximum available: ${available.toFixed(2)}%`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const payload = {
-        ...formData,
+        name: formData.name,
+        registrationNumber: formData.registrationNumber,
+        address: formData.address,
+        status: formData.status,
+        timelineStart: formData.timelineStart,
+        timelineEnd: formData.timelineEnd || undefined,
+        totalShares: formData.totalShares,
+        industry: resolvedIndustry || undefined,
+        description: formData.description.trim() || undefined,
         supportingDocuments,
         shareHoldingCompanies: shareHoldingCompanies.filter(
           (s) => s.companyId && s.sharePercentage > 0
@@ -77,10 +180,74 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         throw new Error(error.message || "Failed to create company");
       }
 
-      toast({
-        title: "Success",
-        description: "Company created successfully",
-      });
+      const result = await response.json();
+      const newCompanyId = result.data?._id || result.data?.id;
+
+      // If creating as shareholding company, add it to parent company
+      if (isShareholdingCompany && parentCompanyId && newCompanyId && formData.sharePercentage) {
+        const sharePct = parseFloat(formData.sharePercentage);
+        
+        // Fetch current parent company data
+        const companyResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${parentCompanyId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          }
+        );
+
+        if (!companyResponse.ok) {
+          throw new Error("Failed to fetch parent company");
+        }
+
+        const companyResult = await companyResponse.json();
+        const currentCompany = companyResult.data || parentCompany || {};
+
+        // Update shareHoldingCompanies array
+        const currentShareholdings = currentCompany.shareHoldingCompanies || [];
+        const updatedShareholdings = [
+          ...currentShareholdings,
+          {
+            companyId: newCompanyId,
+            sharesData: {
+              percentage: sharePct,
+              class: formData.shareClass || "General",
+            },
+          },
+        ];
+
+        // Update parent company
+        const updateResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${parentCompanyId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            body: JSON.stringify({
+              ...currentCompany,
+              shareHoldingCompanies: updatedShareholdings,
+            }),
+          }
+        );
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json();
+          throw new Error(error.message || "Failed to add shareholding company");
+        }
+
+        toast({
+          title: "Success",
+          description: "Company created and added as shareholding company successfully",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Company created successfully",
+        });
+      }
 
       onSuccess();
     } catch (error: any) {
@@ -103,10 +270,17 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       status: "active",
       timelineStart: "",
       timelineEnd: "",
-      totalShares: 0,
+      totalShares: 100,
+      industry: "",
+      customIndustry: "",
+      description: "",
+      sharePercentage: "",
+      shareClass: "General",
     });
     setSupportingDocuments([]);
     setShareHoldingCompanies([]);
+    setTotalSharesError("");
+    setSharePercentageError("");
   };
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -238,7 +412,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 htmlFor="timelineStart"
                 className="text-gray-700 font-semibold"
               >
-                Company Start Date <span className="text-red-500">*</span>
+                Company Start Date
               </Label>
               <Input
                 id="timelineStart"
@@ -248,33 +422,224 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   setFormData({ ...formData, timelineStart: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
-                required
+                
               />
             </div>
             <div className="space-y-2">
-          <Label htmlFor="totalShares" className="text-gray-700 font-semibold">
-            Total Shares <span className="text-red-500">*</span>
-          </Label>
-            <Input
-            id="totalShares"
-            min={0}
-            type="number"
-            step={1}
-            placeholder="Enter total number of shares"
-            value={formData.totalShares === 0 ? "" : formData.totalShares}
-            onChange={(e) => {
-            const val = e.target.value;
-            const parsedVal = val === "" ? 0 : parseInt(val, 10);
-            setFormData({
-            ...formData,
-            totalShares: parsedVal,
-            });
-            }}
-            required
-            className="rounded-xl border-gray-200"
-            />
+              <Label
+                htmlFor="totalShares"
+                className="text-gray-700 font-semibold"
+              >
+                Total Shares
+              </Label>
+              <Input
+                id="totalShares"
+                min={100}
+                type="number"
+                step={1}
+                placeholder="Enter total number of shares"
+                value={formData.totalShares === 0 ? "" : formData.totalShares}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  
+                  if (val === "") {
+                    setTotalSharesError("Total shares must be at least 100");
+                    setFormData({
+                      ...formData,
+                      totalShares: 0,
+                    });
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    
+                    if (isNaN(parsedVal)) {
+                      setTotalSharesError("Please enter a valid number");
+                      setFormData({
+                        ...formData,
+                        totalShares: 0,
+                      });
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    } else {
+                      setTotalSharesError("");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    setTotalSharesError("Total shares must be at least 100");
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    if (isNaN(parsedVal) || parsedVal === 0) {
+                      setTotalSharesError("Total shares must be at least 100");
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                    } else {
+                      setTotalSharesError("");
+                    }
+                  }
+                }}
+                className={`rounded-xl border-gray-200 ${
+                  totalSharesError ? "border-red-500" : ""
+                }`}
+              />
+              {totalSharesError && (
+                <p className="text-sm text-red-500 mt-1">{totalSharesError}</p>
+              )}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Label htmlFor="industry" className="text-gray-700 font-semibold">
+              Industry
+            </Label>
+            <Select
+              value={formData.industry}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  industry: value,
+                  customIndustry: value === "Other" ? prev.customIndustry : "",
+                }))
+              }
+            >
+              <SelectTrigger
+                id="industry"
+                className="rounded-xl border-gray-200 text-left"
+              >
+                <SelectValue placeholder="Select an industry" />
+              </SelectTrigger>
+              <SelectContent>
+                {industryOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Choose from the list or select "Other" to enter a custom value.
+            </p>
+            {formData.industry === "Other" && (
+              <Input
+                id="customIndustry"
+                placeholder="Enter custom industry"
+                value={formData.customIndustry}
+                onChange={(e) =>
+                  setFormData({ ...formData, customIndustry: e.target.value })
+                }
+                className="rounded-xl border-gray-200"
+                
+              />
+            )}
+          </div>
+           
+           {isShareholdingCompany && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sharePercentage" className="text-gray-700 font-semibold">
+                    Share Percentage <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="sharePercentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.sharePercentage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, sharePercentage: value });
+                      setSharePercentageError("");
+                      
+                      // Real-time validation
+                      if (value) {
+                        const sharePct = parseFloat(value);
+                        if (!isNaN(sharePct)) {
+                          const available = 100 - existingShareTotal;
+                          if (sharePct > available) {
+                            setSharePercentageError(
+                              `Total shares cannot exceed 100%. Maximum available: ${available.toFixed(2)}%`
+                            );
+                          } else if (sharePct <= 0 || sharePct > 100) {
+                            setSharePercentageError("Share percentage must be between 0 and 100");
+                          }
+                        }
+                      }
+                    }}
+                    className={`rounded-xl border-gray-200 ${
+                      sharePercentageError ? "border-red-500" : ""
+                    }`}
+                  />
+                  {sharePercentageError && (
+                    <p className="text-sm text-red-500 mt-1">{sharePercentageError}</p>
+                  )}
+                  {!sharePercentageError && formData.sharePercentage && (
+                    (() => {
+                      const sharePct = parseFloat(formData.sharePercentage) || 0;
+                      if (isNaN(sharePct)) return null;
+                      const available = 100 - existingShareTotal;
+                      const newTotal = existingShareTotal + sharePct;
+                      return (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total after adding: {newTotal.toFixed(2)}% / 100%
+                          {available < 100 && ` (Available: ${available.toFixed(2)}%)`}
+                        </p>
+                      );
+                    })()
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shareClass" className="text-gray-700 font-semibold">
+                    Share Class <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.shareClass}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, shareClass: value })
+                    }
+                  >
+                    <SelectTrigger id="shareClass" className="rounded-xl border-gray-200">
+                      <SelectValue placeholder="Select share class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="Ordinary">Ordinary</SelectItem>
+                      <SelectItem value="General">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+           )}
 
-        </div>
+          <div className="space-y-2">
+            <Label
+              htmlFor="description"
+              className="text-gray-700 font-semibold"
+            >
+              Company Summary
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Provide a brief overview of the company"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              rows={4}
+              className="rounded-xl border-gray-200"
+            />
           </div>
           {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -361,7 +726,16 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !formData.name || !formData.registrationNumber || !formData.address || !formData.timelineStart || !formData.totalShares}
+              disabled={
+                isSubmitting ||
+                !formData.name ||
+                !formData.registrationNumber ||
+                !formData.address ||
+                !formData.totalShares ||
+                formData.totalShares < 100 ||
+                !!totalSharesError ||
+                (isShareholdingCompany && (!formData.sharePercentage || !!sharePercentageError))
+              }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
               {isSubmitting ? (

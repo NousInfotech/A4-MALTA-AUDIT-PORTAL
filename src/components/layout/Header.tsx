@@ -1,8 +1,7 @@
 // @ts-nocheck
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, Search, Menu, Settings, User, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { LogOut, Menu, Settings, User, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications';
 
 export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => {
@@ -40,23 +39,6 @@ export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => 
           )}
         </button>
 
-        {/* Search bar */}
-        <div className="relative hidden sm:block">
-          <Search 
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-brand-sidebar" 
-            style={{ opacity: 0.7 }}
-          />
-          <Input
-            placeholder="Search anything..."
-            className="pl-10 w-80 placeholder:opacity-90 transition-colors rounded-2xl text-brand-sidebar"
-            style={{
-              backgroundColor: `hsl(var(--sidebar-hover) / 0.5)`,
-              borderColor: `hsl(var(--sidebar-border))`,
-            }}
-          />
-
-
-        </div>
 
         {/* Quick actions */}
         {/* <div className="hidden lg:flex items-center gap-2 ml-4">

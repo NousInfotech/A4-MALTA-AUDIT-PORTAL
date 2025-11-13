@@ -55,6 +55,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
     phoneNumber: "",
     sharePercentage: "",
     nationality: "",
+    shareClass: "A",
   });
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -229,6 +230,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
         sharePercentage: isShareholderSelected && formData.sharePercentage
           ? parseFloat(formData.sharePercentage)
           : undefined,
+        shareClass: isShareholderSelected ? formData.shareClass : undefined,
       };
 
       const response = await fetch(
@@ -275,6 +277,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
       phoneNumber: "",
       sharePercentage: "",
       nationality: "",
+      shareClass: "A",
     });
   };
 
@@ -409,34 +412,54 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {isShareholderSelected && (
-              <div className="space-y-2">
-                <Label
-                  htmlFor="sharePercentage"
-                  className="text-gray-700 font-semibold"
-                >
-                  Share Percentage
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="sharePercentage"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    placeholder="Enter share percentage"
-                    value={formData.sharePercentage}
-                    onChange={(e) =>
-                      setFormData({ ...formData, sharePercentage: e.target.value })
-                    }
-                    className="rounded-xl border-gray-200 pr-8"
-                    required
-                  />
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm">%</span>
+              <>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="sharePercentage"
+                    className="text-gray-700 font-semibold"
+                  >
+                    Share Percentage <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="sharePercentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="Enter share percentage"
+                      value={formData.sharePercentage}
+                      onChange={(e) =>
+                        setFormData({ ...formData, sharePercentage: e.target.value })
+                      }
+                      className="rounded-xl border-gray-200 pr-8"
+                      required
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm">%</span>
+                  </div>
+                  {shareTotalError && (
+                    <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
+                  )}
                 </div>
-                {shareTotalError && (
-                  <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
-                )}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shareClass" className="text-gray-700 font-semibold">
+                    Class <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.shareClass}
+                    onValueChange={(v) => setFormData({ ...formData, shareClass: v })}
+                  >
+                    <SelectTrigger id="shareClass" className="rounded-xl border-gray-200">
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A">A</SelectItem>
+                      <SelectItem value="B">B</SelectItem>
+                      <SelectItem value="Ordinary">Ordinary</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
             
@@ -507,7 +530,7 @@ export const CreatePersonModal: React.FC<CreatePersonModalProps> = ({
                 !formData.nationality ||
                 (formData.roles || []).length === 0 ||
                 !!shareTotalError ||
-                (isShareholderSelected && !formData.sharePercentage)
+                (isShareholderSelected && (!formData.sharePercentage || !formData.shareClass))
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
