@@ -92,6 +92,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [existingCompanies, setExistingCompanies] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [sharePercentage, setSharePercentage] = useState<string>("");
+  const [shareClass, setShareClass] = useState<string>("General");
   const [isSubmittingShare, setIsSubmittingShare] = useState(false);
   const [shareError, setShareError] = useState<string>("");
   // Company shareholder edit/delete states
@@ -429,11 +430,16 @@ export const PersonList: React.FC<PersonListProps> = ({
 
       let updatedShareholdings; 
       if (existingIndex >= 0) {
-        // Update existing shareholding
+        // Update existing shareholding - preserve existing sharesData structure
         updatedShareholdings = [...currentShareholdings];
+        const existing = currentShareholdings[existingIndex];
         updatedShareholdings[existingIndex] = {
           companyId: selectedCompanyId,
-          sharePercentage: sharePct,
+          sharesData: {
+            ...(existing?.sharesData || {}),
+            percentage: sharePct,
+            class: shareClass || "General",
+          },
         };
       } else {
         // Add new shareholding
@@ -441,7 +447,10 @@ export const PersonList: React.FC<PersonListProps> = ({
           ...currentShareholdings,
           {
             companyId: selectedCompanyId,
-            sharePercentage: sharePct,
+            sharesData: {
+              percentage: sharePct,
+              class: shareClass || "General",
+            },
           },
         ];
       }
@@ -474,6 +483,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       // Reset form
       setSelectedCompanyId("");
       setSharePercentage("");
+      setShareClass("General");
       setShareError("");
       setIsAddCompanyDropdownOpen(false);
       onUpdate();
@@ -497,8 +507,12 @@ export const PersonList: React.FC<PersonListProps> = ({
   // Handle edit company shareholder
   const handleEditCompanyShare = async (share: any) => {
     setEditingCompanyShare(share);
-    setSelectedCompanyId(share.companyId);
+    const normalizedCompanyId = typeof share.companyId === 'object' && share.companyId !== null
+      ? share.companyId._id
+      : share.companyId;
+    setSelectedCompanyId(normalizedCompanyId);
     setSharePercentage(share.sharePercentage?.toString() || "");
+    setShareClass(share.shareClass || "General");
     setShareError("");
     setIsEditCompanyShareOpen(true);
     // Fetch companies list if not already loaded
@@ -538,14 +552,16 @@ export const PersonList: React.FC<PersonListProps> = ({
     }, 0);
 
     const currentShareholdings = company?.shareHoldingCompanies || [];
-    const originalShareCompanyId = editingCompanyShare.companyId;
+    const originalShareCompanyId = typeof editingCompanyShare.companyId === 'object' 
+      ? editingCompanyShare.companyId._id 
+      : editingCompanyShare.companyId;
     
     // Calculate company total excluding the one being edited
     let currentCompanyTotal = 0;
     currentShareholdings.forEach((share: any) => {
       const shareCompanyId = typeof share.companyId === 'object' ? share.companyId._id : share.companyId;
       // Skip the shareholding being edited
-      if (shareCompanyId === originalShareCompanyId) {
+      if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
         return;
       }
       const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
@@ -574,20 +590,28 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const currentShareholdings = company?.shareHoldingCompanies || [];
+      const editingCompanyIdNormalized = typeof editingCompanyShare.companyId === 'object'
+        ? editingCompanyShare.companyId._id
+        : editingCompanyShare.companyId;
       const existingIndex = currentShareholdings.findIndex(
         (s: any) => {
           const shareCompanyId = typeof s.companyId === 'object' ? s.companyId._id : s.companyId;
-          return shareCompanyId === editingCompanyShare.companyId;
+          return shareCompanyId?.toString() === editingCompanyIdNormalized?.toString();
         }
       );
 
       let updatedShareholdings;
       if (existingIndex >= 0) {
-        // Update existing shareholding
+        // Update existing shareholding - preserve existing sharesData structure
         updatedShareholdings = [...currentShareholdings];
+        const existing = currentShareholdings[existingIndex];
         updatedShareholdings[existingIndex] = {
           companyId: selectedCompanyId,
-          sharePercentage: sharePct,
+          sharesData: {
+            ...(existing?.sharesData || {}),
+            percentage: sharePct,
+            class: shareClass || "General",
+          },
         };
       } else {
         // This shouldn't happen, but handle it anyway
@@ -595,7 +619,10 @@ export const PersonList: React.FC<PersonListProps> = ({
           ...currentShareholdings,
           {
             companyId: selectedCompanyId,
-            sharePercentage: sharePct,
+            sharesData: {
+              percentage: sharePct,
+              class: shareClass || "General",
+            },
           },
         ];
       }
@@ -628,6 +655,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       // Reset form
       setSelectedCompanyId("");
       setSharePercentage("");
+      setShareClass("General");
       setShareError("");
       setEditingCompanyShare(null);
       setIsEditCompanyShareOpen(false);
@@ -660,9 +688,12 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const currentShareholdings = company?.shareHoldingCompanies || [];
+      const deleteCompanyId = typeof companyShareToDelete.companyId === 'object' && companyShareToDelete.companyId !== null
+        ? companyShareToDelete.companyId._id
+        : companyShareToDelete.companyId;
       const updatedShareholdings = currentShareholdings.filter((s: any) => {
         const shareCompanyId = typeof s.companyId === 'object' ? s.companyId._id : s.companyId;
-        return shareCompanyId !== companyShareToDelete.companyId;
+        return shareCompanyId?.toString() !== deleteCompanyId?.toString();
       });
 
       const response = await fetch(
@@ -916,10 +947,11 @@ export const PersonList: React.FC<PersonListProps> = ({
       (company?.shareHolders || []).map((shareHolder: any) => {
         const personData = shareHolder.personId || {};
         const sharesData = shareHolder.sharesData || {};
+        const totalshares = (company.totalShares/100)*sharesData.percentage;
         return {
           ...personData,
           sharePercentage: getNumericPercentage(sharesData.percentage),
-          totalShares: getNumericPercentage(sharesData.totalShares),
+          totalShares: getNumericPercentage(totalshares),
           shareClass: sharesData.class,
           origin: "PersonShareholder",
           isShareholder: true,
@@ -1158,6 +1190,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                 // Reset form when closing
                 setSelectedCompanyId("");
                 setSharePercentage("");
+                setShareClass("General");
                 setShareError("");
               }
             }}
@@ -1710,6 +1743,7 @@ export const PersonList: React.FC<PersonListProps> = ({
             // Reset form when closing
             setSelectedCompanyId("");
             setSharePercentage("");
+            setShareClass("General");
             setShareError("");
             setEditingCompanyShare(null);
           }
@@ -1732,7 +1766,7 @@ export const PersonList: React.FC<PersonListProps> = ({
             {/* Company Selection */}
             <div className="space-y-2">
               <Label htmlFor="edit-company-select" className="text-sm font-medium text-gray-700">
-                Company
+                Company <span className="text-red-500">*</span>
               </Label>
               <Select
                 value={selectedCompanyId}
@@ -1764,7 +1798,7 @@ export const PersonList: React.FC<PersonListProps> = ({
             {/* Share Percentage */}
             <div className="space-y-2">
               <Label htmlFor="edit-share-percentage" className="text-sm font-medium text-gray-700">
-                Share Percentage
+                Share Percentage <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit-share-percentage"
@@ -1789,12 +1823,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                       }, 0);
 
                       const currentShareholdings = company?.shareHoldingCompanies || [];
-                      const originalShareCompanyId = editingCompanyShare.companyId;
+                      const originalShareCompanyId = typeof editingCompanyShare.companyId === 'object'
+                        ? editingCompanyShare.companyId._id
+                        : editingCompanyShare.companyId;
                       
                       let currentCompanyTotal = 0;
                       currentShareholdings.forEach((share: any) => {
                         const shareCompanyId = typeof share.companyId === 'object' ? share.companyId._id : share.companyId;
-                        if (shareCompanyId === originalShareCompanyId) {
+                        if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
                           return; // Skip the one being edited
                         }
                         const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
@@ -1831,12 +1867,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                   }, 0);
 
                   const currentShareholdings = company?.shareHoldingCompanies || [];
-                  const originalShareCompanyId = editingCompanyShare.companyId;
+                  const originalShareCompanyId = typeof editingCompanyShare.companyId === 'object'
+                    ? editingCompanyShare.companyId._id
+                    : editingCompanyShare.companyId;
                   
                   let currentCompanyTotal = 0;
                   currentShareholdings.forEach((share: any) => {
                     const shareCompanyId = typeof share.companyId === 'object' ? share.companyId._id : share.companyId;
-                    if (shareCompanyId === originalShareCompanyId) {
+                    if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
                       return; // Skip the one being edited
                     }
                     const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
@@ -1857,6 +1895,29 @@ export const PersonList: React.FC<PersonListProps> = ({
                   );
                 })()
               )}
+            </div>
+
+            {/* Share Class */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-share-class" className="text-sm font-medium text-gray-700">
+                Class <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={shareClass}
+                onValueChange={(value) => {
+                  setShareClass(value);
+                  setShareError("");
+                }}
+              >
+                <SelectTrigger id="edit-share-class" className="rounded-lg">
+                  <SelectValue placeholder="Select share class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A</SelectItem>
+                  <SelectItem value="B">B</SelectItem>
+                  <SelectItem value="Ordinary">Ordinary</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Done Button */}

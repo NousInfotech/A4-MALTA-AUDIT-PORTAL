@@ -59,7 +59,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     status: "active",
     timelineStart: "",
     timelineEnd: "",
-    totalShares: 0,
+    totalShares: 100,
     industry: "",
     customIndustry: "",
     description: "",
@@ -67,6 +67,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalSharesError, setTotalSharesError] = useState<string>("");
   const { toast } = useToast();
 
   const resolvedIndustry = (
@@ -142,13 +143,14 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       status: "active",
       timelineStart: "",
       timelineEnd: "",
-      totalShares: 0,
+      totalShares: 100,
       industry: "",
       customIndustry: "",
       description: "",
     });
     setSupportingDocuments([]);
     setShareHoldingCompanies([]);
+    setTotalSharesError("");
   };
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,7 +282,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 htmlFor="timelineStart"
                 className="text-gray-700 font-semibold"
               >
-                Company Start Date <span className="text-red-500">*</span>
+                Company Start Date
               </Label>
               <Input
                 id="timelineStart"
@@ -290,7 +292,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   setFormData({ ...formData, timelineStart: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
-                required
+                
               />
             </div>
             <div className="space-y-2">
@@ -302,27 +304,57 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
               </Label>
               <Input
                 id="totalShares"
-                min={0}
+                min={100}
                 type="number"
                 step={1}
                 placeholder="Enter total number of shares"
                 value={formData.totalShares === 0 ? "" : formData.totalShares}
                 onChange={(e) => {
                   const val = e.target.value;
-                  const parsedVal = val === "" ? 0 : parseInt(val, 10);
-                  setFormData({
-                    ...formData,
-                    totalShares: parsedVal,
-                  });
+                  
+                  if (val === "") {
+                    setTotalSharesError("");
+                    setFormData({
+                      ...formData,
+                      totalShares: 0,
+                    });
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    
+                    if (isNaN(parsedVal)) {
+                      setTotalSharesError("Please enter a valid number");
+                      setFormData({
+                        ...formData,
+                        totalShares: 0,
+                      });
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    } else {
+                      setTotalSharesError("");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    }
+                  }
                 }}
-                required
-                className="rounded-xl border-gray-200"
+                
+                className={`rounded-xl border-gray-200 ${
+                  totalSharesError ? "border-red-500" : ""
+                }`}
               />
+              {totalSharesError && (
+                <p className="text-sm text-red-500 mt-1">{totalSharesError}</p>
+              )}
             </div>
           </div>
           <div className="space-y-3">
             <Label htmlFor="industry" className="text-gray-700 font-semibold">
-              Industry <span className="text-red-500">*</span>
+              Industry
             </Label>
             <Select
               value={formData.industry}
@@ -360,7 +392,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                   setFormData({ ...formData, customIndustry: e.target.value })
                 }
                 className="rounded-xl border-gray-200"
-                required
+                
               />
             )}
           </div>
@@ -472,9 +504,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 !formData.name ||
                 !formData.registrationNumber ||
                 !formData.address ||
-                !formData.timelineStart ||
-                !formData.totalShares ||
-                !resolvedIndustry
+                formData.totalShares < 100 ||
+                !!totalSharesError
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >

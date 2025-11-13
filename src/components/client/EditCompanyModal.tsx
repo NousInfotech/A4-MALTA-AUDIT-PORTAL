@@ -61,7 +61,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     address: "",
     status: "active",
     companyStartedAt: "",
-    totalShares: 0,
+    totalShares: 100,
     industry: "",
     customIndustry: "",
     description: "",
@@ -70,6 +70,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalSharesError, setTotalSharesError] = useState<string>("");
   const { toast } = useToast();
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,6 +118,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       const companyIndustry = company.industry || "";
       const isPresetIndustry =
         companyIndustry && industryOptions.includes(companyIndustry);
+      const totalShares = company.totalShares || 0;
+      
       setFormData({
         name: company.name || "",
         registrationNumber: company.registrationNumber || "",
@@ -125,7 +128,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         companyStartedAt: company.companyStartedAt
           ? company.companyStartedAt.substring(0, 10)
           : "",
-        totalShares: company.totalShares,
+        totalShares: totalShares,
         industry: isPresetIndustry
           ? companyIndustry
           : companyIndustry
@@ -137,6 +140,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         //   ? company.timelineEnd.substring(0, 10)
         //   : "",
       });
+      
+      // Validate totalShares on load
+      if (totalShares < 100) {
+        setTotalSharesError("Total shares must be at least 100");
+      } else {
+        setTotalSharesError("");
+      }
+      
       setSupportingDocuments(company.supportingDocuments || []);
       setShareHoldingCompanies(company.shareHoldingCompanies || []);
     }
@@ -318,22 +329,52 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               </Label>
               <Input
                 id="totalShares"
-                min={0}
+                min={100}
                 type="number"
                 step={1}
                 placeholder="Enter total number of shares"
                 value={formData.totalShares || ""}
                 onChange={(e) => {
                   const val = e.target.value;
-                  const parsedVal = val === "" ? 0 : parseInt(val, 10);
-                  setFormData({
-                    ...formData,
-                    totalShares: parsedVal,
-                  });
+                  
+                  if (val === "") {
+                    setTotalSharesError("");
+                    setFormData({
+                      ...formData,
+                      totalShares: 0,
+                    });
+                  } else {
+                    const parsedVal = parseInt(val, 10);
+                    
+                    if (isNaN(parsedVal)) {
+                      setTotalSharesError("Please enter a valid number");
+                      setFormData({
+                        ...formData,
+                        totalShares: 0,
+                      });
+                    } else if (parsedVal < 100) {
+                      setTotalSharesError("Total shares must be at least 100");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    } else {
+                      setTotalSharesError("");
+                      setFormData({
+                        ...formData,
+                        totalShares: parsedVal,
+                      });
+                    }
+                  }
                 }}
                 required
-                className="rounded-xl border-gray-200"
+                className={`rounded-xl border-gray-200 ${
+                  totalSharesError ? "border-red-500" : ""
+                }`}
               />
+              {totalSharesError && (
+                <p className="text-sm text-red-500 mt-1">{totalSharesError}</p>
+              )}
             </div>
           </div>
           {/* 
@@ -486,7 +527,10 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 !formData.registrationNumber ||
                 !formData.address ||
                 !formData.companyStartedAt ||
-                !resolvedIndustry
+                !resolvedIndustry ||
+                !formData.totalShares ||
+                formData.totalShares < 100 ||
+                !!totalSharesError
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
