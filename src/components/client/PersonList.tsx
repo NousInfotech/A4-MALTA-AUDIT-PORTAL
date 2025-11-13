@@ -1732,6 +1732,10 @@ export const PersonList: React.FC<PersonListProps> = ({
         }}
         clientId={clientId}
         existingCompanies={existingCompanies}
+        isShareholdingCompany={true}
+        parentCompanyId={companyId}
+        parentCompany={company}
+        existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
       />
 
       {/* Edit Company Shareholder Dialog */}
