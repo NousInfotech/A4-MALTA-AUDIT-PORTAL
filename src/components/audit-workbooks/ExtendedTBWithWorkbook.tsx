@@ -122,16 +122,10 @@ export default function ExtendedTBWithWorkbook({
     try {
       if (!engagementId || !classification) throw new Error('Engagement ID and classification are required');
 
-      // Always fetch linked files snapshot for this classification to preserve previous functionality
-      // This endpoint returns rows that include linkedExcelFiles and often a stable _id
-      const linkedResp = await getExtendedTBWithLinkedFiles(engagementId, classification);
-      const linkedRows: any[] = Array.isArray(linkedResp?.rows) ? linkedResp.rows : [];
-      const byCode = new Map<string, any>();
-      const byId = new Map<string, any>();
-      for (const lr of linkedRows) {
-        if (lr?.code) byCode.set(String(lr.code), lr);
-        if (lr?._id) byId.set(String(lr._id), lr);
-      }
+      console.log('ExtendedTBWithWorkbook: Loading data for classification:', classification);
+
+      // Step 1: Get the row data first
+      let rows: any[] = [];
 
       if (isAdjustments(classification) || isETB(classification)) {
         const etbResp = await authFetch(
@@ -139,34 +133,57 @@ export default function ExtendedTBWithWorkbook({
         );
         if (!etbResp.ok) throw new Error('Failed to load ETB');
         const etb = await etbResp.json();
-        const rows: any[] = Array.isArray(etb.rows) ? etb.rows : [];
-        const filtered = isAdjustments(classification)
-          ? rows.filter((r) => Number(r.adjustments) !== 0)
-          : rows;
-        // merge linked files info by code or id
-        const merged = filtered.map((r) => {
-          const match = (r.code && byCode.get(String(r.code))) || (r._id && byId.get(String(r._id)));
-          return {
-            ...r,
-            _id: match?._id ?? r._id,
-            linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
-          };
-        });
-        setSectionData(merged);
-        setLastUpdatedAt(new Date().toISOString());
-        return;
+        const allRows: any[] = Array.isArray(etb.rows) ? etb.rows : [];
+        rows = isAdjustments(classification)
+          ? allRows.filter((r) => Number(r.adjustments) !== 0)
+          : allRows;
+      } else {
+        const endpoint = isTopCategory(classification)
+          ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/category/${encodeURIComponent(classification)}`
+          : `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(classification)}`;
+
+        const response = await authFetch(endpoint);
+        if (!response.ok) throw new Error('Failed to load section data');
+        const data = await response.json();
+        rows = Array.isArray(data.rows) ? data.rows : [];
       }
 
-      const endpoint = isTopCategory(classification)
-        ? `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/category/${encodeURIComponent(classification)}`
-        : `${import.meta.env.VITE_APIURL}/api/engagements/${engagementId}/etb/classification/${encodeURIComponent(classification)}`;
+      console.log('ExtendedTBWithWorkbook: Row data received:', {
+        totalRows: rows.length,
+        rowDetails: rows.map(r => ({
+          code: r.code,
+          name: r.accountName,
+          classification: r.classification
+        }))
+      });
 
-      const response = await authFetch(endpoint);
-      if (!response.ok) throw new Error('Failed to load section data');
-      const data = await response.json();
-      const leadRows: any[] = Array.isArray(data.rows) ? data.rows : [];
-      // merge linked files info
-      const merged = leadRows.map((r) => {
+      // Step 2: For each row, fetch its linked files using its ACTUAL classification
+      // Build a map of linked files by code
+      const byCode = new Map<string, any>();
+      const byId = new Map<string, any>();
+
+      for (const row of rows) {
+        if (row.classification) {
+          try {
+            console.log(`ExtendedTBWithWorkbook: Fetching linked files for row ${row.code} with classification:`, row.classification);
+            const linkedResp = await getExtendedTBWithLinkedFiles(engagementId, row.classification);
+            const linkedRow = linkedResp?.rows?.find((lr: any) => lr.code === row.code);
+            
+            if (linkedRow) {
+              console.log(`ExtendedTBWithWorkbook: Found linked files for row ${row.code}:`, {
+                linkedCount: linkedRow.linkedExcelFiles?.length || 0
+              });
+              byCode.set(String(row.code), linkedRow);
+              if (linkedRow._id) byId.set(String(linkedRow._id), linkedRow);
+            }
+          } catch (err) {
+            console.warn(`ExtendedTBWithWorkbook: Failed to fetch linked files for row ${row.code}:`, err);
+          }
+        }
+      }
+
+      // Step 3: Merge linked files info
+      const merged = rows.map((r) => {
         const match = (r.code && byCode.get(String(r.code))) || (r._id && byId.get(String(r._id)));
         return {
           ...r,
@@ -174,6 +191,18 @@ export default function ExtendedTBWithWorkbook({
           linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
         };
       });
+      
+      console.log('ExtendedTBWithWorkbook: Final merged data:', {
+        totalRows: merged.length,
+        rowsWithLinkedFiles: merged.filter(r => r.linkedExcelFiles?.length > 0).length,
+        mergedRowDetails: merged.map(r => ({
+          code: r.code,
+          name: r.accountName,
+          classification: r.classification,
+          linkedCount: r.linkedExcelFiles?.length || 0
+        }))
+      });
+      
       setSectionData(merged);
       setLastUpdatedAt(new Date().toISOString());
     } catch (err: any) {

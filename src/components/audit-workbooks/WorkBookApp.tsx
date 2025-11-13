@@ -29,6 +29,32 @@ import { parseExcelRange, zeroIndexToExcelCol } from "./utils";
 import { WorkbookHistory } from "@/components/audit-workbooks/WorkbookHistory"; // NEW: Import WorkbookHistory
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkingPapersCloudFileId } from "@/lib/api/engagement";
+import {
+  getExtendedTrialBalanceWithMappings,
+  addMappingToRow,
+  getExtendedTBWithLinkedFiles,
+  updateLinkedExcelFilesInExtendedTB,
+  type ETBData,
+  type ETBRow
+} from "@/lib/api/extendedTrialBalanceApi";
+import {
+  getWorkingPaperWithMappings,
+  addMappingToWPRow,
+  getWorkingPaperWithLinkedFiles,
+  updateLinkedExcelFilesInWP,
+  type WorkingPaperData,
+  type WPRow
+} from "@/lib/api/workingPaperApi";
+import {
+  getEvidenceWithMappings,
+  linkWorkbookToEvidence,
+  unlinkWorkbookFromEvidence,
+  addMappingToEvidence,
+  updateEvidenceMapping,
+  removeMappingFromEvidence,
+  type ClassificationEvidence,
+  type CreateMappingRequest as EvidenceCreateMappingRequest
+} from "@/lib/api/classificationEvidenceApi";
 
 type View =
   | "dashboard"
@@ -210,10 +236,29 @@ const mockAuditLogs: AuditLogEntry[] = [
 export default function WorkBookApp({
   engagementId,
   classification,
+  etbRows,
+  onRefreshData,
+  rowType = 'etb', // Default to ETB for backward compatibility
 }: {
   engagementId: string;
   classification: string;
+  etbRows?: ETBRow[]; // Optional rows from parent component (can be ETB or WP rows)
+  onRefreshData?: () => Promise<void>; // Optional callback to refresh parent data
+  rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
 }) {
+  console.log('WorkBookApp: Component mounted/updated with:', { 
+    engagementId, 
+    classification,
+    etbRowsCount: etbRows?.length || 0,
+    hasRefreshCallback: !!onRefreshData,
+    rowType,
+    firstThreePassedRows: etbRows?.slice(0, 3).map(r => ({
+      code: r.code,
+      name: r.accountName,
+      classification: r.classification
+    })) || []
+  });
+  
   const { user, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState<View>("dashboard");
   const [selectedWorkbook, setSelectedWorkbook] = useState<any | null>(
@@ -243,6 +288,9 @@ export default function WorkBookApp({
     useState(false);
   const [isUploadingWorkingPaper, setIsUploadingWorkingPaper] = useState(false);
   const [isUpdatingSheets, setIsUpdatingSheets] = useState(false);
+  const [etbData, setEtbData] = useState<ETBData | null>(null);
+  const [etbLoading, setEtbLoading] = useState(false);
+  const [etbError, setEtbError] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -263,6 +311,100 @@ export default function WorkBookApp({
       fetchData();
     }
   }, [engagementId, classification]);
+
+  // Fetch ETB/WP data for linking workbooks to fields
+  const fetchETBData = useCallback(async () => {
+    console.log('WorkBookApp: fetchETBData called with:', { engagementId, rowType });
+    
+    if (!engagementId) {
+      console.log('WorkBookApp: No engagementId, skipping data fetch');
+      setEtbData(null);
+      return;
+    }
+    
+    // ✅ ALWAYS use rows from parent if provided (ensures dialog lists same rows as table)
+    if (etbRows && etbRows.length > 0) {
+      console.log(`WorkBookApp: ✅ Using ${rowType} rows passed from parent (same as table shows):`, {
+        rowsCount: etbRows.length,
+        rowType,
+        classification,
+        firstThreeRows: etbRows.slice(0, 3).map(r => ({ 
+          code: r.code, 
+          name: r.accountName, 
+          classification: r.classification,
+          mappingsCount: r.mappings?.length || 0,
+          linkedFilesCount: r.linkedExcelFiles?.length || 0
+        }))
+      });
+      
+      setEtbData({
+        _id: 'from-parent',
+        engagement: engagementId,
+        classification: classification, // Add classification from parent
+        rows: etbRows, // ✅ These are the EXACT rows visible in the table!
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      setEtbLoading(false);
+      setEtbError(null);
+      return; // ✅ Don't fetch from API - parent data is authoritative
+    }
+    
+    // ✅ FALLBACK: Only fetch from API if parent didn't provide rows
+    try {
+      setEtbLoading(true);
+      setEtbError(null);
+      console.log(`WorkBookApp: ⚠️ No parent rows provided - fetching from API for ${rowType}:`, {
+        engagementId,
+        classification,
+        rowType
+      });
+      
+      let result;
+      if (rowType === 'working-paper') {
+        // For Working Papers: Fetch WP data for THIS classification only
+        console.log('WorkBookApp: Fetching Working Paper data for classification:', classification);
+        try {
+          result = await getWorkingPaperWithMappings(engagementId, classification);
+          console.log('WorkBookApp: ✅ Working Paper data found for classification');
+        } catch (wpError) {
+          // If no Working Paper exists yet, fall back to ETB data for THIS classification
+          console.log('WorkBookApp: No Working Paper found, fetching ETB data for classification:', classification);
+          result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
+          console.log('WorkBookApp: ✅ Using ETB data as fallback for Working Papers');
+        }
+      } else {
+        // For ETB/Lead Sheet: Fetch ONLY rows for THIS classification (same as Lead Sheet table shows)
+        console.log('WorkBookApp: Fetching ETB data for classification:', classification);
+        result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
+        console.log('WorkBookApp: ✅ ETB data received for classification');
+      }
+      
+      console.log(`WorkBookApp: ${rowType} data received successfully:`, {
+        hasResult: !!result,
+        hasRows: !!result?.rows,
+        totalRows: result?.rows?.length || 0,
+        firstThreeRows: result?.rows?.slice(0, 3)?.map(r => ({ 
+          code: r.code, 
+          name: r.accountName, 
+          classification: r.classification 
+        }))
+      });
+      
+      setEtbData(result);
+    } catch (err) {
+      console.error(`WorkBookApp: ${rowType} API error:`, err);
+      setEtbError(err instanceof Error ? err.message : `Failed to fetch ${rowType} data`);
+      setEtbData(null);
+    } finally {
+      setEtbLoading(false);
+    }
+  }, [engagementId, etbRows, rowType, classification]);
+
+  // Fetch ETB data when engagementId or etbRows changes
+  useEffect(() => {
+    fetchETBData();
+  }, [engagementId, etbRows, fetchETBData]);
 
   useEffect(() => {
     if (selectedWorkbook) {
@@ -913,8 +1055,17 @@ export default function WorkBookApp({
       color: string;
     }
   ) => {
+    console.log('🚀🚀🚀 WorkBookApp.handleCreateMapping: CALLED!', {
+      workbookId,
+      destinationField: mappingDetails.destinationField,
+      rowType,
+      classification,
+      engagementId
+    });
+
     try {
       if (!workbookId) {
+        console.log('❌ WorkBookApp: Missing workbookId');
         toast({
           title: "Error",
           description: "Workbook ID is missing.",
@@ -923,33 +1074,176 @@ export default function WorkBookApp({
         return;
       }
 
-      const response = await db_WorkbookApi.createMapping(
-        workbookId,
-        mappingDetails
-      );
-
-      if (response.success && response.data) {
-        setMappings((prev) => [...prev, response.data as Mapping]);
+      if (!engagementId) {
+        console.log('❌ WorkBookApp: Missing engagementId');
         toast({
-          title: "Mapping Created",
-          description: `Successfully mapped to ${response.data.destinationField}`,
-        });
-        setPendingSelection(null);
-        setRefreshWorkbooksTrigger((prev) => prev + 1); // Refresh logs after a mapping is created
-      } else {
-        toast({
-          title: "Mapping Creation Failed",
-          description:
-            response.error ||
-            `Error creating mapping for destination: ${mappingDetails.destinationField}.`,
+          title: "Error",
+          description: "Engagement ID is missing.",
           variant: "destructive",
         });
+        return;
       }
+
+      console.log('WorkBookApp: Creating mapping with rowType:', rowType, {
+        engagementId,
+        classification,
+        rowId: mappingDetails.destinationField,
+        workbookId,
+        mappingDetails
+      });
+
+      // Step 1: Find the row to get its classification
+      const targetRow = etbData?.rows.find(r => r.code === mappingDetails.destinationField);
+      const rowClassification = targetRow?.classification || classification;
+
+      console.log('WorkBookApp: Target row details:', {
+        rowCode: targetRow?.code,
+        rowName: targetRow?.accountName,
+        rowClassification,
+        workbookId,
+        rowType
+      });
+
+      // Step 2: Add mapping to the row (call appropriate API based on rowType)
+      const mappingPayload = {
+        workbookId: workbookId,
+        color: mappingDetails.color,
+        details: {
+          sheet: mappingDetails.sheet,
+          start: mappingDetails.start,
+          end: mappingDetails.end
+        }
+      };
+
+      let mappingResult;
+      if (rowType === 'working-paper') {
+        console.log('WorkBookApp: Calling Working Paper API to add mapping');
+        mappingResult = await addMappingToWPRow(
+          engagementId,
+          rowClassification,
+          mappingDetails.destinationField, // This is the row code
+          mappingPayload
+        );
+      } else if (rowType === 'evidence') {
+        // For Evidence, destinationField is the evidenceId
+        console.log('WorkBookApp: Calling Evidence API to add mapping');
+        const evidenceId = mappingDetails.destinationField;
+        mappingResult = await addMappingToEvidence(evidenceId, mappingPayload);
+      } else {
+        // Default to ETB API
+        console.log('WorkBookApp: Calling ETB API to add mapping');
+        mappingResult = await addMappingToRow(
+          engagementId,
+          mappingDetails.destinationField, // This is the row code
+          mappingPayload
+        );
+      }
+
+      console.log('WorkBookApp: Mapping created successfully:', mappingResult);
+
+      // Step 3: Also add workbook to linkedExcelFiles/linkedWorkbooks array (call appropriate API)
+      if (rowType === 'evidence') {
+        // For Evidence, use linkWorkbookToEvidence API
+        const evidenceId = mappingDetails.destinationField;
+        console.log('WorkBookApp: Linking workbook to Evidence file:', { evidenceId, workbookId });
+        
+        // Fetch current evidence to check if already linked
+        const evidenceData = await getEvidenceWithMappings(evidenceId);
+        const existingLinkedWorkbookIds = evidenceData.linkedWorkbooks?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!existingLinkedWorkbookIds.includes(workbookId)) {
+          await linkWorkbookToEvidence(evidenceId, workbookId);
+          console.log('WorkBookApp: Workbook linked to Evidence successfully');
+        } else {
+          console.log('WorkBookApp: Workbook already linked to Evidence, skipping');
+        }
+      } else {
+        // For ETB/WP, fetch current linked files
+        let linkedFilesData;
+        if (rowType === 'working-paper') {
+          console.log('WorkBookApp: Fetching WP linked files');
+          linkedFilesData = await getWorkingPaperWithLinkedFiles(engagementId, rowClassification);
+        } else {
+          console.log('WorkBookApp: Fetching ETB linked files');
+          linkedFilesData = await getExtendedTBWithLinkedFiles(engagementId, rowClassification);
+        }
+
+        const currentRow = linkedFilesData.rows.find((r: any) => r.code === mappingDetails.destinationField);
+        
+        // Get existing linked file IDs
+        const existingLinkedFileIds = currentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
+        
+        console.log('WorkBookApp: Current linked files:', {
+          rowCode: mappingDetails.destinationField,
+          existingCount: existingLinkedFileIds.length,
+          existingIds: existingLinkedFileIds,
+          rowType
+        });
+
+        // Check if workbook already in linkedExcelFiles
+        if (!existingLinkedFileIds.includes(workbookId)) {
+          // Add the workbook to linkedExcelFiles array
+          const updatedLinkedFiles = [...existingLinkedFileIds, workbookId];
+
+          console.log('WorkBookApp: Updating linkedExcelFiles array:', {
+            rowCode: mappingDetails.destinationField,
+            rowClassification,
+            newWorkbookId: workbookId,
+            updatedLinkedFiles,
+            rowType
+          });
+
+          if (rowType === 'working-paper') {
+            console.log('WorkBookApp: Calling WP API to update linked files');
+            await updateLinkedExcelFilesInWP(
+              engagementId,
+              rowClassification,
+              mappingDetails.destinationField,
+              updatedLinkedFiles
+            );
+          } else {
+            console.log('WorkBookApp: Calling ETB API to update linked files');
+            await updateLinkedExcelFilesInExtendedTB(
+              engagementId,
+              rowClassification,
+              mappingDetails.destinationField,
+              updatedLinkedFiles
+            );
+          }
+
+          console.log('WorkBookApp: LinkedExcelFiles updated successfully');
+        } else {
+          console.log('WorkBookApp: Workbook already in linkedExcelFiles, skipping update');
+        }
+      }
+
+      // Refresh parent component data FIRST (ClassificationSection) if callback provided
+      if (onRefreshData) {
+        console.log('WorkBookApp: Calling parent refresh callback to update table');
+        await onRefreshData();
+        console.log('WorkBookApp: Parent refresh complete - table should now show updated linked files');
+        console.log('WorkBookApp: Skipping local fetchETBData - will use updated etbRows from parent');
+        // Don't call fetchETBData here - the parent refresh will update etbRows prop,
+        // which will trigger the useEffect to call fetchETBData with fresh data
+      } else {
+        // Only refresh local data if no parent callback (standalone mode)
+        console.log('WorkBookApp: No parent callback - refreshing local ETB data');
+        await fetchETBData();
+        console.log('WorkBookApp: Local ETB data refreshed');
+      }
+
+      toast({
+        title: "Mapping Created",
+        description: `Successfully mapped to ${mappingDetails.destinationField}`,
+      });
+      
+      setPendingSelection(null);
+      setRefreshWorkbooksTrigger((prev) => prev + 1);
     } catch (error) {
       console.error("Error in handleCreateMapping:", error);
       toast({
         title: "Mapping Creation Failed",
-        description: `An unexpected error occurred while creating the mapping.`,
+        description: error instanceof Error ? error.message : "An unexpected error occurred while creating the mapping.",
         variant: "destructive",
       });
     }
@@ -1338,6 +1632,8 @@ export default function WorkBookApp({
             isLoading={isLoadingAllWorkbookLogs}
             engagementId={engagementId}
             classification={classification}
+            rowType={rowType} // ✅ Pass rowType to MainDashboard
+            parentEtbData={etbData} // ✅ CRITICAL FIX: Pass parent's prepared data
           />
         );
       case "viewer":
@@ -1377,6 +1673,9 @@ export default function WorkBookApp({
             updateSheetsInWorkbook={updateSheetsInWorkbook}
             engagementId={engagementId}
             classification={classification}
+            rowType={rowType}
+            parentEtbData={etbData} // ✅ CRITICAL FIX: Pass parent's etbData to avoid re-fetching
+            onRefreshETBData={fetchETBData} // ✅ Pass refresh function
           />
         ) : null;
       case "audit-log":
@@ -1404,6 +1703,11 @@ export default function WorkBookApp({
             onClose={() => setCurrentView("viewer")}
             selection={pendingSelection}
             onLink={handleCreateMapping}
+            etbData={etbData}
+            etbLoading={etbLoading}
+            etbError={etbError}
+            onRefreshETBData={fetchETBData}
+            rowType={rowType} // ✅ CRITICAL: Pass rowType for contextual UI
           />
         );
       case "dataset-preview-modal":
@@ -1450,6 +1754,8 @@ export default function WorkBookApp({
             isLoading={isLoadingAllWorkbookLogs}
             engagementId={engagementId}
             classification={classification}
+            rowType={rowType} // ✅ CRITICAL FIX: Pass rowType to MainDashboard in default case!
+            parentEtbData={etbData} // ✅ CRITICAL FIX: Pass parent's prepared data
           />
         );
     }
