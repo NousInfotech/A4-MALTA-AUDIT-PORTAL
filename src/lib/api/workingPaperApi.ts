@@ -207,7 +207,12 @@ export const addMappingToWPRow = async (
     
     const response = await axiosInstance.post(
       `/api/working-papers/${engagementId}/${encodeURIComponent(classification)}/rows/${rowCode}/mappings`,
-      mappingData
+      {
+        ...mappingData,
+        engagementId,
+        classification,
+        rowId: rowCode,
+      }
     );
 
     return response.data.data;
@@ -236,7 +241,12 @@ export const updateWPMapping = async (
   try {
     const response = await axiosInstance.put(
       `/api/working-papers/${engagementId}/${encodeURIComponent(classification)}/rows/${rowCode}/mappings/${mappingId}`,
-      updateData
+      {
+        ...updateData,
+        engagementId,
+        classification,
+        rowId: rowCode,
+      }
     );
 
     return response.data.data;
@@ -262,7 +272,14 @@ export const removeMappingFromWPRow = async (
 ): Promise<WorkingPaperData> => {
   try {
     const response = await axiosInstance.delete(
-      `/api/working-papers/${engagementId}/${encodeURIComponent(classification)}/rows/${rowCode}/mappings/${mappingId}`
+      `/api/working-papers/${engagementId}/${encodeURIComponent(classification)}/rows/${rowCode}/mappings/${mappingId}`,
+      {
+        data: {
+          engagementId,
+          classification,
+          rowId: rowCode,
+        },
+      }
     );
 
     return response.data.data;
@@ -291,7 +308,12 @@ export const toggleWPMappingStatus = async (
   try {
     const response = await axiosInstance.patch(
       `/api/working-papers/${engagementId}/${encodeURIComponent(classification)}/rows/${rowCode}/mappings/${mappingId}/toggle`,
-      { isActive }
+      {
+        isActive,
+        engagementId,
+        classification,
+        rowId: rowCode,
+      }
     );
 
     return response.data.data;

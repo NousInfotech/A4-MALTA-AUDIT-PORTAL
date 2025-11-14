@@ -120,6 +120,10 @@ export const getEvidenceWithMappings = async (
     console.log('EvidenceAPI: Fetching evidence with mappings:', { url, evidenceId });
     const response = await axiosInstance.get(url);
 
+    if (Array.isArray(response.data?.evidence)) {
+      return response.data.evidence[0];
+    }
+
     return response.data.data;
   } catch (error) {
     console.error("Error fetching evidence with mappings:", error);

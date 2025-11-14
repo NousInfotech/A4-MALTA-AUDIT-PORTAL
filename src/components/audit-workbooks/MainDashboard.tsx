@@ -86,6 +86,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   const [selectedRowId, setSelectedRowId] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Debug useEffect to track state changes
   useEffect(() => {
@@ -97,6 +98,60 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       selectedWorkbook: selectedWorkbook?.name
     });
   }, [selectedRowId, isLinking, isDialogOpen, etbData, selectedWorkbook]);
+
+  // ✅ CRITICAL FIX: Use parent data if provided, otherwise fetch
+  useEffect(() => {
+    // Update etbData when parentEtbData changes
+    if (parentEtbData) {
+      console.log('MainDashboard: ✅ Using parent-provided data (no fetch needed):', {
+        rowType,
+        classification,
+        dataRows: parentEtbData.rows?.length || 0,
+        firstThreeRows: parentEtbData.rows?.slice(0, 3)?.map(r => ({
+          code: r.code,
+          name: r.accountName
+        }))
+      });
+      setEtbData(parentEtbData);
+      return; // ✅ Don't fetch - parent data is authoritative
+    }
+
+    // Only fetch if parent didn't provide data
+    const fetchData = async () => {
+      if (!engagementId || !classification) return;
+
+      console.log('MainDashboard: ⚠️ No parent data - fetching for classification:', { engagementId, classification, rowType });
+
+      try {
+        // For Evidence, parent should ALWAYS provide data
+        if (rowType === 'evidence') {
+          console.log('MainDashboard: ⚠️ Evidence mode but no parent data provided!');
+          return;
+        }
+
+        // Fetch data using appropriate API
+        const data = await loadSectionData();
+        
+        console.log('MainDashboard: Data received:', {
+          totalRows: data?.rows?.length || 0,
+          classification,
+          rowType,
+          rowCodes: data?.rows?.map((r: ETBRow) => `${r.code} - ${r.accountName}`)
+        });
+        
+        setEtbData(data);
+      } catch (err) {
+        console.error("MainDashboard: Error loading section data:", err);
+        toast({
+          title: "Error",
+          description: `Failed to fetch ${rowType === 'working-paper' ? 'Working Paper' : 'Extended Trial Balance'} data`,
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchData();
+  }, [engagementId, classification, rowType, parentEtbData, toast]);
 
   // Helper function - mirrors ExtendedTBWithWorkbook's loadSectionData logic
   const loadSectionData = async () => {
@@ -359,6 +414,43 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       // IMPORTANT: Use the ROW'S actual classification (not the page classification)
       // The row might be in a sub-classification that's different from the current page
       const rowClassification = selectedRow.classification || classification;
+
+      const rowIdentifier = (selectedRow as any)?._id || (selectedRow as any)?.id || selectedRow.code;
+
+      if (rowType === 'working-paper' && !rowIdentifier) {
+        throw new Error('Unable to determine Working Paper row identifier.');
+      }
+
+      // Immediate UI update so users see the new linked workbook right away
+      setEtbData((prev) => {
+        if (!prev) return prev;
+
+        const updatedRows = prev.rows.map((row) => {
+          if (row.code === selectedRowId) {
+            const existingLinkedFiles = row.linkedExcelFiles || [];
+            const alreadyLinked = existingLinkedFiles.some(
+              (wb: any) => (wb?._id || wb) === selectedWorkbook.id
+            );
+            if (alreadyLinked) {
+              return row;
+            }
+            return {
+              ...row,
+              linkedExcelFiles: [
+                ...existingLinkedFiles,
+                { _id: selectedWorkbook.id, name: selectedWorkbook.name },
+              ],
+            };
+          }
+          return row;
+        });
+
+        return {
+          ...prev,
+          rows: updatedRows,
+          _updateTimestamp: Date.now(),
+        } as any;
+      });
       
       console.log("MainDashboard: Row details:", {
         selectedRowCode: selectedRow.code,
@@ -405,18 +497,37 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
           currentLinkedCount: targetRow?.linkedExcelFiles?.length || 0
         });
 
-        // Get existing linked file IDs
-        existingLinkedFileIds = targetRow?.linkedExcelFiles?.map((wb: any) => wb._id) || [];
+        // Get existing linked file IDs - handle both ObjectId and string formats
+        existingLinkedFileIds = targetRow?.linkedExcelFiles?.map((wb: any) => {
+          const id = wb._id || wb;
+          return String(id); // ✅ Convert to string for comparison
+        }) || [];
 
         console.log("MainDashboard: Current linked files:", {
           existingCount: existingLinkedFileIds.length,
           existingIds: existingLinkedFileIds,
+          existingIdsTypes: existingLinkedFileIds.map(id => typeof id),
+          selectedWorkbookId: selectedWorkbook.id,
+          selectedWorkbookIdType: typeof selectedWorkbook.id,
           rowType
         });
       }
 
-      // Check if the workbook is already linked
-      if (existingLinkedFileIds.includes(selectedWorkbook.id)) {
+      // Check if the workbook is already linked (compare strings)
+      const selectedWorkbookIdStr = String(selectedWorkbook.id);
+      const isAlreadyLinked = existingLinkedFileIds.some(id => String(id) === selectedWorkbookIdStr);
+      
+      console.log("MainDashboard: Already linked check:", {
+        selectedWorkbookId: selectedWorkbookIdStr,
+        existingIds: existingLinkedFileIds,
+        isAlreadyLinked,
+        comparisonResults: existingLinkedFileIds.map(id => ({
+          id: String(id),
+          matches: String(id) === selectedWorkbookIdStr
+        }))
+      });
+      
+      if (isAlreadyLinked) {
         toast({
           title: "Warning",
           description: rowType === 'evidence'
@@ -446,7 +557,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         await updateLinkedExcelFilesInWP(
           engagementId,
           rowClassification, // Use row's actual classification
-          selectedRowId,
+          rowIdentifier,
           updatedLinkedFiles
         );
       } else if (rowType === 'evidence') {
@@ -472,7 +583,9 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
 
       // Refresh the ETB data using the same logic as ExtendedTBWithWorkbook
       console.log("MainDashboard: Refreshing data after linking...");
+      setIsRefreshing(true);
       const refreshedData = await loadSectionData();
+      setIsRefreshing(false);
       
       console.log("MainDashboard: Refreshed data:", {
         totalRows: refreshedData?.rows?.length || 0,
@@ -490,16 +603,19 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       });
 
       // Dispatch custom event to notify other components (e.g., ClassificationSection Lead Sheet tab)
-      console.log('MainDashboard: Dispatching workbook-linked event');
-      window.dispatchEvent(new CustomEvent('workbook-linked', {
-        detail: {
-          workbookId: selectedWorkbook.id,
-          workbookName: selectedWorkbook.name,
-          rowCode: selectedRowId,
-          classification: rowClassification,
-          engagementId
-        }
-      }));
+      const eventDetail = {
+        workbookId: selectedWorkbook.id,
+        workbookName: selectedWorkbook.name,
+        rowCode: selectedRowId,
+        classification: rowClassification,
+        engagementId,
+        rowType
+      };
+      
+      console.log('📣 MainDashboard: Dispatching workbook-linked event with detail:', eventDetail);
+      const event = new CustomEvent('workbook-linked', { detail: eventDetail });
+      window.dispatchEvent(event);
+      console.log('📣 MainDashboard: Event dispatched successfully');
 
       // Close dialog and reset state
       setIsDialogOpen(false);
@@ -514,6 +630,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       });
     } finally {
       setIsLinking(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -631,7 +748,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                         <Link className="h-4 w-4 mr-2" />
                         {rowType === 'evidence' ? 'Link to File' : 'Link to Field'}
                       </Button>
-                      {/* <Button
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
@@ -642,7 +759,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
-                      </Button> */}
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -766,12 +883,12 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
             </Button>
             <Button
               onClick={handleSubmitLink}
-              disabled={!selectedRowId || isLinking}
+              disabled={!selectedRowId || isLinking || isRefreshing}
             >
-              {isLinking ? (
+              {isLinking || isRefreshing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Linking...
+                  {isLinking ? "Linking..." : "Refreshing..."}
                 </>
               ) : (
                 "Link Workbook"
