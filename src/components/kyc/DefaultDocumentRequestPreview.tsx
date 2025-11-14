@@ -21,38 +21,27 @@ import {
   CheckCircle,
   Shield
 } from "lucide-react";
-import { defaultDocumentRequests, DefaultDocument, DefaultDocumentRequest } from "@/data/defaultDocumentRequests";
 import { useToast } from "@/hooks/use-toast";
+import { useDrList } from '@/hooks/useDocumentRequestTemplateHook';
+import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
 
 interface DefaultDocumentRequestPreviewProps {
-  onAddDocuments: (selectedDocuments: DefaultDocument[]) => void;
-  kycId?: string;
-  engagementId?: string;
-  clientId?: string;
+  onAddDocuments: (selectedDocuments: DocumentRequestTemplate[]) => void;
+  kycId?: string;  // kyc id
+  engagementId?: string;  // engagement id
+  clientId?: string;  // client id
 }
 
 export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPreviewProps> = ({
   onAddDocuments,
-  kycId,
-  engagementId,
-  clientId
+  kycId, // kyc id
+  engagementId, // engagement id
+  clientId // client id
 }) => {
-  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set()); // selected documents
   const { toast } = useToast();
+  const { drList } = useDrList();
 
-  // Load selected documents from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('kyc-selected-documents');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSelectedDocuments(new Set(parsed));
-      } catch (error) {
-        console.error('Error parsing saved documents:', error);
-      }
-    }
-  }, []);
 
   // Save selected documents to localStorage
   const saveToLocalStorage = (documents: Set<string>) => {
@@ -71,24 +60,19 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
   };
 
   const handleSelectAll = () => {
-    const allDocumentIds = defaultDocumentRequests.flatMap(request => 
-      request.documents.map(doc => doc.id)
+    const allDocumentIds = drList.flatMap(request =>
+      request._id
     );
-    const newSelected = new Set(allDocumentIds);
-    setSelectedDocuments(newSelected);
-    saveToLocalStorage(newSelected);
+    setSelectedDocuments(new Set(allDocumentIds));
   };
-
   const handleDeselectAll = () => {
     setSelectedDocuments(new Set());
-    saveToLocalStorage(new Set());
   };
 
   const handleAddSelectedDocuments = () => {
-    const selectedDocs = defaultDocumentRequests
-      .flatMap(request => request.documents)
-      .filter(doc => selectedDocuments.has(doc.id));
-    
+    const selectedDocs = drList
+      .filter(doc => selectedDocuments.has(doc._id));
+
     if (selectedDocs.length === 0) {
       toast({
         title: "No Documents Selected",
@@ -104,7 +88,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
 
     // Call the parent callback to add documents to the modal's document list
     onAddDocuments(selectedDocs);
-    
+
     toast({
       title: "Documents Added",
       description: `${selectedDocs.length} document(s) have been added to the KYC workflow.`,
@@ -121,10 +105,10 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
 
   const getDocumentTypeBadge = (type: 'direct' | 'template') => {
     return (
-      <Badge 
-        variant="outline" 
-        className={type === 'template' 
-          ? "text-amber-600 border-amber-300 bg-brand-body" 
+      <Badge
+        variant="outline"
+        className={type === 'template'
+          ? "text-amber-600 border-amber-300 bg-brand-body"
           : "text-gray-600 border-gray-300 bg-gray-50"
         }
       >
@@ -193,85 +177,63 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
 
       <CardContent className="p-6">
         <div className="space-y-6">
-          {defaultDocumentRequests.map((request) => (
-            <div key={request.id} className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <FileText className="h-4 w-4 text-gray-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{request.name}</h3>
-                  <p className="text-sm text-gray-600">{request.description}</p>
-                </div>
-                <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                  {request.category}
-                </Badge>
-              </div>
-
-              <div className="grid gap-3 ml-11">
-                {request.documents.map((document) => (
-                  <div
-                    key={document.id}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
-                      selectedDocuments.has(document.id)
-                        ? 'border-amber-500 bg-brand-body'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <Checkbox
-                        checked={selectedDocuments.has(document.id)}
-                        onCheckedChange={() => handleDocumentToggle(document.id)}
-                        className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
-                      />
-                      <div className="flex items-center gap-3">
-                        {getDocumentIcon(document.type)}
-                        <div>
-                          <p className="font-medium text-gray-900">{document.name}</p>
-                          <p className="text-sm text-gray-600">{document.description}</p>
-                          {document.instruction && (
-                            <p className="text-xs text-amber-600 mt-1 italic">
-                              {document.instruction}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {getDocumentTypeBadge(document.type)}
-                      {document.required && (
-                        <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50">
-                          Required
-                        </Badge>
-                      )}
-                      {/* Only show preview/download buttons for template documents */}
-                      {document.type === 'template' && document.url && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => previewDocument(document.url!)}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => downloadDocument(document.url!, document.name)}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
+          <div className="grid gap-3">
+            {drList.map((document, index) => (
+              <div
+                key={index}
+                className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${selectedDocuments.has(document._id)
+                    ? 'border-amber-500 bg-brand-body'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <Checkbox
+                    checked={selectedDocuments.has(document._id)}
+                    onCheckedChange={() => handleDocumentToggle(document._id)}
+                    className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                  />
+                  <div className="flex items-center gap-3">
+                    {getDocumentIcon(document.type)}
+                    <div>
+                      <p className="font-medium text-gray-900">{document.name}</p>
+                      <p className="text-sm text-gray-600">{document.description}</p>
+                      {document.template?.instructions && (
+                        <p className="text-xs text-amber-600 mt-1 italic">
+                          {document.template?.instructions}
+                        </p>
                       )}
                     </div>
                   </div>
-                ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {getDocumentTypeBadge(document.type)}
+                
+                  {/* Only show preview/download buttons for template documents */}
+                  {document.type === 'template' && document.template?.url && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => previewDocument(document.template?.url!)}
+                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadDocument(document.template?.url!, document.name)}
+                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {selectedDocuments.size > 0 && (

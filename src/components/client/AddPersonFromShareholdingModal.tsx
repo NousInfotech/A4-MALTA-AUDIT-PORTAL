@@ -29,6 +29,7 @@ interface Person {
 interface ShareholdingCompany {
   companyId: string | { _id: string; name: string; registrationNumber?: string };
   companyName: string;
+  clientId?: string;
 }
 
 interface PersonWithCompany extends Person {
@@ -90,13 +91,14 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
         const shareCompanyId = typeof shareCompany.companyId === 'object' 
           ? shareCompany.companyId._id 
           : shareCompany.companyId;
+        const shareCompanyClientId = shareCompany.clientId || clientId;
 
         try {
           let activePersonIds: Set<string> | null = null;
 
           try {
             const personsResponse = await fetch(
-              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareCompanyId}/person`,
+              `${import.meta.env.VITE_APIURL}/api/client/${shareCompanyClientId}/company/${shareCompanyId}/person`,
               {
                 headers: {
                   Authorization: `Bearer ${sessionData.session.access_token}`,
@@ -119,7 +121,7 @@ export const AddPersonFromShareholdingModal: React.FC<AddPersonFromShareholdingM
 
           // Fetch the shareholding company directly to get all shareholders
           const companyResponse = await fetch(
-            `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareCompanyId}`,
+            `${import.meta.env.VITE_APIURL}/api/client/${shareCompanyClientId}/company/${shareCompanyId}`,
             {
               headers: {
                 Authorization: `Bearer ${sessionData.session.access_token}`,

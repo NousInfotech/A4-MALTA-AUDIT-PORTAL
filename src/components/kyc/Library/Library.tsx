@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -10,8 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Edit, Trash2, FileText, FileEdit, FileUp, Search } from "lucide-react";
-import { AddDocumentModal } from "../Library/AddDocumentModal";
+import { Plus, Edit, Trash2, FileText, FileEdit, FileUp, Search, Download, ExternalLink } from "lucide-react";
+import { AddDocumentModal, type DocumentFormValues } from "../Library/AddDocumentModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,57 +24,60 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-
-interface LibraryDocument {
-  id: string;
-  documentName: string;
-  description: string;
-  uploadedBy: string;
-  type: 'Template' | 'Direct';
-}
+import { useDrList } from '@/hooks/useDocumentRequestTemplateHook';
+import type { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
 
 // Mock data
-const mockDocuments: LibraryDocument[] = [
-  {
-    id: '1',
-    documentName: 'Bank Statement Template',
-    description: 'Standard template for bank statement requests',
-    uploadedBy: 'John Smith',
-    type: 'Template'
-  },
-  {
-    id: '2',
-    documentName: 'ID Proof',
-    description: 'Identity verification document',
-    uploadedBy: 'Sarah Johnson',
-    type: 'Direct'
-  },
-  {
-    id: '3',
-    documentName: 'Tax Return Form',
-    description: 'Annual tax return documentation template',
-    uploadedBy: 'Michael Brown',
-    type: 'Template'
-  },
-  {
-    id: '4',
-    documentName: 'Proof of Address',
-    description: 'Document to verify residential address',
-    uploadedBy: 'Emily Davis',
-    type: 'Direct'
-  },
-  {
-    id: '5',
-    documentName: 'Source of Wealth Declaration',
-    description: 'Template for wealth declaration forms',
-    uploadedBy: 'John Smith',
-    type: 'Template'
-  },
-];
+// const mockDocuments: LibraryDocument[] = [
+//   {
+//     id: '1',
+//     documentName: 'Bank Statement Template',
+//     description: 'Standard template for bank statement requests',
+//     uploadedBy: 'John Smith',
+//     type: 'Template'
+//   },
+//   {
+//     id: '2',
+//     documentName: 'ID Proof',
+//     description: 'Identity verification document',
+//     uploadedBy: 'Sarah Johnson',
+//     type: 'Direct'
+//   },
+//   {
+//     id: '3',
+//     documentName: 'Tax Return Form',
+//     description: 'Annual tax return documentation template',
+//     uploadedBy: 'Michael Brown',
+//     type: 'Template'
+//   },
+//   {
+//     id: '4',
+//     documentName: 'Proof of Address',
+//     description: 'Document to verify residential address',
+//     uploadedBy: 'Emily Davis',
+//     type: 'Direct'
+//   },
+//   {
+//     id: '5',
+//     documentName: 'Source of Wealth Declaration',
+//     description: 'Template for wealth declaration forms',
+//     uploadedBy: 'John Smith',
+//     type: 'Template'
+//   },
+// ];
 
 const Library = () => {
-  const [documents, setDocuments] = useState<LibraryDocument[]>(mockDocuments);
+  const { drList, createDR, deleteDR, updateDR, updateDRList, deleteDRList } = useDrList();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -81,6 +86,16 @@ const Library = () => {
     documentName?: string;
   }>({ open: false });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<DocumentRequestTemplate | null>(null);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+  const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkUpdateType, setBulkUpdateType] = useState<DocumentRequestTemplate["type"] | "unset">("unset");
+  const [bulkUpdateCategory, setBulkUpdateCategory] = useState("");
+  const [bulkUpdateDescription, setBulkUpdateDescription] = useState("");
+  const [bulkUpdateActive, setBulkUpdateActive] = useState<boolean | null>(null);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const { toast } = useToast();
 
   const handleDelete = (id: string, name: string) => {
@@ -91,36 +106,138 @@ const Library = () => {
     });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteDialog.documentId) {
-      setDocuments(documents.filter(doc => doc.id !== deleteDialog.documentId));
-      toast({
-        title: "Document Deleted",
-        description: `${deleteDialog.documentName} has been deleted from the library`,
-      });
+      await deleteDR(deleteDialog.documentId);
       setDeleteDialog({ open: false });
     }
   };
 
-  const handleEdit = (id: string) => {
-    // TODO: Implement edit functionality
-    toast({
-      title: "Edit Document",
-      description: "Edit functionality will be implemented soon",
-    });
+  const handleEdit = (doc: DocumentRequestTemplate) => {
+    setEditingDoc(doc);
+    setIsAddModalOpen(true);
   };
 
-  const handleAddDocument = (newDocument: Omit<LibraryDocument, 'id'>) => {
-    const document: LibraryDocument = {
-      ...newDocument,
-      id: Date.now().toString(),
+  const handleSaveDocument = async (newDoc: DocumentFormValues) => {
+    const normalizedType: DocumentRequestTemplate["type"] =
+      newDoc.type === "Template" ? "template" : "direct";
+    const payload: Partial<DocumentRequestTemplate> = {
+      name: newDoc.documentName,
+      description: newDoc.description?.trim() || undefined,
+      type: normalizedType,
+      category: "kyc",
     };
-    setDocuments([...documents, document]);
+
+    if (normalizedType === "template") {
+      payload.template = {
+        instructions: newDoc.templateInstructions?.trim() || undefined,
+        url: newDoc.templateUrl,
+      };
+    }
+
+    if (editingDoc && newDoc.id) {
+      await updateDR(newDoc.id, payload);
+    } else {
+      await createDR(payload);
+    }
+
     setIsAddModalOpen(false);
-    toast({
-      title: "Document Added",
-      description: `${newDocument.documentName} has been added to the library`,
-    });
+    setEditingDoc(null);
+  };
+
+  const clearSelection = () => setSelectedDocuments([]);
+
+  const toggleDocumentSelection = (id: string, checked: boolean) => {
+    setSelectedDocuments(prev =>
+      checked ? Array.from(new Set([...prev, id])) : prev.filter(item => item !== id)
+    );
+  };
+
+  const toggleSelectAll = (checked: boolean, documents: DocumentRequestTemplate[]) => {
+    if (checked) {
+      setSelectedDocuments(documents.map(doc => doc._id));
+    } else {
+      clearSelection();
+    }
+  };
+
+  const resetBulkUpdateForm = () => {
+    setBulkUpdateType("unset");
+    setBulkUpdateCategory("");
+    setBulkUpdateDescription("");
+    setBulkUpdateActive(null);
+  };
+
+  const handleBulkUpdateSubmit = async () => {
+    if (!selectedDocuments.length) {
+      toast({
+        title: "No documents selected",
+        description: "Select at least one document to run a bulk update.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payloadFields: Partial<DocumentRequestTemplate> = {};
+    if (bulkUpdateType !== "unset") payloadFields.type = bulkUpdateType;
+    if (bulkUpdateCategory.trim()) payloadFields.category = bulkUpdateCategory.trim();
+    if (bulkUpdateDescription.trim()) payloadFields.description = bulkUpdateDescription.trim();
+    if (bulkUpdateActive !== null) payloadFields.isActive = bulkUpdateActive;
+
+    if (Object.keys(payloadFields).length === 0) {
+      toast({
+        title: "Missing fields",
+        description: "Set at least one field to update.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBulkUpdating(true);
+    try {
+      const payload = selectedDocuments.map(id => ({
+        _id: id,
+        ...payloadFields,
+      }));
+      await updateDRList(payload);
+      toast({
+        title: "Bulk update complete",
+        description: `${selectedDocuments.length} document(s) updated`,
+      });
+      setBulkUpdateOpen(false);
+      resetBulkUpdateForm();
+      clearSelection();
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (!selectedDocuments.length) {
+      toast({
+        title: "No documents selected",
+        description: "Select documents to delete in bulk.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkDeleting(true);
+    try {
+      await deleteDRList(selectedDocuments);
+      toast({
+        title: "Bulk delete complete",
+        description: `${selectedDocuments.length} document(s) deleted`,
+      });
+      setBulkDeleteOpen(false);
+      clearSelection();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const openAddModal = () => {
+    setEditingDoc(null);
+    setIsAddModalOpen(true);
   };
 
   const getTypeBadge = (type: 'Template' | 'Direct') => {
@@ -135,16 +252,23 @@ const Library = () => {
     );
   };
 
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = 
-      doc.documentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.uploadedBy.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesType = typeFilter === "all" || doc.type.toLowerCase() === typeFilter.toLowerCase();
-    
-    return matchesSearch && matchesType;
-  });
+  const filteredDocuments = useMemo(() => {
+    return drList.filter(doc => {
+      const matchesSearch =
+        doc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doc.description?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesType =
+        typeFilter === "all" || doc.type.toLowerCase() === typeFilter.toLowerCase();
+
+      return matchesSearch && matchesType;
+    });
+  }, [drList, searchTerm, typeFilter]);
+
+  const hasSelection = selectedDocuments.length > 0;
+  const allFilteredSelected =
+    filteredDocuments.length > 0 &&
+    filteredDocuments.every(doc => selectedDocuments.includes(doc._id));
 
   return (
     <div className="space-y-6 px-5 py-5">
@@ -167,7 +291,7 @@ const Library = () => {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={openAddModal}
                 className="bg-brand-hover hover:bg-brand-sidebar text-white"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -215,7 +339,7 @@ const Library = () => {
               Get started by adding your first document to the library
             </p>
             <Button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={openAddModal}
               className="bg-brand-hover hover:bg-brand-sidebar text-white"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -232,48 +356,133 @@ const Library = () => {
                 {filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}
               </Badge>
             </div>
+            <div className="flex flex-col gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={allFilteredSelected && filteredDocuments.length > 0}
+                  onCheckedChange={(checked) =>
+                    toggleSelectAll(checked === true, filteredDocuments)
+                  }
+                  aria-label="Select all filtered documents"
+                />
+                <span className="text-sm text-gray-600">
+                  Select all ({filteredDocuments.length})
+                </span>
+              </div>
+              {hasSelection && (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                  <span className="font-medium text-blue-900">
+                    {selectedDocuments.length} selected
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkUpdateOpen(true)}
+                    className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                  >
+                    {allFilteredSelected ? "Update All" : "Update"}
+                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkDeleteOpen(true)}
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    {allFilteredSelected ? "Delete All" : "Delete"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={clearSelection}>
+                    Clear Selection
+                  </Button>
+                </div>
+              )}
+            </div>
+            
             <div className="space-y-4">
               {filteredDocuments.map((doc) => (
-                <div key={doc.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div
+                  key={doc._id}
+                  className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3 flex-1">
+                      <Checkbox
+                        checked={selectedDocuments.includes(doc._id)}
+                        onCheckedChange={(checked) => toggleDocumentSelection(doc._id, checked === true)}
+                        aria-label={`Select ${doc.name}`}
+                        className="mr-2"
+                      />
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        {doc.type === 'Template' ? (
+                        {doc.type === "template" ? (
                           <FileEdit className="h-6 w-6 text-blue-700" />
                         ) : (
                           <FileUp className="h-6 w-6 text-green-700" />
                         )}
                       </div>
+
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-gray-900 text-lg">{doc.documentName}</h4>
-                          {getTypeBadge(doc.type)}
+                          <h4 className="font-semibold text-gray-900 text-lg">
+                            {doc.name}
+                          </h4>
+
+                          {/* Convert type to TitleCase */}
+                          {getTypeBadge(
+                            doc.type.charAt(0).toUpperCase() + doc.type.slice(1) as 'Template' | 'Direct'
+                          )}
                         </div>
+
                         {doc.description && (
                           <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          Uploaded by: {doc.uploadedBy}
-                        </p>
+                        {doc.type === "template" && (
+                          <div className="mt-2 space-y-2">
+                            {doc.template?.instructions && (
+                              <div className="text-sm text-blue-900 bg-blue-50 border border-blue-100 rounded-lg p-2">
+                                <p className="font-medium mb-1">Client Instructions</p>
+                                <p className="text-blue-800 whitespace-pre-line">
+                                  {doc.template.instructions}
+                                </p>
+                              </div>
+                            )}
+                          
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 ml-4">
+
+                    <div className="flex flex-col items-center justify-center gap-3 ml-4">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleEdit(doc.id)}
+                        onClick={() => handleEdit(doc)}
                         className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 px-3"
-                        title="Edit Document"
                       >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
+                        <Edit className="h-4 w-4" />
                       </Button>
+                      {doc.template?.url && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDelete(doc.id, doc.documentName)}
-                        className="border-red-300 hover:bg-red-50 text-red-700 h-8 w-8 p-0"
-                        title="Delete Document"
+                        className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 px-3"
+                      >
+                      
+                              <a
+                                href={doc.template.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900"
+                              >
+                                <Download className="h-4 w-4" />
+                              </a>
+                            
+                      </Button>
+                      )}
+                     
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDelete(doc._id, doc.name)}
+                        className="border-red-300 hover:bg-red-50 text-red-700 h-8 px-3"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -282,6 +491,7 @@ const Library = () => {
                 </div>
               ))}
             </div>
+
           </CardContent>
         </Card>
       )}
@@ -289,9 +499,163 @@ const Library = () => {
       {/* Add Document Modal */}
       <AddDocumentModal
         open={isAddModalOpen}
-        onOpenChange={setIsAddModalOpen}
-        onAdd={handleAddDocument}
+        onOpenChange={(open) => {
+          setIsAddModalOpen(open);
+          if (!open) {
+            setEditingDoc(null);
+          }
+        }}
+        mode={editingDoc ? 'edit' : 'add'}
+        initialData={
+          editingDoc
+            ? {
+              id: editingDoc._id,
+              documentName: editingDoc.name || "",
+              description: editingDoc.description || "",
+              type: editingDoc.type === "template" ? "Template" : "Direct",
+              templateInstructions: editingDoc.template?.instructions || "",
+              templateUrl: editingDoc.template?.url,
+            }
+            : undefined
+        }
+        onSubmit={handleSaveDocument}
       />
+
+      <Dialog
+        open={bulkUpdateOpen}
+        onOpenChange={(open) => {
+          if (bulkUpdating) return;
+          setBulkUpdateOpen(open);
+          if (!open) resetBulkUpdateForm();
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Update Documents</DialogTitle>
+            <DialogDescription>
+              Apply the same changes to all selected documents.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="bulk-type">Type</Label>
+              <Select
+                value={bulkUpdateType}
+                onValueChange={(value) =>
+                  setBulkUpdateType(value as DocumentRequestTemplate["type"] | "unset")
+                }
+              >
+                <SelectTrigger id="bulk-type" className="mt-1">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Keep existing</SelectItem>
+                  <SelectItem value="template">Template</SelectItem>
+                  <SelectItem value="direct">Direct</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="bulk-category">Category</Label>
+              <Input
+                id="bulk-category"
+                placeholder="Leave blank to keep existing"
+                value={bulkUpdateCategory}
+                onChange={(e) => setBulkUpdateCategory(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="bulk-active">Active Status</Label>
+                {bulkUpdateActive !== null && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBulkUpdateActive(null)}
+                  >
+                    Keep existing
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <Switch
+                  id="bulk-active"
+                  checked={bulkUpdateActive ?? false}
+                  onCheckedChange={(checked) => setBulkUpdateActive(checked)}
+                />
+                <span className="text-sm text-gray-600">
+                  {bulkUpdateActive === null
+                    ? "Leave active status unchanged"
+                    : bulkUpdateActive
+                      ? "Set documents to Active"
+                      : "Set documents to Inactive"}
+                </span>
+              </div>
+            </div>
+
+            {/* <div>
+              <Label htmlFor="bulk-description">Description</Label>
+              <Textarea
+                id="bulk-description"
+                placeholder="Leave blank to keep existing"
+                value={bulkUpdateDescription}
+                onChange={(e) => setBulkUpdateDescription(e.target.value)}
+                rows={3}
+                className="mt-1"
+              />
+            </div> */}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetBulkUpdateForm();
+                setBulkUpdateOpen(false);
+              }}
+              disabled={bulkUpdating}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleBulkUpdateSubmit} disabled={bulkUpdating}>
+              {bulkUpdating ? "Updating..." : "Apply Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (bulkDeleting) return;
+          setBulkDeleteOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedDocuments.length} document
+              {selectedDocuments.length !== 1 ? "s" : ""}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleBulkDeleteConfirm}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>

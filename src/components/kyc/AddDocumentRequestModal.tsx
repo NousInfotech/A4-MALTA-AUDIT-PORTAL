@@ -32,6 +32,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { kycApi, documentRequestApi } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
+import { DefaultDocumentRequestPreview } from './DefaultDocumentRequestPreview';
+import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
 
 interface Document {
   name: string;
@@ -68,7 +70,7 @@ export function AddDocumentRequestModal({
   const [newDocument, setNewDocument] = useState<Partial<Document>>({
     name: '',
     type: 'direct',
-    description: '',  
+    description: '',
     template: {
       instruction: ''
     }
@@ -125,7 +127,7 @@ export function AddDocumentRequestModal({
       }
     });
     setCurrentTemplateFile(null);
-    
+
     toast({
       title: "Document Added",
       description: `${newDocument.name} has been added to the request`,
@@ -140,10 +142,10 @@ export function AddDocumentRequestModal({
     try {
       setLoading(true);
       console.log('Uploading template file:', file.name);
-      
+
       const response = await documentRequestApi.uploadTemplate(file);
       console.log('Template upload successful:', response);
-      
+
       return response.url;
     } catch (error) {
       console.error('Template upload error:', error);
@@ -419,7 +421,7 @@ export function AddDocumentRequestModal({
                             type="checkbox"
                             className="w-4 h-4 accent-blue-600"
                             checked={selectedPersonIds.includes(p.personId)}
-                            onChange={() => {}}
+                            onChange={() => { }}
                             onClick={(e) => {
                               e.stopPropagation();
                               togglePersonSelect(p.personId);
@@ -475,7 +477,28 @@ export function AddDocumentRequestModal({
               </CardContent>
             </Card>
           )}
+          <DefaultDocumentRequestPreview
+            onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
+              const newDocs: Document[] = selectedDocuments.map(doc => ({
+                name: doc.name,
+                type: doc.type,
+                description: doc.description,
+                template: doc.type === 'template'
+                  ? { url: doc.template?.url, instruction: doc.template?.instructions }
+                  : undefined,
+                status: 'pending' as const
+              }));
 
+              setDocuments(prev => [...prev, ...newDocs]);
+
+              toast({
+                title: "Documents Added",
+                description: `${selectedDocuments.length} documents added.`,
+              });
+            }}
+            engagementId={engagementId}
+            clientId={clientId}
+          />
           {/* Add New Document */}
           <Card>
             <CardHeader>
@@ -496,7 +519,7 @@ export function AddDocumentRequestModal({
                   <Label htmlFor="documentType">Request Type *</Label>
                   <Select
                     value={newDocument.type || 'direct'}
-                    onValueChange={(value: 'direct' | 'template') => 
+                    onValueChange={(value: 'direct' | 'template') =>
                       setNewDocument(prev => ({ ...prev, type: value }))
                     }
                   >
@@ -538,7 +561,7 @@ export function AddDocumentRequestModal({
                     <Info className="h-4 w-4 text-blue-600" />
                     <span className="text-sm font-medium text-blue-800">Template-based Workflow</span>
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="templateFile">Template File</Label>
                     <Input
@@ -548,7 +571,7 @@ export function AddDocumentRequestModal({
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null;
                         setCurrentTemplateFile(file);
-                        
+
                         // Auto-fill document name from filename if it's empty
                         if (file && !newDocument.name?.trim()) {
                           const fileName = file.name;
@@ -557,7 +580,7 @@ export function AddDocumentRequestModal({
                             .replace(/\.[^/.]+$/, "") // Remove extension
                             .replace(/[-_]/g, " ") // Replace dashes and underscores with spaces
                             .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize first letter of each word
-                          
+
                           setNewDocument(prev => ({ ...prev, name: cleanName }));
                         }
                       }}
