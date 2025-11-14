@@ -87,11 +87,32 @@ import {
   addMappingToRow,
   updateMapping,
   removeMappingFromRow,
+  getExtendedTBWithLinkedFiles,
+  updateLinkedExcelFilesInExtendedTB,
   type ETBData,
   type ETBRow,
   type CreateMappingRequest,
   type UpdateMappingRequest,
 } from "@/lib/api/extendedTrialBalanceApi";
+import {
+  getWorkingPaperWithMappings,
+  addMappingToWPRow,
+  updateWPMapping,
+  removeMappingFromWPRow,
+  getWorkingPaperWithLinkedFiles,
+  updateLinkedExcelFilesInWP,
+  type WorkingPaperData,
+} from "@/lib/api/workingPaperApi";
+import {
+  getEvidenceWithMappings,
+  linkWorkbookToEvidence,
+  unlinkWorkbookFromEvidence,
+  addMappingToEvidence,
+  updateEvidenceMapping,
+  removeMappingFromEvidence,
+  type ClassificationEvidence,
+  type CreateMappingRequest as EvidenceCreateMappingRequest
+} from "@/lib/api/classificationEvidenceApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,6 +132,7 @@ const generateColor = () => {
 
 interface ExcelViewerProps {
   workbook: any;
+  setSelectedWorkbook?: Dispatch<SetStateAction<any | null>>;
   mappings: Mapping[];
   namedRanges: NamedRange[];
   onBack: () => void;
@@ -155,6 +177,12 @@ interface ExcelViewerProps {
   // ETB related props
   engagementId?: string;
   classification?: string;
+  rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
+  onRefreshMappings?: (workbookId: string) => Promise<void>; // ✅ NEW: Callback to refresh mappings after CRUD
+  
+  // Dialog refresh control
+  mappingsDialogRefreshKey?: number;
+  setMappingsDialogRefreshKey?: (key: number | ((prev: number) => number)) => void;
 
   // All state props from parent
   selectedSheet: string;
@@ -218,19 +246,26 @@ interface ExcelViewerProps {
 
   // ETB props
   etbData: ETBData | null;
+  setEtbData?: (data: any | null | ((prev: any) => any)) => void;
   etbLoading: boolean;
   etbError: string | null;
   onRefreshETBData?: () => void;
-  
+  onRefreshParentData?: () => Promise<void> | void;
+  onEvidenceMappingUpdated?: (evidence: any) => void;
+
   // Sheet data cache (for lazy loading)
   sheetDataCache?: Map<string, any[][]>;
-  
+
   // Loading state for sheets
   loadingSheets?: Set<string>;
+  mappingsRefreshKey?: number;
+  
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   workbook,
+  setSelectedWorkbook,
+  mappingsRefreshKey,
   mappings,
   namedRanges,
   onBack,
@@ -254,6 +289,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // ETB related props
   engagementId,
   classification,
+  rowType = 'etb', // Default to ETB for backward compatibility
+  onRefreshMappings, // ✅ NEW: Callback to refresh mappings after CRUD
+  
+  // Dialog refresh control
+  mappingsDialogRefreshKey = 0,
+  setMappingsDialogRefreshKey = () => {},
 
   // All state props from parent
   selectedSheet,
@@ -314,40 +355,169 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // ETB props
   etbData,
+  setEtbData,
   etbLoading,
   etbError,
   onRefreshETBData,
-  
+  onRefreshParentData,
+  onEvidenceMappingUpdated,
+
   // Sheet data cache
   sheetDataCache = new Map(),
-  
+
   // Loading state
   loadingSheets = new Set(),
 }) => {
   const { toast } = useToast();
   
+  // ✅ Create props object reference for functions that need to access props
+  const props = {
+    workbook,
+    engagementId,
+    classification,
+    rowType,
+    onRefreshETBData,
+    onRefreshMappings,
+    etbData,
+    setEtbData,
+    onCreateMapping,
+  };
+
+  const resolveRowIdentifier = useCallback(
+    (row?: Partial<ETBRow>, fallback?: string) => {
+      if (!row) return fallback;
+      const identifier =
+        (row as any)?._id ||
+        (row as any)?.id ||
+        (row as any)?.rowId ||
+        row.code;
+      return identifier || fallback;
+    },
+    []
+  );
+
+  const getRowLookupByCode = useCallback(
+    (code?: string) => {
+      if (!code) {
+        return { row: undefined, identifier: undefined };
+      }
+      const row = etbData?.rows?.find((r) => r.code === code);
+      return {
+        row,
+        identifier: resolveRowIdentifier(row, code),
+      };
+    },
+    [etbData, resolveRowIdentifier]
+  );
+
+  const selectMappingRange = useCallback(
+    (mapping: any, options?: { closeDialogs?: boolean }) => {
+      if (!mapping?.details?.sheet || !mapping.details.start) {
+        return;
+      }
+
+      const { sheet, start, end } = mapping.details;
+      const normalizedEnd = end || start;
+
+      setSelectedSheet(sheet);
+      setSelections([
+        {
+          sheet,
+          start: { row: start.row, col: start.col },
+          end: { row: normalizedEnd.row, col: normalizedEnd.col },
+        },
+      ]);
+      setIsSelecting(false);
+
+      if (options?.closeDialogs) {
+        setIsETBMappingsDialogOpen(false);
+        setIsWorkbookMappingsDialogOpen(false);
+      }
+    },
+    [setSelectedSheet, setSelections, setIsSelecting]
+  );
+  
+  // ✅ DEBUG: Log when mappings prop changes
+  useEffect(() => {
+    console.log('📊 ExcelViewer: Mappings prop changed:', {
+      count: mappings.length,
+      mappingsArray: mappings,
+      workbookId: workbook.id,
+      workbookName: workbook.name
+    });
+  }, [mappings, workbook.id, workbook.name]);
+
   // Use workbook.fileData as fallback, but will be populated with cache
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
-  
+
   // Get cached sheet data from parent (ExcelViewerWithFullscreen will pass this)
   const sheetDataCacheProp = sheetDataCache;
 
   // Combine workbook mappings with ETB mappings for display
   const allMappings = React.useMemo(() => {
     const workbookMappings = mappings || [];
-    const etbMappings = etbData?.rows?.flatMap(row => 
-      row.mappings?.map(mapping => ({
-        ...mapping,
-        // Ensure the mapping has the correct structure for display
-        details: mapping.details,
-        color: mapping.color,
-        isActive: mapping.isActive !== false
-      })) || []
-    ) || [];
     
-    return [...workbookMappings, ...etbMappings];
-  }, [mappings, etbData]);
+    // Determine source rows based on rowType
+    let sourceRows: any[] =
+      etbData?.rows ||
+      (rowType === 'evidence' ? (props as any)?.etbData?.rows : []);
+
+    // For evidence, ensure rows include mappings (fall back to parent data)
+    if (rowType === 'evidence' && (!sourceRows || sourceRows.length === 0)) {
+      const fallbackRows = (props as any)?.etbData?.rows || [];
+      sourceRows = fallbackRows;
+    }
+
+    const etbMappings =
+      sourceRows?.flatMap((row) =>
+        row.mappings?.map((mapping: any) => ({
+          ...mapping,
+          details: mapping.details,
+          color: mapping.color,
+          isActive: mapping.isActive !== false,
+          workbookId:
+            mapping.workbookId && typeof mapping.workbookId === 'string'
+              ? {
+                  _id: mapping.workbookId,
+                  name: workbook.name || 'Unknown Workbook',
+                }
+              : mapping.workbookId,
+          _evidenceId: rowType === 'evidence' ? row.code : undefined,
+        })) || []
+      ) || [];
+    
+    const combined = [...workbookMappings, ...etbMappings];
+    console.log('🔍 allMappings recalculated:', {
+      rowType,
+      workbookMappingsCount: workbookMappings.length,
+      etbMappingsCount: etbMappings.length,
+      totalCount: combined.length,
+      selectedSheet,
+      timestamp: (workbook as any)?._mappingsUpdateTimestamp,
+      etbDataTimestamp: (sourceRows as any)?._updateTimestamp,
+    });
+
+    return combined;
+  }, [
+    mappings,
+    etbData,
+    selectedSheet,
+    rowType,
+    workbook.name,
+    (workbook as any)?._mappingsUpdateTimestamp,
+    (etbData as any)?._updateTimestamp,
+    JSON.stringify(etbData?.rows?.map((r) => r.mappings)),
+  ]);
+  
+  // ✅ Log when allMappings changes
+  useEffect(() => {
+    console.log('📊 allMappings changed:', {
+      count: allMappings.length,
+      mappings: allMappings,
+      selectedSheet
+    });
+  }, [allMappings, selectedSheet]);
 
   useEffect(() => {
   }, [namedRanges, workbook]);
@@ -377,8 +547,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // currentSheetData now includes the prepended column letters and row numbers
   // Try to get from cache first, then fall back to sheetData
   const cachedSheetData = sheetDataCacheProp.get(selectedSheet);
-  const currentSheetData = cachedSheetData && cachedSheetData.length > 0 
-    ? cachedSheetData 
+  const currentSheetData = cachedSheetData && cachedSheetData.length > 0
+    ? cachedSheetData
     : sheetData[selectedSheet] || [];
 
   /**
@@ -885,8 +1055,43 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     onDeleteNamedRange(workbook.id, namedRangeId);
   };
 
+
+  // Get context-aware labels based on rowType
+  const getContextLabels = () => {
+    switch (rowType) {
+      case 'working-paper':
+        return {
+          tableTitle: 'Working Papers',
+          mappingsButton: 'Working Paper Mappings',
+          mapToButton: 'Map to Working Paper',
+          noDataMessage: 'No Working Paper data found for this classification.',
+          rowLabel: 'Working Paper Row',
+          dataType: 'Working Paper'
+        };
+      case 'evidence':
+        return {
+          tableTitle: 'Evidence Files',
+          mappingsButton: 'Evidence Mappings',
+          mapToButton: 'Map to Evidence',
+          noDataMessage: 'No Evidence data found.',
+          rowLabel: 'Evidence File',
+          dataType: 'Evidence'
+        };
+      default: // 'etb'
+        return {
+          tableTitle: 'Lead Sheet',
+          mappingsButton: 'Lead Sheet Mappings',
+          mapToButton: 'Map to Lead Sheet',
+          noDataMessage: 'No Extended Trial Balance data found for this classification.',
+          rowLabel: 'ETB Row',
+          dataType: 'ETB'
+        };
+    }
+  };
+
   const handleDeleteETBMapping = async (mappingId: string, rowCode: string) => {
-    if (!engagementId) {
+    const labels = getContextLabels();
+    if (!engagementId && rowType !== 'evidence') {
       toast({
         title: "Error",
         description: "Engagement ID is required",
@@ -895,23 +1100,67 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       return;
     }
 
+    const { identifier: resolvedRowId } = getRowLookupByCode(rowCode);
+    const effectiveRowId = resolvedRowId || rowCode;
+
     try {
-      await removeMappingFromRow(engagementId, rowCode, mappingId);
+      // Use the appropriate API based on rowType
+      if (rowType === 'working-paper' && classification) {
+        if (!effectiveRowId) {
+          throw new Error('Unable to resolve Working Paper row identifier.');
+        }
+        await removeMappingFromWPRow(engagementId, classification, effectiveRowId, mappingId);
+      } else if (rowType === 'evidence') {
+        // For Evidence, rowCode is the evidenceId
+        const evidenceId = rowCode;
+        await removeMappingFromEvidence(evidenceId, mappingId);
+      } else {
+        await removeMappingFromRow(engagementId, effectiveRowId, mappingId);
+      }
+
+      // CRITICAL FIX: Update etbData IMMEDIATELY by removing the mapping
+      setEtbData(prev => {
+        if (!prev) return prev;
+        
+        const updatedRows = prev.rows.map(row => {
+          if (row.code === rowCode) {
+            return {
+              ...row,
+              mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+            };
+          }
+          return row;
+        });
+        
+        return {
+          ...prev,
+          rows: updatedRows,
+          _updateTimestamp: Date.now() // Force re-render
+        } as any;
+      });
       
-      // Refresh ETB data if callback is provided
+      console.log('🔄 WorkBookApp: Removed mapping from etbData IMMEDIATELY');
+
+      // Refresh data if callback is provided
       if (onRefreshETBData) {
         onRefreshETBData();
       }
 
+      if (rowType !== 'evidence' && onRefreshParentData) {
+        await Promise.resolve(onRefreshParentData());
+      }
+
+      const labels = getContextLabels();
       toast({
         title: "Success",
-        description: "ETB mapping deleted successfully",
+        description: `${labels.dataType} mapping deleted successfully`,
       });
     } catch (error) {
-      console.error('Error deleting ETB mapping:', error);
+      const labels = getContextLabels();
+      console.error(`Error deleting ${labels.dataType} mapping:`, error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete ETB mapping",
+        description: error instanceof Error ? error.message : `Failed to delete ${labels.dataType} mapping`,
         variant: "destructive",
       });
     }
@@ -927,31 +1176,89 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       return;
     }
 
+    const { identifier: currentRowId } = getRowLookupByCode(currentRowCode);
+    const { identifier: newRowId } = getRowLookupByCode(newRowCode);
+    const effectiveCurrentRowId = currentRowId || currentRowCode;
+    const effectiveNewRowId = newRowId || newRowCode;
+
     try {
-      // If the row changed, we need to first delete from old row and then add to new row
-      if (newRowCode !== currentRowCode) {
-        // First, delete from old row
-        await removeMappingFromRow(engagementId, currentRowCode, mappingId);
-        
-        // Get the mapping details
-        const mapping = editingETBMapping;
-        if (mapping && updateData.details) {
-          // Create a new mapping with updated details in the new row
-          const mappingData: CreateMappingRequest = {
-            workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
-            color: mapping.color,
-            details: updateData.details
-          };
-          await addMappingToRow(engagementId, newRowCode, mappingData);
-        }
-      } else {
-        // Just update the existing mapping
-        await updateMapping(engagementId, currentRowCode, mappingId, updateData);
-      }
+      const labels = getContextLabels();
       
-      // Refresh ETB data if callback is provided
+      // Use the appropriate API based on rowType
+      if (rowType === 'working-paper' && classification) {
+        if (!effectiveCurrentRowId) {
+          throw new Error('Unable to resolve Working Paper row identifier.');
+        }
+        // If the row changed, we need to first delete from old row and then add to new row
+        if (newRowCode !== currentRowCode) {
+          if (!effectiveNewRowId) {
+            throw new Error('Unable to resolve Working Paper target row identifier.');
+          }
+          // First, delete from old row
+          await removeMappingFromWPRow(engagementId, classification, effectiveCurrentRowId, mappingId);
+
+          // Get the mapping details
+          const mapping = editingETBMapping;
+          if (mapping && updateData.details) {
+            // Create a new mapping with updated details in the new row
+            const mappingData: CreateMappingRequest = {
+              workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
+              color: mapping.color,
+              details: updateData.details
+            };
+            await addMappingToWPRow(engagementId, classification, effectiveNewRowId, mappingData);
+          }
+        } else {
+          // Just update the existing mapping
+          await updateWPMapping(engagementId, classification, effectiveCurrentRowId, mappingId, updateData);
+        }
+      } else if (rowType === 'evidence') {
+        // For Evidence, currentRowCode is the evidenceId
+        // Evidence doesn't support changing evidence files, only updating mapping details
+        if (newRowCode !== currentRowCode) {
+          throw new Error('Cannot move mappings between evidence files. Please delete and create a new mapping.');
+        }
+        const evidenceId = currentRowCode;
+        await updateEvidenceMapping(evidenceId, mappingId, updateData);
+      } else {
+        // ETB logic
+        if (newRowCode !== currentRowCode) {
+          // First, delete from old row
+          await removeMappingFromRow(engagementId, effectiveCurrentRowId, mappingId);
+
+          // Get the mapping details
+          const mapping = editingETBMapping;
+          if (mapping && updateData.details) {
+            // Create a new mapping with updated details in the new row
+            const mappingData: CreateMappingRequest = {
+              workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
+              color: mapping.color,
+              details: updateData.details
+            };
+            await addMappingToRow(engagementId, effectiveNewRowId, mappingData);
+          }
+        } else {
+          // Just update the existing mapping
+          await updateMapping(engagementId, effectiveCurrentRowId, mappingId, updateData);
+        }
+      }
+
+      // Refresh data if callback is provided
       if (onRefreshETBData) {
         onRefreshETBData();
+      }
+
+      if (onRefreshParentData) {
+        await Promise.resolve(onRefreshParentData());
+      }
+
+      // ✅ CRITICAL FIX: Refresh mappings for this workbook
+      if (onRefreshMappings) {
+        console.log('ExcelViewer: Refreshing mappings after update');
+        await onRefreshMappings(workbook.id);
+        
+        // Force dialog to re-render with updated mappings
+        setMappingsDialogRefreshKey(prev => prev + 1);
       }
 
       // Reset editing state
@@ -960,23 +1267,31 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
       toast({
         title: "Success",
-        description: "ETB mapping updated successfully",
+        description: `${labels.dataType} mapping updated successfully`,
       });
     } catch (error) {
-      console.error('Error updating ETB mapping:', error);
+      const labels = getContextLabels();
+      console.error(`Error updating ${labels.dataType} mapping:`, error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update ETB mapping",
+        description: error instanceof Error ? error.message : `Failed to update ${labels.dataType} mapping`,
         variant: "destructive",
       });
     }
   };
 
   const handleCreateETBMapping = async () => {
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const rowType = (props as any).rowType || 'etb';
+    const workbook = props.workbook;
+    const onRefreshETBData = (props as any).onRefreshETBData;
+    const onRefreshParentData = (props as any).onRefreshParentData;
+  
     if (!selectedETBRow || !engagementId) {
       toast({
         title: "Error",
-        description: "Please select an ETB row",
+        description: `Please select a ${rowType === 'working-paper' ? 'Working Paper' : 'ETB'} row`,
         variant: "destructive",
       });
       return;
@@ -995,8 +1310,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     setIsCreatingETBMapping(true);
   
     try {
+      const rowIdentifier = resolveRowIdentifier(selectedETBRow, selectedETBRow?.code);
+      if (!rowIdentifier && rowType !== 'evidence') {
+        throw new Error('Unable to determine row identifier for mapping.');
+      }
+
       const mappingData: CreateMappingRequest = {
-        workbookId: workbook.id, // Fix: Use workbook directly instead of props.workbook
+        workbookId: workbook.id,
         color: generateColor(),
         details: {
           sheet: currentSelection.sheet,
@@ -1011,28 +1331,183 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         },
       };
   
-      // Use the _id if available, otherwise use the code as a fallback
-      const rowId = selectedETBRow._id || selectedETBRow.code;
-      await addMappingToRow(engagementId, rowId, mappingData);
+      console.log('ExcelViewer (main): Creating mapping:', {
+        rowType,
+        rowCode: selectedETBRow.code,
+        rowName: selectedETBRow.accountName,
+        mappingData,
+        classification
+      });
   
-      // Fix: Use onRefreshETBData instead of setEtbData
-      if (onRefreshETBData) {
-        onRefreshETBData();
+      // Call the appropriate API based on rowType
+      let mappingResult;
+      if (rowType === 'working-paper') {
+        if (!classification) {
+          throw new Error('Classification is required for Working Paper mappings');
+        }
+        await addMappingToWPRow(engagementId, classification, rowIdentifier as string, mappingData);
+        console.log('✅ Working Paper mapping created successfully');
+        
+        // Update linkedExcelFiles array
+        const wpData = await getWorkingPaperWithLinkedFiles(engagementId, classification);
+        const currentRow = wpData.rows.find((r: any) => r.code === selectedETBRow.code);
+        const existingLinkedFileIds = currentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!existingLinkedFileIds.includes(workbook.id)) {
+          const updatedLinkedFiles = [...existingLinkedFileIds, workbook.id];
+          await updateLinkedExcelFilesInWP(engagementId, classification, rowIdentifier as string, updatedLinkedFiles);
+          console.log('✅ Working Paper linkedExcelFiles updated');
+        }
+        
+      } else if (rowType === 'evidence') {
+        // For Evidence, selectedETBRow.code is the evidenceId
+        const evidenceId = selectedETBRow.code;
+        console.log('ExcelViewer: Creating Evidence mapping for evidenceId:', evidenceId);
+        
+        if (!workbook?.id) {
+          throw new Error('A workbook must be selected before creating an Evidence mapping.');
+        }
+
+        const evidenceMappingData: EvidenceCreateMappingRequest = {
+          workbookId: workbook.id,
+          color: mappingData.color,
+          details: mappingData.details
+        };
+        
+        mappingResult = await addMappingToEvidence(evidenceId, evidenceMappingData);
+        console.log('✅ Evidence mapping created successfully');
+        
+        const selectedWorkbookId = String(workbook.id);
+        const linkWorkbook = async () => {
+          const existingWorkbookIds =
+            mappingResult?.linkedWorkbooks?.map((wb: any) => String(wb?._id || wb)) || [];
+          if (!existingWorkbookIds.includes(selectedWorkbookId)) {
+            await linkWorkbookToEvidence(evidenceId, workbook.id);
+            console.log('✅ Workbook linked to Evidence successfully');
+          } else {
+            console.log('ExcelViewer: Workbook already linked to evidence, skipping link');
+          }
+        };
+        await linkWorkbook();
+
+        let refreshedEvidence: any = null;
+        try {
+          refreshedEvidence = await getEvidenceWithMappings(evidenceId);
+          onEvidenceMappingUpdated?.(refreshedEvidence);
+          mappingResult = refreshedEvidence;
+        } catch (refreshError) {
+          console.error('ExcelViewer: Failed to fetch refreshed evidence after mapping creation', refreshError);
+        }
+        
+      } else {
+        // ETB mapping
+        await addMappingToRow(engagementId, rowIdentifier as string, mappingData);
+        console.log('✅ ETB mapping created successfully');
+        
+        // Update linkedExcelFiles array
+        const etbRowClassification = etbData?.rows.find(r => r.code === selectedETBRow.code)?.classification || classification;
+        const etbLinkedData = await getExtendedTBWithLinkedFiles(engagementId, etbRowClassification);
+        const etbCurrentRow = etbLinkedData.rows.find((r: any) => r.code === selectedETBRow.code);
+        const etbExistingLinkedFileIds = etbCurrentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!etbExistingLinkedFileIds.includes(workbook.id)) {
+          const etbUpdatedLinkedFiles = [...etbExistingLinkedFileIds, workbook.id];
+          await updateLinkedExcelFilesInExtendedTB(engagementId, etbRowClassification, rowIdentifier as string, etbUpdatedLinkedFiles);
+          console.log('✅ ETB linkedExcelFiles updated');
+        }
+        
+      }
+  
+      // CRITICAL FIX: Create a new mapping object with the same structure as existing mappings
+      let newMapping = {
+        _id: `temp-${Date.now()}`, // Temporary ID until refresh
+        workbookId: {
+          _id: workbook.id,
+          name: workbook.name || 'Unknown Workbook'
+        },
+        color: mappingData.color,
+        details: mappingData.details,
+        isActive: true
+      };
+
+      let normalizedMappingsFromResult: any[] | null = null;
+      if (rowType === 'evidence' && mappingResult?.mappings) {
+        normalizedMappingsFromResult = mappingResult.mappings.map((mapping: any) => ({
+          ...mapping,
+          workbookId:
+            mapping.workbookId && typeof mapping.workbookId === 'object'
+              ? mapping.workbookId
+              : {
+                  _id: mapping.workbookId,
+                  name: workbook.name || 'Unknown Workbook',
+                },
+          isActive: mapping.isActive !== false,
+        }));
+
+        if (normalizedMappingsFromResult.length > 0) {
+          newMapping = normalizedMappingsFromResult[normalizedMappingsFromResult.length - 1];
+        }
+      }
+  
+      // CRITICAL FIX: Update etbData state immediately to trigger re-render
+      setEtbData(prev => {
+        if (!prev) return prev;
+        
+        const updatedRows = prev.rows.map(row => {
+          if (row.code === selectedETBRow.code) {
+            const updatedMappings = normalizedMappingsFromResult
+              ? normalizedMappingsFromResult
+              : [...(row.mappings || []), newMapping];
+            return {
+              ...row,
+              mappings: updatedMappings
+            };
+          }
+          return row;
+        });
+        
+        return {
+          ...prev,
+          rows: updatedRows,
+          _updateTimestamp: Date.now() // Force re-render
+        } as any;
+      });
+
+      // CRITICAL FIX: Update parent-selected workbook immediately if setter provided
+      // CRITICAL FIX: Force a re-render of the ExcelViewer by updating a timestamp
+      (workbook as any)._mappingsUpdateTimestamp = Date.now();
+      
+      // CRITICAL FIX: Force a re-render by updating a key prop
+      // This ensures the component detects the change
+      const onRefreshMappings = (props as any).onRefreshMappings;
+      if (onRefreshMappings) {
+        console.log('ExcelViewer (Wrapper): Refreshing mappings after creation');
+        await onRefreshMappings(props.workbook.id);
+        
+        // Force dialog to re-render with updated mappings
+        setMappingsDialogRefreshKey(prev => prev + 1);
       }
   
       // Reset form
       setSelectedETBRow(null);
       setIsCreateETBMappingOpen(false);
   
+      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully' 
+        : rowType === 'evidence' ? 'Evidence mapping created successfully'
+        : 'ETB mapping created successfully';
+      
       toast({
         title: "Success",
-        description: "ETB mapping created successfully",
+        description: successMessage,
       });
     } catch (error) {
-      console.error('Error creating ETB mapping:', error);
+      const errorMessage = rowType === 'working-paper' ? 'Working Paper'
+        : rowType === 'evidence' ? 'Evidence'
+        : 'ETB';
+      console.error(`Error creating ${errorMessage} mapping:`, error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create ETB mapping",
+        description: error instanceof Error ? error.message : `Failed to create ${errorMessage} mapping`,
         variant: "destructive",
       });
     } finally {
@@ -1050,12 +1525,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
       return;
     }
-  
+
     setIsCreatingWorkbookMapping(true);
-  
+
     try {
       // Fix: Access props correctly
-      onCreateMapping(workbook.id, {
+      props.onCreateMapping(workbook.id, {
         sheet: currentSelection.sheet,
         start: {
           row: currentSelection.start.row,
@@ -1067,10 +1542,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         },
         color: generateColor(),
       });
-  
+
       // Reset form
       setIsCreateWorkbookMappingOpen(false);
-  
+
       toast({
         title: "Success",
         description: "Workbook mapping created successfully",
@@ -1135,67 +1610,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             </Select>
           </div>
 
-          {/* Actions Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Code className="h-4 w-4 mr-2" /> Actions{" "}
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56">
-              <DropdownMenuLabel>Data Actions</DropdownMenuLabel>
-              <DropdownMenuLabel className="text-gray-500 text-xs mt-1 mb-2">
-                Select a range in the sheet to link to a field.
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => {
-                  const lastSelection =
-                    selections.length > 0
-                      ? selections[selections.length - 1]
-                      : null;
-                  if (lastSelection) onLinkField(lastSelection);
-                }}
-                disabled={selections.length === 0}
-              >
-                <Link className="h-4 w-4 mr-2" /> Link to Field
-              </DropdownMenuItem>
 
-              {/* make it hidden for temprorary */}
 
-              {/* <DropdownMenuItem onClick={onLinkSheet}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as
-                Dataset
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onLinkWorkbook}>
-                <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
-              </DropdownMenuItem> */}
 
-              {/* end make it hidden for temprorary */}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Named Ranges Dialog Trigger */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsNamedRangesDialogOpen(true)}
-          >
-            <List className="h-4 w-4 mr-2" /> Named Ranges
-          </Button>
-
-          {/* Mappings Dialog Trigger */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsETBMappingsDialogOpen(true)}
-          >
-            <Code className="h-4 w-4 mr-2" /> Mappings
-          </Button>
-        </div>
-
-        {/* Right-aligned utility buttons */}
-        <div className="flex items-center space-x-2 flex-wrap gap-5 justify-end mt-2 md:mt-0 md:ml-auto">
           <Button
             variant="outline"
             size="sm"
@@ -1216,143 +1633,45 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Open Excel
           </Button>
-          {/* Save Buttons */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openSaveDialog("sheet")}
-            className="text-blue-600 border-blue-600 hover:bg-blue-50"
-          >
-            <Database className="h-4 w-4 mr-2" />
-            Save Sheet
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openSaveDialog("workbook")}
-            className="text-blue-600 border-blue-600 hover:bg-blue-50"
-          >
-            <Database className="h-4 w-4 mr-2" />
-            Save Workbook
-          </Button>
+
+
 
           {onToggleFullscreen && (
             <Button variant="outline" size="sm" onClick={onToggleFullscreen}>
               <Maximize2 className="h-4 w-4" />
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onViewAuditLog}>
-            <History className="h-4 w-4 mr-2" />
-            Audit Log
-          </Button>
-          {/* <Button variant="outline" size="sm" onClick={onReupload}>
-            <Upload className="h-4 w-4 mr-2" />
-            Re-upload
-          </Button> */}
+
+
+
           <Button variant="outline" size="sm" onClick={() => updateSheetsInWorkbook(workbook.cloudFileId, workbook.id)}>
             <Upload className="h-4 w-4 mr-2" />
             Re&nbsp;load
           </Button>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4" />
+
+
+
+
+
+
+          {/* Mappings Dialog Trigger */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsETBMappingsDialogOpen(true)}
+          >
+            <Code className="h-4 w-4 mr-2" /> Mappings
           </Button>
         </div>
+
+
+
       </div>
     </header>
   );
 
-  // Named Ranges Dialog Content
-  const renderNamedRangesDialog = () => (
-    <Dialog
-      open={isNamedRangesDialogOpen}
-      onOpenChange={setIsNamedRangesDialogOpen}
-    >
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Manage Named Ranges</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <Button
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              setIsCreateNamedRangeOpen(true);
-              setIsNamedRangesDialogOpen(false); // Close parent dialog to show child
-            }}
-            disabled={selections.length === 0} // Disable if no selection
-          >
-            <Plus className="h-4 w-4 mr-2" /> Create New Named Range (Current
-            Selection)
-          </Button>
-          {selections.length === 0 && (
-            <p className="text-sm text-gray-500 text-center">
-              Select a range in the sheet to create a new named range.
-            </p>
-          )}
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {namedRanges.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center">
-                No named ranges defined.
-              </p>
-            ) : (
-              namedRanges.map((nr, index) => (
-                <div
-                  key={index}
-                  className="p-2 text-xs bg-gray-100 rounded flex justify-between items-start hover:bg-gray-200 group"
-                >
-                  <div
-                    className="cursor-pointer flex-grow"
-                    onClick={() => handleNamedRangeClick(nr)}
-                  >
-                    <span className="font-medium">{nr.name}</span>
-                    <Badge
-                      variant="outline"
-                      className="text-xs whitespace-nowrap ml-2"
-                    >
-                      {nr.range}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditNamedRange(nr);
-                        setIsNamedRangesDialogOpen(false); // Close parent dialog
-                      }}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteNamedRange(nr._id);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsNamedRangesDialogOpen(false)}
-          >
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+
+
 
   // Old mappings dialog removed - now using separate ETB and Workbook dialogs
 
@@ -1361,12 +1680,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     <Dialog open={isETBMappingsDialogOpen} onOpenChange={setIsETBMappingsDialogOpen}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>ETB Mappings</DialogTitle>
+          <DialogTitle>{getContextLabels().mappingsButton}</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-auto">
           {etbLoading ? (
             <div className="flex justify-center items-center py-8">
-              <div className="text-sm text-gray-500">Loading ETB mappings...</div>
+              <div className="text-sm text-gray-500">Loading {getContextLabels().dataType} mappings...</div>
             </div>
           ) : etbError ? (
             <div className="flex justify-center items-center py-8">
@@ -1374,7 +1693,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             </div>
           ) : !etbData || etbData.rows.length === 0 ? (
             <div className="flex justify-center items-center py-8">
-              <div className="text-sm text-gray-500">No ETB data available</div>
+              <div className="text-sm text-gray-500">{getContextLabels().noDataMessage}</div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -1415,17 +1734,24 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               </p>
                             </div>
                             <div className="flex gap-1 ml-2">
-          <Button
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
+                            >
+                              Select
+                            </Button>
+                              <Button
                                 variant="ghost"
-            size="sm"
-            onClick={() => {
+                                size="sm"
+                                onClick={() => {
                                   setEditingETBMapping(mapping);
                                   setIsEditETBMappingOpen(true);
                                   setIsETBMappingsDialogOpen(false);
-            }}
-          >
+                                }}
+                              >
                                 Edit
-          </Button>
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1458,74 +1784,112 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   );
 
   // Workbook Mappings Dialog Content
-  const renderWorkbookMappingsDialog = () => (
-    <Dialog open={isWorkbookMappingsDialogOpen} onOpenChange={setIsWorkbookMappingsDialogOpen}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Workbook Mappings</DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 overflow-auto">
+  const renderWorkbookMappingsDialog = () => {
+    // Log mappings state when dialog renders
+    console.log('🎨 renderWorkbookMappingsDialog: Dialog rendering with mappings:', {
+      isOpen: isWorkbookMappingsDialogOpen,
+      mappingsCount: mappings.length,
+      mappingsArray: mappings,
+      workbookId: workbook.id,
+      workbookName: workbook.name,
+      mappingsTimestamp: (workbook as any)._mappingsUpdateTimestamp,
+      refreshKey: mappingsDialogRefreshKey
+    });
+    
+    // ✅ CRITICAL FIX: Add key to force re-render when mappings change
+    const dialogKey = `workbook-mappings-${workbook.id}-${mappings.length}-${(workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${mappingsRefreshKey || 0}`;
+    console.log('🎨 Dialog key:', dialogKey);
+    
+    return (
+      <Dialog key={dialogKey} open={isWorkbookMappingsDialogOpen} onOpenChange={setIsWorkbookMappingsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Workbook Mappings ({mappings.length})</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
             {mappings.length === 0 ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="text-sm text-gray-500">No workbook mappings available</div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {mappings.map((mapping) => (
-                <div
-                  key={mapping._id}
-                  className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
+              <div className="flex justify-center items-center py-8">
+                <div className="text-sm text-gray-500">
+                  No workbook mappings available
+                  <br />
+                  <span className="text-xs text-gray-400 mt-1">
+                    Create a mapping by selecting cells and choosing a row
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {mappings.map((mapping) => {
+                  console.log('🎨 Rendering mapping:', mapping);
+                  return (
+                    <div
+                      key={`${mapping._id}-${(workbook as any)._mappingsUpdateTimestamp || 0}`}
+                      className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
                     >
                       <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
-                        {mapping.details?.end &&
-                          (mapping.details.end.row !== mapping.details.start.row ||
-                            mapping.details.end.col !== mapping.details.start.col) &&
-                          `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
-                        }
-                      </p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline">
+                              {(mapping as any).workbookId?.name || workbook.name || 'Unknown Workbook'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
+                            {mapping.details?.end &&
+                              (mapping.details.end.row !== mapping.details.start.row ||
+                                mapping.details.end.col !== mapping.details.start.col) &&
+                              `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
+                            }
+                          </p>
                         </div>
-                    <div className="flex gap-1 ml-2">
+                        <div className="flex gap-1 ml-2">
                           <Button
                             variant="ghost"
-                        size="sm"
-                            onClick={() => {
-                          setEditingWorkbookMapping(mapping);
-                          setIsEditWorkbookMappingOpen(true);
-                          setIsWorkbookMappingsDialogOpen(false);
-                            }}
+                            size="sm"
+                            onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
                           >
-                        Edit
+                            Select
                           </Button>
                           <Button
                             variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          onDeleteMapping(workbook.id, mapping._id);
-                        }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Delete
+                            size="sm"
+                            onClick={() => {
+                              setEditingWorkbookMapping(mapping);
+                              setIsEditWorkbookMappingOpen(true);
+                              setIsWorkbookMappingsDialogOpen(false);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              onDeleteMapping(workbook.id, mapping._id);
+                              // Force dialog refresh after deletion
+                              setMappingsDialogRefreshKey(prev => prev + 1);
+                            }}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Delete
                           </Button>
                         </div>
                       </div>
                     </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
             )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsWorkbookMappingsDialogOpen(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsWorkbookMappingsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Save Confirmation Dialog
   const renderSaveDialog = () => (
@@ -1666,94 +2030,74 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     return (
       <>
 
-      <div className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1">
-        <Table className="border-collapse">
-          <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
-            <TableRow>
-              {columnHeaders.map((header, excelGridColIndex) => (
-                <TableHead
-                  key={excelGridColIndex}
-                  className={getCellClassName(0, excelGridColIndex)}
-                >
-                  {header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {dataRows.map((row, dataRowArrayIndex) => {
-              const excelGridRowIndex = dataRowArrayIndex + 1;
+        <div className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1">
+          <Table className="border-collapse">
+            <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
+              <TableRow>
+                {columnHeaders.map((header, excelGridColIndex) => (
+                  <TableHead
+                    key={excelGridColIndex}
+                    className={getCellClassName(0, excelGridColIndex)}
+                  >
+                    {header}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {dataRows.map((row, dataRowArrayIndex) => {
+                const excelGridRowIndex = dataRowArrayIndex + 1;
 
-              return (
-                <TableRow key={dataRowArrayIndex}>
-                  {row.map((cell, excelGridColIndex) => {
-                    const isHeaderCell =
-                      excelGridColIndex === 0 || excelGridRowIndex === 0;
+                return (
+                  <TableRow key={dataRowArrayIndex}>
+                    {row.map((cell, excelGridColIndex) => {
+                      const isHeaderCell =
+                        excelGridColIndex === 0 || excelGridRowIndex === 0;
 
                       const mapping = allMappings.find(
-                      (m) =>
-                        m.details &&
-                        m.details.sheet === selectedSheet &&
-                        excelGridRowIndex >= m.details.start.row &&
-                        excelGridRowIndex <=
+                        (m) =>
+                          m.details &&
+                          m.details.sheet === selectedSheet &&
+                          excelGridRowIndex >= m.details.start.row &&
+                          excelGridRowIndex <=
                           (m.details.end?.row ?? m.details.start.row) &&
-                        excelGridColIndex - 1 >= m.details.start.col &&
-                        excelGridColIndex - 1 <=
+                          excelGridColIndex - 1 >= m.details.start.col &&
+                          excelGridColIndex - 1 <=
                           (m.details.end?.col ?? m.details.start.col)
-                    );
+                      );
 
-                    // Determine if this is the *first* cell of the mapping
-                    const isFirstCellOfMapping =
-                      mapping &&
-                      excelGridRowIndex === mapping.details.start.row &&
-                      excelGridColIndex - 1 === mapping.details.start.col;
+                      // Determine if this is the *first* cell of the mapping
+                      const isFirstCellOfMapping =
+                        mapping &&
+                        excelGridRowIndex === mapping.details.start.row &&
+                        excelGridColIndex - 1 === mapping.details.start.col;
 
-                    return (
-                      <TableCell
-                        key={excelGridColIndex}
-                        className={getCellClassName(
-                          excelGridRowIndex,
-                          excelGridColIndex
-                        )}
-                        onMouseDown={(event) =>
-                          handleMouseDown(
+                      return (
+                        <TableCell
+                          key={excelGridColIndex}
+                          className={getCellClassName(
                             excelGridRowIndex,
-                            excelGridColIndex,
-                            event
-                          )
-                        }
-                        onMouseEnter={() =>
-                          handleMouseEnter(excelGridRowIndex, excelGridColIndex)
-                        }
-                      >
-                        <span className="whitespace-nowrap">{cell}</span>
-
-                        {/* invisible but occupying the enough space for the title */}
-                        {mapping &&
-                          !isHeaderCell &&
-                          isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
-                            <span
-                              className={`invisible text-[15px] text-nowrap whitespace-nowrap font-semibold text-red-500 px-1 rounded-sm ${mapping.color.replace(
-                                "bg-",
-                                "bg-"
-                              )}`}
-                              style={{
-                                transform: "scale(0.8)",
-                                transformOrigin: "top left",
-                              }} // Smaller text size
-                            >
-                              Mapping
-                            </span>
+                            excelGridColIndex
                           )}
+                          onMouseDown={(event) =>
+                            handleMouseDown(
+                              excelGridRowIndex,
+                              excelGridColIndex,
+                              event
+                            )
+                          }
+                          onMouseEnter={() =>
+                            handleMouseEnter(excelGridRowIndex, excelGridColIndex)
+                          }
+                        >
+                          <span className="whitespace-nowrap">{cell}</span>
 
-                        {/* end invisible but occupying the enough space for the title */}
-                        {/* visible title */}
-                        {mapping &&
-                          !isHeaderCell &&
-                          isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
-                            <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-1 pointer-events-none">
+                          {/* invisible but occupying the enough space for the title */}
+                          {mapping &&
+                            !isHeaderCell &&
+                            isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
                               <span
-                                className={`text-[15px] font-semibold text-nowrap whitespace-nowrap text-red-500 px-1 rounded-sm ${mapping.color.replace(
+                                className={`invisible text-[15px] text-nowrap whitespace-nowrap font-semibold text-red-500 px-1 rounded-sm ${mapping.color.replace(
                                   "bg-",
                                   "bg-"
                                 )}`}
@@ -1764,31 +2108,51 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               >
                                 Mapping
                               </span>
-                            </div>
-                          )}
-                        {/* end visible title */}
+                            )}
 
-                        {/* The small blue dot can remain or be removed, depending on preference */}
-                        {excelGridColIndex > 0 &&
-                          excelGridRowIndex > 0 &&
+                          {/* end invisible but occupying the enough space for the title */}
+                          {/* visible title */}
+                          {mapping &&
+                            !isHeaderCell &&
+                            isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
+                              <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-1 pointer-events-none">
+                                <span
+                                  className={`text-[15px] font-semibold text-nowrap whitespace-nowrap text-red-500 px-1 rounded-sm ${mapping.color.replace(
+                                    "bg-",
+                                    "bg-"
+                                  )}`}
+                                  style={{
+                                    transform: "scale(0.8)",
+                                    transformOrigin: "top left",
+                                  }} // Smaller text size
+                                >
+                                  Mapping
+                                </span>
+                              </div>
+                            )}
+                          {/* end visible title */}
+
+                          {/* The small blue dot can remain or be removed, depending on preference */}
+                          {excelGridColIndex > 0 &&
+                            excelGridRowIndex > 0 &&
                             allMappings.find(
-                            (m) =>
-                              m.details &&
-                              m.details.sheet === selectedSheet &&
-                              excelGridRowIndex === m.details.start.row &&
-                              excelGridColIndex - 1 === m.details.start.col
-                          ) && (
-                            <div className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
-                          )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+                              (m) =>
+                                m.details &&
+                                m.details.sheet === selectedSheet &&
+                                excelGridRowIndex === m.details.start.row &&
+                                excelGridColIndex - 1 === m.details.start.col
+                            ) && (
+                              <div className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
+                            )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </>
     );
   };
@@ -1814,9 +2178,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           <Button
             size="sm"
             variant="outline"
-                  onClick={() => setIsCreateETBMappingOpen(true)}
+            onClick={() => setIsCreateETBMappingOpen(true)}
           >
-            Create Mapping
+            {getContextLabels().mapToButton}
           </Button>
           <Button
             size="sm"
@@ -1824,187 +2188,18 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               if (lastSelection) onLinkField(lastSelection);
             }}
           >
-            Link to Field
+            {rowType === 'evidence' ? 'Link to File' : 'Link to Field'}
           </Button>
         </div>
       </div>
     );
   };
 
-  const renderETBTable = () => {
-    if (!engagementId || !classification) {
-  return (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Extended Trial Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <AlertDescription>
-                Missing engagementId or classification. engagementId: {engagementId || 'undefined'}, classification: {classification || 'undefined'}
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      );
-    }
+  
 
-    if (etbLoading) {
-      return (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Extended Trial Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
+  const labels = getContextLabels();
 
-    if (etbError) {
-      return (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Extended Trial Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Alert variant="destructive">
-              <AlertDescription>{etbError}</AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (!etbData || etbData.rows.length === 0) {
-      return (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Extended Trial Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <AlertDescription>
-                No Extended Trial Balance data found for this classification.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    const formatCurrency = (value: number) => {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-      }).format(value);
-    };
-
-    return (
-      <Card className="mb-4">
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Lead Sheet
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsETBMappingsDialogOpen(true)}>
-              Lead Sheet Mappings
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsCreateETBMappingOpen(true)}>
-              Map to Lead Sheet
-            </Button>
-            {/* <Button variant="outline" size="sm" onClick={() => setIsWorkbookMappingsDialogOpen(true)}>
-              Workbook Mappings
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsCreateWorkbookMappingOpen(true)}>
-              Map to Workbook
-            </Button> */}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border overflow-x-auto">
-            <div className="min-w-full">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="whitespace-nowrap min-w-[80px]">Code</TableHead>
-                    <TableHead className="whitespace-nowrap min-w-[200px]">Account Name</TableHead>
-                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Current Year</TableHead>
-                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Prior Year</TableHead>
-                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Adjustments</TableHead>
-                    <TableHead className="text-right whitespace-nowrap min-w-[120px]">Final Balance</TableHead>
-                    <TableHead className="w-[120px] whitespace-nowrap min-w-[120px]">Mappings</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {etbData.rows.map((row) => (
-                    <TableRow key={row._id || row.code}>
-                      <TableCell className="font-medium whitespace-nowrap">{row.code}</TableCell>
-                      <TableCell className="whitespace-nowrap">{row.accountName}</TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        {formatCurrency(row.currentYear)}
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        {formatCurrency(row.priorYear)}
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        {formatCurrency(row.adjustments)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium whitespace-nowrap">
-                        {formatCurrency(row.finalBalance)}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <Badge variant="outline">
-                          {row.mappings?.length || 0} mapping{(row.mappings?.length || 0) !== 1 ? 's' : ''}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                <TableFooter>
-                  <TableRow className="font-semibold">
-                    <TableCell colSpan={2} className="whitespace-nowrap">TOTALS</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.currentYear, 0))}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.priorYear, 0))}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.adjustments, 0))}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {formatCurrency(etbData.rows.reduce((sum, row) => sum + row.finalBalance, 0))}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap"></TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
+  
 
   return (
     <div className="flex flex-col h-auto">
@@ -2012,8 +2207,6 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         <ArrowLeft className="h-4 w-4 py-5 px-2" />
         Back To Workbooks
       </Button>
-      {/* ETB Table at the top */}
-      {renderETBTable()}
 
       {renderHeader()}
       <div className="flex flex-1">
@@ -2058,45 +2251,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               </div>
             </div>
 
-            {/* Actions Section for Mobile */}
-            {/* <div className="pt-4 border-t">
-              <h3 className="text-sm font-semibold text-gray-600 mb-2">
-                Actions
-              </h3>
-              <div className="space-y-2">
-                <Button
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    const lastSelection =
-                      selections.length > 0
-                        ? selections[selections.length - 1]
-                        : null;
-                    if (lastSelection) onLinkField(lastSelection);
-                  }}
-                  disabled={selections.length === 0}
-                >
-                  <Link className="h-4 w-4 mr-2" /> Link to Field
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={onLinkSheet}
-                >
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Link Sheet as
-                  Dataset
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={onLinkWorkbook}
-                >
-                  <Code className="h-4 w-4 mr-2" /> Link Workbook via Rules
-                </Button>
-              </div>
-            </div> */}
+            {/* Note: Actions section removed - these features are being deprecated in favor of the auto-open mapping dialog */}
 
             {/* Named Ranges Section for Mobile */}
             {/* <div className="pt-4 border-t">
@@ -2211,10 +2366,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                             <p className="text-gray-600">
                               {`${sheet}!${zeroIndexToExcelCol(start.col)}${start.row
                                 }${hasValidEnd &&
-                                (end.row !== start.row || end.col !== start.col)
+                                  (end.row !== start.row || end.col !== start.col)
                                   ? `:${zeroIndexToExcelCol(end.col)}${end.row}`
                                   : ""
-                              }`}
+                                }`}
                             </p>
                           </div>
                           <div className="opacity-0 group-hover:opacity-100 flex gap-1">
@@ -2256,133 +2411,62 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         </SheetContent>
       </Sheet>
       {renderSaveDialog()}
-      {renderNamedRangesDialog()} {/* Render the Named Ranges Dialog */}
-      {/* Old mappings dialog removed - now using separate ETB and Workbook dialogs */}
+
       {renderETBMappingsDialog()} {/* Render the ETB Mappings Dialog */}
       {renderWorkbookMappingsDialog()} {/* Render the Workbook Mappings Dialog */}
-      {/* Create Named Range Dialog */}
-      <Dialog
-        open={isCreateNamedRangeOpen}
-        onOpenChange={setIsCreateNamedRangeOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Named Range</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={newNamedRangeName}
-                onChange={(e) => setNewNamedRangeName(e.target.value)}
-                placeholder="Enter name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="range">Range</Label>
-              <Input
-                id="range"
-                value={newNamedRangeRange}
-                onChange={(e) => setNewNamedRangeRange(e.target.value)}
-                placeholder="e.g. Sheet1!A1:B5"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateNamedRangeOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateNamedRange}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {/* Edit Named Range Dialog */}
-      <Dialog
-        open={isEditNamedRangeOpen}
-        onOpenChange={setIsEditNamedRangeOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Named Range</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Name</Label>
-              <Input
-                id="edit-name"
-                value={newNamedRangeName}
-                onChange={(e) => setNewNamedRangeName(e.target.value)}
-                placeholder="Enter name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-range">Range</Label>
-              <Input
-                id="edit-range"
-                value={newNamedRangeRange}
-                onChange={(e) => setNewNamedRangeRange(e.target.value)}
-                placeholder="e.g. Sheet1!A1:B5"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditNamedRangeOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateNamedRange}>Update</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {/* Old create mapping dialog removed - now using separate ETB and Workbook dialogs */}
+
+
+
       {/* Create ETB Mapping Dialog */}
       <Dialog open={isCreateETBMappingOpen} onOpenChange={setIsCreateETBMappingOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create ETB Mapping</DialogTitle>
+            <DialogTitle>{getContextLabels().mapToButton}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="etbRow">ETB Row</Label>
+              <Label htmlFor="etbRow">{getContextLabels().rowLabel}</Label>
               {!etbData ? (
-                <div className="p-2 text-sm text-gray-500 bg-gray-100 rounded">
-                  Loading ETB data...
-            </div>
+                <div className="flex items-center gap-2 p-2 text-sm text-gray-500 bg-gray-100 rounded">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading {getContextLabels().dataType} data...
+                </div>
               ) : !etbData.rows || etbData.rows.length === 0 ? (
-                <div className="p-2 text-sm text-gray-500 bg-gray-100 rounded">
-                  No ETB rows available.
+                <div className="p-2 text-sm text-orange-600 bg-orange-50 border border-orange-200 rounded">
+                  No {getContextLabels().dataType} rows available. Please ensure the {getContextLabels().tableTitle} is populated.
                 </div>
               ) : (
                 <>
                   <Select
-                    value={selectedETBRow?._id || selectedETBRow?.code || ""}
+                    value={selectedETBRow?.code || ""}
                     onValueChange={(value) => {
-                      const row = etbData?.rows.find(r =>
-                        (r._id && r._id === value) || r.code === value
-                      );
+                      const row = etbData?.rows.find(r => r.code === value);
                       setSelectedETBRow(row || null);
                     }}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select ETB row" />
+                      <SelectValue placeholder={`Select ${getContextLabels().rowLabel}`} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[300px]">
                       {etbData.rows.map((row) => (
                         <SelectItem
-                          key={row._id || row.code}
-                          value={row._id || row.code}
+                          key={row.code}
+                          value={row.code}
+                          className="cursor-pointer"
                         >
-                          {row.code} - {row.accountName}
+                          <div className="flex flex-col">
+                            <span className="font-medium">{row.code} - {row.accountName}</span>
+                            {row.classification && (
+                              <span className="text-xs text-muted-foreground">{row.classification}</span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {etbData.rows.length} row{etbData.rows.length !== 1 ? 's' : ''} available
+                  </p>
                 </>
               )}
             </div>
@@ -2489,7 +2573,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                       if (!details) return '';
                       const sheet = details.sheet;
                       const start = `${zeroIndexToExcelCol(details.start.col)}${details.start.row + 1}`;
-                      const end = details.end && 
+                      const end = details.end &&
                         (details.end.row !== details.start.row || details.end.col !== details.start.col)
                         ? `${zeroIndexToExcelCol(details.end.col)}${details.end.row + 1}`
                         : '';
@@ -2501,14 +2585,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                       if (match && editingETBMapping) {
                         const [, sheet, range] = match;
                         const [start, end] = range.split(':');
-                        
+
                         // Parse start
                         const startMatch = start.match(/^([A-Z]+)(\d+)$/);
                         if (startMatch) {
                           const [, colStr, rowStr] = startMatch;
                           const col = excelColToZeroIndex(colStr);
                           const row = parseInt(rowStr, 10) - 1;
-                          
+
                           let endCol = col, endRow = row;
                           if (end) {
                             const endMatch = end.match(/^([A-Z]+)(\d+)$/);
@@ -2518,7 +2602,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               endRow = parseInt(endRowStr, 10) - 1;
                             }
                           }
-                          
+
                           const tempDetails = {
                             sheet,
                             start: { row, col },
@@ -2551,12 +2635,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               disabled={!editingETBMapping?.tempDetails && !editingETBMapping?.details}
               onClick={() => {
                 if (editingETBMapping && etbData) {
-                  const currentRow = etbData.rows.find(r => 
+                  const currentRow = etbData.rows.find(r =>
                     r.mappings?.some(m => m._id === editingETBMapping._id)
                   );
                   const newRowCode = editingETBMapping.tempRowCode || currentRow?.code;
                   const updatedDetails = editingETBMapping.tempDetails || editingETBMapping.details;
-                  
+
                   if (newRowCode && currentRow && updatedDetails) {
                     const updateData: UpdateMappingRequest = {
                       details: updatedDetails,
@@ -2588,9 +2672,16 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   'isEditWorkbookMappingOpen' | 'setIsEditWorkbookMappingOpen' | 'editingWorkbookMapping' | 'setEditingWorkbookMapping' |
   'isCreatingWorkbookMapping' | 'setIsCreatingWorkbookMapping' |
   'etbData' | 'etbLoading' | 'etbError' | 'onRefreshETBData'
->> = (props) => {
+> & {
+  parentEtbData?: ETBData | null; // ✅ NEW: Optional parent data to avoid re-fetching
+  onRefreshETBData?: () => void; // ✅ NEW: Callback to refresh parent data
+}> = (props) => {
   const { toast } = useToast();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const parentOnRefreshETBData = props.onRefreshETBData;
+  
+  // Dialog refresh control
+  const [mappingsDialogRefreshKey, setMappingsDialogRefreshKey] = useState(0);
 
   // Sheet selection state
   const [selectedSheet, setSelectedSheet] = useState<string>("");
@@ -2637,6 +2728,20 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   const [sheetDataCache, setSheetDataCache] = useState<Map<string, any[][]>>(new Map());
   const [loadingSheets, setLoadingSheets] = useState<Set<string>>(new Set());
 
+  const resolveFullscreenRowIdentifier = useCallback(
+    (row?: Partial<ETBRow>, fallback?: string) => {
+      if (!row) return fallback;
+      const identifier =
+        (row as any)?._id ||
+        (row as any)?.id ||
+        (row as any)?.rowId ||
+        row.code;
+      return identifier || fallback;
+    },
+    []
+  );
+
+
   // Function to load sheet data on-demand from MS Drive
   const loadSheetDataOnDemand = useCallback(async (sheetName: string) => {
     // Check if already in cache
@@ -2651,24 +2756,24 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
     try {
       setLoadingSheets(prev => new Set(prev).add(sheetName));
-      
+
       // Use the proper API function from workbookApi
       const response = await db_WorkbookApi.fetchSheetData(props.workbook?.id, sheetName);
-      
+
       if (response.success && response.data) {
         // Backend returns: { metadata: {...}, values: [...], address: "Sheet1!A1:D10" }
         const processedData = processSheetDataForDisplay(response.data.values, response.data.address);
         setSheetDataCache(prev => new Map(prev).set(sheetName, processedData));
         return processedData;
       }
-      
+
       // Fallback: try to get from workbook.fileData if available
       if (props.workbook.fileData && props.workbook.fileData[sheetName]) {
         const data = props.workbook.fileData[sheetName];
         setSheetDataCache(prev => new Map(prev).set(sheetName, data));
         return data;
       }
-      
+
       return null;
     } catch (error) {
       console.error(`Error loading sheet ${sheetName}:`, error);
@@ -2691,7 +2796,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     try {
       // Use provided utils to process
       const { start: { row: startRow, col: startCol } } = parseExcelRange(address || "A1");
-      
+
       const maxRows = rawData.length;
       const maxCols = Math.max(...rawData.map(r => r.length), 0);
       const totalRows = Math.max(20, startRow + maxRows - 1);
@@ -2708,11 +2813,11 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         for (let j = 0; j < totalCols; j++) {
           const dataRowIdx = i - (startRow - 1);
           const dataColIdx = j - startCol;
-          
+
           let cellValue = "";
-          if (dataRowIdx >= 0 && dataRowIdx < maxRows && 
-              dataColIdx >= 0 && dataColIdx < maxCols &&
-              rawData[dataRowIdx]?.[dataColIdx] !== undefined) {
+          if (dataRowIdx >= 0 && dataRowIdx < maxRows &&
+            dataColIdx >= 0 && dataColIdx < maxCols &&
+            rawData[dataRowIdx]?.[dataColIdx] !== undefined) {
             cellValue = String(rawData[dataRowIdx][dataColIdx]);
           }
           row.push(cellValue);
@@ -2751,7 +2856,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     setIsEditETBMappingOpen(false);
     setEditingETBMapping(null);
     setSelectedETBRow(null);
-    
+
     // Reset Workbook mapping states
     setIsWorkbookMappingsDialogOpen(false);
     setIsCreateWorkbookMappingOpen(false);
@@ -2759,39 +2864,153 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     setEditingWorkbookMapping(null);
   }, [props.workbook.id]);
 
-  // Get engagementId and classification from props if needed
+  // Get engagementId for use in handleCreateETBMapping
   const engagementId = (props as any).engagementId;
-  const classification = (props as any).classification;
-  
-  // Fetch ETB data when engagementId or classification changes
-  const fetchETBData = async () => {
-    if (!engagementId || !classification) {
+
+  // Fetch data based on rowType (ETB, Working Paper, or Evidence)
+  const fetchETBData = useCallback(async () => {
+    // Get props inside useCallback to avoid stale closures
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const rowType = (props as any).rowType || 'etb';
+    const parentEtbData = (props as any).parentEtbData; // ✅ Get parent data if provided
+
+    // ✅ CRITICAL: ALWAYS use parent data if provided (ensures dialog lists same rows as parent table)
+    if (parentEtbData) {
+      console.log('ExcelViewer: ✅ Using parent-provided data (no fetch needed):', {
+        rowType,
+        classification,
+        dataRows: parentEtbData.rows?.length || 0,
+        firstThreeRows: parentEtbData.rows?.slice(0, 3)?.map(r => ({
+          code: r.code,
+          name: r.accountName,
+          mappingsCount: r.mappings?.length || 0
+        }))
+      });
+      
+      // ✅ ENHANCEMENT: Enhance mappings with workbook information
+      const workbook = props.workbook; // Get the workbook object
+      const enhancedData = {
+        ...parentEtbData,
+        rows: parentEtbData.rows.map(row => ({
+          ...row,
+          mappings: row.mappings?.map(mapping => ({
+            ...mapping,
+            workbookId: mapping.workbookId && typeof mapping.workbookId === 'string' 
+              ? {
+                  _id: mapping.workbookId,
+                  name: workbook.name || 'Unknown Workbook'
+                }
+              : mapping.workbookId
+          })) || []
+        }))
+      };
+      
+      setEtbData(enhancedData);
+      setEtbLoading(false);
+      setEtbError(null);
+      return; // ✅ Parent data is authoritative - skip API fetch
+    }
+
+    if (!engagementId) {
       setEtbData(null);
       return;
     }
 
+    // For Working Papers, we need classification
+    if (rowType === 'working-paper' && !classification) {
+      console.log('ExcelViewer: Skipping Working Paper fetch - classification is required');
+      return;
+    }
+
+    const dataType = rowType === 'working-paper' ? 'Working Paper' : rowType === 'evidence' ? 'Evidence' : 'ETB';
+    console.log(`ExcelViewer: Fetching ${dataType} data for engagement:`, engagementId, 'classification:', classification);
+
     try {
       setEtbLoading(true);
       setEtbError(null);
-      const result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
-      setEtbData(result);
+
+      let result;
+
+      if (rowType === 'working-paper' && classification) {
+        // Fetch Working Paper data for this classification
+        console.log('ExcelViewer: About to call getWorkingPaperWithMappings...');
+        try {
+          result = await getWorkingPaperWithMappings(engagementId, classification);
+          console.log('ExcelViewer: ✅ Working Paper data received:', {
+            totalRows: result?.rows?.length || 0,
+            firstThreeRows: result?.rows?.slice(0, 3)?.map(r => ({
+              code: r.code,
+              name: r.accountName,
+              classification: r.classification
+            }))
+          });
+        } catch (wpError: any) {
+          console.error('ExcelViewer: ❌ Working Paper API error:', wpError);
+          // If no Working Paper exists yet, fall back to ETB data for this classification
+          if (wpError.response?.status === 404 || wpError.message?.includes('404')) {
+            console.log('ExcelViewer: 404 detected, falling back to ETB data for classification');
+            result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
+            console.log('ExcelViewer: ✅ ETB fallback data received:', {
+              totalRows: result?.rows?.length || 0
+            });
+          } else {
+            console.error('ExcelViewer: ❌ Non-404 error, re-throwing:', wpError);
+            throw wpError;
+          }
+        }
+      } else if (rowType === 'evidence') {
+        // ✅ For Evidence without parent data, don't fetch ETB - show error
+        console.log('ExcelViewer: Evidence mode without parent data - cannot fetch');
+        setEtbError('Evidence data should be provided by parent component');
+        setEtbLoading(false);
+        return;
+      } else {
+        // For ETB/Lead Sheet: Fetch ONLY rows for this classification (same as table shows)
+        console.log('ExcelViewer: Fetching ETB data for classification:', classification);
+        result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
+        console.log('ExcelViewer: ETB data received:', {
+          totalRows: result?.rows?.length || 0,
+          classification: classification,
+          firstThreeRows: result?.rows?.slice(0, 3)?.map(r => ({
+            code: r.code,
+            name: r.accountName,
+            classification: r.classification
+          }))
+        });
+      }
+
+      setEtbData(result as ETBData);
+      console.log('ExcelViewer: ✅ Data set successfully, loading complete');
     } catch (err) {
-      console.error('ETB API error:', err);
-      setEtbError(err instanceof Error ? err.message : 'Failed to fetch ETB data');
+      console.error(`ExcelViewer: ❌ ${dataType} API error:`, err);
+      setEtbError(err instanceof Error ? err.message : `Failed to fetch ${dataType} data`);
     } finally {
+      console.log('ExcelViewer: 🏁 Finally block - setting loading to false');
       setEtbLoading(false);
     }
-  };
+  }, [
+    props.engagementId, 
+    props.classification, 
+    props.rowType, 
+    props.parentEtbData // Direct dependency on parentEtbData
+  ]); // Depend on props to get fresh values
 
   useEffect(() => {
     fetchETBData();
-  }, [engagementId, classification]);
+  }, [fetchETBData]);
 
   const handleCreateETBMapping = async () => {
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const rowType = (props as any).rowType || 'etb';
+    const workbook = props.workbook;
+    const onRefreshETBData = (props as any).onRefreshETBData;
+  
     if (!selectedETBRow || !engagementId) {
       toast({
         title: "Error",
-        description: "Please select an ETB row",
+        description: `Please select a ${rowType === 'working-paper' ? 'Working Paper' : 'ETB'} row`,
         variant: "destructive",
       });
       return;
@@ -2810,8 +3029,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     setIsCreatingETBMapping(true);
   
     try {
+      const rowIdentifier = resolveFullscreenRowIdentifier(selectedETBRow, selectedETBRow?.code);
+      if (!rowIdentifier && rowType !== 'evidence') {
+        throw new Error('Unable to determine row identifier for mapping.');
+      }
+
       const mappingData: CreateMappingRequest = {
-        workbookId: props.workbook.id, // Fix: Use props.workbook instead of workbook
+        workbookId: workbook.id,
         color: generateColor(),
         details: {
           sheet: currentSelection.sheet,
@@ -2826,27 +3050,157 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         },
       };
   
-      // Use the _id if available, otherwise use the code as a fallback
-      const rowId = selectedETBRow._id || selectedETBRow.code;
-      await addMappingToRow(engagementId, rowId, mappingData);
+      console.log('ExcelViewer (main): Creating mapping:', {
+        rowType,
+        rowCode: selectedETBRow.code,
+        rowName: selectedETBRow.accountName,
+        mappingData,
+        classification
+      });
   
-      // Refresh ETB data
-      const result = await getExtendedTrialBalanceWithMappings(engagementId, classification);
-      setEtbData(result);
+      // Call the appropriate API based on rowType
+      if (rowType === 'working-paper') {
+        if (!classification) {
+          throw new Error('Classification is required for Working Paper mappings');
+        }
+        await addMappingToWPRow(engagementId, classification, rowIdentifier as string, mappingData);
+        console.log('✅ Working Paper mapping created successfully');
+        
+        // Update linkedExcelFiles array
+        const wpData = await getWorkingPaperWithLinkedFiles(engagementId, classification);
+        const currentRow = wpData.rows.find((r: any) => r.code === selectedETBRow.code);
+        const existingLinkedFileIds = currentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!existingLinkedFileIds.includes(workbook.id)) {
+          const updatedLinkedFiles = [...existingLinkedFileIds, workbook.id];
+          await updateLinkedExcelFilesInWP(engagementId, classification, rowIdentifier as string, updatedLinkedFiles);
+          console.log('✅ Working Paper linkedExcelFiles updated');
+        }
+        
+        // Refresh ETB data immediately to update cell highlighting
+        if (onRefreshETBData) {
+          console.log('✅ Refreshing ETB data for Working Papers to update cell highlighting');
+          onRefreshETBData();
+        }
+      } else if (rowType === 'evidence') {
+        // For Evidence, selectedETBRow.code is the evidenceId
+        const evidenceId = selectedETBRow.code;
+        console.log('ExcelViewer: Creating Evidence mapping for evidenceId:', evidenceId);
+        
+        const evidenceMappingData: EvidenceCreateMappingRequest = {
+          workbookId: workbook.id,
+          color: mappingData.color,
+          details: mappingData.details
+        };
+        
+        await addMappingToEvidence(evidenceId, evidenceMappingData);
+        console.log('✅ Evidence mapping created successfully');
+        
+        // Link workbook to Evidence
+        const evidenceData = await getEvidenceWithMappings(evidenceId);
+        const existingWorkbookIds = evidenceData.linkedWorkbooks?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!existingWorkbookIds.includes(workbook.id)) {
+          await linkWorkbookToEvidence(evidenceId, workbook.id);
+          console.log('✅ Workbook linked to Evidence successfully');
+        }
+        
+        // Refresh ETB data immediately to update cell highlighting
+        if (onRefreshETBData) {
+          console.log('✅ Refreshing ETB data for Evidence to update cell highlighting');
+          onRefreshETBData();
+        }
+      } else {
+        // ETB mapping
+        await addMappingToRow(engagementId, rowIdentifier as string, mappingData);
+        console.log('✅ ETB mapping created successfully');
+        
+        // Update linkedExcelFiles array
+        const etbRowClassification = etbData?.rows.find(r => r.code === selectedETBRow.code)?.classification || classification;
+        const etbLinkedData = await getExtendedTBWithLinkedFiles(engagementId, etbRowClassification);
+        const etbCurrentRow = etbLinkedData.rows.find((r: any) => r.code === selectedETBRow.code);
+        const etbExistingLinkedFileIds = etbCurrentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
+        
+        if (!etbExistingLinkedFileIds.includes(workbook.id)) {
+          const etbUpdatedLinkedFiles = [...etbExistingLinkedFileIds, workbook.id];
+          await updateLinkedExcelFilesInExtendedTB(engagementId, etbRowClassification, rowIdentifier as string, etbUpdatedLinkedFiles);
+          console.log('✅ ETB linkedExcelFiles updated');
+        }
+        
+        // Refresh ETB data immediately to update cell highlighting
+        if (onRefreshETBData) {
+          console.log('✅ Refreshing ETB data to update cell highlighting');
+          onRefreshETBData();
+        }
+      }
+  
+      // CRITICAL FIX: Create a new mapping object with the same structure as existing mappings
+      const newMapping = {
+        _id: `temp-${Date.now()}`, // Temporary ID until refresh
+        workbookId: {
+          _id: workbook.id,
+          name: workbook.name || 'Unknown Workbook'
+        },
+        color: mappingData.color,
+        details: mappingData.details,
+        isActive: true
+      };
+
+      // CRITICAL FIX: Update etbData state immediately to trigger re-render
+      setEtbData(prev => {
+        if (!prev) return prev;
+        
+        const updatedRows = prev.rows.map(row => {
+          if (row.code === selectedETBRow.code) {
+            return {
+              ...row,
+              mappings: [...(row.mappings || []), newMapping]
+            };
+          }
+          return row;
+        });
+        
+        return {
+          ...prev,
+          rows: updatedRows,
+          _updateTimestamp: Date.now() // Force re-render
+        } as any;
+      });
+
+      // CRITICAL FIX: Force a re-render of the ExcelViewer by updating a timestamp
+      (workbook as any)._mappingsUpdateTimestamp = Date.now();
+      
+      // CRITICAL FIX: Force a re-render by updating a key prop
+      // This ensures the component detects the change
+      const onRefreshMappings = (props as any).onRefreshMappings;
+      if (onRefreshMappings) {
+        console.log('ExcelViewer (Wrapper): Refreshing mappings after creation');
+        await onRefreshMappings(props.workbook.id);
+        
+        // Force dialog to re-render with updated mappings
+        setMappingsDialogRefreshKey(prev => prev + 1);
+      }
   
       // Reset form
       setSelectedETBRow(null);
       setIsCreateETBMappingOpen(false);
   
+      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully' 
+        : rowType === 'evidence' ? 'Evidence mapping created successfully'
+        : 'ETB mapping created successfully';
+      
       toast({
         title: "Success",
-        description: "ETB mapping created successfully",
+        description: successMessage,
       });
     } catch (error) {
-      console.error('Error creating ETB mapping:', error);
+      const errorMessage = rowType === 'working-paper' ? 'Working Paper'
+        : rowType === 'evidence' ? 'Evidence'
+        : 'ETB';
+      console.error(`Error creating ${errorMessage} mapping:`, error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create ETB mapping",
+        description: error instanceof Error ? error.message : `Failed to create ${errorMessage} mapping`,
         variant: "destructive",
       });
     } finally {
@@ -2864,9 +3218,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       });
       return;
     }
-  
+
     setIsCreatingWorkbookMapping(true);
-  
+
     try {
       // Fix: Access props correctly
       props.onCreateMapping(props.workbook.id, {
@@ -2881,10 +3235,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         },
         color: generateColor(),
       });
-  
+
       // Reset form
       setIsCreateWorkbookMappingOpen(false);
-  
+
       toast({
         title: "Success",
         description: "Workbook mapping created successfully",
@@ -2908,7 +3262,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   return (
     <>
       <ExcelViewer
+        key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}`}
         {...props}
+        setSelectedWorkbook={props.setSelectedWorkbook}
         onToggleFullscreen={handleToggleFullscreen}
         // Pass all state props
         selectedSheet={selectedSheet}
@@ -2936,7 +3292,6 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         setNewNamedRangeName={setNewNamedRangeName}
         newNamedRangeRange={newNamedRangeRange}
         setNewNamedRangeRange={setNewNamedRangeRange}
-        // ETB Mappings states
         isETBMappingsDialogOpen={isETBMappingsDialogOpen}
         setIsETBMappingsDialogOpen={setIsETBMappingsDialogOpen}
         isCreateETBMappingOpen={isCreateETBMappingOpen}
@@ -2961,30 +3316,35 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         setEditingWorkbookMapping={setEditingWorkbookMapping}
         isCreatingWorkbookMapping={isCreatingWorkbookMapping}
         setIsCreatingWorkbookMapping={setIsCreatingWorkbookMapping}
+
         // ETB props
         etbData={etbData}
+        setEtbData={setEtbData}
         etbLoading={etbLoading}
         etbError={etbError}
-        onRefreshETBData={fetchETBData}
+        onRefreshETBData={parentOnRefreshETBData || fetchETBData} // ✅ Use parent's refresh if provided
         sheetDataCache={sheetDataCache}
         loadingSheets={loadingSheets}
+            onEvidenceMappingUpdated={props.onEvidenceMappingUpdated}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
           <div className="flex-1 overflow-auto">
             {/* Render ExcelViewer inside the fullscreen dialog, passing the same state */}
-          <ExcelViewer
-            {...props}
-            isFullscreenMode={true}
-            onToggleFullscreen={() => setIsFullscreen(false)}
+            <ExcelViewer
+              {...props}
+              key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}-fullscreen`}
+              setSelectedWorkbook={props.setSelectedWorkbook}
+              isFullscreenMode={true}
+              onToggleFullscreen={() => setIsFullscreen(false)}
               // Pass the same state props
               selectedSheet={selectedSheet}
               setSelectedSheet={setSelectedSheet}
-            selections={selections}
+              selections={selections}
               setSelections={setSelections}
-            isSelecting={isSelecting}
+              isSelecting={isSelecting}
               setIsSelecting={setIsSelecting}
-            anchorSelectionStart={anchorSelectionStart}
+              anchorSelectionStart={anchorSelectionStart}
               isSaveDialogOpen={isSaveDialogOpen}
               setIsSaveDialogOpen={setIsSaveDialogOpen}
               saveType={saveType}
@@ -3003,7 +3363,6 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               setNewNamedRangeName={setNewNamedRangeName}
               newNamedRangeRange={newNamedRangeRange}
               setNewNamedRangeRange={setNewNamedRangeRange}
-              // ETB Mappings states
               isETBMappingsDialogOpen={isETBMappingsDialogOpen}
               setIsETBMappingsDialogOpen={setIsETBMappingsDialogOpen}
               isCreateETBMappingOpen={isCreateETBMappingOpen}
@@ -3028,11 +3387,17 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               setEditingWorkbookMapping={setEditingWorkbookMapping}
               isCreatingWorkbookMapping={isCreatingWorkbookMapping}
               setIsCreatingWorkbookMapping={setIsCreatingWorkbookMapping}
+              
+              // Dialog refresh control
+              mappingsDialogRefreshKey={mappingsDialogRefreshKey}
+              setMappingsDialogRefreshKey={setMappingsDialogRefreshKey}
+              
               // ETB props
               etbData={etbData}
+              setEtbData={setEtbData}
               etbLoading={etbLoading}
               etbError={etbError}
-              onRefreshETBData={fetchETBData}
+              onRefreshETBData={parentOnRefreshETBData || fetchETBData} // ✅ Use parent's refresh if provided
               sheetDataCache={sheetDataCache}
               loadingSheets={loadingSheets}
             />
@@ -3051,6 +3416,4 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     </>
   );
 };
-
-
 

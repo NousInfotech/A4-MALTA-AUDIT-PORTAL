@@ -26,6 +26,7 @@ import { UserManagement } from "@/pages/admin/UserManagement";
 import { AuditorLogs } from "@/pages/admin/AuditorLogs";
 import AdminISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
 import BrandingSettings from "@/pages/admin/BrandingSettings";
+import { Folder2FAManagement } from "@/pages/admin/Folder2FAManagement";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -108,7 +109,7 @@ const App = () => (
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
+                  <ProtectedRoute allowedRoles={["admin", "employee"]}>
                     <DashboardLayout />
                   </ProtectedRoute>
                 }
@@ -120,6 +121,7 @@ const App = () => (
                 <Route path="logs" element={<AuditorLogs />} />
                 <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
                 <Route path="branding" element={<BrandingSettings />} />
+                <Route path="2fa" element={<Folder2FAManagement />} />
                 <Route path="settings/notifications" element={<NotificationSettingsPage />} />
               </Route>
 
@@ -142,6 +144,7 @@ const App = () => (
                 <Route path="engagements/new" element={<CreateEngagement />} />
                 <Route path="engagements/:id" element={<EngagementDetails />} />
                 <Route path="library" element={<GlobalLibraryPage />} />
+                <Route path="2fa" element={<Folder2FAManagement />} />
                 <Route path="isqm" element={<ISQMQuestionnairePage />} />
                 <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
                 <Route path="kyc/library" element={<KYCLibrary />} />

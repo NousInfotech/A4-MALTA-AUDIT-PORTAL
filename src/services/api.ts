@@ -134,6 +134,25 @@ export const engagementApi = {
     // Now using apiCall which handles the session and token
     return apiCall(`/api/engagements/${id}`);
   },
+
+  // Team Management
+  assignAuditor: async (engagementId: string, auditorId: string, assignedBy: string) => {
+    return apiCall(`/api/engagements/${engagementId}/auditors/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ auditorId, assignedBy }),
+    });
+  },
+
+  unassignAuditor: async (engagementId: string, auditorId: string) => {
+    return apiCall(`/api/engagements/${engagementId}/auditors/unassign`, {
+      method: 'DELETE',
+      body: JSON.stringify({ auditorId }),
+    });
+  },
+
+  getAssignedAuditors: async (engagementId: string) => {
+    return apiCall(`/api/engagements/${engagementId}/auditors`);
+  },
 };
 
 // Document Requests API
@@ -420,6 +439,21 @@ export const kycApi = {
 
   getMyKYCs: async () => {
     return apiCall('/api/kyc/my');
+  },
+};
+
+// User API
+export const userApi = {
+  getAll: async () => {
+    return apiCall('/api/users');
+  },
+
+  getById: async (id: string) => {
+    return apiCall(`/api/users/${id}`);
+  },
+
+  getEmail: async (id: string) => {
+    return apiCall(`/api/users/email/${id}`);
   },
 };
 

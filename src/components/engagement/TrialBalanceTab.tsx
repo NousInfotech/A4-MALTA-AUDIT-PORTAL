@@ -22,7 +22,7 @@ import { IncomeStatementSection } from "./IncomeStatementSection";
 import { BalanceSheetSection } from "./BalanceSheetSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
-import WorkBookApp from "../audit-workbooks/TrialBalanceWorkbookApp";
+
 
 interface TrialBalanceTabProps {
   engagement: any;
@@ -428,14 +428,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                   <span className="sm:hidden">ETB</span>
                 </TabsTrigger>
 
-                {/* <TabsTrigger
-                  value="tb-excel"
-                  className="flex items-center gap-2 whitespace-nowrap text-sm px-3 py-2 data-[state=active]:bg-amber-100 data-[state=active]:text-gray-900 data-[state=active]:shadow-lg rounded-lg"
-                >
-                  <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">TB Excel</span>
-                  <span className="sm:hidden">Excel</span>
-                </TabsTrigger> */}
+                
 
                 <TabsTrigger
                   value="sections"
@@ -468,13 +461,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
             />
           </TabsContent>
 
-          <TabsContent value="tb-excel" className="flex-1 overflow-hidden">
-            <WorkBookApp
-              engagement={engagement}
-              engagementId={engagement.id}
-              classification="ETB"
-            />
-          </TabsContent>
+          
 
           <TabsContent value="sections" className="flex-1 overflow-hidden">
             <div className="flex h-full flex-col md:flex-row">

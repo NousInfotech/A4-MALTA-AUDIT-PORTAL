@@ -22,6 +22,7 @@ interface UploadModalProps {
   
   engagementId: string;
   classification?: string;
+  rowType?: 'etb' | 'working-paper' | 'evidence'; // ✅ NEW: To determine category
 }
 
 
@@ -32,6 +33,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   onError,
   engagementId,
   classification,
+  rowType = 'etb', // ✅ Default to ETB
 }) => {
   const { user, isLoading } = useAuth();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -185,20 +187,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         */
 
         // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
+        const category = rowType === 'etb' ? 'lead-sheet' : rowType; // ✅ Determine category
         const workbookMetadataForDB = {
           cloudFileId,
           name: cloudFileName,
           webUrl: webUrl,
           engagementId: engagementId,
           classification: classification,
+          category: category, // ✅ CRITICAL FIX: Tag workbook with category
           uploadedDate: new Date().toISOString(),
           version: "v1", // You might have a better versioning strategy
           uploadedBy: user?.id,
           lastModifiedBy: user?.id,
         };
         
-        console.log(processedFileData);
-        console.log(workbookMetadataForDB);
+        console.log('UploadModal: Saving workbook with category:', { category, rowType, fileName: cloudFileName });
+        console.log('UploadModal: processedFileData:', processedFileData);
+        console.log('UploadModal: workbookMetadataForDB:', workbookMetadataForDB);
 
         const saveToDbResponse = await db_WorkbookApi.saveProcessedWorkbook(
           workbookMetadataForDB,

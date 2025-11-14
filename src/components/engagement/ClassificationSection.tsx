@@ -6,9 +6,9 @@ import type React from "react";
 
 import { useState, useEffect, useMemo, useRef } from "react";
 
-import { Toaster } from "@/components/ui/toaster"
-
-import { useToast } from "@/components/ui/use-toast"
+// Removed unused shadcn/ui toast imports (using Sonner toast instead)
+// import { Toaster } from "@/components/ui/toaster"
+// import { useToast } from "@/components/ui/use-toast"
 
 import { createPortal } from "react-dom";
 
@@ -156,6 +156,29 @@ import {
 } from "@/components/ui/dialog";
 
 import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import {
 
   Select,
 
@@ -185,6 +208,14 @@ import { format } from "date-fns";
 import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
 
 import axiosInstance from "@/lib/axiosInstance";
+import { getExtendedTBWithLinkedFiles, deleteWorkbookFromLinkedFilesInExtendedTB } from "@/lib/api/extendedTrialBalanceApi";
+import { getWorkingPaperWithLinkedFiles } from "@/lib/api/workingPaperApi";
+import { 
+  getEvidenceWithMappings, 
+  linkWorkbookToEvidence, 
+  unlinkWorkbookFromEvidence,
+  type ClassificationEvidence as EvidenceWithMappings
+} from "@/lib/api/classificationEvidenceApi";
 
 import ProcedureView from "../procedures/ProcedureView";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
@@ -388,6 +419,10 @@ interface EvidenceFile {
   uploadedBy: string;
 
   comments: EvidenceComment[];
+
+  linkedWorkbooks?: any[]; // Array of linked workbooks
+
+  mappings?: any[]; // ✅ Array of mappings for this evidence file
 
 }
 
@@ -752,7 +787,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  const { toast } = useToast();
+  // Using Sonner toast (imported at top) instead of shadcn/ui useToast
+  // const { toast } = useToast(); // Removed to avoid overriding Sonner toast
 
 
 
@@ -786,7 +822,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const [wpHydrating, setWpHydrating] = useState(false); // dedicated loader for WP tab pulls
 
-  const [sectionData, setSectionData] = useState<ETBRow[]>([]);
+  const [sectionData, setSectionData] = useState<ETBRow[]>([]); // For Lead Sheet tab
+  const [workingPaperData, setWorkingPaperData] = useState<ETBRow[]>([]); // For Working Papers tab
 
   const [viewSpreadsheetUrl, setViewSpreadsheetUrl] = useState<string>("");
 
@@ -833,6 +870,23 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Evidence-related state
 
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
+
+  const handleEvidenceMappingUpdated = (updatedEvidence: any) => {
+    if (!updatedEvidence) return;
+    const updatedId = updatedEvidence._id || updatedEvidence.id;
+    if (!updatedId) return;
+    setEvidenceFiles(prev =>
+      prev.map(file =>
+        file.id === updatedId
+          ? {
+              ...file,
+              linkedWorkbooks: updatedEvidence.linkedWorkbooks || file.linkedWorkbooks,
+              mappings: updatedEvidence.mappings || file.mappings,
+            }
+          : file
+      )
+    );
+  };
 
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
@@ -913,6 +967,90 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [isGroupingMode, setIsGroupingMode] = useState(false);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [grouping4Value, setGrouping4Value] = useState<string>("");
+  const [leadSheetRefreshTrigger, setLeadSheetRefreshTrigger] = useState(0);
+  const [workbookRefreshTrigger, setWorkbookRefreshTrigger] = useState(0);
+  useEffect(() => {
+    const handleWorkbookLinked = async (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+      const eventEngagementId = detail.engagementId;
+      const eventClassification = detail.classification;
+
+      const currentEngagementId = engagement.id || (engagement as any)?._id;
+
+      if (
+        eventEngagementId === currentEngagementId &&
+        (eventClassification === classification ||
+          eventClassification?.startsWith(`${classification} >`))
+      ) {
+        setWorkbookRefreshTrigger((prev) => prev + 1);
+        await refreshLeadSheetData();
+      }
+    };
+
+    window.addEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+    return () => {
+      window.removeEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+    };
+  }, [engagement?.id, (engagement as any)?._id, classification, refreshLeadSheetData]);
+
+  // Debug: Log when sectionData changes
+  useEffect(() => {
+    console.log('💡 sectionData state changed:', {
+      rowCount: sectionData.length,
+      rowsWithLinkedFiles: sectionData.filter(r => r.linkedExcelFiles?.length > 0).length,
+      allRows: sectionData.map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      }))
+    });
+    // Show stack trace to see who called setSectionData
+    console.trace('💡 sectionData change - Stack trace:');
+  }, [sectionData]);
+
+  // Debug log for workingPaperData changes
+  useEffect(() => {
+    console.log('💡 workingPaperData state changed:', {
+      rowCount: workingPaperData.length,
+      rowsWithLinkedFiles: workingPaperData.filter(r => r.linkedExcelFiles?.length > 0).length,
+      allRows: workingPaperData.map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      }))
+    });
+  }, [workingPaperData]);
+
+  // Listen for workbook-linked events from MainDashboard (Workbooks tab)
+  useEffect(() => {
+    const handleWorkbookLinked = async (event: CustomEvent) => {
+      console.log('📣 ClassificationSection: Received workbook-linked event from MainDashboard:', event.detail);
+      
+      // Check if this event is relevant to the current classification
+      const { classification: eventClassification, engagementId: eventEngagementId } = event.detail;
+      
+      // If the linked workbook's classification starts with our classification, it might be relevant
+      // e.g., our classification is "Assets > Non-current > Property, plant and equipment"
+      // and the event classification is "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Cost"
+      if (eventEngagementId === engagement._id && 
+          (eventClassification === classification || eventClassification?.startsWith(classification + ' >'))) {
+        console.log('📣 Event is relevant to current classification - refreshing Lead Sheet data');
+        await refreshLeadSheetData();
+      } else {
+        console.log('📣 Event is not relevant to current classification - ignoring');
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engagement._id, classification]); // refreshLeadSheetData intentionally omitted to avoid recreating listener
 
 
   const groupBySubCategory = (data) => {
@@ -1224,15 +1362,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         // Gentle toast; it's okay to open the tab even if there's no data yet
 
-        toast({
-
-          title: "Could not load procedures",
-
-          description: err?.message || "Please try again.",
-
-          variant: "destructive",
-
-        });
+        toast.error(`Could not load procedures: ${err?.message || "Please try again."}`);
 
       } finally {
 
@@ -1358,27 +1488,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-      toast({
-
-        title: "Answers Generated",
-
-        description: `Answers for ${formatClassificationForDisplay(classification)} have been generated.`,
-
-      });
+      toast.success(`Answers for ${formatClassificationForDisplay(classification)} have been generated.`);
 
     } catch (error: any) {
 
       console.error("Generate answers error:", error);
 
-      toast({
-
-        title: "Generation failed",
-
-        description: error.message,
-
-        variant: "destructive",
-
-      });
+      toast.error(`Generation failed: ${error.message}`);
 
     } finally {
 
@@ -1413,6 +1529,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
   const loadSectionData = async () => {
+    console.log('🔄 loadSectionData: START for classification:', classification, 'activeTab:', activeTab);
 
     try {
 
@@ -1473,11 +1590,79 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       if (!mountedRef.current) return;
 
-      setSectionData(Array.isArray(data.rows) ? data.rows : []);
+      let rows = Array.isArray(data.rows) ? data.rows : [];
+
+      // Fetch linked files for each row (same logic as ExtendedTBWithWorkbook)
+      console.log('ClassificationSection: Fetching linked files for rows:', rows.length);
+      
+      const byCode = new Map<string, any>();
+      const byId = new Map<string, any>();
+
+      for (const row of rows) {
+        if (row.classification) {
+          try {
+            console.log(`ClassificationSection: Fetching linked files for row ${row.code} with classification: ${row.classification}`);
+            const linkedResp = await getExtendedTBWithLinkedFiles(engagement._id, row.classification);
+            console.log(`ClassificationSection: Response for row ${row.code}:`, {
+              hasRows: !!linkedResp?.rows,
+              rowsCount: linkedResp?.rows?.length || 0
+            });
+            
+            const linkedRow = linkedResp?.rows?.find((lr: any) => lr.code === row.code);
+            
+            if (linkedRow) {
+              console.log(`ClassificationSection: ✅ Found linked files for row ${row.code}:`, {
+                linkedCount: linkedRow.linkedExcelFiles?.length || 0,
+                linkedFiles: linkedRow.linkedExcelFiles?.map((f: any) => f.name || f._id)
+              });
+              byCode.set(String(row.code), linkedRow);
+              if (linkedRow._id) byId.set(String(linkedRow._id), linkedRow);
+            } else {
+              console.warn(`ClassificationSection: ⚠️ No matching row found for code ${row.code} in linked files response`);
+            }
+          } catch (err) {
+            console.error(`ClassificationSection: ❌ Failed to fetch linked files for row ${row.code}:`, err);
+          }
+        } else {
+          console.warn(`ClassificationSection: ⚠️ Row ${row.code} has no classification, skipping linked files fetch`);
+        }
+      }
+
+      // Merge linked files info
+      const merged = rows.map((r) => {
+        const match = (r.code && byCode.get(String(r.code))) || (r._id && byId.get(String(r._id)));
+        return {
+          ...r,
+          _id: match?._id ?? r._id,
+          linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
+        };
+      });
+      
+      console.log('ClassificationSection: Final merged data:', {
+        totalRows: merged.length,
+        rowsWithLinkedFiles: merged.filter(r => r.linkedExcelFiles?.length > 0).length,
+        detailedRows: merged.map(r => ({
+          code: r.code,
+          name: r.accountName,
+          linkedFilesCount: r.linkedExcelFiles?.length || 0,
+          linkedFileNames: r.linkedExcelFiles?.map((f: any) => f.name || f._id) || []
+        }))
+      });
+
+      console.log('ClassificationSection: Updating sectionData state - this will trigger re-render');
+      setSectionData(merged);
+      console.log('ClassificationSection: sectionData state updated - new state:', {
+        totalRows: merged.length,
+        firstRow: merged[0] ? {
+          code: merged[0].code,
+          linkedCount: merged[0].linkedExcelFiles?.length || 0
+        } : null
+      });
+      console.log('🔄 loadSectionData: COMPLETE ✅');
 
     } catch (error: any) {
 
-      console.error("Load error:", error);
+      console.error("🔄 loadSectionData: ERROR ❌", error);
 
       toast.error(`Load failed: ${error.message}`);
 
@@ -1822,7 +2007,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Load Working Paper (DB) — returns boolean
 
   const loadWorkingPaperFromDB = async (silent = false): Promise<boolean> => {
+    console.log('🔄 loadWorkingPaperFromDB: START for classification:', classification, 'silent:', silent, 'activeTab:', activeTab);
+    console.trace('🔄 loadWorkingPaperFromDB: Called from:');
     const onWpTab = activeTab === "working-papers";
+    
+    // GUARD: Don't overwrite Lead Sheet data when on Lead Sheet tab!
+    if (!onWpTab && activeTab === "lead-sheet") {
+      console.log('🔄 loadWorkingPaperFromDB: SKIPPED - on Lead Sheet tab, preventing data overwrite');
+      return false;
+    }
+    
     if (onWpTab) setDbBusy("load");
     else setLoading(true);
 
@@ -1830,6 +2024,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const response = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/sections/${encodeURIComponent(classification)}/working-papers/db`
       );
+      console.log('🔄 loadWorkingPaperFromDB: API response status:', response.status);
 
       if (response.ok) {
         const json = await response.json();
@@ -1837,12 +2032,66 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         // ✅ Only replace sectionData if we're actually viewing Working Papers
         if (onWpTab) {
-          setSectionData(Array.isArray(json.rows) ? json.rows : []);
+          const rows = Array.isArray(json.rows) ? json.rows : [];
+          
+          console.log('ClassificationSection: Fetching linked files for Working Paper rows:', {
+            totalRows: rows.length,
+            classification
+          });
+          
+          // Fetch linked files for each row (same as Lead Sheet)
+          const rowsWithLinkedFiles = await Promise.all(
+            rows.map(async (row: any) => {
+              try {
+                const rowClassification = row.classification || classification;
+                console.log(`ClassificationSection: Fetching linked files for WP row ${row.code}:`, {
+                  rowClassification,
+                  engagementId: engagement.id || engagement._id
+                });
+                
+                const linkedFilesData = await getWorkingPaperWithLinkedFiles(
+                  engagement.id || engagement._id,
+                  rowClassification
+                );
+                
+                console.log(`ClassificationSection: API returned for row ${row.code}:`, {
+                  hasData: !!linkedFilesData,
+                  hasRows: !!linkedFilesData?.rows,
+                  rowsCount: linkedFilesData?.rows?.length || 0,
+                  allRowCodes: linkedFilesData?.rows?.map((r: any) => r.code)
+                });
+                
+                const linkedRow = linkedFilesData.rows.find((r: any) => r.code === row.code);
+                const linkedFiles = linkedRow?.linkedExcelFiles || [];
+                
+                console.log(`ClassificationSection: Row ${row.code} has ${linkedFiles.length} linked files:`, {
+                  linkedFiles: linkedFiles.map((f: any) => ({ id: f._id, name: f.name }))
+                });
+                
+                return {
+                  ...row,
+                  linkedExcelFiles: linkedFiles
+                };
+              } catch (err) {
+                console.error(`Failed to fetch linked files for WP row ${row.code}:`, err);
+                return { ...row, linkedExcelFiles: [] };
+              }
+            })
+          );
+          
+            console.log('ClassificationSection: Total rows with linked files:', {
+              totalRows: rowsWithLinkedFiles.length,
+              rowsWithLinkedFiles: rowsWithLinkedFiles.filter(r => r.linkedExcelFiles?.length > 0).length
+            });
+
+            setWorkingPaperData(rowsWithLinkedFiles); // ✅ Use separate state for WP
+            console.log('🔄 loadWorkingPaperFromDB: workingPaperData updated ✅');
         }
 
         if (!silent) {
           toast.success("Working Paper loaded from database.");
         }
+        console.log('🔄 loadWorkingPaperFromDB: COMPLETE ✅');
         return true;
       } else {
         if (!silent && response.status !== 404) {
@@ -2701,49 +2950,65 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-        // Convert API response to EvidenceFile format
+        // Convert API response to EvidenceFile format and fetch linked workbooks
+        const evidenceFilesPromises = response.evidence.map(async (evidence) => {
+          try {
+            // Fetch detailed evidence with linked workbooks and mappings
+            const detailedEvidence = await getEvidenceWithMappings(evidence._id);
+            
+            return {
+              id: evidence._id,
+              fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
+              fileUrl: evidence.evidenceUrl,
+              fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
+              fileSize: 0, // Not provided by API
+              uploadedAt: evidence.createdAt,
+              uploadedBy: evidence.uploadedBy.name,
+              comments: evidence.evidenceComments.map(comment => ({
+                commentor: {
+                  userId: comment.commentor.userId,
+                  name: comment.commentor.name,
+                  email: comment.commentor.email
+                },
+                comment: comment.comment,
+                timestamp: comment.timestamp
+              })),
+              linkedWorkbooks: detailedEvidence.linkedWorkbooks || [], // Add linked workbooks
+              mappings: detailedEvidence.mappings || [] // ✅ CRITICAL FIX: Add mappings!
+            };
+          } catch (err) {
+            console.warn(`Failed to fetch linked workbooks for evidence ${evidence._id}:`, err);
+            // Return evidence without linked workbooks if fetch fails
+            return {
+              id: evidence._id,
+              fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
+              fileUrl: evidence.evidenceUrl,
+              fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
+              fileSize: 0,
+              uploadedAt: evidence.createdAt,
+              uploadedBy: evidence.uploadedBy.name,
+              comments: evidence.evidenceComments.map(comment => ({
+                commentor: {
+                  userId: comment.commentor.userId,
+                  name: comment.commentor.name,
+                  email: comment.commentor.email
+                },
+                comment: comment.comment,
+                timestamp: comment.timestamp
+              })),
+              linkedWorkbooks: [],
+              mappings: [] // ✅ Add mappings to error fallback
+            };
+          }
+        });
 
-        const evidenceFiles: EvidenceFile[] = response.evidence.map(evidence => ({
-
-          id: evidence._id,
-
-          fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
-
-          fileUrl: evidence.evidenceUrl,
-
-          fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
-
-          fileSize: 0, // Not provided by API
-
-          uploadedAt: evidence.createdAt,
-
-          uploadedBy: evidence.uploadedBy.name,
-
-          comments: evidence.evidenceComments.map(comment => ({
-
-            commentor: {
-
-              userId: comment.commentor.userId,
-
-              name: comment.commentor.name,
-
-              email: comment.commentor.email
-
-            },
-
-            comment: comment.comment,
-
-            timestamp: comment.timestamp
-
-          }))
-
-        }));
-
-
+        const evidenceFiles: EvidenceFile[] = await Promise.all(evidenceFilesPromises);
 
         setEvidenceFiles(evidenceFiles);
 
-        console.log(`Loaded ${evidenceFiles.length} evidence files`);
+        console.log(`Loaded ${evidenceFiles.length} evidence files with linked workbooks:`, {
+          filesWithLinkedWorkbooks: evidenceFiles.filter(f => f.linkedWorkbooks && f.linkedWorkbooks.length > 0).length
+        });
 
       } catch (error: any) {
 
@@ -3615,7 +3880,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 {/* <div className="my-5">
                 {renderDataTable()}
               </div> */}
-                <WorkBookApp engagement={engagement} engagementId={engagement.id} classification={classification} />
+                <WorkBookApp 
+                  engagement={engagement} 
+                  engagementId={engagement.id || engagement._id} 
+                  classification={classification}
+                  refreshTrigger={workbookRefreshTrigger}
+                />
               </>
             </TabsContent>
 
@@ -4920,11 +5190,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Show appropriate success message based on whether rows were skipped
       if (skippedRows.length > 0) {
-        toast({
-          title: "Grouping partially completed",
-          description: `${selectedRowIds.size - skippedRows.length} rows updated. ${skippedRows.length} rows skipped (need complete Level 1-3 classification).`,
-          variant: "default",
-        });
+        toast.warning(`Grouping partially completed: ${selectedRowIds.size - skippedRows.length} rows updated. ${skippedRows.length} rows skipped (need complete Level 1-3 classification).`);
       } else {
         toast.success("Grouping updated successfully. ETB data refreshed.");
       }
@@ -4938,14 +5204,134 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   }
 
+  // Refresh function for Lead Sheet (used by WorkBookApp)
+  // Using function declaration for hoisting (called in renderLeadSheetContent)
+  async function refreshLeadSheetData() {
+    const startTime = Date.now();
+    console.log('========== REFRESH START ==========');
+    console.log('ClassificationSection: refreshLeadSheetData called at', new Date().toISOString());
+    console.log('Current activeTab:', activeTab);
+    console.log('Current sectionData before refresh:', {
+      rowCount: sectionData.length,
+      rowsWithLinkedFiles: sectionData.filter(r => r.linkedExcelFiles?.length > 0).length
+    });
+    console.log('Current workingPaperData before refresh:', {
+      rowCount: workingPaperData.length,
+      rowsWithLinkedFiles: workingPaperData.filter(r => r.linkedExcelFiles?.length > 0).length
+    });
+    
+    console.log('Waiting 500ms for backend to persist data...');
+    // Increased delay to ensure backend has fully persisted the data
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log('Now reloading data based on active tab:', activeTab);
+    // ✅ FIX: Load the correct data based on active tab
+    if (activeTab === 'working-papers') {
+      await loadWorkingPaperFromDB(true); // Silent refresh
+    } else {
+      await loadSectionData();
+    }
+    
+    console.log('Incrementing refresh trigger to force WorkBookApp remount...');
+    setLeadSheetRefreshTrigger(prev => {
+      const newValue = prev + 1;
+      console.log(`Refresh trigger: ${prev} -> ${newValue}`);
+      return newValue;
+    });
+    
+    const endTime = Date.now();
+    console.log(`========== REFRESH COMPLETE (took ${endTime - startTime}ms) ==========`);
+  }
 
+  // Handler functions for Linked Files column (same as ExtendedTBWithWorkbook)
+  // Using function declarations for hoisting
+  function handleViewWorkbook(workbook: any) {
+    if (workbook.webUrl) {
+      window.open(workbook.webUrl, '_blank');
+    } else {
+      toast.error("Workbook URL not available");
+    }
+  }
 
+  async function handleRemoveWorkbook(rowId: string, workbookId: string, workbookName: string) {
+    if (!engagement?.id && !engagement?._id) {
+      toast.error("Engagement ID not available");
+      return;
+    }
 
+    const engagementId = engagement.id || engagement._id;
+
+    try {
+      // Find the row to get its actual classification
+      const row = sectionData.find(r => (r.id || r._id || r.code) === rowId);
+      const rowClassification = row?.classification || classification;
+
+      console.log('ClassificationSection: Removing workbook:', {
+        engagementId,
+        rowId,
+        workbookId,
+        workbookName,
+        rowClassification
+      });
+
+      // Call API to remove workbook
+      await deleteWorkbookFromLinkedFilesInExtendedTB(
+        engagementId, 
+        rowClassification, // Use row's actual classification
+        rowId, 
+        workbookId
+      );
+
+      console.log('ClassificationSection: Workbook removed, reloading data...');
+
+      // Reload section data to refresh the table
+      await loadSectionData();
+
+      console.log('ClassificationSection: Data reloaded, table should now update');
+
+      toast.success(`"${workbookName}" removed from linked files successfully.`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove workbook';
+      console.error('ClassificationSection: Error removing workbook:', err);
+
+      toast.error(errorMessage);
+    }
+  }
+
+  function formatDateForLinkedFiles(dateString: string) {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'N/A';
+    }
+  }
 
   function renderLeadSheetContent() {
+    console.log('🎨 renderLeadSheetContent called with sectionData:', {
+      rowCount: sectionData.length,
+      rowsWithLinkedFiles: sectionData.filter(r => r.linkedExcelFiles?.length > 0).length,
+      allRows: sectionData.map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      }))
+    });
 
-    console.log("my sectionData", sectionData)
     const subSections = groupBySubCategory(sectionData);
+    
+    console.log('🎨 After groupBySubCategory:', {
+      sectionCount: subSections.length,
+      sections: subSections.map(s => ({
+        subCategoryName: s.subCategoryName,
+        rowCount: s.data.length,
+        rowsWithLinkedFiles: s.data.filter(r => r.linkedExcelFiles?.length > 0).length
+      }))
+    });
 
     return (
 
@@ -4988,7 +5374,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             return 0;
           })
           .map((section, index) => {
-            const sectionTotals = calculateTotals(section.data);
+            // Round numeric values in section.data
+            const roundedData = section.data.map(row => ({
+              ...row,
+              currentYear: Math.round(row.currentYear),
+              priorYear: Math.round(row.priorYear),
+              adjustments: Math.round(row.adjustments),
+              reclassification: row.reclassification ? Math.round(row.reclassification) : row.reclassification,
+              finalBalance: Math.round(row.finalBalance),
+            }));
+            
+            const sectionTotals = calculateTotals(roundedData);
             return (
               <div key={index}>
                 {/* Show badge before table if subCategoryName exists */}
@@ -4996,10 +5392,28 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   <Badge className="my-5">{section.subCategoryName}</Badge>
                 )}
                 {/* Render table once per section */}
-                {renderDataTable(section.data, sectionTotals)}
+                {renderDataTable(roundedData, sectionTotals)}
               </div>
             );
           })}
+
+        {/* NEW: WorkBook Section at the bottom */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Linked Workbooks
+          </h3>
+          <WorkBookApp 
+            key={`workbook-app-${leadSheetRefreshTrigger}`}
+            engagement={engagement} 
+            engagementId={engagement.id || engagement._id} 
+            classification={classification}
+            etbRows={sectionData}
+            onRefreshData={refreshLeadSheetData}
+            rowType="etb"
+            refreshTrigger={workbookRefreshTrigger}
+          />
+        </div>
       </>
 
     );
@@ -5069,6 +5483,24 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
         {renderWorkingPapersTable()}
+
+        {/* NEW: WorkBook Section at the bottom of Working Papers tab */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Linked Workbooks
+          </h3>
+          <WorkBookApp 
+            key={`workbook-app-wp-${leadSheetRefreshTrigger}`}
+            engagement={engagement} 
+            engagementId={engagement.id || engagement._id} 
+            classification={classification}
+            etbRows={workingPaperData}
+            onRefreshData={refreshLeadSheetData}
+            rowType="working-paper"
+            refreshTrigger={workbookRefreshTrigger}
+          />
+        </div>
 
       </>
 
@@ -5161,6 +5593,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
               <th className="px-4 py-2 border-secondary border-b border-r text-right">Final Balance</th>
 
+              <th className="px-4 py-2 border-secondary border-b border-r text-left">Linked Files</th>
+
               <th className="px-4 py-2 border-secondary border-b text-right">Reference</th>
 
             </tr>
@@ -5168,7 +5602,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             <tbody>
 
-              {sectionData.map((row) => (
+              {workingPaperData.map((row) => (
 
                 <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
 
@@ -5198,6 +5632,100 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     {row.finalBalance.toLocaleString()}
 
+                  </td>
+
+                  <td className="px-4 py-2 border border-b-secondary border-r-secondary text-left">
+                    <Drawer>
+                      <DrawerTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3"
+                          disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                        </Button>
+                      </DrawerTrigger>
+                      <DrawerContent>
+                        <DrawerHeader>
+                          <DrawerTitle>Linked Excel Files</DrawerTitle>
+                          <DrawerDescription>
+                            Manage linked files for {row.accountName} ({row.code})
+                          </DrawerDescription>
+                        </DrawerHeader>
+                        <div className="px-4 pb-4">
+                          {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No linked files for this row.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {row.linkedExcelFiles.map((workbook: any) => (
+                                <div
+                                  key={workbook._id}
+                                  className="flex items-center justify-between p-3 border rounded-lg"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                    <div>
+                                      <p className="font-medium">{workbook.name}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleViewWorkbook(workbook)}
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      View
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Remove
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to remove "{workbook.name}" from this Working Paper row?
+                                            This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Remove
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <DrawerFooter>
+                          <DrawerClose asChild>
+                            <Button variant="outline">Close</Button>
+                          </DrawerClose>
+                        </DrawerFooter>
+                      </DrawerContent>
+                    </Drawer>
                   </td>
 
                   <td className="px-4 py-2 border border-b-secondary text-center">
@@ -5284,7 +5812,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <td
 
-                    colSpan={8}
+                    colSpan={9}
 
                     className="px-4 py-8 text-center text-gray-500"
 
@@ -5331,6 +5859,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     {totals.finalBalance.toLocaleString()}
 
                   </td>
+
+                  <td className="px-4 py-2"></td>
 
                   <td className="px-4 py-2"></td>
 
@@ -5904,6 +6434,46 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </DialogContent>
 
         </Dialog>
+
+        {/* NEW: WorkBook Section at the bottom of Evidence tab */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Linked Workbooks
+          </h3>
+          <WorkBookApp 
+            key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
+            engagement={engagement} 
+            engagementId={engagement.id || engagement._id} 
+            classification={classification}
+            etbRows={evidenceFiles.map(file => ({
+              _id: file.id,
+              code: file.id,
+              accountName: file.fileName,
+              classification: classification,
+              currentYear: 0,
+              priorYear: 0,
+              adjustments: 0,
+              finalBalance: 0,
+              reclassifications: 0,
+              grouping1: '',
+              grouping2: '',
+              grouping3: '',
+              grouping4: '',
+              additionalColumns: {},
+              linkedExcelFiles: file.linkedWorkbooks || [],
+              mappings: file.mappings || [] // ✅ CRITICAL FIX: Use actual evidence mappings!
+            }))}
+            onRefreshData={async () => {
+              console.log('Evidence: Refreshing data after workbook linking');
+              await loadEvidenceFiles();
+              setLeadSheetRefreshTrigger(prev => prev + 1);
+            }}
+            rowType="evidence"
+            refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
+          />
+        </div>
 
       </div>
 
@@ -6870,15 +7440,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     if (!reviewComment.trim()) {
 
-      toast({
-
-        title: "Comment Required",
-
-        description: "Please add review comments before submitting",
-
-        variant: "destructive",
-
-      });
+      toast.error("Comment Required: Please add review comments before submitting");
 
       return;
 
@@ -7236,6 +7798,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
 
   function renderDataTable(sectionData, sectionTotals = null) {
+    console.log('renderDataTable called with:', {
+      rowCount: sectionData?.length || 0,
+      rowsWithLinkedFiles: sectionData?.filter(r => r.linkedExcelFiles?.length > 0).length || 0,
+      firstThreeRows: sectionData?.slice(0, 3).map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      })) || []
+    });
 
     // Calculate totals from sectionData if sectionTotals is not provided
     const currentTotals = sectionTotals || calculateTotals(sectionData);
@@ -7828,6 +8399,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7884,6 +8456,99 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b text-left">
+                          <Drawer>
+                            <DrawerTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3"
+                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                              </Button>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                              <DrawerHeader>
+                                <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                <DrawerDescription>
+                                  Manage linked files for {row.accountName} ({row.code})
+                                </DrawerDescription>
+                              </DrawerHeader>
+                              <div className="px-4 pb-4">
+                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    No linked files for this row.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {row.linkedExcelFiles.map((workbook: any) => (
+                                      <div
+                                        key={workbook._id}
+                                        className="flex items-center justify-between p-3 border rounded-lg"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                          <div>
+                                            <p className="font-medium">{workbook.name}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleViewWorkbook(workbook)}
+                                          >
+                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                            View
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                              >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Remove
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                  This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <DrawerFooter>
+                                <DrawerClose asChild>
+                                  <Button variant="outline">Close</Button>
+                                </DrawerClose>
+                              </DrawerFooter>
+                            </DrawerContent>
+                          </Drawer>
                         </td>
 
                       </tr>
@@ -7968,7 +8633,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
-                      <th className="px-4 py-2 border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8021,8 +8687,101 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           /> */}
                           {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b text-right font-medium">
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b text-left">
+                          <Drawer>
+                            <DrawerTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3"
+                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                              </Button>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                              <DrawerHeader>
+                                <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                <DrawerDescription>
+                                  Manage linked files for {row.accountName} ({row.code})
+                                </DrawerDescription>
+                              </DrawerHeader>
+                              <div className="px-4 pb-4">
+                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    No linked files for this row.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {row.linkedExcelFiles.map((workbook: any) => (
+                                      <div
+                                        key={workbook._id}
+                                        className="flex items-center justify-between p-3 border rounded-lg"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                          <div>
+                                            <p className="font-medium">{workbook.name}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleViewWorkbook(workbook)}
+                                          >
+                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                            View
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                              >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Remove
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                  This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <DrawerFooter>
+                                <DrawerClose asChild>
+                                  <Button variant="outline">Close</Button>
+                                </DrawerClose>
+                              </DrawerFooter>
+                            </DrawerContent>
+                          </Drawer>
                         </td>
 
                       </tr>
@@ -8030,7 +8789,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     {ungroupedRows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={9}
                           className="px-4 py-8 text-center text-gray-500"
                         >
                           All rows are grouped
@@ -8550,6 +9309,46 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           </DialogContent>
 
         </Dialog>
+
+        {/* NEW: WorkBook Section at the bottom of Evidence tab */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Linked Workbooks
+          </h3>
+          <WorkBookApp 
+            key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
+            engagement={engagement} 
+            engagementId={engagement.id || engagement._id} 
+            classification={classification}
+            etbRows={evidenceFiles.map(file => ({
+              _id: file.id,
+              code: file.id,
+              accountName: file.fileName,
+              classification: classification,
+              currentYear: 0,
+              priorYear: 0,
+              adjustments: 0,
+              finalBalance: 0,
+              reclassifications: 0,
+              grouping1: '',
+              grouping2: '',
+              grouping3: '',
+              grouping4: '',
+              additionalColumns: {},
+              linkedExcelFiles: file.linkedWorkbooks || [],
+              mappings: file.mappings || [] // ✅ CRITICAL FIX: Use actual evidence mappings!
+            }))}
+            onRefreshData={async () => {
+              console.log('Evidence: Refreshing data after workbook linking');
+              await loadEvidenceFiles();
+              setLeadSheetRefreshTrigger(prev => prev + 1);
+            }}
+            rowType="evidence"
+            refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
+          />
+        </div>
 
       </div>
 
