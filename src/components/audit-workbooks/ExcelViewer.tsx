@@ -251,6 +251,7 @@ interface ExcelViewerProps {
   etbError: string | null;
   onRefreshETBData?: () => void;
   onRefreshParentData?: () => Promise<void> | void;
+  onEvidenceMappingUpdated?: (evidence: any) => void;
 
   // Sheet data cache (for lazy loading)
   sheetDataCache?: Map<string, any[][]>;
@@ -359,6 +360,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   etbError,
   onRefreshETBData,
   onRefreshParentData,
+  onEvidenceMappingUpdated,
 
   // Sheet data cache
   sheetDataCache = new Map(),
@@ -1117,7 +1119,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         onRefreshETBData();
       }
 
-      if (onRefreshParentData) {
+      if (rowType !== 'evidence' && onRefreshParentData) {
         await Promise.resolve(onRefreshParentData());
       }
 
@@ -1311,6 +1313,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
   
       // Call the appropriate API based on rowType
+      let mappingResult;
       if (rowType === 'working-paper') {
         if (!classification) {
           throw new Error('Classification is required for Working Paper mappings');
@@ -1344,27 +1347,29 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           details: mappingData.details
         };
         
-        await addMappingToEvidence(evidenceId, evidenceMappingData);
+        mappingResult = await addMappingToEvidence(evidenceId, evidenceMappingData);
         console.log('✅ Evidence mapping created successfully');
         
-        // Link workbook to Evidence
-        let evidenceData: any = null;
-        try {
-          evidenceData = await getEvidenceWithMappings(evidenceId);
-        } catch (e) {
-          console.error('ExcelViewer: Failed to fetch evidence with mappings, continuing with fallback', e);
-        }
-        const existingWorkbookIds =
-          evidenceData?.linkedWorkbooks?.map((wb: any) =>
-            String(wb?._id || wb)
-          ) || [];
         const selectedWorkbookId = String(workbook.id);
-        
-        if (!existingWorkbookIds.includes(selectedWorkbookId)) {
-          await linkWorkbookToEvidence(evidenceId, workbook.id);
-          console.log('✅ Workbook linked to Evidence successfully');
-        } else {
-          console.log('ExcelViewer: Workbook already linked to evidence, skipping link');
+        const linkWorkbook = async () => {
+          const existingWorkbookIds =
+            mappingResult?.linkedWorkbooks?.map((wb: any) => String(wb?._id || wb)) || [];
+          if (!existingWorkbookIds.includes(selectedWorkbookId)) {
+            await linkWorkbookToEvidence(evidenceId, workbook.id);
+            console.log('✅ Workbook linked to Evidence successfully');
+          } else {
+            console.log('ExcelViewer: Workbook already linked to evidence, skipping link');
+          }
+        };
+        await linkWorkbook();
+
+        let refreshedEvidence: any = null;
+        try {
+          refreshedEvidence = await getEvidenceWithMappings(evidenceId);
+          onEvidenceMappingUpdated?.(refreshedEvidence);
+          mappingResult = refreshedEvidence;
+        } catch (refreshError) {
+          console.error('ExcelViewer: Failed to fetch refreshed evidence after mapping creation', refreshError);
         }
         
       } else {
@@ -1387,7 +1392,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       }
   
       // CRITICAL FIX: Create a new mapping object with the same structure as existing mappings
-      const newMapping = {
+      let newMapping = {
         _id: `temp-${Date.now()}`, // Temporary ID until refresh
         workbookId: {
           _id: workbook.id,
@@ -1397,6 +1402,25 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         details: mappingData.details,
         isActive: true
       };
+
+      let normalizedMappingsFromResult: any[] | null = null;
+      if (rowType === 'evidence' && mappingResult?.mappings) {
+        normalizedMappingsFromResult = mappingResult.mappings.map((mapping: any) => ({
+          ...mapping,
+          workbookId:
+            mapping.workbookId && typeof mapping.workbookId === 'object'
+              ? mapping.workbookId
+              : {
+                  _id: mapping.workbookId,
+                  name: workbook.name || 'Unknown Workbook',
+                },
+          isActive: mapping.isActive !== false,
+        }));
+
+        if (normalizedMappingsFromResult.length > 0) {
+          newMapping = normalizedMappingsFromResult[normalizedMappingsFromResult.length - 1];
+        }
+      }
   
       // CRITICAL FIX: Update etbData state immediately to trigger re-render
       setEtbData(prev => {
@@ -1404,9 +1428,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         
         const updatedRows = prev.rows.map(row => {
           if (row.code === selectedETBRow.code) {
+            const updatedMappings = normalizedMappingsFromResult
+              ? normalizedMappingsFromResult
+              : [...(row.mappings || []), newMapping];
             return {
               ...row,
-              mappings: [...(row.mappings || []), newMapping]
+              mappings: updatedMappings
             };
           }
           return row;
@@ -3257,6 +3284,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         onRefreshETBData={parentOnRefreshETBData || fetchETBData} // ✅ Use parent's refresh if provided
         sheetDataCache={sheetDataCache}
         loadingSheets={loadingSheets}
+            onEvidenceMappingUpdated={props.onEvidenceMappingUpdated}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">

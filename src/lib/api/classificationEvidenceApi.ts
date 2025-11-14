@@ -200,7 +200,7 @@ export const addMappingToEvidence = async (
       mappingData
     );
 
-    return response.data.data;
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error adding mapping to evidence:", error);
     throw error;
@@ -225,7 +225,7 @@ export const updateEvidenceMapping = async (
       updateData
     );
 
-    return response.data.data;
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error updating evidence mapping:", error);
     throw error;
@@ -247,7 +247,7 @@ export const removeMappingFromEvidence = async (
       `/api/classification-evidence/${evidenceId}/mappings/${mappingId}`
     );
 
-    return response.data.data;
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error removing mapping from evidence:", error);
     throw error;
@@ -272,7 +272,7 @@ export const toggleEvidenceMappingStatus = async (
       { isActive }
     );
 
-    return response.data.data;
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error toggling evidence mapping status:", error);
     throw error;

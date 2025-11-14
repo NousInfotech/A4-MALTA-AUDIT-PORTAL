@@ -240,6 +240,7 @@ export default function WorkBookApp({
   onRefreshData,
   rowType = 'etb', // Default to ETB for backward compatibility
   refreshTrigger = 0,
+  onEvidenceMappingUpdated,
 }: {
   engagementId: string;
   classification: string;
@@ -247,6 +248,7 @@ export default function WorkBookApp({
   onRefreshData?: () => Promise<void>; // Optional callback to refresh parent data
   rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
   refreshTrigger?: number;
+  onEvidenceMappingUpdated?: (evidence: any) => void;
 }) {
   console.log('WorkBookApp: Component mounted/updated with:', {
     engagementId,
@@ -1427,20 +1429,8 @@ export default function WorkBookApp({
   
       // Step 3: Also add workbook to linkedExcelFiles/linkedWorkbooks array (call appropriate API based on rowType)
       if (rowType === 'evidence') {
-        // For Evidence, use linkWorkbookToEvidence API
-        const evidenceId = mappingDetails.destinationField;
-        console.log('WorkBookApp: Linking workbook to Evidence file:', { evidenceId, workbookId });
-        
-        // Fetch current evidence to check if already linked
-        const evidenceData = await getEvidenceWithMappings(evidenceId);
-        const existingLinkedWorkbookIds = evidenceData.linkedWorkbooks?.map((wb: any) => wb._id || wb) || [];
-        
-        if (!existingLinkedWorkbookIds.includes(workbookId)) {
-          await linkWorkbookToEvidence(evidenceId, workbookId);
-          console.log('WorkBookApp: Workbook linked to Evidence successfully');
-        } else {
-          console.log('WorkBookApp: Workbook already linked to Evidence, skipping');
-        }
+        // For Evidence we only want the local ExcelViewer to update; avoid re-fetching entire evidence set here
+        console.log('WorkBookApp: Evidence mapping created - deferring workbook linkage to ExcelViewer');
       } else {
         // For ETB/WP, fetch current linked files
         let linkedFilesData;
@@ -1579,15 +1569,17 @@ export default function WorkBookApp({
       console.log('🔄 WorkBookApp: Updated etbData IMMEDIATELY with new mapping for cell highlighting');
       
       // Refresh parent component data FIRST (ClassificationSection) if callback provided
-      if (onRefreshData) {
-        console.log('WorkBookApp: Calling parent refresh callback to update table');
-        await onRefreshData();
-        console.log('WorkBookApp: Parent refresh complete - table should now show updated linked files');
-      } else {
-        // Only refresh local data if no parent callback (standalone mode)
-        console.log('WorkBookApp: No parent callback - refreshing local ETB data');
-        await fetchETBData();
-        console.log('WorkBookApp: Local ETB data refreshed');
+      if (rowType !== 'evidence') {
+        if (onRefreshData) {
+          console.log('WorkBookApp: Calling parent refresh callback to update table');
+          await onRefreshData();
+          console.log('WorkBookApp: Parent refresh complete - table should now show updated linked files');
+        } else {
+          // Only refresh local data if no parent callback (standalone mode)
+          console.log('WorkBookApp: No parent callback - refreshing local ETB data');
+          await fetchETBData();
+          console.log('WorkBookApp: Local ETB data refreshed');
+        }
       }
       
       // CRITICAL FIX: Refresh mappings after creation to sync with backend
@@ -2075,6 +2067,7 @@ export default function WorkBookApp({
             onRefreshETBData={fetchETBData} // ✅ Pass refresh function
             onRefreshMappings={refreshWorkbookMappings} // ✅ NEW: Pass mappings refresh function
             onRefreshParentData={onRefreshData}
+            onEvidenceMappingUpdated={onEvidenceMappingUpdated}
           />
         ) : null;
       case "audit-log":

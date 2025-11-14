@@ -871,6 +871,23 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
 
+  const handleEvidenceMappingUpdated = (updatedEvidence: any) => {
+    if (!updatedEvidence) return;
+    const updatedId = updatedEvidence._id || updatedEvidence.id;
+    if (!updatedId) return;
+    setEvidenceFiles(prev =>
+      prev.map(file =>
+        file.id === updatedId
+          ? {
+              ...file,
+              linkedWorkbooks: updatedEvidence.linkedWorkbooks || file.linkedWorkbooks,
+              mappings: updatedEvidence.mappings || file.mappings,
+            }
+          : file
+      )
+    );
+  };
+
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
@@ -6454,6 +6471,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             }}
             rowType="evidence"
             refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
           />
         </div>
 
@@ -9328,6 +9346,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             }}
             rowType="evidence"
             refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
           />
         </div>
 
