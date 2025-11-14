@@ -85,6 +85,15 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       percentage: 70,
       description: "Quality Management",
       badge: "New"
+    },
+    {
+      title: "Folder 2FA Settings",
+      href: "/admin/2fa",
+      icon: Shield,
+      color: "text-gray-800",
+      bgColor: "bg-primary",
+      percentage: 90,
+      description: "Manage Folder Security"
     }
   ];
 
