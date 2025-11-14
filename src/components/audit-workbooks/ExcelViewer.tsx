@@ -409,6 +409,33 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     },
     [etbData, resolveRowIdentifier]
   );
+
+  const selectMappingRange = useCallback(
+    (mapping: any, options?: { closeDialogs?: boolean }) => {
+      if (!mapping?.details?.sheet || !mapping.details.start) {
+        return;
+      }
+
+      const { sheet, start, end } = mapping.details;
+      const normalizedEnd = end || start;
+
+      setSelectedSheet(sheet);
+      setSelections([
+        {
+          sheet,
+          start: { row: start.row, col: start.col },
+          end: { row: normalizedEnd.row, col: normalizedEnd.col },
+        },
+      ]);
+      setIsSelecting(false);
+
+      if (options?.closeDialogs) {
+        setIsETBMappingsDialogOpen(false);
+        setIsWorkbookMappingsDialogOpen(false);
+      }
+    },
+    [setSelectedSheet, setSelections, setIsSelecting]
+  );
   
   // ✅ DEBUG: Log when mappings prop changes
   useEffect(() => {
@@ -1707,6 +1734,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               </p>
                             </div>
                             <div className="flex gap-1 ml-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
+                            >
+                              Select
+                            </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1809,6 +1843,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                           </p>
                         </div>
                         <div className="flex gap-1 ml-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
+                          >
+                            Select
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
