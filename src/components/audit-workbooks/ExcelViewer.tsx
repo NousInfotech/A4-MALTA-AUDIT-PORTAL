@@ -1110,47 +1110,130 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           throw new Error('Unable to resolve Working Paper row identifier.');
         }
         await removeMappingFromWPRow(engagementId, classification, effectiveRowId, mappingId);
+        
+        // Update etbData IMMEDIATELY by removing the mapping (local state update only)
+        setEtbData(prev => {
+          if (!prev) return prev;
+          
+          const updatedRows = prev.rows.map(row => {
+            if (row.code === rowCode) {
+              return {
+                ...row,
+                mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+              };
+            }
+            return row;
+          });
+          
+          return {
+            ...prev,
+            rows: updatedRows,
+            _updateTimestamp: Date.now() // Force re-render
+          } as any;
+        });
+        
+        console.log('✅ Working Paper mapping deleted and UI updated immediately (local state only)');
       } else if (rowType === 'evidence') {
         // For Evidence, rowCode is the evidenceId
         const evidenceId = rowCode;
         await removeMappingFromEvidence(evidenceId, mappingId);
-      } else {
-        await removeMappingFromRow(engagementId, effectiveRowId, mappingId);
-      }
-
-      // CRITICAL FIX: Update etbData IMMEDIATELY by removing the mapping
-      setEtbData(prev => {
-        if (!prev) return prev;
         
-        const updatedRows = prev.rows.map(row => {
-          if (row.code === rowCode) {
+        // After deletion, re-fetch evidence with mappings to update UI immediately
+        try {
+          const refreshedEvidence = await getEvidenceWithMappings(evidenceId);
+          
+          // Update local etbData state with refreshed evidence
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const rowsWithoutEvidence = prev.rows.filter(row => row.code !== evidenceId);
+            const evidenceRow = prev.rows.find(row => row.code === evidenceId);
+            
+            if (!evidenceRow) return prev;
+            
+            const normalizedRows = refreshedEvidence
+              ? [
+                  ...rowsWithoutEvidence,
+                  {
+                    ...evidenceRow,
+                    mappings:
+                      refreshedEvidence.mappings?.map((mapping: any) => ({
+                        ...mapping,
+                        workbookId:
+                          typeof mapping.workbookId === 'object'
+                            ? mapping.workbookId
+                            : {
+                                _id: mapping.workbookId,
+                                name: 'Unknown Workbook'
+                              },
+                        isActive: mapping.isActive !== false
+                      })) || []
+                  }
+                ]
+              : prev.rows.filter(row => row.code !== evidenceId);
+            
             return {
-              ...row,
-              mappings: row.mappings?.filter(m => m._id !== mappingId) || []
-            };
-          }
-          return row;
+              ...prev,
+              rows: normalizedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+          
+          // Notify parent component about the update
+          onEvidenceMappingUpdated?.(refreshedEvidence);
+          console.log('✅ Evidence mapping deleted and UI updated immediately');
+        } catch (refreshErr) {
+          console.error('ExcelViewer: Failed to refresh evidence data after deletion', refreshErr);
+          // Still update local state optimistically even if refresh fails
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const updatedRows = prev.rows.map(row => {
+              if (row.code === rowCode) {
+                return {
+                  ...row,
+                  mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+                };
+              }
+              return row;
+            });
+            return {
+              ...prev,
+              rows: updatedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+        }
+      } else {
+        // ETB (Lead Sheet) mapping
+        await removeMappingFromRow(engagementId, effectiveRowId, mappingId);
+        
+        // Update etbData IMMEDIATELY by removing the mapping (local state update only)
+        setEtbData(prev => {
+          if (!prev) return prev;
+          
+          const updatedRows = prev.rows.map(row => {
+            if (row.code === rowCode) {
+              return {
+                ...row,
+                mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+              };
+            }
+            return row;
+          });
+          
+          return {
+            ...prev,
+            rows: updatedRows,
+            _updateTimestamp: Date.now() // Force re-render
+          } as any;
         });
         
-        return {
-          ...prev,
-          rows: updatedRows,
-          _updateTimestamp: Date.now() // Force re-render
-        } as any;
-      });
-      
-      console.log('🔄 WorkBookApp: Removed mapping from etbData IMMEDIATELY');
-
-      // Refresh data if callback is provided
-      if (onRefreshETBData) {
-        onRefreshETBData();
+        console.log('✅ Lead Sheet mapping deleted and UI updated immediately (local state only)');
       }
 
-      if (rowType !== 'evidence' && onRefreshParentData) {
-        await Promise.resolve(onRefreshParentData());
-      }
+      // DO NOT call onRefreshETBData() or onRefreshParentData() for Lead Sheet and Working Papers
+      // The local state update is enough for ExcelViewer to re-render
+      // This prevents unnecessary parent component re-renders
 
-      const labels = getContextLabels();
       toast({
         title: "Success",
         description: `${labels.dataType} mapping deleted successfully`,
@@ -1203,14 +1286,99 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             // Create a new mapping with updated details in the new row
             const mappingData: CreateMappingRequest = {
               workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
-              color: mapping.color,
+              color: updateData.color || mapping.color,
               details: updateData.details
             };
-            await addMappingToWPRow(engagementId, classification, effectiveNewRowId, mappingData);
+            
+            // Update local etbData optimistically: remove from old row
+            setEtbData(prev => {
+              if (!prev) return prev;
+              const updatedRows = prev.rows.map(row => {
+                if (row.code === currentRowCode) {
+                  // Remove mapping from old row
+                  return {
+                    ...row,
+                    mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+                  };
+                }
+                return row;
+              });
+              return {
+                ...prev,
+                rows: updatedRows,
+                _updateTimestamp: Date.now()
+              } as any;
+            });
+            
+            // Add mapping to new row (backend will create new mapping with new ID)
+            const wpData = await addMappingToWPRow(engagementId, classification, effectiveNewRowId, mappingData);
+            
+            // Update local etbData with the response from backend (includes new mapping with new ID)
+            if (wpData?.rows) {
+              setEtbData(prev => {
+                if (!prev) return prev;
+                // Find the new row's data from the backend response
+                const backendNewRow = wpData.rows.find((r: any) => r.code === newRowCode || r._id === effectiveNewRowId);
+                
+                if (backendNewRow?.mappings) {
+                  // Replace mappings for the new row with backend data to get correct IDs
+                  const updatedRows = prev.rows.map(row => {
+                    if (row.code === newRowCode) {
+                      const normalizedMappings = backendNewRow.mappings.map((m: any) => ({
+                        ...m,
+                        workbookId: typeof m.workbookId === 'object' 
+                          ? m.workbookId 
+                          : {
+                              _id: m.workbookId,
+                              name: 'Unknown Workbook'
+                            },
+                        isActive: m.isActive !== false
+                      }));
+                      return {
+                        ...row,
+                        mappings: normalizedMappings
+                      };
+                    }
+                    return row;
+                  });
+                  return {
+                    ...prev,
+                    rows: updatedRows,
+                    _updateTimestamp: Date.now()
+                  } as any;
+                }
+                return prev;
+              });
+            }
+            console.log('✅ Working Paper mapping moved between rows and UI updated immediately (local state only)');
           }
         } else {
-          // Just update the existing mapping
+          // Just update the existing mapping in the same row
           await updateWPMapping(engagementId, classification, effectiveCurrentRowId, mappingId, updateData);
+          
+          // Update local etbData immediately
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const updatedRows = prev.rows.map(row => {
+              if (row.code === currentRowCode) {
+                return {
+                  ...row,
+                  mappings: row.mappings?.map(m => 
+                    m._id === mappingId 
+                      ? { ...m, ...updateData, _id: mappingId }
+                      : m
+                  ) || []
+                };
+              }
+              return row;
+            });
+            return {
+              ...prev,
+              rows: updatedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+          console.log('✅ Working Paper mapping updated and UI updated immediately (local state only)');
         }
       } else if (rowType === 'evidence') {
         // For Evidence, currentRowCode is the evidenceId
@@ -1220,8 +1388,77 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         }
         const evidenceId = currentRowCode;
         await updateEvidenceMapping(evidenceId, mappingId, updateData);
+        
+        // After update, re-fetch evidence with mappings to update UI immediately
+        try {
+          const refreshedEvidence = await getEvidenceWithMappings(evidenceId);
+          
+          // Update local etbData state with refreshed evidence
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const rowsWithoutEvidence = prev.rows.filter(row => row.code !== evidenceId);
+            const evidenceRow = prev.rows.find(row => row.code === evidenceId);
+            
+            if (!evidenceRow) return prev;
+            
+            const normalizedRows = refreshedEvidence
+              ? [
+                  ...rowsWithoutEvidence,
+                  {
+                    ...evidenceRow,
+                    mappings:
+                      refreshedEvidence.mappings?.map((mapping: any) => ({
+                        ...mapping,
+                        workbookId:
+                          typeof mapping.workbookId === 'object'
+                            ? mapping.workbookId
+                            : {
+                                _id: mapping.workbookId,
+                                name: 'Unknown Workbook'
+                              },
+                        isActive: mapping.isActive !== false
+                      })) || []
+                  }
+                ]
+              : prev.rows;
+            
+            return {
+              ...prev,
+              rows: normalizedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+          
+          // Notify parent component about the update
+          onEvidenceMappingUpdated?.(refreshedEvidence);
+          console.log('✅ Evidence mapping updated and UI updated immediately');
+        } catch (refreshErr) {
+          console.error('ExcelViewer: Failed to refresh evidence data after update', refreshErr);
+          // Still update local state optimistically even if refresh fails
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const updatedRows = prev.rows.map(row => {
+              if (row.code === currentRowCode) {
+                return {
+                  ...row,
+                  mappings: row.mappings?.map(m => 
+                    m._id === mappingId 
+                      ? { ...m, ...updateData, _id: mappingId }
+                      : m
+                  ) || []
+                };
+              }
+              return row;
+            });
+            return {
+              ...prev,
+              rows: updatedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+        }
       } else {
-        // ETB logic
+        // ETB (Lead Sheet) logic
         if (newRowCode !== currentRowCode) {
           // First, delete from old row
           await removeMappingFromRow(engagementId, effectiveCurrentRowId, mappingId);
@@ -1232,29 +1469,109 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             // Create a new mapping with updated details in the new row
             const mappingData: CreateMappingRequest = {
               workbookId: typeof mapping.workbookId === 'object' ? mapping.workbookId._id : mapping.workbookId,
-              color: mapping.color,
+              color: updateData.color || mapping.color,
               details: updateData.details
             };
-            await addMappingToRow(engagementId, effectiveNewRowId, mappingData);
+            
+            // Update local etbData optimistically: remove from old row
+            setEtbData(prev => {
+              if (!prev) return prev;
+              const updatedRows = prev.rows.map(row => {
+                if (row.code === currentRowCode) {
+                  // Remove mapping from old row
+                  return {
+                    ...row,
+                    mappings: row.mappings?.filter(m => m._id !== mappingId) || []
+                  };
+                }
+                return row;
+              });
+              return {
+                ...prev,
+                rows: updatedRows,
+                _updateTimestamp: Date.now()
+              } as any;
+            });
+            
+            // Add mapping to new row (backend will create new mapping with new ID)
+            const etbDataResponse = await addMappingToRow(engagementId, effectiveNewRowId, mappingData);
+            
+            // Update local etbData with the response from backend (includes new mapping with new ID)
+            if (etbDataResponse?.rows) {
+              setEtbData(prev => {
+                if (!prev) return prev;
+                // Find the new row's data from the backend response
+                const backendNewRow = etbDataResponse.rows.find((r: any) => r.code === newRowCode || r._id === effectiveNewRowId);
+                
+                if (backendNewRow?.mappings) {
+                  // Replace mappings for the new row with backend data to get correct IDs
+                  const updatedRows = prev.rows.map(row => {
+                    if (row.code === newRowCode) {
+                      const normalizedMappings = backendNewRow.mappings.map((m: any) => ({
+                        ...m,
+                        workbookId: typeof m.workbookId === 'object' 
+                          ? m.workbookId 
+                          : {
+                              _id: m.workbookId,
+                              name: 'Unknown Workbook'
+                            },
+                        isActive: m.isActive !== false
+                      }));
+                      return {
+                        ...row,
+                        mappings: normalizedMappings
+                      };
+                    }
+                    return row;
+                  });
+                  return {
+                    ...prev,
+                    rows: updatedRows,
+                    _updateTimestamp: Date.now()
+                  } as any;
+                }
+                return prev;
+              });
+            }
+            console.log('✅ Lead Sheet mapping moved between rows and UI updated immediately (local state only)');
           }
         } else {
-          // Just update the existing mapping
+          // Just update the existing mapping in the same row
           await updateMapping(engagementId, effectiveCurrentRowId, mappingId, updateData);
+          
+          // Update local etbData immediately
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const updatedRows = prev.rows.map(row => {
+              if (row.code === currentRowCode) {
+                return {
+                  ...row,
+                  mappings: row.mappings?.map(m => 
+                    m._id === mappingId 
+                      ? { ...m, ...updateData, _id: mappingId }
+                      : m
+                  ) || []
+                };
+              }
+              return row;
+            });
+            return {
+              ...prev,
+              rows: updatedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+          console.log('✅ Lead Sheet mapping updated and UI updated immediately (local state only)');
         }
       }
 
-      // Refresh data if callback is provided
-      if (onRefreshETBData) {
-        onRefreshETBData();
-      }
+      // DO NOT call onRefreshETBData() or onRefreshParentData() for Lead Sheet and Working Papers
+      // The local state update is enough for ExcelViewer to re-render
+      // This prevents unnecessary parent component re-renders
 
-      if (onRefreshParentData) {
-        await Promise.resolve(onRefreshParentData());
-      }
-
-      // ✅ CRITICAL FIX: Refresh mappings for this workbook
+      // ✅ CRITICAL FIX: Refresh mappings for this workbook (for workbook mappings dialog)
       if (onRefreshMappings) {
-        console.log('ExcelViewer: Refreshing mappings after update');
+        console.log('ExcelViewer: Refreshing workbook mappings after update');
         await onRefreshMappings(workbook.id);
         
         // Force dialog to re-render with updated mappings

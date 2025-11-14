@@ -2039,7 +2039,7 @@ export default function WorkBookApp({
 
         return selectedWorkbook ? (
           <ExcelViewerWithFullscreen
-          key={`${selectedWorkbook?.id}-${mappings.length}-${(etbData as any)?._updateTimestamp || 0}-${mappingsRefreshKey}`}
+          key={`${selectedWorkbook?.id}-${mappings.length}-${mappingsRefreshKey}`}
             workbook={selectedWorkbook}
             mappingsRefreshKey={mappingsRefreshKey}
             setSelectedWorkbook={setSelectedWorkbook}
