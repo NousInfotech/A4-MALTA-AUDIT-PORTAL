@@ -34,6 +34,7 @@ import { kycApi } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 import { DefaultDocumentRequestPreview } from "./DefaultDocumentRequestPreview";
 import { DefaultDocument } from "@/data/defaultDocumentRequests";
+import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
 
 /* ✅ personsData with address */
 // const personsData = [
@@ -554,13 +555,13 @@ export function KYCDocumentRequestModal({
 
           {/* ✅ Default Document Request Preview */}
           <DefaultDocumentRequestPreview
-            onAddDocuments={(selectedDocuments: DefaultDocument[]) => {
+            onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
               const newDocs: Document[] = selectedDocuments.map(doc => ({
                 name: doc.name,
                 type: doc.type,
                 description: doc.description,
                 template: doc.type === 'template'
-                  ? { url: doc.url, instruction: doc.instruction }
+                  ? { url: doc.template?.url, instruction: doc.template?.instructions }
                   : undefined,
                 status: 'pending' as const
               }));
