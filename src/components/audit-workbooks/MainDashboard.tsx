@@ -527,20 +527,22 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         }))
       });
       
-      if (isAlreadyLinked) {
+      if (isAlreadyLinked && rowType !== 'evidence') {
+        // For ETB/WP, show warning and return early if already linked
         toast({
           title: "Warning",
-          description: rowType === 'evidence'
-            ? `Workbook "${selectedWorkbook.name}" is already linked to this file`
-            : `Workbook "${selectedWorkbook.name}" is already linked to this field`,
+          description: `Workbook "${selectedWorkbook.name}" is already linked to this field`,
           variant: "destructive",
         });
         setIsLinking(false);
         return;
       }
 
-      // Append the new workbook ID to existing linked files (for ETB/WP only)
-      const updatedLinkedFiles = [...existingLinkedFileIds, selectedWorkbook.id];
+      // For Evidence, always call linkWorkbookToEvidence (backend handles duplicates)
+      // For ETB/WP, append the new workbook ID to existing linked files
+      const updatedLinkedFiles = rowType === 'evidence' 
+        ? existingLinkedFileIds // Will be updated by linkWorkbookToEvidence response
+        : [...existingLinkedFileIds, selectedWorkbook.id];
 
       console.log("MainDashboard: Saving linked files with ROW'S classification:", {
         engagementId,
@@ -563,7 +565,58 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       } else if (rowType === 'evidence') {
         // For Evidence, selectedRowId is the evidenceId
         console.log("MainDashboard: Calling Evidence API to link workbook");
-        await linkWorkbookToEvidence(selectedRowId, selectedWorkbook.id);
+        const linkedEvidence = await linkWorkbookToEvidence(selectedRowId, selectedWorkbook.id);
+        console.log("MainDashboard: Workbook linked to Evidence, response:", linkedEvidence);
+        
+        // Dispatch event with updated evidence data so ClassificationSection can update UI immediately
+        const eventDetail = {
+          workbookId: selectedWorkbook.id,
+          workbookName: selectedWorkbook.name,
+          rowCode: selectedRowId,
+          classification: rowClassification,
+          engagementId,
+          rowType: 'evidence',
+          evidence: linkedEvidence // Include the updated evidence with linkedWorkbooks
+        };
+        
+        console.log('📣 MainDashboard: Dispatching workbook-linked event with evidence data:', eventDetail);
+        const event = new CustomEvent('workbook-linked', { detail: eventDetail });
+        window.dispatchEvent(event);
+        console.log('📣 MainDashboard: Event dispatched successfully');
+        
+        // Update local state immediately if we have etbData
+        if (linkedEvidence) {
+          setEtbData(prev => {
+            if (!prev) return prev;
+            const updatedRows = prev.rows.map(row => {
+              if (row.code === selectedRowId) {
+                return {
+                  ...row,
+                  linkedExcelFiles: linkedEvidence.linkedWorkbooks || row.linkedExcelFiles || []
+                };
+              }
+              return row;
+            });
+            return {
+              ...prev,
+              rows: updatedRows,
+              _updateTimestamp: Date.now()
+            } as any;
+          });
+        }
+        
+        toast({
+          title: "Success",
+          description: rowType === 'evidence' 
+            ? `Workbook "${selectedWorkbook.name}" linked to file "${selectedRow.accountName}" successfully`
+            : `Workbook "${selectedWorkbook.name}" linked to field "${selectedRow.code} - ${selectedRow.accountName}" successfully`,
+        });
+
+        // Close dialog and reset state
+        setIsDialogOpen(false);
+        setSelectedWorkbook(null);
+        setSelectedRowId("");
+        return; // Return early for evidence since we've already updated UI and dispatched event
       } else {
         // Default to ETB
         console.log("MainDashboard: Calling ETB API to update linked files");
@@ -597,9 +650,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
 
       toast({
         title: "Success",
-        description: rowType === 'evidence' 
-          ? `Workbook "${selectedWorkbook.name}" linked to file "${selectedRow.accountName}" successfully`
-          : `Workbook "${selectedWorkbook.name}" linked to field "${selectedRow.code} - ${selectedRow.accountName}" successfully`,
+        description: `Workbook "${selectedWorkbook.name}" linked to field "${selectedRow.code} - ${selectedRow.accountName}" successfully`,
       });
 
       // Dispatch custom event to notify other components (e.g., ClassificationSection Lead Sheet tab)

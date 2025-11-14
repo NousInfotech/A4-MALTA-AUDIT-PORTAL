@@ -888,6 +888,59 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
   };
 
+  // Helper function to format date for linked files
+  const formatDateForLinkedFiles = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  // Handle viewing a linked workbook (open in new tab)
+  const handleViewWorkbookFromEvidence = (workbook: any) => {
+    if (workbook.webUrl) {
+      window.open(workbook.webUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error('Workbook URL not available');
+    }
+  };
+
+  // Handle removing a workbook from evidence
+  const handleRemoveWorkbookFromEvidence = async (evidenceId: string, workbookId: string, workbookName: string) => {
+    try {
+      await unlinkWorkbookFromEvidence(evidenceId, workbookId);
+      
+      // Update local state immediately
+      setEvidenceFiles(prev =>
+        prev.map(file =>
+          file.id === evidenceId
+            ? {
+                ...file,
+                linkedWorkbooks: file.linkedWorkbooks?.filter(
+                  (wb: any) => String(wb._id || wb.id || wb) !== String(workbookId)
+                ) || []
+              }
+            : file
+        )
+      );
+      
+      // Reload evidence files to get updated data from backend
+      await loadEvidenceFiles();
+      
+      toast.success(`Workbook "${workbookName}" removed from evidence successfully.`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove workbook from evidence';
+      console.error('Error removing workbook from evidence:', err);
+      toast.error(errorMessage);
+    }
+  };
+
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
@@ -1027,9 +1080,32 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     const handleWorkbookLinked = async (event: CustomEvent) => {
       console.log('📣 ClassificationSection: Received workbook-linked event from MainDashboard:', event.detail);
       
-      // Check if this event is relevant to the current classification
-      const { classification: eventClassification, engagementId: eventEngagementId } = event.detail;
+      const { classification: eventClassification, engagementId: eventEngagementId, rowType: eventRowType, evidence: eventEvidence, rowCode } = event.detail;
       
+      // Check if this event is for Evidence tab
+      if (eventRowType === 'evidence' && eventEvidence) {
+        console.log('📣 ClassificationSection: Evidence workbook linked event received');
+        
+        // Update evidenceFiles state IMMEDIATELY with the evidence data from the event
+        // The eventEvidence contains the updated evidence with linkedWorkbooks populated
+        setEvidenceFiles(prev =>
+          prev.map(file =>
+            file.id === rowCode
+              ? {
+                  ...file,
+                  linkedWorkbooks: eventEvidence.linkedWorkbooks || file.linkedWorkbooks,
+                  mappings: eventEvidence.mappings || file.mappings,
+                }
+              : file
+          )
+        );
+        
+        console.log('✅ ClassificationSection: Evidence files state updated immediately with linked workbook');
+        
+        return; // Return early for evidence - UI is already updated
+      }
+      
+      // For Lead Sheet/Working Papers, check if this event is relevant to the current classification
       // If the linked workbook's classification starts with our classification, it might be relevant
       // e.g., our classification is "Assets > Non-current > Property, plant and equipment"
       // and the event classification is "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Cost"
@@ -1050,7 +1126,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       window.removeEventListener('workbook-linked', handleWorkbookLinked as EventListener);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engagement._id, classification]); // refreshLeadSheetData intentionally omitted to avoid recreating listener
+  }, [engagement._id, engagement.id, classification]); // Removed loadEvidenceFiles - it's not accessible here
 
 
   const groupBySubCategory = (data) => {
@@ -5298,19 +5374,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   }
 
-  function formatDateForLinkedFiles(dateString: string) {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return 'N/A';
-    }
-  }
-
   function renderLeadSheetContent() {
     console.log('🎨 renderLeadSheetContent called with sectionData:', {
       rowCount: sectionData.length,
@@ -6202,6 +6265,103 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         {file.fileType.toUpperCase()}
 
                       </Badge>
+
+                      {/* Linked Files Button */}
+                      <Drawer>
+                        <DrawerTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3"
+                            disabled={!file.linkedWorkbooks || file.linkedWorkbooks.length === 0}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {file.linkedWorkbooks?.length || 0} file{file.linkedWorkbooks?.length !== 1 ? 's' : ''}
+                          </Button>
+                        </DrawerTrigger>
+                        <DrawerContent>
+                          <DrawerHeader>
+                            <DrawerTitle>Linked Workbooks</DrawerTitle>
+                            <DrawerDescription>
+                              Manage linked workbooks for {file.fileName}
+                            </DrawerDescription>
+                          </DrawerHeader>
+                          <div className="px-4 pb-4">
+                            {!file.linkedWorkbooks || file.linkedWorkbooks.length === 0 ? (
+                              <div className="text-center py-8 text-muted-foreground">
+                                No linked workbooks for this evidence file.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {file.linkedWorkbooks.map((workbook: any) => (
+                                  <div
+                                    key={workbook._id || workbook.id}
+                                    className="flex items-center justify-between p-3 border rounded-lg"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                      <div>
+                                        <p className="font-medium">{workbook.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleViewWorkbookFromEvidence(workbook)}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Remove
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to remove "{workbook.name}" from this evidence file?
+                                              This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleRemoveWorkbookFromEvidence(
+                                                file.id,
+                                                workbook._id || workbook.id,
+                                                workbook.name
+                                              )}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <DrawerFooter>
+                            <DrawerClose asChild>
+                              <Button variant="outline">Close</Button>
+                            </DrawerClose>
+                          </DrawerFooter>
+                        </DrawerContent>
+                      </Drawer>
 
                       <div className="flex items-center gap-1">
 
@@ -9077,6 +9237,103 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         {file.fileType.toUpperCase()}
 
                       </Badge>
+
+                      {/* Linked Files Button */}
+                      <Drawer>
+                        <DrawerTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3"
+                            disabled={!file.linkedWorkbooks || file.linkedWorkbooks.length === 0}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {file.linkedWorkbooks?.length || 0} file{file.linkedWorkbooks?.length !== 1 ? 's' : ''}
+                          </Button>
+                        </DrawerTrigger>
+                        <DrawerContent>
+                          <DrawerHeader>
+                            <DrawerTitle>Linked Workbooks</DrawerTitle>
+                            <DrawerDescription>
+                              Manage linked workbooks for {file.fileName}
+                            </DrawerDescription>
+                          </DrawerHeader>
+                          <div className="px-4 pb-4">
+                            {!file.linkedWorkbooks || file.linkedWorkbooks.length === 0 ? (
+                              <div className="text-center py-8 text-muted-foreground">
+                                No linked workbooks for this evidence file.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {file.linkedWorkbooks.map((workbook: any) => (
+                                  <div
+                                    key={workbook._id || workbook.id}
+                                    className="flex items-center justify-between p-3 border rounded-lg"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                      <div>
+                                        <p className="font-medium">{workbook.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleViewWorkbookFromEvidence(workbook)}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Remove
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to remove "{workbook.name}" from this evidence file?
+                                              This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleRemoveWorkbookFromEvidence(
+                                                file.id,
+                                                workbook._id || workbook.id,
+                                                workbook.name
+                                              )}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <DrawerFooter>
+                            <DrawerClose asChild>
+                              <Button variant="outline">Close</Button>
+                            </DrawerClose>
+                          </DrawerFooter>
+                        </DrawerContent>
+                      </Drawer>
 
                       <div className="flex items-center gap-1">
 

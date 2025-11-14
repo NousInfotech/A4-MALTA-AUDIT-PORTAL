@@ -148,7 +148,9 @@ export const linkWorkbookToEvidence = async (
       `/api/classification-evidence/${evidenceId}/linked-workbooks/${workbookId}`
     );
 
-    return response.data.data;
+    // Backend returns { success: true, evidence: populatedEvidence }
+    // So we need to return response.data.evidence, not response.data.data
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error linking workbook to evidence:", error);
     throw error;
@@ -172,7 +174,9 @@ export const unlinkWorkbookFromEvidence = async (
       `/api/classification-evidence/${evidenceId}/linked-workbooks/${workbookId}`
     );
 
-    return response.data.data;
+    // Backend returns { success: true, evidence: populatedEvidence }
+    // So we need to return response.data.evidence, not response.data.data
+    return response.data.evidence || response.data.data;
   } catch (error) {
     console.error("Error unlinking workbook from evidence:", error);
     throw error;

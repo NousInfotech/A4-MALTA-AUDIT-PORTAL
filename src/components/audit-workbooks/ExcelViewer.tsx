@@ -1694,26 +1694,42 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         mappingResult = await addMappingToEvidence(evidenceId, evidenceMappingData);
         console.log('✅ Evidence mapping created successfully');
         
-        const selectedWorkbookId = String(workbook.id);
-        const linkWorkbook = async () => {
-          const existingWorkbookIds =
-            mappingResult?.linkedWorkbooks?.map((wb: any) => String(wb?._id || wb)) || [];
-          if (!existingWorkbookIds.includes(selectedWorkbookId)) {
-            await linkWorkbookToEvidence(evidenceId, workbook.id);
-            console.log('✅ Workbook linked to Evidence successfully');
-          } else {
-            console.log('ExcelViewer: Workbook already linked to evidence, skipping link');
+        // Always call linkWorkbookToEvidence - backend handles duplicates gracefully
+        // and returns the updated evidence with populated linkedWorkbooks
+        let linkedEvidenceResult: any = null;
+        try {
+          linkedEvidenceResult = await linkWorkbookToEvidence(evidenceId, workbook.id);
+          console.log('✅ Workbook linked to Evidence successfully (or already linked)');
+          
+          // Update UI IMMEDIATELY with the response from linkWorkbookToEvidence
+          // Backend always returns populated evidence, even if already linked
+          if (linkedEvidenceResult) {
+            onEvidenceMappingUpdated?.(linkedEvidenceResult);
+            console.log('✅ UI updated immediately with linked workbook');
           }
-        };
-        await linkWorkbook();
+        } catch (linkError) {
+          console.error('ExcelViewer: Error linking workbook to evidence:', linkError);
+          // Continue even if linking fails - mapping was created successfully
+        }
 
+        // Also re-fetch evidence with mappings to ensure we have the latest data (includes mappings)
         let refreshedEvidence: any = null;
         try {
           refreshedEvidence = await getEvidenceWithMappings(evidenceId);
+          // Update UI again with the full evidence data (includes both mappings and linkedWorkbooks)
           onEvidenceMappingUpdated?.(refreshedEvidence);
           mappingResult = refreshedEvidence;
+          console.log('✅ UI updated with full evidence data (mappings + linkedWorkbooks)');
         } catch (refreshError) {
           console.error('ExcelViewer: Failed to fetch refreshed evidence after mapping creation', refreshError);
+          // If refresh fails but we have linkedEvidenceResult, use it to update mappings
+          if (linkedEvidenceResult && mappingResult) {
+            const updatedEvidence = {
+              ...linkedEvidenceResult,
+              mappings: mappingResult.mappings || linkedEvidenceResult.mappings || []
+            };
+            onEvidenceMappingUpdated?.(updatedEvidence);
+          }
         }
         
       } else {
