@@ -122,15 +122,25 @@ export const msDriveworkbookApi = {
 
   listWorkbooks: async (
     engagementId: string,
-    classification: string = null
+    classification: string = null,
+    category: string = null // ✅ NEW: Filter by category (lead-sheet, working-paper, evidence)
   ) => {
     try {
       const params: any = { engagementId };
       if (classification) {
         params.classification = classification;
       }
+      if (category) {
+        params.category = category; // ✅ Add category filter
+      }
+      console.log('WorkbookAPI: listWorkbooks called with params:', params);
       const response = await axiosInstance.get(`${BASE_URL}/workbooks`, {
         params,
+      });
+      console.log('WorkbookAPI: listWorkbooks response:', {
+        success: response.data.success,
+        count: response.data.data?.length || 0,
+        workbooks: response.data.data?.map((wb: any) => ({ id: wb._id, name: wb.name, category: wb.category }))
       });
       return { success: true, data: response.data.data };
     } catch (error) {
@@ -442,22 +452,25 @@ export const db_WorkbookApi = {
   },
 
   // **NEW**: List all workbooks for a given engagement and optional classification
-  listWorkbooks: async (engagementId: string, classification?: string) => {
+  listWorkbooks: async (
+    engagementId: string, 
+    classification?: string,
+    category?: string // ✅ NEW: Filter by category
+  ) => {
     try {
       let url = `${BASE_PATH}/list`; // Adjusting based on your route definition
       if (engagementId && classification) {
         url = `${BASE_PATH}/${engagementId}/${classification}/workbooks/list`;
+        // ✅ Add category as query param if provided
+        if (category) {
+          url += `?category=${encodeURIComponent(category)}`;
+        }
       } else if (engagementId) {
-        url = `${BASE_PATH}/${engagementId}/workbooks/list`; // Assuming a default classification or no classification needed
-        // You might need to adjust your backend route to handle this case if classification is mandatory
-        // As per your route `/:engagementId/:classification/workbooks/list`, both are path params.
-        // For simplicity, let's assume if classification is not passed, the backend might handle it,
-        // or we adjust the call to always provide one, or duplicate routes.
-        // For now, I'll stick to the strict route match. If classification is optional,
-        // your backend route should be `/list?engagementId=...&classification=...`
-        // Given your current route definition, `classification` is a path parameter.
-        // If you want it optional, the route should be `/:engagementId/workbooks/list` and `classification` as a query param.
-        // For now, I'll make the client-side enforce classification for this route.
+        url = `${BASE_PATH}/${engagementId}/workbooks/list`;
+        // If classification is optional, add category as query param
+        if (category) {
+          url += `?category=${encodeURIComponent(category)}`;
+        }
         return {
           success: false,
           error:
@@ -470,7 +483,12 @@ export const db_WorkbookApi = {
         };
       }
 
+      console.log('WorkbookAPI (db_WorkbookApi): Fetching workbooks from:', url);
       const response = await axiosInstance.get(url);
+      console.log('WorkbookAPI (db_WorkbookApi): Response:', {
+        success: response.data.success,
+        count: response.data.data?.length || 0
+      });
       return response.data;
     } catch (error) {
       console.error(

@@ -871,6 +871,23 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
 
+  const handleEvidenceMappingUpdated = (updatedEvidence: any) => {
+    if (!updatedEvidence) return;
+    const updatedId = updatedEvidence._id || updatedEvidence.id;
+    if (!updatedId) return;
+    setEvidenceFiles(prev =>
+      prev.map(file =>
+        file.id === updatedId
+          ? {
+              ...file,
+              linkedWorkbooks: updatedEvidence.linkedWorkbooks || file.linkedWorkbooks,
+              mappings: updatedEvidence.mappings || file.mappings,
+            }
+          : file
+      )
+    );
+  };
+
   const [selectedFile, setSelectedFile] = useState<EvidenceFile | null>(null);
 
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
@@ -951,6 +968,31 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [grouping4Value, setGrouping4Value] = useState<string>("");
   const [leadSheetRefreshTrigger, setLeadSheetRefreshTrigger] = useState(0);
+  const [workbookRefreshTrigger, setWorkbookRefreshTrigger] = useState(0);
+  useEffect(() => {
+    const handleWorkbookLinked = async (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+      const eventEngagementId = detail.engagementId;
+      const eventClassification = detail.classification;
+
+      const currentEngagementId = engagement.id || (engagement as any)?._id;
+
+      if (
+        eventEngagementId === currentEngagementId &&
+        (eventClassification === classification ||
+          eventClassification?.startsWith(`${classification} >`))
+      ) {
+        setWorkbookRefreshTrigger((prev) => prev + 1);
+        await refreshLeadSheetData();
+      }
+    };
+
+    window.addEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+    return () => {
+      window.removeEventListener('workbook-linked', handleWorkbookLinked as EventListener);
+    };
+  }, [engagement?.id, (engagement as any)?._id, classification, refreshLeadSheetData]);
 
   // Debug: Log when sectionData changes
   useEffect(() => {
@@ -3838,7 +3880,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 {/* <div className="my-5">
                 {renderDataTable()}
               </div> */}
-                <WorkBookApp engagement={engagement} engagementId={engagement.id} classification={classification} />
+                <WorkBookApp 
+                  engagement={engagement} 
+                  engagementId={engagement.id || engagement._id} 
+                  classification={classification}
+                  refreshTrigger={workbookRefreshTrigger}
+                />
               </>
             </TabsContent>
 
@@ -5359,11 +5406,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <WorkBookApp 
             key={`workbook-app-${leadSheetRefreshTrigger}`}
             engagement={engagement} 
-            engagementId={engagement.id} 
+            engagementId={engagement.id || engagement._id} 
             classification={classification}
             etbRows={sectionData}
             onRefreshData={refreshLeadSheetData}
             rowType="etb"
+            refreshTrigger={workbookRefreshTrigger}
           />
         </div>
       </>
@@ -5445,11 +5493,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <WorkBookApp 
             key={`workbook-app-wp-${leadSheetRefreshTrigger}`}
             engagement={engagement} 
-            engagementId={engagement.id} 
+            engagementId={engagement.id || engagement._id} 
             classification={classification}
             etbRows={workingPaperData}
             onRefreshData={refreshLeadSheetData}
             rowType="working-paper"
+            refreshTrigger={workbookRefreshTrigger}
           />
         </div>
 
@@ -6395,7 +6444,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <WorkBookApp 
             key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
             engagement={engagement} 
-            engagementId={engagement.id} 
+            engagementId={engagement.id || engagement._id} 
             classification={classification}
             etbRows={evidenceFiles.map(file => ({
               _id: file.id,
@@ -6421,6 +6470,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               setLeadSheetRefreshTrigger(prev => prev + 1);
             }}
             rowType="evidence"
+            refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
           />
         </div>
 
@@ -9268,7 +9319,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           <WorkBookApp 
             key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
             engagement={engagement} 
-            engagementId={engagement.id} 
+            engagementId={engagement.id || engagement._id} 
             classification={classification}
             etbRows={evidenceFiles.map(file => ({
               _id: file.id,
@@ -9294,6 +9345,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               setLeadSheetRefreshTrigger(prev => prev + 1);
             }}
             rowType="evidence"
+            refreshTrigger={workbookRefreshTrigger}
+            onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
           />
         </div>
 
