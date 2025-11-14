@@ -21,6 +21,7 @@ import {
   import { Button } from "@/components/ui/button";
   import { Badge } from "@/components/ui/badge";
   import { Link } from "react-router-dom";
+  import { Shield } from "lucide-react";
   import { engagementApi, documentRequestApi } from "@/services/api";
   import { useToast } from "@/hooks/use-toast";
   import {
@@ -405,8 +406,21 @@ import {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-brand-body mb-2">{getGreetingMessage()}</h1>
-          <p className="text-brand-body">{getGreetingDescription()}</p>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-3xl font-semibold text-brand-body mb-2">{getGreetingMessage()}</h1>
+              <p className="text-brand-body">{getGreetingDescription()}</p>
+            </div>
+            <Link to="/admin/2fa">
+              <Button 
+                variant="outline" 
+                className="border-blue-200 hover:bg-blue-50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              >
+                <Shield className="h-5 w-5 mr-2" />
+                Manage 2FA Settings
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
