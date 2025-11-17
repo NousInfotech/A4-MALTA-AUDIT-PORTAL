@@ -96,6 +96,8 @@ export const CompanyDetail: React.FC = () => {
         shareholders,
         children,
         address,
+        nationality,
+        roles,
       } = node;
 
       const nextChildren = (children || shareholders || []).map((child: any) =>
@@ -110,6 +112,8 @@ export const CompanyDetail: React.FC = () => {
         class: className,
         totalShares,
         address,
+        nationality,
+        roles,
         children: nextChildren,
       };
     };
