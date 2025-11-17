@@ -42,11 +42,12 @@ const OPTIONAL_COLUMNS = ["Grouping 1", "Grouping 2", "Grouping 3", "Grouping 4"
 
 // Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
 // Removes parentheses and special characters, preserves any existing minus sign
+// Returns rounded integer value
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
   
-  // If already a number, return it
-  if (typeof value === "number") return value;
+  // If already a number, round and return it
+  if (typeof value === "number") return Math.round(value);
   
   // Convert to string and clean
   let str = String(value).trim();
@@ -57,8 +58,8 @@ const parseAccountingNumber = (value: any): number => {
   // Parse to number
   const num = Number(str);
   
-  // Return the number (no negative conversion for parentheses)
-  return isNaN(num) ? 0 : num;
+  // Return rounded number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : Math.round(num);
 };
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {

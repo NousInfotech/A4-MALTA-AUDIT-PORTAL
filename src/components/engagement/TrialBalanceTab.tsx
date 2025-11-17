@@ -566,11 +566,25 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                     <div className="mt-1" />
                     {(() => {
-                      // Group classifications by main title and subtitle (2 levels only)
-                      const groupedByTitle: {
-                        [mainTitle: string]: {
-                          [subtitle: string]: Array<[string, string[]]>;
-                        };
+                      // Helper function to check if a classification is a leaf node
+                      const isLeafNode = (key: string) => {
+                        const allKeys = Object.keys(groupedClassifications);
+                        return !allKeys.some(
+                          (otherKey) =>
+                            otherKey !== key &&
+                            otherKey.startsWith(key + " > ")
+                        );
+                      };
+
+                      // Group classifications by the desired structure
+                      const assetsGroup: {
+                        [subtitle: string]: Array<[string, string[]]>;
+                      } = {};
+                      const equityGroup: {
+                        [subtitle: string]: Array<[string, string[]]>;
+                      } = {};
+                      const liabilitiesGroup: {
+                        [subtitle: string]: Array<[string, string[]]>;
                       } = {};
 
                       Object.entries(groupedClassifications).forEach(
@@ -579,73 +593,83 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
                           const parts = key.split(" > ");
                           if (parts.length < 3) return;
-                          const mainTitle = parts[0] || "";
-                          // Always use parts[1] as subtitle, no special case
-                          const subtitle = parts[1] || "";
 
-                          if (!groupedByTitle[mainTitle])
-                            groupedByTitle[mainTitle] = {};
-                          if (!groupedByTitle[mainTitle][subtitle])
-                            groupedByTitle[mainTitle][subtitle] = [];
+                          const level1 = parts[0] || "";
+                          const level2 = parts[1] || "";
 
-                          groupedByTitle[mainTitle][subtitle].push([
-                            key,
-                            classificationList,
-                          ]);
+                          // Group Assets
+                          if (level1 === "Assets") {
+                            if (!assetsGroup[level2]) assetsGroup[level2] = [];
+                            assetsGroup[level2].push([key, classificationList]);
+                          }
+                          // Group Equity
+                          else if (level1 === "Equity") {
+                            if (!equityGroup[level2]) equityGroup[level2] = [];
+                            equityGroup[level2].push([key, classificationList]);
+                          }
+                          // Group Liabilities
+                          else if (level1 === "Liabilities") {
+                            if (!liabilitiesGroup[level2]) liabilitiesGroup[level2] = [];
+                            liabilitiesGroup[level2].push([key, classificationList]);
+                          }
                         }
                       );
 
-                      // Define title order
-                      const titleOrder = ["Assets", "Liabilities", "Equity"];
-                      const sortedMainTitles = Object.keys(groupedByTitle).sort(
-                        (a, b) => {
-                          const aIndex = titleOrder.indexOf(a);
-                          const bIndex = titleOrder.indexOf(b);
+                      // Define subtitle order for each group
+                      const assetsSubtitleOrder = ["Non-current", "Current"];
+                      const equitySubtitleOrder = ["Equity", "Current Year Profits & Losses"];
+                      const liabilitiesSubtitleOrder = ["Non-current", "Current"];
+
+                      const sortSubtitles = (
+                        subtitles: string[],
+                        order: string[]
+                      ) => {
+                        return subtitles.sort((a, b) => {
+                          // Case-insensitive matching
+                          const normalizedOrder = order.map(o => o.toLowerCase());
+                          const aIndex = normalizedOrder.indexOf(a.toLowerCase());
+                          const bIndex = normalizedOrder.indexOf(b.toLowerCase());
                           if (aIndex === -1 && bIndex === -1)
                             return a.localeCompare(b);
                           if (aIndex === -1) return 1;
                           if (bIndex === -1) return -1;
                           return aIndex - bIndex;
-                        }
-                      );
+                        });
+                      };
 
-                      return sortedMainTitles.map((mainTitle) => {
-                        const subtitles = Object.keys(
-                          groupedByTitle[mainTitle]
-                        ).sort();
+                      // Render function for a group
+                      const renderGroup = (
+                        level1Title: string,
+                        group: { [subtitle: string]: Array<[string, string[]]> },
+                        subtitleOrder: string[]
+                      ) => {
+                        const subtitles = sortSubtitles(
+                          Object.keys(group),
+                          subtitleOrder
+                        );
+
+                        if (subtitles.length === 0) return null;
 
                         return (
-                          <div key={mainTitle}>
-                            {/* Main Title Header */}
-                            <div className="text-xs uppercase text-gray-700 px-3 pt-4 pb-2 font-bold">
-                              {mainTitle}
+                          <div key={level1Title}>
+                            {/* Level 1 Header */}
+                            <div className="text-sm uppercase text-gray-700 px-3 pt-4 pb-2 font-bold">
+                              {level1Title}
                             </div>
 
-                            {/* Subtitles within this main title */}
+                            {/* Level 2 Subtitles */}
                             {subtitles.map((subtitle) => {
-                              const items = groupedByTitle[mainTitle][subtitle];
-                              console.log(`Items for ${mainTitle} ${subtitle}:`, items);
+                              const items = group[subtitle];
                               return (
-                                <div key={`${mainTitle}-${subtitle}`}>
-                                  {/* Subtitle Header */}
+                                <div key={`${level1Title}-${subtitle}`}>
+                                  {/* Level 2 Header */}
                                   <div className="text-xs uppercase text-gray-500 px-3 pt-2 pb-1 font-semibold">
                                     {subtitle}
                                   </div>
 
-                                  {/* Items for this subtitle */}
+                                  {/* Level 3 Items */}
                                   {items
-                                    .filter(([key]) => {
-                                      // Get all classification keys to check for children
-                                      const allKeys = Object.keys(groupedClassifications);
-                                      // Check if this classification has any children
-                                      const hasChildren = allKeys.some(
-                                        (otherKey) =>
-                                          otherKey !== key &&
-                                          otherKey.startsWith(key + " > ")
-                                      );
-                                      // Only show if it has no children (it's a leaf node)
-                                      return !hasChildren;
-                                    })
+                                    .filter(([key]) => isLeafNode(key))
                                     .map(([key, classificationList]) => {
                                       const notificationCount =
                                         classificationNotificationCounts[key] ||
@@ -688,7 +712,39 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             })}
                           </div>
                         );
-                      });
+                      };
+
+                      return (
+                        <>
+                          {/* Assets Section */}
+                          {renderGroup("Assets", assetsGroup, assetsSubtitleOrder)}
+
+                          {/* Liabilities & Equity Section */}
+                          {(Object.keys(equityGroup).length > 0 ||
+                            Object.keys(liabilitiesGroup).length > 0) && (
+                            <div>
+                              {/* Grouping Title */}
+                              <div className="text-sm uppercase text-gray-800 px-3 pt-4 pb-2 font-bold bg-gray-100/50 rounded-lg mx-2">
+                                Liabilities & Equity
+                              </div>
+
+                              {/* Equity Subsection */}
+                              {renderGroup(
+                                "Equity",
+                                equityGroup,
+                                equitySubtitleOrder
+                              )}
+
+                              {/* Liabilities Subsection */}
+                              {renderGroup(
+                                "Liabilities",
+                                liabilitiesGroup,
+                                liabilitiesSubtitleOrder
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
                     })()}
 
                     {etbCount === 0 &&
