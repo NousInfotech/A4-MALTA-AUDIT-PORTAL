@@ -1130,6 +1130,18 @@ export const PersonList: React.FC<PersonListProps> = ({
     }, 0),
   };
 
+  // Calculate existing shares totals (not percentages)
+  const existingSharesTotals = {
+    personTotal: (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
+      const shares = shareHolder?.sharesData?.totalShares || 0;
+      return acc + (isNaN(shares) ? 0 : shares);
+    }, 0),
+    companyTotal: (company?.shareHoldingCompanies || []).reduce((acc: number, share: any) => {
+      const shares = share?.sharesData?.totalShares || 0;
+      return acc + (isNaN(shares) || shares <= 0 ? 0 : shares);
+    }, 0),
+  };
+
   const getNormalizedShareClass = (shareClass: unknown) => {
     if (typeof shareClass !== "string") return "";
     return shareClass.trim().toUpperCase();
@@ -1977,6 +1989,8 @@ export const PersonList: React.FC<PersonListProps> = ({
         clientId={clientId}
         companyId={companyId}
         existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
       />
 
       {/* Edit Person Modal */}
@@ -1990,6 +2004,8 @@ export const PersonList: React.FC<PersonListProps> = ({
         clientId={clientId}
         companyId={companyId}
         existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
         onSuccess={() => {
           setIsEditModalOpen(false);
           setSelectedPerson(null);
