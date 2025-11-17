@@ -1,17 +1,5 @@
 // @ts-nocheck
 // src/pages/auth/LoginPage.tsx
-
-/**
- * NOTE: 2FA Authentication is currently COMMENTED OUT for development purposes
- * As per Suhail's request, 2FA verification has been disabled during development
- * All 2FA code is preserved in comments and can be re-enabled when needed
- * 
- * To re-enable 2FA:
- * 1. Uncomment the 2FA dialog trigger in handleSubmit function
- * 2. Uncomment the 2FA Dialog component at the bottom
- * 3. Ensure backend API endpoints are properly configured
- */
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -168,13 +156,13 @@ export const LoginPage = () => {
     const success = await login(email, password);
     
     if (success) {
-      // 2FA Authentication - COMMENTED OUT FOR DEVELOPMENT (As per Suhail's request)
+      // 2FA Authentication - COMMENTED OUT FOR NOW
       // Check if user has 2FA enabled (in a real app, this would come from user profile)
       // For now, we'll show 2FA dialog for all users
       // setShow2FA(true);
       // handleSendOTP(); // Automatically send OTP
       
-      // Direct navigation without 2FA (for development)
+      // Direct navigation without 2FA
       navigate(from, { replace: true });
     } else {
       setError('Invalid credentials or account not approved');
@@ -368,7 +356,7 @@ export const LoginPage = () => {
         </div>
       </div>
 
-      {/* 2FA Dialog - COMMENTED OUT FOR DEVELOPMENT (As per Suhail's request) */}
+      {/* 2FA Dialog - COMMENTED OUT FOR NOW */}
       {/* <Dialog open={show2FA} onOpenChange={setShow2FA}>
         <DialogContent className="max-w-md bg-white">
           <DialogHeader>
