@@ -4,10 +4,10 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Edit, Trash2, Users, FileText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { DeleteCompanyConfirmation } from "./DeleteCompanyConfirmation";
+import { fetchCompanies, deleteCompany } from "@/lib/api/company";
 
 interface Person {
   _id: string;
@@ -55,24 +55,10 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  const fetchCompanies = async () => {
+  const loadCompanies = async () => {
     try {
       setIsLoading(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to fetch companies");
-
-      const result = await response.json();
+      const result = await fetchCompanies(clientId);
       setCompanies(result.data || []);
     } catch (error) {
       console.error("Error fetching companies:", error);
@@ -88,7 +74,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
 
   useEffect(() => {
     if (clientId) {
-      fetchCompanies();
+      loadCompanies();
     }
   }, [clientId]);
 
@@ -102,20 +88,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
 
     try {
       setIsDeleting(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyToDelete._id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to delete company");
+      await deleteCompany(clientId, companyToDelete._id);
 
       toast({
         title: "Success",
@@ -124,7 +97,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
 
       setIsDeleteDialogOpen(false);
       setCompanyToDelete(null);
-      fetchCompanies();
+      loadCompanies();
     } catch (error) {
       console.error("Error deleting company:", error);
       toast({
@@ -291,7 +264,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => {
           setIsCreateModalOpen(false);
-          fetchCompanies();
+          loadCompanies();
         }}
         clientId={clientId}
         existingCompanies={companies}

@@ -19,11 +19,11 @@ import {
   FileText,
   ExternalLink,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PersonList } from "./PersonList";
 import { EditCompanyModal } from "./EditCompanyModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchCompanyById } from "@/lib/api/company";
 
 interface Person {
   _id: string;
@@ -90,22 +90,8 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
 
     try {
       setIsLoading(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${company._id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to fetch company details");
-
-      const result = await response.json();
-      setFullCompanyData(result.data);
+      const result = await fetchCompanyById(clientId, company._id);
+      setFullCompanyData(result.data || null);
     } catch (error) {
       console.error("Error fetching company details:", error);
       toast({
@@ -249,7 +235,7 @@ export const CompanyDetailModal: React.FC<CompanyDetailModalProps> = ({
                                       ({rep.type === 'company' ? 'Company' : 'Person'})
                                     </span>
                                   )}
-                                  {' '}({rep.sharePercentage}%)
+                                  {' '}({}%)
                                 </p>
                               ))}
                             </div>

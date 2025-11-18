@@ -21,11 +21,13 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { fetchCompanyById, updateCompany, removeRepresentative } from "@/lib/api/company";
 import { CreatePersonModal } from "./CreatePersonModal";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { EditPersonModal } from "./EditPersonModal";
 import { DeletePersonConfirmation } from "./DeletePersonConfirmation";
 import { AddPersonFromShareholdingModal } from "./AddPersonFromShareholdingModal";
+import { AddShareholderRepresentativeModal } from "./AddShareholderRepresentativeModal";
 import {
   Select,
   SelectContent,
@@ -122,6 +124,8 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isDeletingCompanyShare, setIsDeletingCompanyShare] = useState(false);
   const [isAddPersonFromShareholdingModalOpen, setIsAddPersonFromShareholdingModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"representatives" | "shareholders">("representatives");
+  const [isAddShareholderModalOpen, setIsAddShareholderModalOpen] = useState(false);
+  const [isAddRepresentativeModalOpen, setIsAddRepresentativeModalOpen] = useState(false);
   const { toast } = useToast();
 
   const apiCompany = null;
@@ -568,7 +572,8 @@ export const PersonList: React.FC<PersonListProps> = ({
 
     const currentPersonTotal = (company?.shareHolders || []).reduce(
       (acc: number, shareHolder: any) => {
-        const pct = shareHolder?.sharesData?.percentage || 0;
+        // sharePercentage is now at the shareHolder level, not in sharesData
+        const pct = shareHolder?.sharePercentage ?? 0;
         const numeric = typeof pct === "number" ? pct : Number(pct) || 0;
         return acc + (isNaN(numeric) ? 0 : numeric);
       },
@@ -590,7 +595,8 @@ export const PersonList: React.FC<PersonListProps> = ({
         return false;
       }
 
-      const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
+      // sharePercentage is now at the shareHoldingCompany level, not in sharesData
+      const sharePct = share?.sharePercentage ?? 0;
       const numeric = typeof sharePct === "number" ? sharePct : Number(sharePct) || 0;
       if (!isNaN(numeric) && numeric > 0) {
         currentCompanyTotal += numeric;
@@ -707,8 +713,8 @@ export const PersonList: React.FC<PersonListProps> = ({
     const normalizedCompanyId = typeof share.companyId === 'object' && share.companyId !== null
       ? share.companyId._id
       : share.companyId;
-    const existingSharePct =
-      share?.sharesData?.percentage ?? share?.sharePercentage ?? "";
+    // sharePercentage is now at the shareHoldingCompany level
+    const existingSharePct = share?.sharePercentage ?? "";
     const normalizedSharePct =
       typeof existingSharePct === "number"
         ? existingSharePct.toString()
@@ -754,7 +760,8 @@ export const PersonList: React.FC<PersonListProps> = ({
     // For editing, we need to exclude the original shareholding being edited
     const currentPersonTotal = (company?.shareHolders || []).reduce(
       (acc: number, shareHolder: any) => {
-        const pct = shareHolder?.sharesData?.percentage || 0;
+        // sharePercentage is now at the shareHolder level, not in sharesData
+        const pct = shareHolder?.sharePercentage ?? 0;
         const numeric = typeof pct === "number" ? pct : Number(pct) || 0;
         return acc + (isNaN(numeric) ? 0 : numeric);
       },
@@ -776,7 +783,8 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
         return;
       }
-      const shareValue = share?.sharesData?.percentage ?? share?.sharePercentage;
+      // sharePercentage is now at the shareHoldingCompany level, not in sharesData
+      const shareValue = share?.sharePercentage ?? 0;
       const numPct =
         typeof shareValue === "number" ? shareValue : Number(shareValue) || 0;
       if (!isNaN(numPct) && numPct > 0) {
@@ -1066,7 +1074,8 @@ export const PersonList: React.FC<PersonListProps> = ({
       const stillShareholder = Array.isArray(updatedCompany?.shareHolders)
         ? updatedCompany.shareHolders.some((share: any) => {
             const sharePersonId = getEntityId(share?.personId);
-            const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage ?? 0;
+            // sharePercentage is now at the shareHoldingCompany level
+            const sharePct = share?.sharePercentage ?? 0;
             return sharePersonId === personId && Number(sharePct) > 0;
           })
         : false;
@@ -1119,26 +1128,37 @@ export const PersonList: React.FC<PersonListProps> = ({
   // Use company.shareHolders directly for person totals
   const shareTotals = {
     personTotal: (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-      const pct = shareHolder?.sharesData?.percentage || 0;
+      // sharePercentage is now at the shareHolder level
+      const pct = shareHolder?.sharePercentage ?? 0;
       return acc + (isNaN(pct) ? 0 : pct);
     }, 0),
     companyTotal: (company?.shareHoldingCompanies || []).reduce((acc: number, share: any) => {
-      // Handle both old format (sharePercentage) and new format (sharesData.percentage)
-      const pct = share?.sharesData?.percentage ?? share?.sharePercentage;
+      // sharePercentage is now at the shareHoldingCompany level
+      const pct = share?.sharePercentage ?? 0;
       const numPct = typeof pct === "number" ? pct : 0;
       return acc + (isNaN(numPct) || numPct <= 0 ? 0 : numPct);
     }, 0),
   };
 
-  // Calculate existing shares totals (not percentages)
+  // Calculate existing shares totals (not percentages) - sum from sharesData array
   const existingSharesTotals = {
     personTotal: (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-      const shares = shareHolder?.sharesData?.totalShares || 0;
-      return acc + (isNaN(shares) ? 0 : shares);
+      // sharesData is now an array, sum totalShares from all items
+      const sharesDataArray = Array.isArray(shareHolder?.sharesData) ? shareHolder.sharesData : [];
+      const total = sharesDataArray.reduce((sum: number, item: any) => {
+        const shares = Number(item?.totalShares) || 0;
+        return sum + (isNaN(shares) ? 0 : shares);
+      }, 0);
+      return acc + total;
     }, 0),
     companyTotal: (company?.shareHoldingCompanies || []).reduce((acc: number, share: any) => {
-      const shares = share?.sharesData?.totalShares || 0;
-      return acc + (isNaN(shares) || shares <= 0 ? 0 : shares);
+      // sharesData is now an array, sum totalShares from all items
+      const sharesDataArray = Array.isArray(share?.sharesData) ? share.sharesData : [];
+      const total = sharesDataArray.reduce((sum: number, item: any) => {
+        const shares = Number(item?.totalShares) || 0;
+        return sum + (isNaN(shares) || shares <= 0 ? 0 : shares);
+      }, 0);
+      return acc + total;
     }, 0),
   };
 
@@ -1178,13 +1198,18 @@ export const PersonList: React.FC<PersonListProps> = ({
     () =>
       (company?.shareHolders || []).map((shareHolder: any) => {
         const personData = shareHolder.personId || {};
-        const sharesData = shareHolder.sharesData || {};
-        const totalshares = (company.totalShares/100)*sharesData.percentage;
+        // sharesData is now an array, sharePercentage is at shareHolder level
+        const sharesDataArray = Array.isArray(shareHolder?.sharesData) ? shareHolder.sharesData : [];
+        const totalShares = sharesDataArray.reduce((sum: number, item: any) => {
+          return sum + (Number(item?.totalShares) || 0);
+        }, 0);
+        // Get shareClass from the first item in sharesData array (or use the most common one)
+        const shareClass = sharesDataArray.length > 0 ? sharesDataArray[0]?.class : undefined;
         return {
           ...personData,
-          sharePercentage: getNumericPercentage(sharesData.percentage),
-          totalShares: getNumericPercentage(totalshares),
-          shareClass: sharesData.class,
+          sharePercentage: getNumericPercentage(shareHolder?.sharePercentage ?? 0),
+          totalShares: getNumericPercentage(totalShares),
+          shareClass: shareClass,
           origin: "PersonShareholder",
           isShareholder: true,
         };
@@ -1312,10 +1337,15 @@ export const PersonList: React.FC<PersonListProps> = ({
     () =>
       (company?.shareHoldingCompanies || [])
         .map((share: any) => {
-          const sharePercentage = getNumericPercentage(
-            share?.sharesData?.percentage ?? share?.sharePercentage
+          // sharePercentage is now at the shareHoldingCompany level
+          const sharePercentage = getNumericPercentage(share?.sharePercentage ?? 0);
+          // sharesData is now an array, sum totalShares from all items
+          const sharesDataArray = Array.isArray(share?.sharesData) ? share.sharesData : [];
+          const totalShares = getNumericPercentage(
+            sharesDataArray.reduce((sum: number, item: any) => {
+              return sum + (Number(item?.totalShares) || 0);
+            }, 0)
           );
-          const totalShares = getNumericPercentage(share?.sharesData?.totalShares);
           const companyId =
             share.companyId && typeof share.companyId === "object" && share.companyId !== null
               ? share.companyId._id
@@ -1326,7 +1356,8 @@ export const PersonList: React.FC<PersonListProps> = ({
           }
 
           const metadata = getCompanyMetadata(companyId);
-          const shareClass = share?.sharesData?.class;
+          // Get shareClass from sharesData array (first item or most common)
+          const shareClass = sharesDataArray.length > 0 ? sharesDataArray[0]?.class : undefined;
           const companyName =
             (share.companyId && typeof share.companyId === "object" && share.companyId !== null
               ? share.companyId.name
@@ -1638,17 +1669,21 @@ export const PersonList: React.FC<PersonListProps> = ({
             </TabsTrigger>
           </TabsList>
           <div className="flex gap-5 mt-4">
-            <Button variant="default" className="w-full rounded-xl border-gray-300">
+            <Button
+              variant="default"
+              className="w-full rounded-xl border-gray-300"
+              onClick={() => {
+                if (activeTab === "representatives") {
+                  setIsAddRepresentativeModalOpen(true);
+                } else {
+                  setIsAddShareholderModalOpen(true);
+                }
+              }}
+            >
               <Plus className="h-4 w-4 mr-2" />
               {activeTab === "representatives"
-                ? "Add Person as Representative"
-                : "Add Person as Shareholder"}
-            </Button>
-            <Button variant="default" className="w-full rounded-xl border-gray-300">
-              <Plus className="h-4 w-4 mr-2" />
-              {activeTab === "representatives"
-                ? "Add Company as Representative"
-                : "Add Company as Shareholder"}
+                ? "Add Representative"
+                : "Add Shareholder"}
             </Button>
           </div>
           {/* Representatives Tab */}
@@ -2129,7 +2164,8 @@ export const PersonList: React.FC<PersonListProps> = ({
                     if (!isNaN(sharePct)) {
                       // Calculate excluding the original shareholding being edited
                       const currentPersonTotal = (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-                        const pct = shareHolder?.sharesData?.percentage || 0;
+                        // sharePercentage is now at the shareHolder level
+                        const pct = shareHolder?.sharePercentage ?? 0;
                         return acc + (isNaN(pct) ? 0 : pct);
                       }, 0);
 
@@ -2144,7 +2180,8 @@ export const PersonList: React.FC<PersonListProps> = ({
                         if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
                           return; // Skip the one being edited
                         }
-                        const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
+                        // sharePercentage is now at the shareHoldingCompany level
+                        const sharePct = share?.sharePercentage ?? 0;
                         const numPct = typeof sharePct === "number" ? sharePct : 0;
                         if (!isNaN(numPct) && numPct > 0) {
                           currentCompanyTotal += numPct;
@@ -2173,7 +2210,8 @@ export const PersonList: React.FC<PersonListProps> = ({
                   
                   // Calculate excluding the original shareholding being edited
                   const currentPersonTotal = (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-                    const pct = shareHolder?.sharesData?.percentage || 0;
+                    // sharePercentage is now at the shareHolder level
+                    const pct = shareHolder?.sharePercentage ?? 0;
                     return acc + (isNaN(pct) ? 0 : pct);
                   }, 0);
 
@@ -2188,7 +2226,8 @@ export const PersonList: React.FC<PersonListProps> = ({
                     if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
                       return; // Skip the one being edited
                     }
-                    const sharePct = share?.sharesData?.percentage ?? share?.sharePercentage;
+                    // sharePercentage is now at the shareHoldingCompany level
+                    const sharePct = share?.sharePercentage ?? 0;
                     const numPct = typeof sharePct === "number" ? sharePct : 0;
                     if (!isNaN(numPct) && numPct > 0) {
                       currentCompanyTotal += numPct;
@@ -2304,6 +2343,36 @@ export const PersonList: React.FC<PersonListProps> = ({
           clientId: share.clientId,
         }))}
         existingRepresentativeIds={existingRepresentativeIds}
+      />
+
+      {/* Add Shareholder Modal */}
+      <AddShareholderRepresentativeModal
+        isOpen={isAddShareholderModalOpen}
+        onClose={() => setIsAddShareholderModalOpen(false)}
+        onSuccess={() => {
+          fetchPersons();
+          onUpdate();
+        }}
+        clientId={clientId}
+        companyId={companyId}
+        mode="shareholder"
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+      />
+
+      {/* Add Representative Modal */}
+      <AddShareholderRepresentativeModal
+        isOpen={isAddRepresentativeModalOpen}
+        onClose={() => setIsAddRepresentativeModalOpen(false)}
+        onSuccess={() => {
+          fetchPersons();
+          onUpdate();
+        }}
+        clientId={clientId}
+        companyId={companyId}
+        mode="representative"
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
       />
     </>
   );
