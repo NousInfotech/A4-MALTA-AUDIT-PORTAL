@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon,MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck, Shield } from 'lucide-react'
+import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon,MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -56,12 +56,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { useActivityLogger } from "@/hooks/useActivityLogger"
-import { TwoFactorDialog } from "@/components/library/TwoFactorDialog"
-import { SessionTimeoutWarning } from "@/components/library/SessionTimeoutWarning"
-import {
-  verify2FA,
-  sendEmailOTP,
-} from "@/lib/api/global-library"
 
 export default function GlobalLibraryPage() {
   const [folders, setFolders] = useState<GlobalFolder[]>([])
@@ -109,10 +103,6 @@ export default function GlobalLibraryPage() {
   })
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
 
-  // 2FA state
-  const [show2FADialog, setShow2FADialog] = useState(false)
-  const [folderRequiring2FA, setFolderRequiring2FA] = useState<string | null>(null)
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const dropZoneRef = useRef<HTMLDivElement | null>(null)
@@ -205,55 +195,12 @@ export default function GlobalLibraryPage() {
       })
       setFiles(list)
     } catch (e: any) {
-      // Check if 2FA is required
-      try {
-        const errorText = e.message || e.toString() || ""
-        const errorData = typeof errorText === 'string' && errorText.startsWith('{') ? JSON.parse(errorText) : (typeof e === 'object' && e.requires2FA ? e : null)
-        if (errorData?.requires2FA || errorText?.includes("2FA")) {
-          setFolderRequiring2FA(folder.name)
-          setShow2FADialog(true)
-          return
-        }
-      } catch {
-        // Not JSON, continue with normal error handling
-      }
       toast({ title: "Error", description: e.message || "Failed to fetch files", variant: "destructive" })
     } finally {
       setLoading(false)
     }
   }
 
-  // Handle 2FA verification
-  const handle2FAVerified = () => {
-    if (pendingAction) {
-      pendingAction()
-      setPendingAction(null)
-    } else if (selectedFolder) {
-      refreshFiles(selectedFolder)
-    }
-  }
-
-  // Wrap actions that might require 2FA
-  const with2FACheck = async (action: () => Promise<void>, folderName: string) => {
-    try {
-      await action()
-    } catch (e: any) {
-      try {
-        const errorText = e.message || e.toString()
-        const errorData = typeof errorText === 'string' && errorText.startsWith('{') ? JSON.parse(errorText) : null
-        if (errorData?.requires2FA || errorText?.includes("2FA")) {
-          setFolderRequiring2FA(folderName)
-          setPendingAction(() => action)
-          setShow2FADialog(true)
-          return
-        }
-      } catch {
-        // Not JSON, continue with normal error handling
-      }
-      // Re-throw if not a 2FA error
-      throw e
-    }
-  }
 
   useEffect(() => {
     refreshFolders()
@@ -350,21 +297,20 @@ export default function GlobalLibraryPage() {
     const filesList = e.target.files
     if (!filesList || filesList.length === 0) return
 
-    await with2FACheck(async () => {
-      setUploading(true)
-      try {
-        for (const file of Array.from(filesList)) {
-          await apiUploadFile(selectedFolder.name, file)
-          // Log file upload
-          logUploadDocument(`Uploaded file: ${file.name} to folder: ${selectedFolder.name}`)
-        }
-        await refreshFiles(selectedFolder)
-        toast({ title: "Upload complete", description: `${filesList.length} file(s) uploaded.` })
-      } finally {
-        if (fileInputRef.current) fileInputRef.current.value = ""
-        setUploading(false)
+    
+    setUploading(true)
+    try {
+      for (const file of Array.from(filesList)) {
+        await apiUploadFile(selectedFolder.name, file)
+        // Log file upload
+        logUploadDocument(`Uploaded file: ${file.name} to folder: ${selectedFolder.name}`)
       }
-    }, selectedFolder.name)
+      await refreshFiles(selectedFolder)
+      toast({ title: "Upload complete", description: `${filesList.length} file(s) uploaded.` })
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      setUploading(false)
+    }
   }
 
   const handleDownload = async (file: GlobalFile, useBulk: boolean = false) => {
@@ -437,23 +383,21 @@ export default function GlobalLibraryPage() {
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length === 0) return;
 
-    await with2FACheck(async () => {
-      setUploading(true);
-      try {
-        for (const file of droppedFiles) {
-          if (file.size > 20 * 1024 * 1024) {
-            toast({ title: "File too large", description: `${file.name} exceeds 20 MB limit`, variant: "destructive" });
-            continue;
-          }
-          await apiUploadFile(selectedFolder.name, file);
-          logUploadDocument(`Uploaded file: ${file.name} to folder: ${selectedFolder.name}`);
+    setUploading(true);
+    try {
+      for (const file of droppedFiles) {
+        if (file.size > 20 * 1024 * 1024) {
+          toast({ title: "File too large", description: `${file.name} exceeds 20 MB limit`, variant: "destructive" });
+          continue;
         }
-        await refreshFiles(selectedFolder);
-        toast({ title: "Upload complete", description: `${droppedFiles.length} file(s) uploaded.` });
-      } finally {
-        setUploading(false);
+        await apiUploadFile(selectedFolder.name, file);
+        logUploadDocument(`Uploaded file: ${file.name} to folder: ${selectedFolder.name}`);
       }
-    }, selectedFolder.name);
+      await refreshFiles(selectedFolder);
+      toast({ title: "Upload complete", description: `${droppedFiles.length} file(s) uploaded.` });
+    } finally {
+      setUploading(false);
+    }
   };
 
   // Preview handler
@@ -657,15 +601,6 @@ export default function GlobalLibraryPage() {
               </div>
             </DialogContent>
           </Dialog>
-          <Link to="/employee/2fa">
-            <Button 
-              variant="outline" 
-              className="border-blue-200 hover:bg-blue-50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
-            >
-              <Shield className="h-5 w-5 mr-2" />
-              Manage 2FA Settings
-            </Button>
-          </Link>
           {selectedFolder && (
             <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
               <DialogTrigger asChild>
@@ -1579,18 +1514,6 @@ export default function GlobalLibraryPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2FA Dialog */}
-      {folderRequiring2FA && (
-        <TwoFactorDialog
-          open={show2FADialog}
-          onOpenChange={setShow2FADialog}
-          folderName={folderRequiring2FA}
-          onVerified={handle2FAVerified}
-        />
-      )}
-
-      {/* Session Timeout Warning */}
-      <SessionTimeoutWarning />
       </div>
     </div>
   )

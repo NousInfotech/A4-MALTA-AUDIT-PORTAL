@@ -30,6 +30,8 @@ interface EditPersonModalProps {
   companyId: string;
   onSuccess: () => void;
   existingShareTotal?: number;
+  companyTotalShares?: number;
+  existingSharesTotal?: number;
 }
 
 const ALL_ROLES = [
@@ -48,6 +50,8 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   companyId,
   onSuccess,
   existingShareTotal = 0,
+  companyTotalShares = 0,
+  existingSharesTotal = 0,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -56,6 +60,10 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     email: "",
     phoneNumber: "",
     sharePercentage: "",
+    shares: "",
+    sharesA: "",
+    sharesB: "",
+    sharesOrdinary: "",
     nationality: "",
     shareClass: "",
   });
@@ -63,6 +71,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [shareTotalError, setShareTotalError] = useState<string>("");
+  const [sharesTotalError, setSharesTotalError] = useState<string>("");
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[]
   >([]);
@@ -77,6 +86,13 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
       ? person.sharePercentage
       : person?.sharePercentage
       ? parseFloat(person.sharePercentage)
+      : 0
+  ) || 0;
+  const originalShares = Number(
+    typeof person?.totalShares === "number"
+      ? person.totalShares
+      : person?.totalShares
+      ? parseFloat(person.totalShares)
       : 0
   ) || 0;
   const hasShareholderRole = formData.roles.includes("Shareholder");
@@ -201,6 +217,14 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
           })
         : [];
 
+      const personShares = person.totalShares ? parseInt(person.totalShares.toString(), 10) || 0 : 0;
+      const personClass = person.shareClass || "A";
+      
+      // Initialize shares based on the person's class
+      const sharesA = personClass === "A" ? personShares : 0;
+      const sharesB = personClass === "B" ? personShares : 0;
+      const sharesOrdinary = personClass === "Ordinary" ? personShares : 0;
+      
       setFormData({
         name: person.name || "",
         address: person.address || "",
@@ -208,8 +232,12 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         email: person.email || "",
         phoneNumber: person.phoneNumber || "",
         sharePercentage: person.sharePercentage?.toString() || "",
+        shares: person.totalShares?.toString() || "",
+        sharesA: sharesA > 0 ? sharesA.toString() : "",
+        sharesB: sharesB > 0 ? sharesB.toString() : "",
+        sharesOrdinary: sharesOrdinary > 0 ? sharesOrdinary.toString() : "",
         nationality: person.nationality || "",
-        shareClass: person.shareClass || "A",
+        shareClass: personClass,
       });
       setSupportingDocuments(person.supportingDocuments || []);
     }
@@ -218,14 +246,17 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
   useEffect(() => {
     if (isShareholdingCompanyPerson) {
       setShareTotalError("");
+      setSharesTotalError("");
       return;
     }
 
     if (!(isShareholderContext || hasShareholderRole)) {
       setShareTotalError("");
+      setSharesTotalError("");
       return;
     }
 
+    // Percentage validation
     const enteredShare = parseFloat(formData.sharePercentage || "0");
     const sanitizedShare = isNaN(enteredShare) ? 0 : enteredShare;
     const baseTotal = Math.max(0, (existingShareTotal || 0) - originalSharePercentage);
@@ -238,14 +269,68 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     } else {
       setShareTotalError("");
     }
+
+    // Shares validation
+    const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
+    const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
+    const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
+    const totalNewShares = sharesA + sharesB + sharesOrdinary;
+    
+    if (totalNewShares === 0) {
+      setSharesTotalError("");
+      return;
+    }
+    
+    const baseSharesTotal = Math.max(0, (existingSharesTotal || 0) - originalShares);
+    const projectedShares = baseSharesTotal + totalNewShares;
+
+    if (projectedShares > (companyTotalShares || 0)) {
+      setSharesTotalError(
+        `Total shares would be ${projectedShares.toLocaleString()}, which exceeds the company's available shares of ${(companyTotalShares || 0).toLocaleString()}.`
+      );
+    } else {
+      setSharesTotalError("");
+    }
   }, [
     existingShareTotal,
+    existingSharesTotal,
     formData.sharePercentage,
+    formData.sharesA,
+    formData.sharesB,
+    formData.sharesOrdinary,
     hasShareholderRole,
     isShareholderContext,
     isShareholdingCompanyPerson,
     originalSharePercentage,
+    originalShares,
+    companyTotalShares,
   ]);
+
+  // Calculate percentage from shares when shares are entered
+  useEffect(() => {
+    if (isShareholdingCompanyPerson) {
+      return;
+    }
+    if (!(isShareholderContext || hasShareholderRole) || !companyTotalShares || companyTotalShares === 0) {
+      return;
+    }
+    const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
+    const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
+    const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
+    const totalShares = sharesA + sharesB + sharesOrdinary;
+    
+    if (totalShares === 0) {
+      setFormData((prev) => ({ ...prev, sharePercentage: "", shares: "" }));
+      return;
+    }
+    
+    const calculatedPercentage = (totalShares / companyTotalShares) * 100;
+    setFormData((prev) => ({
+      ...prev,
+      sharePercentage: calculatedPercentage.toFixed(2),
+      shares: totalShares.toString(),
+    }));
+  }, [formData.sharesA, formData.sharesB, formData.sharesOrdinary, isShareholderContext, hasShareholderRole, isShareholdingCompanyPerson, companyTotalShares]);
 
   const handleRoleChange = (role: string, checked: boolean) => {
     setFormData((prev) => {
@@ -261,12 +346,45 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         ...prev,
         roles: prev.roles.filter((r) => r !== role),
         sharePercentage: role === "Shareholder" ? "" : prev.sharePercentage,
+        shares: role === "Shareholder" ? "" : prev.shares,
+        sharesA: role === "Shareholder" ? "" : prev.sharesA,
+        sharesB: role === "Shareholder" ? "" : prev.sharesB,
+        sharesOrdinary: role === "Shareholder" ? "" : prev.sharesOrdinary,
       };
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate shares before submitting
+    if (!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) {
+      const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
+      const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
+      const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
+      const totalNewShares = sharesA + sharesB + sharesOrdinary;
+      
+      if (totalNewShares > 0) {
+        const baseSharesTotal = Math.max(0, (existingSharesTotal || 0) - originalShares);
+        const projectedShares = baseSharesTotal + totalNewShares;
+        if (projectedShares > (companyTotalShares || 0)) {
+          setSharesTotalError(
+            `Total shares would be ${projectedShares.toLocaleString()}, which exceeds the company's available shares of ${(companyTotalShares || 0).toLocaleString()}.`
+          );
+          return;
+        }
+      }
+      
+      // Determine which class to use based on which has shares
+      if (sharesA > 0) {
+        setFormData((prev) => ({ ...prev, shareClass: "A" }));
+      } else if (sharesB > 0) {
+        setFormData((prev) => ({ ...prev, shareClass: "B" }));
+      } else if (sharesOrdinary > 0) {
+        setFormData((prev) => ({ ...prev, shareClass: "Ordinary" }));
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -570,52 +688,90 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </div>
           </div> */}
 
-          {/* Share Percentage - Optional for representatives */}
+          {/* Shares - Optional for representatives */}
           {(!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label
-                  htmlFor="sharePercentage"
-                  className="text-gray-700 font-semibold"
-                >
-                  Share Percentage <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="sharePercentage"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  placeholder="Enter share percentage"
-                  value={formData.sharePercentage}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sharePercentage: e.target.value })
-                  }
-                  className="rounded-xl border-gray-200"
-                  required
-                />
-                {shareTotalError && (
-                  <p className="text-xs text-red-600 mt-1">{shareTotalError}</p>
-                )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                {/* Class A */}
+                <div className="space-y-2">
+                  <Label className="text-gray-700 font-semibold">
+                    Class A
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Enter shares"
+                    value={formData.sharesA}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setFormData({ ...formData, sharesA: value });
+                      }
+                    }}
+                    className="rounded-xl border-gray-200"
+                  />
+                </div>
+                
+                {/* Class B */}
+                <div className="space-y-2">
+                  <Label className="text-gray-700 font-semibold">
+                    Class B
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Enter shares"
+                    value={formData.sharesB}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setFormData({ ...formData, sharesB: value });
+                      }
+                    }}
+                    className="rounded-xl border-gray-200"
+                  />
+                </div>
+                
+                {/* Class C (Ordinary) */}
+                <div className="space-y-2">
+                  <Label className="text-gray-700 font-semibold">
+                    Class C
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Enter shares"
+                    value={formData.sharesOrdinary}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "" || /^\d+$/.test(value)) {
+                        setFormData({ ...formData, sharesOrdinary: value });
+                      }
+                    }}
+                    className="rounded-xl border-gray-200"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="shareClass" className="text-gray-700 font-semibold">
-                  Class <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.shareClass}
-                  onValueChange={(v) => setFormData({ ...formData, shareClass: v })}
-                >
-                  <SelectTrigger id="shareClass" className="rounded-xl border-gray-200">
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="A">A</SelectItem>
-                    <SelectItem value="B">B</SelectItem>
-                    <SelectItem value="Ordinary">Ordinary</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {sharesTotalError && (
+                <p className="text-xs text-red-600 mt-1">{sharesTotalError}</p>
+              )}
+              {formData.sharePercentage && !sharesTotalError && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Percentage: {parseFloat(formData.sharePercentage).toFixed(2)}%
+                </p>
+              )}
+              {!sharesTotalError && companyTotalShares > 0 && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Remaining shares: {Math.max(0, companyTotalShares - (existingSharesTotal - originalShares) - 
+                    (parseInt(formData.sharesA || "0", 10) || 0) - 
+                    (parseInt(formData.sharesB || "0", 10) || 0) - 
+                    (parseInt(formData.sharesOrdinary || "0", 10) || 0)
+                  ).toLocaleString()}
+                </p>
+              )}
             </div>
           )}
 
@@ -682,8 +838,13 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   !formData.nationality ||
                   !formData.address
                 )) ||
-                ((isShareholderContext || hasShareholderRole) && (!formData.sharePercentage || !formData.shareClass)) ||
-                !!shareTotalError
+                ((isShareholderContext || hasShareholderRole) && (
+                  (parseInt(formData.sharesA || "0", 10) || 0) === 0 &&
+                  (parseInt(formData.sharesB || "0", 10) || 0) === 0 &&
+                  (parseInt(formData.sharesOrdinary || "0", 10) || 0) === 0
+                )) ||
+                !!shareTotalError ||
+                !!sharesTotalError
               }
               className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >

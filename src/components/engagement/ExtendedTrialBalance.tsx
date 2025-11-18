@@ -64,11 +64,12 @@ import { adjustmentApi, reclassificationApi } from "@/services/api";
 
 // Parse accounting number formats: (55,662) → 55662, 42,127 → 42127
 // Removes parentheses and special characters, preserves any existing minus sign
+// Returns rounded integer value
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
 
-  // If already a number, return it
-  if (typeof value === "number") return value;
+  // If already a number, round and return it
+  if (typeof value === "number") return Math.round(value);
 
   // Convert to string and clean
   let str = String(value).trim();
@@ -79,8 +80,8 @@ const parseAccountingNumber = (value: any): number => {
   // Parse to number
   const num = Number(str);
 
-  // Return the number (no negative conversion for parentheses)
-  return isNaN(num) ? 0 : num;
+  // Return rounded number (no negative conversion for parentheses)
+  return isNaN(num) ? 0 : Math.round(num);
 };
 
 // Ensure each row has a unique client-only ID
@@ -187,12 +188,10 @@ const getUniqueLevel4 = (l1: string, l2: string, l3: string) => [
   ),
 ];
 
-const formatClassificationForDisplay = (c: string) => {
-  if (!c) return "—";
-  const parts = c.split(" > ");
-  const top = parts[0];
-  if (top === "Assets" || top === "Liabilities" || top === "Equity") return parts[parts.length - 1];
-  return top;
+const formatClassificationForDisplay = (classification: string) => {
+  if (!classification) return "—";
+  const parts = classification.split(" > ");
+  return parts.length >= 3 ? parts[2] : parts[parts.length - 1];
 };
 
 const hasNonZeroAdjustments = (rows: ETBRow[]) =>
@@ -646,15 +645,17 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setEtbRows(prevRows => {
       const newRows = prevRows.map((row) => {
         if (row.id !== id) return row;
-        // Convert to number if the field is numeric
+        // Convert to number and round if the field is numeric
         const numericValue = (field === "currentYear" || field === "priorYear" ||
           field === "adjustments" || field === "reclassification" || field === "finalBalance")
-          ? Number(value) || 0
+          ? Math.round(Number(value) || 0)
           : value;
         const updatedRow = { ...row, [field]: numericValue };
         if (field === "adjustments" || field === "currentYear" || field === "reclassification") {
-          updatedRow.finalBalance =
-            Number(updatedRow.currentYear) + Number(updatedRow.adjustments) + Number(updatedRow.reclassification || 0);
+          // Calculate finalBalance from rounded values
+          updatedRow.finalBalance = Math.round(
+            Number(updatedRow.currentYear) + Number(updatedRow.adjustments) + Number(updatedRow.reclassification || 0)
+          );
         }
         return updatedRow;
       });
