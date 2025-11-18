@@ -88,6 +88,7 @@ export const CompanyDetail: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
   const [hierarchyRoot, setHierarchyRoot] = useState<any>(null);
+
   const hierarchyData = useMemo(() => {
     const convertNode = (node: any | null | undefined): any => {
       if (!node) return null;
@@ -96,6 +97,7 @@ export const CompanyDetail: React.FC = () => {
         name,
         type,
         percentage,
+        sharePercentage, // Backend sends sharePercentage
         class: className,
         totalShares,
         shareholders,
@@ -103,6 +105,7 @@ export const CompanyDetail: React.FC = () => {
         address,
         nationality,
         roles,
+        sharesData, // Backend sends sharesData array
       } = node;
 
       const nextChildren = (children || shareholders || []).map((child: any) =>
@@ -113,12 +116,13 @@ export const CompanyDetail: React.FC = () => {
         id: String(id),
         name,
         type,
-        percentage,
+        percentage: percentage ?? sharePercentage, // Use sharePercentage if percentage not present
         class: className,
         totalShares,
         address,
         nationality,
         roles,
+        sharesData, // Pass through sharesData if needed
         children: nextChildren,
       };
     };
@@ -345,6 +349,7 @@ export const CompanyDetail: React.FC = () => {
 
     try {
       const result = await getCompanyHierarchy(clientId, companyId);
+      console.log("hierarchy data",result);
       if (result?.success && result?.data) {
         setHierarchyRoot(result.data);
       } else if (result) {

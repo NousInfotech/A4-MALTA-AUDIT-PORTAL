@@ -54,6 +54,10 @@ interface HierarchyNodeData {
 }
 
 export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) => {
+
+
+  console.log("hdata",rootData);
+
   const [nodes, setNodes, onNodesChange] = useNodesState<HierarchyNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
   const flowWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -68,7 +72,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
     const nodeMap = new Map<string, Node<HierarchyNodeData>>();
     const generatedEdges: Edge[] = [];
-    let leafIndex = 0;
+    const NODES_PER_ROW = 3;
 
     const baseNodeStyle = {
       background: "transparent",
@@ -79,19 +83,8 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
       boxShadow: "none",
     } as const;
 
-    const build = (node: HierarchyTreeNode, parentId: string | null, level: number): { left: number; right: number } => {
-      const nodeId = String(node.id);
-      const descendants = node.children ?? node.shareholders ?? [];
-      const isLeaf = descendants.length === 0;
-
-      // Debug: Log roles for companies and nationality for persons
-      if (node.type === "company" && node.roles) {
-        console.log("Company node with roles:", node.name, node.roles);
-      }
-      if (node.type === "person") {
-        console.log("Person node:", node.name, "Nationality:", node.nationality);
-      }
-
+    // Helper function to create label content for a node
+    const createLabelContent = (node: HierarchyTreeNode) => {
       // Ensure companies with shares show "Shareholder" role if not already set
       const displayRoles = node.roles && Array.isArray(node.roles) && node.roles.length > 0
         ? node.roles
@@ -99,7 +92,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           ? ["Shareholder"]
           : node.roles);
 
-      const labelContent = (
+      return (
         <div
           style={{
             width: NODE_WIDTH,
@@ -243,43 +236,83 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           </div>
         </div>
       );
+    };
 
-      if (isLeaf) {
-        const x = leafIndex * HORIZONTAL_SPACING;
-        leafIndex++;
+    // Function to arrange nodes in rows of 3, with companies in the last row
+    const arrangeNodesInRows = (
+      nodes: HierarchyTreeNode[],
+      startX: number,
+      startY: number
+    ): { positions: Array<{ node: HierarchyTreeNode; x: number; y: number; level: number }>; maxX: number; maxY: number } => {
+      if (nodes.length === 0) return { positions: [], maxX: startX, maxY: startY };
 
-        nodeMap.set(nodeId, {
-          id: nodeId,
-          data: { label: labelContent },
-          position: { x, y: level * LEVEL_GAP_Y },
-          draggable: false,
-          selectable: false,
-          style: baseNodeStyle,
-          sourcePosition: Position.Bottom,
-          targetPosition: Position.Top,
-        });
+      // Separate persons and companies
+      const persons = nodes.filter(n => n.type !== "company");
+      const companies = nodes.filter(n => n.type === "company");
 
-        if (parentId) {
-          generatedEdges.push({ id: `${parentId}-${nodeId}`, source: parentId, target: nodeId, type: "smoothstep", style: { stroke: "#111827", strokeWidth: 1.2 } });
+      const allNodes = [...persons, ...companies]; // Persons first, then companies
+      const positions: Array<{ node: HierarchyTreeNode; x: number; y: number; level: number }> = [];
+
+      let currentX = startX;
+      let currentY = startY;
+      let nodesInCurrentRow = 0;
+      let currentLevel = Math.floor(startY / LEVEL_GAP_Y);
+
+      allNodes.forEach((node, index) => {
+        // Check if we need to start a new row (every 3 nodes, or if we're starting companies and there are persons)
+        if (nodesInCurrentRow >= NODES_PER_ROW) {
+          currentLevel++;
+          currentY = currentLevel * LEVEL_GAP_Y;
+          currentX = startX;
+          nodesInCurrentRow = 0;
         }
 
-        return { left: x, right: x + NODE_WIDTH };
-      }
+        // If we're starting companies and there are persons, ensure companies are on a new row
+        if (index === persons.length && persons.length > 0) {
+          // If current row is not empty, move to next row
+          if (nodesInCurrentRow > 0) {
+            currentLevel++;
+            currentY = currentLevel * LEVEL_GAP_Y;
+            currentX = startX;
+            nodesInCurrentRow = 0;
+          }
+        }
 
-      let left = Infinity;
-      let right = -Infinity;
-      descendants.forEach((child) => {
-        const childRange = build(child, nodeId, level + 1);
-        left = Math.min(left, childRange.left);
-        right = Math.max(right, childRange.right);
+        positions.push({
+          node,
+          x: currentX,
+          y: currentY,
+          level: currentLevel,
+        });
+
+        currentX += HORIZONTAL_SPACING;
+        nodesInCurrentRow++;
       });
 
-      const centerX = (left + right - NODE_WIDTH) / 2;
+      const maxX = Math.max(...positions.map(p => p.x + NODE_WIDTH), startX);
+      const maxY = positions.length > 0 ? Math.max(...positions.map(p => p.y)) : startY;
 
+      return { positions, maxX, maxY };
+    };
+
+    // Recursive function to build the hierarchy
+    const build = (
+      node: HierarchyTreeNode,
+      parentId: string | null,
+      level: number,
+      startX: number = 0
+    ): { left: number; right: number; maxY: number; childLevel: number } => {
+      const nodeId = String(node.id);
+      const descendants = node.children ?? node.shareholders ?? [];
+      const isLeaf = descendants.length === 0;
+
+      const labelContent = createLabelContent(node);
+
+      // Position the current node
       nodeMap.set(nodeId, {
         id: nodeId,
         data: { label: labelContent },
-        position: { x: centerX, y: level * LEVEL_GAP_Y },
+        position: { x: startX, y: level * LEVEL_GAP_Y },
         draggable: false,
         selectable: false,
         style: baseNodeStyle,
@@ -288,19 +321,80 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
       });
 
       if (parentId) {
-        generatedEdges.push({ id: `${parentId}-${nodeId}`, source: parentId, target: nodeId, type: "smoothstep", style: { stroke: "#111827", strokeWidth: 1.2 } });
+        generatedEdges.push({
+          id: `${parentId}-${nodeId}`,
+          source: parentId,
+          target: nodeId,
+          type: "smoothstep",
+          style: { stroke: "#111827", strokeWidth: 1.2 },
+        });
       }
 
-      return { left, right };
+      if (isLeaf) {
+        return {
+          left: startX,
+          right: startX + NODE_WIDTH,
+          maxY: level * LEVEL_GAP_Y,
+          childLevel: level,
+        };
+      }
+
+      // Non-leaf node: arrange children in rows of 3
+      // Start children at the next level
+      const startChildY = (level + 1) * LEVEL_GAP_Y;
+      const { positions: childPositions, maxX: childrenMaxX, maxY: childrenMaxY } = arrangeNodesInRows(
+        descendants,
+        startX,
+        startChildY
+      );
+
+      let maxChildY = childrenMaxY;
+      let maxChildX = childrenMaxX;
+      let maxChildLevel = level + 1;
+
+      // Recursively build children using their assigned positions
+      childPositions.forEach(({ node: childNode, x, y, level: childLevel }) => {
+        const childResult = build(childNode, nodeId, childLevel, x);
+        maxChildY = Math.max(maxChildY, childResult.maxY);
+        maxChildX = Math.max(maxChildX, childResult.right);
+        maxChildLevel = Math.max(maxChildLevel, childResult.childLevel);
+      });
+
+      // Update parent node position to center it above its children
+      const childrenCenterX =
+        childPositions.length > 0
+          ? (Math.min(...childPositions.map((p) => p.x)) +
+              Math.max(...childPositions.map((p) => p.x + NODE_WIDTH))) /
+              2 -
+            NODE_WIDTH / 2
+          : startX;
+
+      // Update the node position
+      const existingNode = nodeMap.get(nodeId);
+      if (existingNode) {
+        existingNode.position.x = childrenCenterX;
+        nodeMap.set(nodeId, existingNode);
+      }
+
+      return {
+        left: Math.min(childrenCenterX, ...childPositions.map((p) => p.x)),
+        right: Math.max(childrenCenterX + NODE_WIDTH, maxChildX),
+        maxY: maxChildY,
+        childLevel: maxChildLevel,
+      };
     };
 
-    build(rootData, null, 0);
+    const rootResult = build(rootData, null, 0, 0);
 
     const generatedNodes = Array.from(nodeMap.values());
     const maxX = Math.max(...generatedNodes.map((n) => n.position.x + NODE_WIDTH));
-    const maxY = Math.max(...generatedNodes.map((n) => n.position.y)) + LEVEL_GAP_Y;
+    const maxY = rootResult.maxY + LEVEL_GAP_Y;
 
-    return { initialNodes: generatedNodes, initialEdges: generatedEdges, bounds: { width: maxX + 200, height: maxY + 200 } };
+    return {
+      initialNodes: generatedNodes,
+      initialEdges: generatedEdges,
+      bounds: { width: maxX + 200, height: maxY + 200 },
+    };
   }, [rootData]);
 
   useEffect(() => {

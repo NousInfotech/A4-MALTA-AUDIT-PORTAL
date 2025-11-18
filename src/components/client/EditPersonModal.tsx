@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
+import { updateShareHolderPersonExisting } from "@/lib/api/company";
 
 interface EditPersonModalProps {
   isOpen: boolean;
@@ -63,10 +64,11 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     shares: "",
     sharesA: "",
     sharesB: "",
-    sharesOrdinary: "",
+    sharesC: "",
     nationality: "",
     shareClass: "",
   });
+  const [sharesData, setSharesData] = useState<Array<{ class: string; type: string; totalShares: number }>>([]);
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -217,13 +219,37 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
           })
         : [];
 
-      const personShares = person.totalShares ? parseInt(person.totalShares.toString(), 10) || 0 : 0;
-      const personClass = person.shareClass || "A";
+      // Get sharesData from person if available (from company.shareHolders)
+      const personSharesData = (person as any)?.sharesData || [];
+      const personTotalShares = person.totalShares ? parseInt(person.totalShares.toString(), 10) || 0 : 0;
+      const personSharePercentage = person.sharePercentage || 0;
       
-      // Initialize shares based on the person's class
-      const sharesA = personClass === "A" ? personShares : 0;
-      const sharesB = personClass === "B" ? personShares : 0;
-      const sharesOrdinary = personClass === "Ordinary" ? personShares : 0;
+      // Initialize sharesData array - group by class
+      const sharesByClass: Record<string, number> = { A: 0, B: 0, C: 0 };
+      
+      if (Array.isArray(personSharesData) && personSharesData.length > 0) {
+        personSharesData.forEach((sd: any) => {
+          const shareClass = sd.class || sd.shareClass || "A";
+          const shareCount = Number(sd.totalShares) || 0;
+          if (shareClass in sharesByClass) {
+            sharesByClass[shareClass] += shareCount;
+          }
+        });
+      } else {
+        // Fallback to old format
+        const personClass = person.shareClass || "A";
+        if (personClass in sharesByClass) {
+          sharesByClass[personClass] = personTotalShares;
+        }
+      }
+      
+      setSharesData(
+        Object.entries(sharesByClass).map(([class_, totalShares]) => ({
+          class: class_,
+          type: "Ordinary",
+          totalShares: totalShares,
+        }))
+      );
       
       setFormData({
         name: person.name || "",
@@ -231,13 +257,13 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         roles: initialRoles,
         email: person.email || "",
         phoneNumber: person.phoneNumber || "",
-        sharePercentage: person.sharePercentage?.toString() || "",
-        shares: person.totalShares?.toString() || "",
-        sharesA: sharesA > 0 ? sharesA.toString() : "",
-        sharesB: sharesB > 0 ? sharesB.toString() : "",
-        sharesOrdinary: sharesOrdinary > 0 ? sharesOrdinary.toString() : "",
+        sharePercentage: personSharePercentage?.toString() || "",
+        shares: personTotalShares?.toString() || "",
+        sharesA: sharesByClass.A > 0 ? sharesByClass.A.toString() : "",
+        sharesB: sharesByClass.B > 0 ? sharesByClass.B.toString() : "",
+        sharesC: sharesByClass.C > 0 ? sharesByClass.C.toString() : "",
         nationality: person.nationality || "",
-        shareClass: personClass,
+        shareClass: person.shareClass || "A",
       });
       setSupportingDocuments(person.supportingDocuments || []);
     }
@@ -273,8 +299,8 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     // Shares validation
     const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
     const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
-    const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
-    const totalNewShares = sharesA + sharesB + sharesOrdinary;
+    const sharesC = parseInt(formData.sharesC || "0", 10) || 0;
+    const totalNewShares = sharesA + sharesB + sharesC;
     
     if (totalNewShares === 0) {
       setSharesTotalError("");
@@ -297,7 +323,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     formData.sharePercentage,
     formData.sharesA,
     formData.sharesB,
-    formData.sharesOrdinary,
+    formData.sharesC,
     hasShareholderRole,
     isShareholderContext,
     isShareholdingCompanyPerson,
@@ -316,8 +342,8 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     }
     const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
     const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
-    const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
-    const totalShares = sharesA + sharesB + sharesOrdinary;
+    const sharesC = parseInt(formData.sharesC || "0", 10) || 0;
+    const totalShares = sharesA + sharesB + sharesC;
     
     if (totalShares === 0) {
       setFormData((prev) => ({ ...prev, sharePercentage: "", shares: "" }));
@@ -330,7 +356,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
       sharePercentage: calculatedPercentage.toFixed(2),
       shares: totalShares.toString(),
     }));
-  }, [formData.sharesA, formData.sharesB, formData.sharesOrdinary, isShareholderContext, hasShareholderRole, isShareholdingCompanyPerson, companyTotalShares]);
+  }, [formData.sharesA, formData.sharesB, formData.sharesC, isShareholderContext, hasShareholderRole, isShareholdingCompanyPerson, companyTotalShares]);
 
   const handleRoleChange = (role: string, checked: boolean) => {
     setFormData((prev) => {
@@ -349,7 +375,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
         shares: role === "Shareholder" ? "" : prev.shares,
         sharesA: role === "Shareholder" ? "" : prev.sharesA,
         sharesB: role === "Shareholder" ? "" : prev.sharesB,
-        sharesOrdinary: role === "Shareholder" ? "" : prev.sharesOrdinary,
+        sharesC: role === "Shareholder" ? "" : prev.sharesC,
       };
     });
   };
@@ -361,8 +387,8 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
     if (!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) {
       const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
       const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
-      const sharesOrdinary = parseInt(formData.sharesOrdinary || "0", 10) || 0;
-      const totalNewShares = sharesA + sharesB + sharesOrdinary;
+      const sharesC = parseInt(formData.sharesC || "0", 10) || 0;
+      const totalNewShares = sharesA + sharesB + sharesC;
       
       if (totalNewShares > 0) {
         const baseSharesTotal = Math.max(0, (existingSharesTotal || 0) - originalShares);
@@ -373,15 +399,6 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
           );
           return;
         }
-      }
-      
-      // Determine which class to use based on which has shares
-      if (sharesA > 0) {
-        setFormData((prev) => ({ ...prev, shareClass: "A" }));
-      } else if (sharesB > 0) {
-        setFormData((prev) => ({ ...prev, shareClass: "B" }));
-      } else if (sharesOrdinary > 0) {
-        setFormData((prev) => ({ ...prev, shareClass: "Ordinary" }));
       }
     }
 
@@ -501,38 +518,128 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
 
         onSuccess();
       } else {
-        // Person is decoupled - only send person fields
-        // Roles and sharePercentage are handled by the backend when companyId is provided
-        const payload = {
+        // Person is decoupled - update person data first
+        const personId = person?._id || person?.id;
+        if (!personId) {
+          throw new Error("Person ID not found");
+        }
+
+        const personPayload = {
           name: formData.name,
           address: formData.address,
           email: formData.email || undefined,
           phoneNumber: formData.phoneNumber || undefined,
           nationality: formData.nationality || undefined,
           supportingDocuments,
-          // Include roles and sharePercentage for company relationship
-          roles: formData.roles.length > 0 ? formData.roles : undefined,
-          sharePercentage: formData.sharePercentage
-            ? parseFloat(formData.sharePercentage)
-            : undefined,
-          shareClass: formData.shareClass || undefined,
         };
 
-        const response = await fetch(
-          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${person._id}`,
+        const personResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personId}`,
           {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${sessionData.session.access_token}`,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(personPayload),
           }
         );
 
-        if (!response.ok) {
-          const error = await response.json();
+        if (!personResponse.ok) {
+          const error = await personResponse.json();
           throw new Error(error.message || "Failed to update person");
+        }
+
+        // Update roles in representationalSchema
+        if (formData.roles.length > 0) {
+          const companyResponse = await fetch(
+            `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionData.session.access_token}`,
+              },
+            }
+          );
+
+          if (!companyResponse.ok) {
+            throw new Error("Failed to load company data");
+          }
+
+          const companyResult = await companyResponse.json();
+          const currentCompany = companyResult.data;
+
+          if (currentCompany) {
+            const representationalSchema = Array.isArray(currentCompany.representationalSchema)
+              ? currentCompany.representationalSchema
+              : [];
+
+            let entryUpdated = false;
+            const updatedSchema = representationalSchema.map((entry: any) => {
+              const entryPersonId = entry?.personId?._id || entry?.personId?.id || entry?.personId;
+              if (String(entryPersonId) === String(personId)) {
+                entryUpdated = true;
+                return {
+                  ...entry,
+                  role: formData.roles,
+                };
+              }
+              return entry;
+            });
+
+            if (!entryUpdated && formData.roles.length > 0) {
+              // Add new entry if not found
+              updatedSchema.push({
+                personId: personId,
+                role: formData.roles,
+              });
+            }
+
+            await fetch(
+              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+              {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+                body: JSON.stringify({
+                  ...currentCompany,
+                  representationalSchema: updatedSchema,
+                }),
+              }
+            );
+          }
+        }
+
+        // Update shares if person is a shareholder
+        if ((isShareholderContext || hasShareholderRole) && !isShareholdingCompanyPerson) {
+          const sharesA = parseInt(formData.sharesA || "0", 10) || 0;
+          const sharesB = parseInt(formData.sharesB || "0", 10) || 0;
+          const sharesC = parseInt(formData.sharesC || "0", 10) || 0;
+
+          // Build sharesData array
+          const sharesDataArray: Array<{ totalShares: number; shareClass: "A" | "B" | "C"; shareType?: "Ordinary" }> = [];
+          
+          if (sharesA > 0) {
+            sharesDataArray.push({ totalShares: sharesA, shareClass: "A", shareType: "Ordinary" });
+          }
+          if (sharesB > 0) {
+            sharesDataArray.push({ totalShares: sharesB, shareClass: "B", shareType: "Ordinary" });
+          }
+          if (sharesC > 0) {
+            sharesDataArray.push({ totalShares: sharesC, shareClass: "C", shareType: "Ordinary" });
+          }
+
+          if (sharesDataArray.length > 0) {
+            await updateShareHolderPersonExisting(clientId, companyId, String(personId), {
+              sharesData: sharesDataArray,
+            });
+          } else {
+            // Remove shareholder if all shares are 0
+            await updateShareHolderPersonExisting(clientId, companyId, String(personId), {
+              sharesData: [],
+            });
+          }
         }
 
         toast({
@@ -688,10 +795,22 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             </div>
           </div> */}
 
-          {/* Shares - Optional for representatives */}
+          {/* Shares - Show shares by class for shareholders */}
           {(!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-gray-700 font-semibold">
+                  Shares in this Company
+                </Label>
+                <div className="text-xs text-gray-500">
+                  Total: {(
+                    parseInt(formData.sharesA || "0", 10) +
+                    parseInt(formData.sharesB || "0", 10) +
+                    parseInt(formData.sharesC || "0", 10)
+                  ).toLocaleString()} / {companyTotalShares.toLocaleString()}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Class A */}
                 <div className="space-y-2">
                   <Label className="text-gray-700 font-semibold">
@@ -734,7 +853,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   />
                 </div>
                 
-                {/* Class C (Ordinary) */}
+                {/* Class C */}
                 <div className="space-y-2">
                   <Label className="text-gray-700 font-semibold">
                     Class C
@@ -744,11 +863,11 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                     min="0"
                     step="1"
                     placeholder="Enter shares"
-                    value={formData.sharesOrdinary}
+                    value={formData.sharesC}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (value === "" || /^\d+$/.test(value)) {
-                        setFormData({ ...formData, sharesOrdinary: value });
+                        setFormData({ ...formData, sharesC: value });
                       }
                     }}
                     className="rounded-xl border-gray-200"
@@ -768,7 +887,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                   Remaining shares: {Math.max(0, companyTotalShares - (existingSharesTotal - originalShares) - 
                     (parseInt(formData.sharesA || "0", 10) || 0) - 
                     (parseInt(formData.sharesB || "0", 10) || 0) - 
-                    (parseInt(formData.sharesOrdinary || "0", 10) || 0)
+                    (parseInt(formData.sharesC || "0", 10) || 0)
                   ).toLocaleString()}
                 </p>
               )}

@@ -427,4 +427,58 @@ export async function addRepresentationCompanyNewBulk(
   return response.data;
 }
 
+// Global search interfaces
+export interface GlobalSearchParams {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface GlobalSearchResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// Global search for companies
+export const searchCompaniesGlobal = async (
+  params: GlobalSearchParams = {}
+): Promise<GlobalSearchResponse<any>> => {
+  const { search = "", page = 1, limit = 10 } = params;
+  const response = await axiosInstance.get(
+    `/api/client/company/search/global`,
+    {
+      params: {
+        search,
+        page,
+        limit,
+      },
+    }
+  );
+  return response.data;
+};
+
+// Global search for persons
+export const searchPersonsGlobal = async (
+  params: GlobalSearchParams = {}
+): Promise<GlobalSearchResponse<any>> => {
+  const { search = "", page = 1, limit = 10 } = params;
+  const response = await axiosInstance.get(
+    `/api/client/person/search/global`,
+    {
+      params: {
+        search,
+        page,
+        limit,
+      },
+    }
+  );
+  return response.data;
+};
+
 

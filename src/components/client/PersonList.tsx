@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   UserCheck,
   Percent,
   AlertTriangle,
+  User,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +30,8 @@ import { EditPersonModal } from "./EditPersonModal";
 import { DeletePersonConfirmation } from "./DeletePersonConfirmation";
 import { AddPersonFromShareholdingModal } from "./AddPersonFromShareholdingModal";
 import { AddShareholderRepresentativeModal } from "./AddShareholderRepresentativeModal";
+import { AddRepresentativeModal } from "./AddRepresentativeModal";
+import { AddShareholderModal } from "./AddShareholderModal";
 import {
   Select,
   SelectContent,
@@ -126,6 +130,10 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [activeTab, setActiveTab] = useState<"representatives" | "shareholders">("representatives");
   const [isAddShareholderModalOpen, setIsAddShareholderModalOpen] = useState(false);
   const [isAddRepresentativeModalOpen, setIsAddRepresentativeModalOpen] = useState(false);
+  const [isAddPersonRepresentativeModalOpen, setIsAddPersonRepresentativeModalOpen] = useState(false);
+  const [isAddCompanyRepresentativeModalOpen, setIsAddCompanyRepresentativeModalOpen] = useState(false);
+  const [isAddPersonShareholderModalOpen, setIsAddPersonShareholderModalOpen] = useState(false);
+  const [isAddCompanyShareholderModalOpen, setIsAddCompanyShareholderModalOpen] = useState(false);
   const { toast } = useToast();
 
   const apiCompany = null;
@@ -167,8 +175,23 @@ export const PersonList: React.FC<PersonListProps> = ({
     }
   };
 
+  // Use ref to prevent concurrent fetches
+  const isFetchingCompaniesRef = useRef(false);
+  const lastFetchedClientIdRef = useRef<string>('');
+
   const fetchCompanies = async () => {
+    // Prevent concurrent fetches
+    if (isFetchingCompaniesRef.current) {
+      return;
+    }
+
+    // Prevent fetching for the same clientId if already fetched
+    if (lastFetchedClientIdRef.current === clientId && hasFetchedCompanyOptions) {
+      return;
+    }
+
     try {
+      isFetchingCompaniesRef.current = true;
       setIsCompanyOptionsLoading(true);
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
@@ -258,6 +281,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       setExistingCompanies(deduped);
       setCompanyLookup((prev) => ({ ...prev, ...metadata }));
       setHasFetchedCompanyOptions(true);
+      lastFetchedClientIdRef.current = clientId || '';
     } catch (error) {
       console.error("Error fetching companies:", error);
       toast({
@@ -266,6 +290,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         variant: "destructive",
       });
     } finally {
+      isFetchingCompaniesRef.current = false;
       setIsCompanyOptionsLoading(false);
     }
   };
@@ -531,6 +556,21 @@ export const PersonList: React.FC<PersonListProps> = ({
 
   const handleEditPerson = (person: PersonWithExtras) => {
     const mergedPerson = getPersonWithDetails(person) ?? person;
+    
+    // Get sharesData from company's shareHolders for this person
+    const personId = getEntityId(mergedPerson._id) || getEntityId(mergedPerson.id);
+    if (personId && company?.shareHolders) {
+      const shareholderEntry = company.shareHolders.find((sh: any) => {
+        const shPersonId = getEntityId(sh?.personId?._id) || getEntityId(sh?.personId?.id) || getEntityId(sh?.personId);
+        return String(shPersonId) === String(personId);
+      });
+      
+      if (shareholderEntry && Array.isArray(shareholderEntry.sharesData)) {
+        (mergedPerson as any).sharesData = shareholderEntry.sharesData;
+        (mergedPerson as any).sharePercentage = shareholderEntry.sharePercentage;
+      }
+    }
+    
     setSelectedPerson(mergedPerson);
     setIsEditModalOpen(true);
   };
@@ -1055,8 +1095,9 @@ export const PersonList: React.FC<PersonListProps> = ({
     if (origin === "ShareholdingCompany") return;
 
     try {
-      const companyResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+      // Check if person has relationships in ANY company (not just current one)
+      const allCompaniesResponse = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -1064,53 +1105,58 @@ export const PersonList: React.FC<PersonListProps> = ({
         }
       );
 
-      if (!companyResponse.ok) {
-        throw new Error("Failed to verify company state for person deletion");
+      if (!allCompaniesResponse.ok) {
+        throw new Error("Failed to fetch companies for person deletion check");
       }
 
-      const companyResult = await companyResponse.json();
-      const updatedCompany = companyResult?.data;
+      const allCompaniesResult = await allCompaniesResponse.json();
+      const allCompanies = Array.isArray(allCompaniesResult?.data) ? allCompaniesResult.data : [];
 
-      const stillShareholder = Array.isArray(updatedCompany?.shareHolders)
-        ? updatedCompany.shareHolders.some((share: any) => {
-            const sharePersonId = getEntityId(share?.personId);
-            // sharePercentage is now at the shareHoldingCompany level
-            const sharePct = share?.sharePercentage ?? 0;
-            return sharePersonId === personId && Number(sharePct) > 0;
-          })
-        : false;
+      // Check if person is a shareholder or representative in ANY company
+      let hasAnyRelationship = false;
 
-      if (stillShareholder) {
-        return;
-      }
+      for (const comp of allCompanies) {
+        // Check if shareholder
+        const isShareholder = Array.isArray(comp?.shareHolders)
+          ? comp.shareHolders.some((share: any) => {
+              const sharePersonId = getEntityId(share?.personId);
+              return sharePersonId === personId;
+            })
+          : false;
 
-      const stillRepresentative = Array.isArray(updatedCompany?.representationalSchema)
-        ? updatedCompany.representationalSchema.some((entry: any) => {
-            const entryId =
-              getEntityId(entry?.personId?._id) ||
-              getEntityId(entry?.personId?.id) ||
-              getEntityId(entry?.personId);
-            return entryId === personId;
-          })
-        : false;
+        // Check if representative
+        const isRepresentative = Array.isArray(comp?.representationalSchema)
+          ? comp.representationalSchema.some((entry: any) => {
+              const entryId =
+                getEntityId(entry?.personId?._id) ||
+                getEntityId(entry?.personId?.id) ||
+                getEntityId(entry?.personId);
+              return entryId === personId;
+            })
+          : false;
 
-      if (stillRepresentative) {
-        return;
-      }
-
-      const deleteResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+        if (isShareholder || isRepresentative) {
+          hasAnyRelationship = true;
+          break;
         }
-      );
+      }
 
-      if (!deleteResponse.ok) {
-        const error = await deleteResponse.json().catch(() => ({}));
-        throw new Error(error?.message || "Failed to delete person record");
+      // Only delete if person has no relationships in any company
+      if (!hasAnyRelationship) {
+        const deleteResponse = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person/${personId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!deleteResponse.ok) {
+          const error = await deleteResponse.json().catch(() => ({}));
+          throw new Error(error?.message || "Failed to delete person record");
+        }
       }
     } catch (error) {
       console.error("Failed to delete person record if unused:", error);
@@ -1217,13 +1263,6 @@ export const PersonList: React.FC<PersonListProps> = ({
     [company?.shareHolders]
   );
 
-  const highestSharePerson = useMemo(() => {
-    return rawPersonShareholders.reduce((best: any | null, current: any) => {
-      if (!best) return current;
-      return (current?.sharePercentage ?? 0) > (best?.sharePercentage ?? 0) ? current : best;
-    }, null);
-  }, [rawPersonShareholders]);
-
   const personShareholders = useMemo(
     () => [...rawPersonShareholders].sort(compareShareholderEntries),
     [rawPersonShareholders]
@@ -1236,46 +1275,39 @@ export const PersonList: React.FC<PersonListProps> = ({
       .filter(Boolean)
   );
 
-  const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
-    if (!highestSharePerson) return { isUBO: false };
-    const isUltimateBeneficialOwner = highestSharePerson._id === person._id;
-    return {
-      isUBO: isUltimateBeneficialOwner,
-      companyName: isUltimateBeneficialOwner ? company?.name : undefined,
-    };
-  };
-
   // Get representatives from company.representationalSchema directly
   // Representatives are persons with roles EXCEPT those who ONLY have "Shareholder" role
   // role is now an array of strings in the schema
-  const representatives = (company?.representationalSchema || [])
-    .map((rep: any) => {
-      const personData = rep.personId || {};
-      // role is already an array of strings
-      const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
-      // Get companyId if person is from a shareholding company
-      const companyIdData = rep.companyId || null;
-      const companyName = companyIdData?.name || null;
-      const repPersonId = getEntityId(personData);
-      const linkedPersonId =
-        repPersonId ||
-        getEntityId(rep?.personId) ||
-        getEntityId(personData?._id) ||
-        getEntityId((personData as any)?.id);
-      return {
-        ...personData,
-        roles: roles,
-        companyId: companyIdData?._id || companyIdData || null,
-        companyName: companyName,
-        origin: companyName ? "ShareholdingCompany" : "DirectPerson",
-        isShareholder: Boolean(linkedPersonId && personShareholderIds.has(linkedPersonId)),
-      };
-    })
-    .filter((person: any) => {
-      // Include if person has roles other than just "Shareholder"
-      const roles = person.roles || [];
-      return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
-    });
+  const representatives = useMemo(() => {
+    return (company?.representationalSchema || [])
+      .map((rep: any) => {
+        const personData = rep.personId || {};
+        // role is already an array of strings
+        const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+        // Get companyId if person is from a shareholding company
+        const companyIdData = rep.companyId || null;
+        const companyName = companyIdData?.name || null;
+        const repPersonId = getEntityId(personData);
+        const linkedPersonId =
+          repPersonId ||
+          getEntityId(rep?.personId) ||
+          getEntityId(personData?._id) ||
+          getEntityId((personData as any)?.id);
+        return {
+          ...personData,
+          roles: roles,
+          companyId: companyIdData?._id || companyIdData || null,
+          companyName: companyName,
+          origin: companyName ? "ShareholdingCompany" : "DirectPerson",
+          isShareholder: Boolean(linkedPersonId && personShareholderIds.has(linkedPersonId)),
+        };
+      })
+      .filter((person: any) => {
+        // Include if person has roles other than just "Shareholder"
+        const roles = person.roles || [];
+        return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
+      });
+  }, [company?.representationalSchema, personShareholderIds]);
 
   const representativeIdSet = useMemo(() => {
     const ids = new Set<string>();
@@ -1294,34 +1326,167 @@ export const PersonList: React.FC<PersonListProps> = ({
 
   const existingRepresentativeIds = useMemo(() => Array.from(representativeIdSet), [representativeIdSet]);
 
-  // Sort representatives: person shareholders first, then people from shareholding companies
-  // Within each group, maintain UBO priority (UBO appears first)
-  const sortedRepresentatives = [...representatives].sort((a: any, b: any) => {
-    // UBO always comes first
-    if (highestSharePerson) {
-      const highestId = highestSharePerson._id || highestSharePerson.id;
-      const aId = a._id || a.id;
-      const bId = b._id || b.id;
-      const aIsHighest = aId === highestId;
-      const bIsHighest = bId === highestId;
-      if (aIsHighest && !bIsHighest) return -1;
-      if (!aIsHighest && bIsHighest) return 1;
+  // State to store person relationships in other companies
+  const [personRelationships, setPersonRelationships] = useState<Record<string, { shareholderIn: string[]; representativeIn: string[] }>>({});
+  const [isLoadingRelationships, setIsLoadingRelationships] = useState(false);
+
+  // Memoize representative IDs to prevent unnecessary re-fetches
+  const representativeIds = useMemo(() => {
+    return representatives.map((rep: any) => {
+      const personId = getEntityId(rep._id) || getEntityId(rep.id);
+      return personId;
+    }).filter(Boolean) as string[];
+  }, [representatives]);
+
+  // Create a stable string key from representative IDs to track if we've already fetched
+  const representativeIdsKey = useMemo(() => {
+    return representativeIds.sort().join(',');
+  }, [representativeIds]);
+
+  // Use refs to track fetching state and prevent duplicate calls
+  const isFetchingRef = useRef(false);
+  const lastFetchedKeyRef = useRef<string>('');
+  const lastFetchedClientIdForRelationshipsRef = useRef<string>('');
+
+  // Fetch person relationships from other companies
+  // Only fetch when representatives tab is active and we have representatives
+  useEffect(() => {
+    const fetchPersonRelationships = async () => {
+      // Only fetch if we're on the representatives tab and have representatives
+      if (activeTab !== "representatives" || representativeIds.length === 0) {
+        // Reset relationships if we switch tabs
+        if (activeTab !== "representatives") {
+          setPersonRelationships({});
+        }
+        return;
+      }
+
+      // Prevent duplicate calls - check if we're already fetching
+      if (isFetchingRef.current) {
+        return;
+      }
+
+      // Check if we've already fetched for this exact combination
+      const currentKey = `${clientId}-${companyId}-${representativeIdsKey}`;
+      if (lastFetchedKeyRef.current === currentKey && lastFetchedClientIdForRelationshipsRef.current === clientId) {
+        return;
+      }
+
+      try {
+        isFetchingRef.current = true;
+        setIsLoadingRelationships(true);
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          isFetchingRef.current = false;
+          setIsLoadingRelationships(false);
+          return;
+        }
+
+        // Fetch all companies for this client
+        const response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
+          {
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          isFetchingRef.current = false;
+          setIsLoadingRelationships(false);
+          return;
+        }
+        const result = await response.json();
+        const allCompanies = result.data || [];
+
+        const relationships: Record<string, { shareholderIn: string[]; representativeIn: string[] }> = {};
+
+        // Create a set of person IDs for faster lookup
+        const personIdSet = new Set(representativeIds);
+
+        // Pre-process companies to create lookup maps for better performance
+        const shareholderMap = new Map<string, Set<string>>(); // companyId -> Set<personId>
+        const representativeMap = new Map<string, Set<string>>(); // companyId -> Set<personId>
+
+        allCompanies.forEach((otherCompany: any) => {
+          const otherCompanyId = otherCompany._id || otherCompany.id;
+          if (otherCompanyId === companyId) return;
+
+          const shareholderSet = new Set<string>();
+          const representativeSet = new Set<string>();
+
+          // Build shareholder map
+          if (Array.isArray(otherCompany.shareHolders)) {
+            otherCompany.shareHolders.forEach((sh: any) => {
+              const shPersonId = getEntityId(sh?.personId?._id) || getEntityId(sh?.personId?.id) || getEntityId(sh?.personId);
+              if (shPersonId && personIdSet.has(shPersonId)) {
+                shareholderSet.add(shPersonId);
+              }
+            });
+          }
+
+          // Build representative map
+          if (Array.isArray(otherCompany.representationalSchema)) {
+            otherCompany.representationalSchema.forEach((rs: any) => {
+              const rsPersonId = getEntityId(rs?.personId?._id) || getEntityId(rs?.personId?.id) || getEntityId(rs?.personId);
+              if (rsPersonId && personIdSet.has(rsPersonId)) {
+                representativeSet.add(rsPersonId);
+              }
+            });
+          }
+
+          if (shareholderSet.size > 0) {
+            shareholderMap.set(otherCompanyId, shareholderSet);
+          }
+          if (representativeSet.size > 0) {
+            representativeMap.set(otherCompanyId, representativeSet);
+          }
+        });
+
+        // Now build relationships using the maps
+        representativeIds.forEach((personId) => {
+          relationships[personId] = {
+            shareholderIn: [],
+            representativeIn: [],
+          };
+
+          // Check shareholder relationships
+          shareholderMap.forEach((personSet, otherCompanyId) => {
+            if (personSet.has(personId)) {
+              const otherCompany = allCompanies.find((c: any) => (c._id || c.id) === otherCompanyId);
+              if (otherCompany?.name) {
+                relationships[personId].shareholderIn.push(otherCompany.name);
+              }
+            }
+          });
+
+          // Check representative relationships
+          representativeMap.forEach((personSet, otherCompanyId) => {
+            if (personSet.has(personId)) {
+              const otherCompany = allCompanies.find((c: any) => (c._id || c.id) === otherCompanyId);
+              if (otherCompany?.name) {
+                relationships[personId].representativeIn.push(otherCompany.name);
+              }
+            }
+          });
+        });
+
+        setPersonRelationships(relationships);
+        lastFetchedKeyRef.current = currentKey;
+        lastFetchedClientIdForRelationshipsRef.current = clientId || '';
+      } catch (error) {
+        console.error("Error fetching person relationships:", error);
+      } finally {
+        isFetchingRef.current = false;
+        setIsLoadingRelationships(false);
+      }
+    };
+
+    if (clientId && companyId) {
+      fetchPersonRelationships();
     }
-
-    // Check if person is a person shareholder (exists in personShareholders)
-    const aIsPersonShareholder = personShareholderIds.has(a._id || a.id);
-    const bIsPersonShareholder = personShareholderIds.has(b._id || b.id);
-
-    // Person shareholders come before people from shareholding companies
-    if (aIsPersonShareholder && !bIsPersonShareholder) return -1;
-    if (!aIsPersonShareholder && bIsPersonShareholder) return 1;
-
-    // Within same group, maintain alphabetical order by name
-    const nameA = (a.name || "").toLowerCase();
-    const nameB = (b.name || "").toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
+  }, [clientId, companyId, activeTab, representativeIdsKey]);
 
     // Check if there are shareholding companies
   
@@ -1392,34 +1557,202 @@ export const PersonList: React.FC<PersonListProps> = ({
     [company?.shareHoldingCompanies, companyLookup]
   );
 
-  const combinedShareholders = useMemo(
-    () =>
-      [
-        ...personShareholders.map((person: any) => ({
+  // Group shareholders by ID and aggregate all share classes
+  const combinedShareholders = useMemo(() => {
+    const companyTotalShares = company?.totalShares || 0;
+    
+    // Group person shareholders by person ID
+    const personMap = new Map<string, any>();
+    (company?.shareHolders || []).forEach((shareHolder: any) => {
+      const personData = shareHolder.personId || {};
+      const personId = personData._id || personData.id || personData;
+      const personIdStr = String(personId);
+      
+      if (!personMap.has(personIdStr)) {
+        personMap.set(personIdStr, {
           type: "person" as const,
-          displayName: person.name ?? "Unknown",
-          shareClass: person.shareClass,
-          sharePercentage: getNumericPercentage(person.sharePercentage),
-          totalShares: getNumericPercentage(person.totalShares),
-          payload: person,
-        })),
-        ...shareholdingCompanies.map((companyShare: any) => ({
+          id: personIdStr,
+          name: personData.name ?? "Unknown",
+          address: personData.address,
+          nationality: personData.nationality,
+          sharesData: [],
+          totalShares: 0,
+        });
+      }
+      
+      const personEntry = personMap.get(personIdStr)!;
+      const sharesDataArray = Array.isArray(shareHolder?.sharesData) ? shareHolder.sharesData : [];
+      
+      // Add all share classes from this shareHolder entry
+      sharesDataArray.forEach((sd: any) => {
+        const shareCount = Number(sd?.totalShares) || 0;
+        if (shareCount > 0) {
+          const existingClass = personEntry.sharesData.find(
+            (s: any) => s.class === sd.class && s.type === (sd.type || "Ordinary")
+          );
+          if (existingClass) {
+            existingClass.totalShares += shareCount;
+          } else {
+            personEntry.sharesData.push({
+              class: sd.class || "A",
+              type: sd.type || "Ordinary",
+              totalShares: shareCount,
+            });
+          }
+          personEntry.totalShares += shareCount;
+        }
+      });
+    });
+    
+    // Group company shareholders by company ID
+    const companyMap = new Map<string, any>();
+    (company?.shareHoldingCompanies || []).forEach((share: any) => {
+      const companyId =
+        share.companyId && typeof share.companyId === "object" && share.companyId !== null
+          ? share.companyId._id
+          : share.companyId;
+      
+      if (!companyId) return;
+      
+      const companyIdStr = String(companyId);
+      const metadata = getCompanyMetadata(companyId);
+      const companyName =
+        (share.companyId && typeof share.companyId === "object" && share.companyId !== null
+          ? share.companyId.name
+          : undefined) ||
+        metadata?.name ||
+        "Unknown Company";
+      const registrationNumber =
+        (share.companyId && typeof share.companyId === "object" && share.companyId !== null
+          ? share.companyId.registrationNumber
+          : undefined) || metadata?.registrationNumber;
+      const companyClientId =
+        (share.companyId && typeof share.companyId === "object" && share.companyId !== null
+          ? share.companyId.clientId
+          : undefined) || metadata?.clientId;
+      
+      if (!companyMap.has(companyIdStr)) {
+        companyMap.set(companyIdStr, {
           type: "company" as const,
-          displayName: companyShare.companyName ?? "Unknown Company",
-          shareClass: companyShare.shareClass,
-          sharePercentage: getNumericPercentage(companyShare.sharePercentage),
-          totalShares: getNumericPercentage(companyShare.totalShares),
-          payload: companyShare,
-        })),
-      ].sort((a, b) => {
-        const shareDiff = b.sharePercentage - a.sharePercentage;
-        if (shareDiff !== 0) return shareDiff;
-        const classDiff = getShareClassPriority(a.shareClass) - getShareClassPriority(b.shareClass);
-        if (classDiff !== 0) return classDiff;
-        return a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase());
-      }),
-    [personShareholders, shareholdingCompanies]
-  );
+          id: companyIdStr,
+          companyId,
+          companyName,
+          registrationNumber,
+          clientId: companyClientId,
+          sharesData: [],
+          totalShares: 0,
+        });
+      }
+      
+      const companyEntry = companyMap.get(companyIdStr)!;
+      const sharesDataArray = Array.isArray(share?.sharesData) ? share.sharesData : [];
+      
+      // Add all share classes from this share entry
+      sharesDataArray.forEach((sd: any) => {
+        const shareCount = Number(sd?.totalShares) || 0;
+        if (shareCount > 0) {
+          const existingClass = companyEntry.sharesData.find(
+            (s: any) => s.class === sd.class && s.type === (sd.type || "Ordinary")
+          );
+          if (existingClass) {
+            existingClass.totalShares += shareCount;
+          } else {
+            companyEntry.sharesData.push({
+              class: sd.class || "A",
+              type: sd.type || "Ordinary",
+              totalShares: shareCount,
+            });
+          }
+          companyEntry.totalShares += shareCount;
+        }
+      });
+    });
+    
+    // Convert maps to arrays and calculate percentages
+    const personEntries = Array.from(personMap.values()).map((person) => ({
+      ...person,
+      sharePercentage: companyTotalShares > 0 ? (person.totalShares / companyTotalShares) * 100 : 0,
+    }));
+    
+    const companyEntries = Array.from(companyMap.values()).map((comp) => ({
+      ...comp,
+      sharePercentage: companyTotalShares > 0 ? (comp.totalShares / companyTotalShares) * 100 : 0,
+    }));
+    
+    // Combine: persons first, then companies, then sort by share percentage within each group
+    const sortedPersons = personEntries.sort((a, b) => {
+      const shareDiff = b.sharePercentage - a.sharePercentage;
+      if (shareDiff !== 0) return shareDiff;
+      return (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase());
+    });
+    
+    const sortedCompanies = companyEntries.sort((a, b) => {
+      const shareDiff = b.sharePercentage - a.sharePercentage;
+      if (shareDiff !== 0) return shareDiff;
+      return (a.companyName || "").toLowerCase().localeCompare((b.companyName || "").toLowerCase());
+    });
+    
+    return [...sortedPersons, ...sortedCompanies];
+  }, [company?.shareHolders, company?.shareHoldingCompanies, company?.totalShares, companyLookup]);
+
+  // Find highest shareholder from ALL shareholders (persons and companies)
+  const highestShareholder = useMemo(() => {
+    if (!combinedShareholders || combinedShareholders.length === 0) return null;
+    
+    return combinedShareholders.reduce((best: any | null, current: any) => {
+      if (!best) return current;
+      const currentPercentage = current?.sharePercentage ?? 0;
+      const bestPercentage = best?.sharePercentage ?? 0;
+      return currentPercentage > bestPercentage ? current : best;
+    }, null);
+  }, [combinedShareholders]);
+
+  const isUBO = (person: Person): { isUBO: boolean; companyName?: string } => {
+    if (!highestShareholder) return { isUBO: false };
+    
+    // Check if this person is the highest shareholder
+    const personId = getEntityId(person._id) || getEntityId((person as any)?.id);
+    const highestId = highestShareholder.type === "person" 
+      ? getEntityId(highestShareholder.id)
+      : null;
+    
+    const isUltimateBeneficialOwner = personId && highestId && personId === highestId;
+    
+    return {
+      isUBO: isUltimateBeneficialOwner,
+      companyName: isUltimateBeneficialOwner ? company?.name : undefined,
+    };
+  };
+
+  // Sort representatives: person shareholders first, then people from shareholding companies
+  // Within each group, maintain UBO priority (UBO appears first)
+  const sortedRepresentatives = useMemo(() => {
+    return [...representatives].sort((a: any, b: any) => {
+      // UBO always comes first
+      if (highestShareholder && highestShareholder.type === "person") {
+        const highestId = getEntityId(highestShareholder.id);
+        const aId = getEntityId(a._id) || getEntityId(a.id);
+        const bId = getEntityId(b._id) || getEntityId(b.id);
+        const aIsHighest = aId && highestId && aId === highestId;
+        const bIsHighest = bId && highestId && bId === highestId;
+        if (aIsHighest && !bIsHighest) return -1;
+        if (!aIsHighest && bIsHighest) return 1;
+      }
+
+      // Check if person is a person shareholder (exists in personShareholders)
+      const aIsPersonShareholder = personShareholderIds.has(a._id || a.id);
+      const bIsPersonShareholder = personShareholderIds.has(b._id || b.id);
+
+      // Person shareholders come before people from shareholding companies
+      if (aIsPersonShareholder && !bIsPersonShareholder) return -1;
+      if (!aIsPersonShareholder && bIsPersonShareholder) return 1;
+
+      // Within same group, maintain alphabetical order by name
+      const nameA = (a.name || "").toLowerCase();
+      const nameB = (b.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [representatives, highestShareholder, personShareholderIds]);
 
   if (isLoading) {
     return (
@@ -1445,7 +1778,7 @@ export const PersonList: React.FC<PersonListProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
               size="sm"
@@ -1647,7 +1980,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
+          </div> */}
         </div>
 
         {/* Tabs */}
@@ -1669,25 +2002,56 @@ export const PersonList: React.FC<PersonListProps> = ({
             </TabsTrigger>
           </TabsList>
           <div className="flex gap-5 mt-4">
-            <Button
-              variant="default"
-              className="w-full rounded-xl border-gray-300"
-              onClick={() => {
-                if (activeTab === "representatives") {
-                  setIsAddRepresentativeModalOpen(true);
-                } else {
-                  setIsAddShareholderModalOpen(true);
-                }
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {activeTab === "representatives"
-                ? "Add Representative"
-                : "Add Shareholder"}
-            </Button>
+            {activeTab === "representatives" ? (
+              <>
+                <Button
+                  variant="default"
+                  className="flex-1 rounded-xl border-gray-300"
+                  onClick={() => setIsAddPersonRepresentativeModalOpen(true)}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Add Person
+                </Button>
+                <Button
+                  variant="default"
+                  className="flex-1 rounded-xl border-gray-300"
+                  onClick={() => setIsAddCompanyRepresentativeModalOpen(true)}
+                >
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Add Company
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="default"
+                  className="flex-1 rounded-xl border-gray-300"
+                  onClick={() => setIsAddPersonShareholderModalOpen(true)}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Add Person
+                </Button>
+                <Button
+                  variant="default"
+                  className="flex-1 rounded-xl border-gray-300"
+                  onClick={() => setIsAddCompanyShareholderModalOpen(true)}
+                >
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Add Company
+                </Button>
+              </>
+            )}
           </div>
           {/* Representatives Tab */}
           <TabsContent value="representatives" className="space-y-4 mt-6 h-96 overflow-y-auto">
+            {isLoadingRelationships && Object.keys(personRelationships).length === 0 && (
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Loading relationships...</span>
+                </div>
+              </div>
+            )}
              {sortedRepresentatives.length > 0 ? (
               <div className="space-y-4">
                 {sortedRepresentatives.map((person) => {
@@ -1756,6 +2120,39 @@ export const PersonList: React.FC<PersonListProps> = ({
                               </div>
                             )}
 
+                            {/* Person relationships in other companies */}
+                            {(() => {
+                              const personId = getEntityId(person._id) || getEntityId(person.id);
+                              const relationships = personId ? personRelationships[personId] : null;
+                              
+                              if (!relationships || (relationships.shareholderIn.length === 0 && relationships.representativeIn.length === 0)) {
+                                return null;
+                              }
+
+                              return (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  {relationships.shareholderIn.map((companyName: string, index: number) => (
+                                    <Badge
+                                      key={`shareholder-${personId}-${index}`}
+                                      variant="outline"
+                                      className="rounded-xl px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200"
+                                    >
+                                      Shareholder from {companyName}
+                                    </Badge>
+                                  ))}
+                                  {relationships.representativeIn.map((companyName: string, index: number) => (
+                                    <Badge
+                                      key={`representative-${personId}-${index}`}
+                                      variant="outline"
+                                      className="rounded-xl px-2 py-1 text-xs font-semibold bg-green-50 text-green-700 border-green-200"
+                                    >
+                                      Representative from {companyName}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+
                             {/* Address and Nationality */}
                             <div className="space-y-2">
                               {person.address && (
@@ -1773,45 +2170,22 @@ export const PersonList: React.FC<PersonListProps> = ({
                           </div>
 
                           <div className="flex gap-2 ml-4">
-                            {isShareholdingCompanyPerson ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditPerson(person)}
-                                  className="rounded-xl hover:bg-gray-100"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(person, true)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditPerson(person)}
-                                  className="rounded-xl hover:bg-gray-100"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(person, true)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditPerson(person)}
+                              className="rounded-xl hover:bg-gray-100"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteClick(person, true)}
+                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -1832,6 +2206,140 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </Button>
               </div>
             )}
+
+            {/* Company Representatives Section */}
+            {(company?.representationalCompany || []).length > 0 && (
+              <div className="mt-6 pt-6 border-t">
+                <h4 className="text-md font-semibold text-gray-900 mb-4">
+                  Company Representatives
+                </h4>
+                <div className="space-y-4">
+                  {(company?.representationalCompany || []).map((repCompany: any) => {
+                    const companyData = repCompany.companyId || {};
+                    const roles = Array.isArray(repCompany.role) ? repCompany.role : (repCompany.role ? [repCompany.role] : []);
+                    const rolesArray = roles.filter((r: string) => r !== "Shareholder");
+                    const companyId_rep = companyData._id || companyData.id || companyData;
+
+                    return (
+                      <Card
+                        key={repCompany._id || repCompany.id}
+                        className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-3">
+                                <Building2 className="h-5 w-5 text-gray-600" />
+                                <h4 className="text-lg font-semibold text-gray-900">
+                                  {companyData.name}
+                                </h4>
+                              </div>
+
+                              {companyData.registrationNumber && (
+                                <div className="text-sm text-gray-600 mb-3">
+                                  Registration: {companyData.registrationNumber}
+                                </div>
+                              )}
+
+                              {/* Roles (excluding Shareholder) */}
+                              {rolesArray.length > 0 && (
+                                <div className="flex flex-wrap gap-3 mb-3">
+                                  {rolesArray.map((role: string, index: number) => (
+                                    <Badge
+                                      key={`${repCompany._id || repCompany.id}-role-${index}`}
+                                      variant="outline"
+                                      className={`rounded-xl px-2 py-1 text-xs font-semibold ${getRoleBadgeVariant(role)}`}
+                                    >
+                                      {role}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+
+                              {companyData.address && (
+                                <div className="text-sm text-gray-600">
+                                  <span className="text-xs">{companyData.address}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  // Navigate to company details
+                                  const metadata = getCompanyMetadata(companyId_rep);
+                                  const resolvedClientId = metadata?.clientId || clientId;
+                                  handleNavigateToCompany(companyId_rep, resolvedClientId);
+                                }}
+                                className="rounded-xl hover:bg-gray-100"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    const { data: sessionData } = await supabase.auth.getSession();
+                                    if (!sessionData.session) throw new Error("Not authenticated");
+
+                                    // Remove company from representationalCompany
+                                    const currentCompany = company || {};
+                                    const updatedRepresentationalCompany =
+                                      (currentCompany.representationalCompany || []).filter(
+                                        (rc: any) => {
+                                          const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
+                                          return String(rcId) !== String(companyId_rep);
+                                        }
+                                      );
+
+                                    const response = await fetch(
+                                      `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+                                      {
+                                        method: "PUT",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                          Authorization: `Bearer ${sessionData.session.access_token}`,
+                                        },
+                                        body: JSON.stringify({
+                                          ...currentCompany,
+                                          representationalCompany: updatedRepresentationalCompany,
+                                        }),
+                                      }
+                                    );
+
+                                    if (!response.ok) throw new Error("Failed to remove company representative");
+
+                                    toast({
+                                      title: "Success",
+                                      description: "Company representative removed successfully",
+                                    });
+
+                                    onUpdate();
+                                  } catch (error: any) {
+                                    console.error("Error removing company representative:", error);
+                                    toast({
+                                      title: "Error",
+                                      description: error.message || "Failed to remove company representative",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
            </TabsContent>
 
           {/* Shareholders Tab */}
@@ -1847,13 +2355,13 @@ export const PersonList: React.FC<PersonListProps> = ({
               <div className="space-y-4">
                 {combinedShareholders.map((entry, index) => {
                   if (entry.type === "person") {
-                    const person = entry.payload;
                     const totalShares = entry.totalShares;
-                    const sharePercentage = entry.sharePercentage;
-                    const shareClass = entry.shareClass || "General";
+                    const sharePercentage = entry.sharePercentage.toFixed(2);
+                    const sharesData = entry.sharesData || [];
+                    
                     return (
                       <Card
-                        key={person._id || person.id || `person-shareholder-${index}`}
+                        key={entry.id || `person-shareholder-${index}`}
                         className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
                       >
                         <CardContent className="p-6">
@@ -1861,31 +2369,47 @@ export const PersonList: React.FC<PersonListProps> = ({
                             <div className="flex-1">
                               <div className="flex items-center gap-3 mb-3">
                                 <h4 className="text-lg font-semibold text-gray-900 capitalize">
-                                  {person.name}
+                                  {entry.name}
                                 </h4>
-                                <Badge
-                                  variant="outline"
-                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                                >
-                                  {shareClass}
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                                >
-                                  {totalShares.toLocaleString()} shares ({sharePercentage}%)
-                                </Badge>
                               </div>
+                              
+                              {/* Share Classes Display */}
+                              <div className="mb-3 space-y-2">
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  {sharesData.map((sd: any, idx: number) => (
+                                    <Badge
+                                      key={`${entry.id}-class-${idx}`}
+                                      variant="outline"
+                                      className="bg-blue-50 text-blue-700 border-blue-200 rounded-lg px-3 py-1 text-sm font-medium"
+                                    >
+                                      Class {sd.class}: {sd.totalShares.toLocaleString()}
+                                    </Badge>
+                                  ))}
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                  >
+                                    Total: {totalShares.toLocaleString()}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                  >
+                                    {sharePercentage}%
+                                  </Badge>
+                                </div>
+                              </div>
+                              
                               <div className="space-y-2">
-                                {person.address && (
+                                {entry.address && (
                                   <div className="flex items-start gap-2 text-sm text-gray-600">
-                                    <span className="text-xs">{person.address}</span>
+                                    <span className="text-xs">{entry.address}</span>
                                   </div>
                                 )}
-                                {person.nationality && (
+                                {entry.nationality && (
                                   <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <Globe className="h-4 w-4" />
-                                    <span>{person.nationality}</span>
+                                    <span>{entry.nationality}</span>
                                   </div>
                                 )}
                               </div>
@@ -1894,16 +2418,28 @@ export const PersonList: React.FC<PersonListProps> = ({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleEditPerson(person)}
+                                onClick={() => {
+                                  // Find the person object from rawPersonShareholders
+                                  const person = rawPersonShareholders.find(
+                                    (p: any) => String(p._id || p.id) === entry.id
+                                  );
+                                  if (person) handleEditPerson(person);
+                                }}
                                 className="rounded-xl hover:bg-gray-100"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
-                                variant="ghost"
+                                variant="destructive"
                                 size="sm"
-                                onClick={() => handleDeleteClick(person, false)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                onClick={() => {
+                                  // Find the person object from rawPersonShareholders
+                                  const person = rawPersonShareholders.find(
+                                    (p: any) => String(p._id || p.id) === entry.id
+                                  );
+                                  if (person) handleDeleteClick(person, false);
+                                }}
+                                className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1914,10 +2450,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                     );
                   }
 
-                  const share = entry.payload;
+                  // Company shareholder
+                  const totalShares = entry.totalShares;
+                  const sharePercentage = entry.sharePercentage.toFixed(2);
+                  const sharesData = entry.sharesData || [];
+                  
                   return (
                     <Card
-                      key={share.companyId || `company-shareholder-${index}`}
+                      key={entry.id || `company-shareholder-${index}`}
                       className="bg-white/80 border border-white/50 rounded-xl shadow-sm hover:bg-white/70 transition-all"
                     >
                       <CardContent className="p-6">
@@ -1925,33 +2465,46 @@ export const PersonList: React.FC<PersonListProps> = ({
                           <div
                             className="flex-1 cursor-pointer"
                             onClick={() =>
-                              handleNavigateToCompany(share.companyId, share.clientId)
+                              handleNavigateToCompany(entry.companyId, entry.clientId)
                             }
                           >
                             <div className="flex items-center gap-3 mb-3">
                               <Building2 className="h-5 w-5 text-gray-600" />
                               <h4 className="text-lg font-semibold text-gray-900 hover:text-brand-hover transition-colors">
-                                {share.companyName}
+                                {entry.companyName}
                               </h4>
-                              {share.shareClass && (
+                            </div>
+                            
+                            {/* Share Classes Display */}
+                            <div className="mb-3 space-y-2">
+                              <div className="flex flex-wrap gap-2 items-center">
+                                {sharesData.map((sd: any, idx: number) => (
+                                  <Badge
+                                    key={`${entry.id}-class-${idx}`}
+                                    variant="outline"
+                                    className="bg-blue-50 text-blue-700 border-blue-200 rounded-lg px-3 py-1 text-sm font-medium"
+                                  >
+                                    Class {sd.class}: {sd.totalShares.toLocaleString()}
+                                  </Badge>
+                                ))}
                                 <Badge
                                   variant="outline"
-                                  className="bg-green-100 text-green-700 border-green-200 rounded-xl px-3 py-1 text-sm font-semibold"
+                                  className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
                                 >
-                                  {share.shareClass}
+                                  Total: {totalShares.toLocaleString()}
                                 </Badge>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className="bg-blue-100 text-blue-700 border-blue-200 rounded-xl px-3 py-1 text-sm font-semibold"
-                              >
-                                {share.totalShares.toLocaleString()} shares ({share.sharePercentage}
-                                %)
-                              </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                >
+                                  {sharePercentage}%
+                                </Badge>
+                              </div>
                             </div>
-                            {share.registrationNumber && (
+                            
+                            {entry.registrationNumber && (
                               <div className="text-sm text-gray-600">
-                                Registration: {share.registrationNumber}
+                                Registration: {entry.registrationNumber}
                               </div>
                             )}
                           </div>
@@ -1961,20 +2514,28 @@ export const PersonList: React.FC<PersonListProps> = ({
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleEditCompanyShare(share);
+                                // Find the company share object
+                                const companyShare = shareholdingCompanies.find(
+                                  (cs: any) => String(cs.companyId) === String(entry.companyId)
+                                );
+                                if (companyShare) handleEditCompanyShare(companyShare);
                               }}
                               className="rounded-xl hover:bg-gray-100"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteCompanyShareClick(share);
+                                // Find the company share object
+                                const companyShare = shareholdingCompanies.find(
+                                  (cs: any) => String(cs.companyId) === String(entry.companyId)
+                                );
+                                if (companyShare) handleDeleteCompanyShareClick(companyShare);
                               }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -2345,34 +2906,60 @@ export const PersonList: React.FC<PersonListProps> = ({
         existingRepresentativeIds={existingRepresentativeIds}
       />
 
-      {/* Add Shareholder Modal */}
-      <AddShareholderRepresentativeModal
-        isOpen={isAddShareholderModalOpen}
-        onClose={() => setIsAddShareholderModalOpen(false)}
+      {/* Add Person Shareholder Modal */}
+      <AddShareholderModal
+        isOpen={isAddPersonShareholderModalOpen}
+        onClose={() => setIsAddPersonShareholderModalOpen(false)}
         onSuccess={() => {
           fetchPersons();
           onUpdate();
         }}
         clientId={clientId}
         companyId={companyId}
-        mode="shareholder"
+        entityType="person"
         companyTotalShares={company?.totalShares || 0}
         existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
       />
 
-      {/* Add Representative Modal */}
-      <AddShareholderRepresentativeModal
-        isOpen={isAddRepresentativeModalOpen}
-        onClose={() => setIsAddRepresentativeModalOpen(false)}
+      {/* Add Company Shareholder Modal */}
+      <AddShareholderModal
+        isOpen={isAddCompanyShareholderModalOpen}
+        onClose={() => setIsAddCompanyShareholderModalOpen(false)}
         onSuccess={() => {
           fetchPersons();
           onUpdate();
         }}
         clientId={clientId}
         companyId={companyId}
-        mode="representative"
+        entityType="company"
         companyTotalShares={company?.totalShares || 0}
         existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+      />
+
+      {/* Add Person Representative Modal */}
+      <AddRepresentativeModal
+        isOpen={isAddPersonRepresentativeModalOpen}
+        onClose={() => setIsAddPersonRepresentativeModalOpen(false)}
+        onSuccess={() => {
+          fetchPersons();
+          onUpdate();
+        }}
+        clientId={clientId}
+        companyId={companyId}
+        entityType="person"
+      />
+
+      {/* Add Company Representative Modal */}
+      <AddRepresentativeModal
+        isOpen={isAddCompanyRepresentativeModalOpen}
+        onClose={() => setIsAddCompanyRepresentativeModalOpen(false)}
+        onSuccess={() => {
+          fetchPersons();
+          onUpdate();
+        }}
+        clientId={clientId}
+        companyId={companyId}
+        entityType="company"
       />
     </>
   );
