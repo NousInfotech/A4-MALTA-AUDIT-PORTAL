@@ -22,14 +22,14 @@ type ShareholdingCompany = {
     name: string;
     registrationNumber?: string;
   };
-  // Old format
+  // sharePercentage at the shareHoldingCompany level
   sharePercentage?: number;
-  // New normalized format from backend
-  sharesData?: {
-    percentage?: number;
-    totalShares?: number;
-    class?: string;
-  };
+  // sharesData is now an array
+  sharesData?: Array<{
+    totalShares: number;
+    class: string;
+    type: string;
+  }>;
 };
 
 interface SharePieChartProps {
@@ -37,6 +37,7 @@ interface SharePieChartProps {
   companies?: ShareholdingCompany[];
   title?: string;
   dateRangeLabel?: string;
+  companyTotalShares?: number; // Total shares of the company for percentage calculation
 }
 
 const COLORS = [
@@ -57,20 +58,42 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
   companies = [],
   title = "Shareholders",
   dateRangeLabel = "",
+  companyTotalShares = 0,
 }) => {
-  const { normalizedData, totalRaw, companyTotal, personTotal } = useMemo(() => {
-    // Process persons
+  const { normalizedData, totalRaw, companyTotal, personTotal, personTotalShares, companyTotalShares: companySharesTotal, totalSharesSum } = useMemo(() => {
+    // Store prop value in local variable to avoid scoping issues
+    const totalCompanyShares = companyTotalShares;
+    
+    // Process persons - calculate percentage from sharesData if sharePercentage is 0 or missing
     const personData = (persons || [])
-      .map((p) => ({
-        name: p?.name || "Unnamed",
-        value: Number(p?.sharePercentage ?? 0),
-        type: "Person",
-      }))
+      .map((p: any) => {
+        let percentage = Number(p?.sharePercentage ?? 0);
+        let totalShares = 0;
+        
+        // Calculate totalShares from sharesData array
+        if (Array.isArray(p?.sharesData)) {
+          totalShares = p.sharesData.reduce((sum: number, item: any) => {
+            return sum + (Number(item?.totalShares) || 0);
+          }, 0);
+        }
+        
+        // If sharePercentage is 0 or missing, calculate from sharesData array
+        if ((!percentage || percentage === 0) && totalShares > 0 && totalCompanyShares > 0) {
+          percentage = (totalShares / totalCompanyShares) * 100;
+        }
+        
+        return {
+          name: p?.name || "Unnamed",
+          value: percentage,
+          totalShares: totalShares,
+          type: "Person",
+        };
+      })
       .filter((d) => !isNaN(d.value) && d.value > 0);
 
-    // Process companies
+    // Process companies - calculate percentage from sharesData if sharePercentage is 0 or missing
     const companyData = (companies || [])
-      .map((share) => {
+      .map((share: any) => {
         let companyName = "Unknown Company";
         if (share.companyId) {
           if (typeof share.companyId === 'object' && share.companyId.name) {
@@ -79,13 +102,26 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
             companyName = "Unknown Company";
           }
         }
-        const percentage =
-          share?.sharePercentage !== undefined && share?.sharePercentage !== null
-            ? Number(share.sharePercentage)
-            : Number(share?.sharesData?.percentage ?? 0);
+        
+        let percentage = Number(share?.sharePercentage ?? 0);
+        let totalShares = 0;
+        
+        // Calculate totalShares from sharesData array
+        if (Array.isArray(share?.sharesData)) {
+          totalShares = share.sharesData.reduce((sum: number, item: any) => {
+            return sum + (Number(item?.totalShares) || 0);
+          }, 0);
+        }
+        
+        // If sharePercentage is 0 or missing, calculate from sharesData array
+        if ((!percentage || percentage === 0) && totalShares > 0 && totalCompanyShares > 0) {
+          percentage = (totalShares / totalCompanyShares) * 100;
+        }
+        
         return {
           name: companyName,
           value: percentage,
+          totalShares: totalShares,
           type: "Company",
         };
       })
@@ -97,18 +133,45 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
     const personSum = personData.reduce((acc, d) => acc + d.value, 0);
     const companySum = companyData.reduce((acc, d) => acc + d.value, 0);
     const sum = raw.reduce((acc, d) => acc + d.value, 0);
+    
+    // Calculate total shares for persons and companies
+    const personTotalShares = personData.reduce((acc, d) => acc + (d.totalShares || 0), 0);
+    const companySharesTotal = companyData.reduce((acc, d) => acc + (d.totalShares || 0), 0);
+    const totalSharesSum = personTotalShares + companySharesTotal;
 
-    if (sum <= 0) return { normalizedData: [], totalRaw: 0, companyTotal: 0, personTotal: 0 };
+    if (sum <= 0) return { 
+      normalizedData: [], 
+      totalRaw: 0, 
+      companyTotal: 0, 
+      personTotal: 0,
+      personTotalShares: 0,
+      companyTotalShares: 0,
+      totalSharesSum: 0,
+    };
 
-    let parts: { name: string; value: number; type?: string }[];
+    let parts: { name: string; value: number; totalShares?: number; type?: string }[];
     if (sum > 100) {
       const scale = 100 / sum;
-      parts = raw.map((d) => ({ name: d.name, value: d.value * scale, type: d.type }));
+      parts = raw.map((d) => ({ 
+        name: d.name, 
+        value: d.value * scale, 
+        totalShares: d.totalShares,
+        type: d.type 
+      }));
     } else {
       parts = [...raw];
       const remaining = Math.max(0, 100 - sum);
-      if (remaining > 0.0001)
-        parts.push({ name: "Remaining Shares", value: remaining });
+      if (remaining > 0.0001) {
+        // Calculate remaining shares based on remaining percentage
+        const remainingShares = totalCompanyShares > 0 
+          ? Math.round((remaining / 100) * totalCompanyShares)
+          : 0;
+        parts.push({ 
+          name: "Remaining Shares", 
+          value: remaining,
+          totalShares: remainingShares
+        });
+      }
     }
 
     return { 
@@ -116,8 +179,11 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       totalRaw: sum,
       companyTotal: companySum,
       personTotal: personSum,
+      personTotalShares: personTotalShares,
+      companyTotalShares: companySharesTotal,
+      totalSharesSum: totalSharesSum,
     };
-  }, [persons, companies]);
+  }, [persons, companies, companyTotalShares]);
 
   return (
     <div className="w-full bg-white border border-border rounded-2xl text-brand-text p-4 sm:p-5 md:p-6 overflow-hidden">
@@ -146,9 +212,11 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                   cx="50%"
                   cy="50%"
                   outerRadius="75%"
-                  label={(entry) =>
-                    `${entry.name}: ${Number(entry.value).toFixed(0)}%`
-                  }
+                  label={(entry) => {
+                    const percentage = Number(entry.value).toFixed(0);
+                    const shares = entry.totalShares ? ` (${Number(entry.totalShares).toLocaleString()} shares)` : '';
+                    return `${entry.name}: ${percentage}%${shares}`;
+                  }}
                   isAnimationActive
                   className="capitalize"
                 >
@@ -199,17 +267,28 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
           <p className="text-base sm:text-lg">
             Total declared shares:{" "}
             <span className="font-bold">{totalRaw.toFixed(0)}%</span>
+            {totalSharesSum > 0 && (
+              <span className="text-gray-600 ml-2">
+                ({totalSharesSum.toLocaleString()} out of {companyTotalShares.toLocaleString()} shares)
+              </span>
+            )}
           </p>
           {(companyTotal > 0 || personTotal > 0) && (
             <div className="flex flex-wrap gap-4 justify-center sm:justify-start text-sm text-gray-600">
               {companyTotal > 0 && (
                 <span>
                   Company shares: <span className="font-semibold text-gray-900">{companyTotal.toFixed(0)}%</span>
+                  {companySharesTotal > 0 && (
+                    <span className="ml-1">({companySharesTotal.toLocaleString()} shares)</span>
+                  )}
                 </span>
               )}
               {personTotal > 0 && (
                 <span>
                   Person shares: <span className="font-semibold text-gray-900">{personTotal.toFixed(0)}%</span>
+                  {personTotalShares > 0 && (
+                    <span className="ml-1">({personTotalShares.toLocaleString()} shares)</span>
+                  )}
                 </span>
               )}
             </div>

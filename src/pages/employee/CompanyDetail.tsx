@@ -16,8 +16,8 @@ import {
   Globe,
   PieChart,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { fetchCompanyById, getCompanyHierarchy } from "@/lib/api/company";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonList } from "@/components/client/PersonList";
@@ -57,18 +57,23 @@ interface Company {
       registrationNumber?: string;
     };
     sharePercentage: number;
-    sharesData?: {
-      percentage?: number;
-      totalShares?: number;
-      class?: string;
-    };
+    sharesData?: Array<{
+      totalShares: number;
+      class: string;
+      type: string;
+    }>;
     companyName?: string;
   }>;
   representative?: (Person & { type?: string }) | (Person & { type?: string })[] | null;
   shareHolders?: Array<{
     personId?: { _id: string; name: string } | string;
     companyId?: { _id: string; name: string } | string;
-    sharesData?: { percentage?: number; totalShares?: number; class?: string };
+    sharePercentage: number;
+    sharesData?: Array<{
+      totalShares: number;
+      class: string;
+      type: string;
+    }>;
   }>;
   createdAt?: string;
 }
@@ -83,6 +88,7 @@ export const CompanyDetail: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
   const [hierarchyRoot, setHierarchyRoot] = useState<any>(null);
+
   const hierarchyData = useMemo(() => {
     const convertNode = (node: any | null | undefined): any => {
       if (!node) return null;
@@ -91,11 +97,15 @@ export const CompanyDetail: React.FC = () => {
         name,
         type,
         percentage,
+        sharePercentage, // Backend sends sharePercentage
         class: className,
         totalShares,
         shareholders,
         children,
         address,
+        nationality,
+        roles,
+        sharesData, // Backend sends sharesData array
       } = node;
 
       const nextChildren = (children || shareholders || []).map((child: any) =>
@@ -106,10 +116,13 @@ export const CompanyDetail: React.FC = () => {
         id: String(id),
         name,
         type,
-        percentage,
+        percentage: percentage ?? sharePercentage, // Use sharePercentage if percentage not present
         class: className,
         totalShares,
         address,
+        nationality,
+        roles,
+        sharesData, // Pass through sharesData if needed
         children: nextChildren,
       };
     };
@@ -158,30 +171,28 @@ export const CompanyDetail: React.FC = () => {
 
     const holderMap = new Map<string, Holder>();
 
+    // Process person shareholders (shareHolders array contains person shareholders)
     if (Array.isArray(company.shareHolders)) {
       company.shareHolders.forEach((share, index) => {
-        const rawPercentage = Number(share?.sharesData?.percentage ?? 0);
-        if (!Number.isFinite(rawPercentage)) return;
+        // sharePercentage is now at the shareHolder level, not in sharesData
+        const rawPercentage = Number(share?.sharePercentage ?? 0);
+        if (!Number.isFinite(rawPercentage) || rawPercentage <= 0) return;
 
-        const isCompany = Boolean(share.companyId);
+        // shareHolders should only contain person shareholders (personId)
+        if (!share.personId) return;
+
         const idRef =
-          (isCompany
-            ? typeof share.companyId === "object"
-              ? share.companyId?._id
-              : share.companyId
-            : typeof share.personId === "object"
+          typeof share.personId === "object"
             ? share.personId?._id
-            : share.personId) ?? `shareholder-${index}`;
+            : share.personId ?? `person-shareholder-${index}`;
 
-        const key = `${isCompany ? "company" : "person"}:${idRef}`;
-        const name = isCompany
-          ? resolveCompanyName(share.companyId)
-          : resolvePersonName(share.personId);
+        const key = `person:${idRef}`;
+        const name = resolvePersonName(share.personId);
 
         const holder: Holder = {
           key,
           name,
-          type: isCompany ? "company" : "person",
+          type: "person",
           percentage: rawPercentage,
         };
 
@@ -192,19 +203,21 @@ export const CompanyDetail: React.FC = () => {
       });
     }
 
+    // Process company shareholders (shareHoldingCompanies array)
     if (Array.isArray(company.shareHoldingCompanies)) {
       company.shareHoldingCompanies.forEach((share, index) => {
-        const rawPercentage = Number(
-          share?.sharesData?.percentage ?? share?.sharePercentage ?? 0
-        );
-        if (!Number.isFinite(rawPercentage)) return;
+        // sharePercentage is now at the shareHoldingCompany level, not in sharesData
+        const rawPercentage = Number(share?.sharePercentage ?? 0);
+        if (!Number.isFinite(rawPercentage) || rawPercentage <= 0) return;
+
+        if (!share.companyId) return;
 
         const companyRef =
           typeof share.companyId === "object" && share.companyId?._id
             ? share.companyId._id
             : typeof share.companyId === "string"
-            ? share.companyId
-            : `shareholding-company-${index}`;
+              ? share.companyId
+              : `shareholding-company-${index}`;
 
         const key = `company:${companyRef}`;
         const name =
@@ -238,7 +251,7 @@ export const CompanyDetail: React.FC = () => {
       (holder) => Math.abs(holder.percentage - maxPercentage) < 0.0001
     );
   }, [company]);
-  
+
   const activeTab = searchParams.get("tab");
   const currentTabFromQuery =
     activeTab && VALID_COMPANY_TABS.includes(activeTab as typeof VALID_COMPANY_TABS[number])
@@ -287,22 +300,8 @@ export const CompanyDetail: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to fetch company details");
-
-      const result = await response.json();
-      setCompany(result.data);
+      const result = await fetchCompanyById(clientId, companyId);
+      setCompany(result.data || null);
     } catch (error: any) {
       console.error("Error fetching company details:", error);
       toast({
@@ -321,7 +320,9 @@ export const CompanyDetail: React.FC = () => {
   const fetchPersonsForChart = async () => {
     if (!companyId || !clientId) return;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      // Note: This endpoint might need to be added to the API file
+      // For now, keeping the fetch but it should be moved to API file later
+      const { data: sessionData } = await import("@/integrations/supabase/client").then(m => m.supabase.auth.getSession());
       if (!sessionData.session) throw new Error("Not authenticated");
 
       const response = await fetch(
@@ -347,23 +348,8 @@ export const CompanyDetail: React.FC = () => {
     if (!companyId || !clientId) return;
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Not authenticated");
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/hierarchy`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch company hierarchy");
-      }
-
-      const result = await response.json();
+      const result = await getCompanyHierarchy(clientId, companyId);
+      console.log("hierarchy data",result);
       if (result?.success && result?.data) {
         setHierarchyRoot(result.data);
       } else if (result) {
@@ -437,37 +423,23 @@ export const CompanyDetail: React.FC = () => {
                 Company Details
               </TabsTrigger>
               <TabsTrigger value="persons" className="rounded-lg">
-              Involvements
+                Involvements
               </TabsTrigger>
               <TabsTrigger value="pie-chart" className="rounded-lg">
-              Distribution
+                Distribution
               </TabsTrigger>
               <TabsTrigger value="company-hierarchy" className="rounded-lg">
-              Company Hierarchy
+                Company Hierarchy
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="p-6 space-y-6 mt-6">
-              {/* Status */}
-              {/* <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={`rounded-xl px-3 py-1 text-sm font-semibold ${
-                    company.status === "active"
-                      ? "bg-green-100 text-green-700 border-green-200"
-                      : "bg-slate-100 text-slate-600 border-slate-200"
-                  }`}
-                >
-                  {company.status}
-                </Badge>
-              </div> */}
-
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">{company.name}</h1>
                 <p className="text-gray-600">
-                 {company.registrationNumber}
+                  {company.registrationNumber}
                 </p>
-            
+
               </div>
 
               {/* Address */}
@@ -481,10 +453,10 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )}
 
-            {company.totalShares && (
+              {company.totalShares && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <PieChart
-                  className="h-5 w-5 text-gray-600 mt-0.5" />
+                    className="h-5 w-5 text-gray-600 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Total Shares</p>
                     <p className="text-gray-900">{company.totalShares}</p>
@@ -492,47 +464,15 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )}
 
-            {company.industry && (
+              {company.industry && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                <Globe className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <Globe className="h-5 w-5 text-gray-600 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Industry</p>
                     <p className="text-gray-900">{company.industry}</p>
                   </div>
                 </div>
               )}
-
-              {/* Timeline */}
-              {/* {(company.timelineStart || company.timelineEnd) && (
-                <div className="grid grid-cols-2 gap-4">
-                  {company.timelineStart && (
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                      <Calendar className="h-5 w-5 text-gray-600" />
-                      <div>
-                        <p className="text-xs text-gray-500 font-medium">
-                          Timeline Start
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {new Date(company.timelineStart).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {company.timelineEnd && (
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                      <Calendar className="h-5 w-5 text-gray-600" />
-                      <div>
-                        <p className="text-xs text-gray-500 font-medium">
-                          Timeline End
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {new Date(company.timelineEnd).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )} */}
 
               {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
               {highestShareholders.length > 0 && (
@@ -580,7 +520,7 @@ export const CompanyDetail: React.FC = () => {
                           return `Document ${index + 1}`;
                         }
                       };
-                      
+
                       return (
                         <div
                           key={index}
@@ -617,7 +557,8 @@ export const CompanyDetail: React.FC = () => {
                     <div className="space-y-2">
                       {company.shareHoldingCompanies.map((share: any, index: number) => {
                         let companyName = "Unknown";
-                        
+                        const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0);
+                        const totalSharePercentage = company.totalShares ? (totalShares / company.totalShares) * 100 : 0;
                         if (share.companyId) {
                           if (typeof share.companyId === 'object' && share.companyId.name) {
                             companyName = share.companyId.name;
@@ -625,19 +566,25 @@ export const CompanyDetail: React.FC = () => {
                             companyName = "Unknown Company";
                           }
                         }
-                        
+
                         return (
                           <div
                             key={index}
-                            className="p-4 bg-gray-50 rounded-xl"
+                            className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm"
                           >
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-semibold text-gray-900">
                               {companyName}
                             </p>
+
+                            <p className="text-xs text-gray-600 mt-1">
+                              {`${totalShares ?? 0} / ${company.totalShares}`} shares
+                            </p>
+
                             <p className="text-xs text-gray-600">
-                              {share.sharesData.percentage}% owned
+                              {(totalSharePercentage ?? 0) + "% owned"}
                             </p>
                           </div>
+
                         );
                       })}
                     </div>
@@ -659,10 +606,23 @@ export const CompanyDetail: React.FC = () => {
               )}
             </TabsContent>
             <TabsContent value="pie-chart" className="p-6 mt-6">
-              <SharePieChart 
-                persons={personsForChart} 
-                companies={company?.shareHoldingCompanies || []}
-                title="Distribution" 
+              <SharePieChart
+                persons={(company?.shareHolders || []).map((shareHolder: any) => {
+                  const personData = shareHolder.personId || {};
+                  return {
+                    _id: typeof personData === 'object' ? personData._id : personData,
+                    name: typeof personData === 'object' ? personData.name : 'Unknown',
+                    sharePercentage: shareHolder.sharePercentage ?? 0,
+                    sharesData: shareHolder.sharesData || [],
+                  };
+                })}
+                companies={(company?.shareHoldingCompanies || []).map((share) => ({
+                  companyId: share.companyId,
+                  sharePercentage: share.sharePercentage ?? 0,
+                  sharesData: share.sharesData || [],
+                }))}
+                companyTotalShares={company?.totalShares || 0}
+                title="Distribution"
               />
             </TabsContent>
             <TabsContent value="company-hierarchy" className="p-6 mt-6">

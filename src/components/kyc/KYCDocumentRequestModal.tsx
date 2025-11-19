@@ -312,11 +312,16 @@ export function KYCDocumentRequestModal({
       };
     }
 
+    const totalShares = sh.sharesData?.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0);
+    const percentage = totalShares > 0 ? (totalShares / company?.totalShares) * 100 : 0;
+
     personsMap[p._id].shareholder = {
-      class: sh.sharesData?.class,
-      percentage: sh.sharesData?.percentage,
-      totalShares: sh.sharesData?.totalShares,
+      // class: sh.sharesData?,
+      percentage: percentage,
+      totalShares: totalShares,
     };
+
+    console.log(p._id, percentage, totalShares);
 
     // Ensure roles[] exists
     if (!personsMap[p._id].roles) personsMap[p._id].roles = [];
@@ -468,12 +473,17 @@ export function KYCDocumentRequestModal({
             )}
 
             <div className="flex flex-wrap gap-2 mt-2">
-              {p.shareholder?.class && (
+              {/* {p.shareholder?.class && (
                 <Badge variant="outline">Class: {p.shareholder.class}</Badge>
-              )}
+              )} */}
               {typeof p.shareholder?.percentage === "number" && (
                 <Badge variant="outline">
                   {p.shareholder.percentage}%
+                </Badge>
+              )}
+              {typeof p.shareholder?.percentage === "number" && (
+                <Badge variant="outline">
+                  {p.shareholder.totalShares}/{company.totalShares} shares
                 </Badge>
               )}
             </div>

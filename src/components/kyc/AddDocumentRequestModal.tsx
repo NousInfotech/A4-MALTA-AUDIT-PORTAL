@@ -175,10 +175,23 @@ export function AddDocumentRequestModal({
         };
       }
 
+      // sharesData is now an array, calculate percentage from totalShares
+      const sharesDataArray = Array.isArray(sh.sharesData) ? sh.sharesData : [];
+      const totalShares = sharesDataArray.reduce((sum: number, item: any) => {
+        return sum + (Number(item?.totalShares) || 0);
+      }, 0);
+      const shareClass = sharesDataArray.length > 0 ? sharesDataArray[0]?.class : undefined;
+      
+      // Calculate percentage: (totalShares / company.totalShares) * 100
+      const companyTotalShares = company?.totalShares || 0;
+      const percentage = companyTotalShares > 0 
+        ? (totalShares / companyTotalShares) * 100 
+        : 0;
+      
       personsMap[p._id].shareholder = {
-        class: sh.sharesData?.class,
-        percentage: sh.sharesData?.percentage,
-        totalShares: sh.sharesData?.totalShares,
+        class: shareClass,
+        percentage: percentage,
+        totalShares: totalShares,
       };
 
       if (!personsMap[p._id].roles) personsMap[p._id].roles = [];
@@ -409,6 +422,9 @@ export function AddDocumentRequestModal({
                               <p className="text-sm text-gray-600">Address: {p.address}</p>
                             )}
                             <div className="flex flex-wrap gap-2 mt-2">
+                              {p.shareholder?.class && (
+                                <Badge variant="outline">Shares: {p.shareholder.totalShares}/{company?.totalShares}</Badge>
+                              )}
                               {p.shareholder?.class && (
                                 <Badge variant="outline">Class: {p.shareholder.class}</Badge>
                               )}

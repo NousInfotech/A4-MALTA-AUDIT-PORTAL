@@ -2,8 +2,6 @@
 
 // @ts-nocheck
 
-import type React from "react"
-
 // Add these imports at the top
 import {
   AlertDialog,
@@ -16,12 +14,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { FolderInputIcon, Trash2, ImageIcon } from "lucide-react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import {
   ChevronRight,
   ChevronDown,
@@ -37,6 +39,14 @@ import {
   Upload,
   Download,
   Loader2,
+  Eye,
+  History,
+  Filter,
+  CheckSquare,
+  Square,
+  X,
+  FileCheck,
+  MoreVertical,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { engagementApi } from "@/services/api"
@@ -73,6 +83,12 @@ interface LibraryFile {
   url: string
   fileName: string
   createdAt: string
+  fileSize?: number
+  uploadedBy?: string
+  uploadedByName?: string
+  uploadedByRole?: string
+  version?: number
+  fileType?: string
 }
 interface DeleteConfirmationDialogProps {
   deleteDialogOpen: boolean
@@ -119,13 +135,36 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [loading, setLoading] = useState(false)
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([])
 
+  
   const [searchTerm, setSearchTerm] = useState("")
+  const [localSearchTerm, setLocalSearchTerm] = useState("")
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
+  const [previewFile, setPreviewFile] = useState<LibraryFile | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+  const [showVersions, setShowVersions] = useState(false)
+  const [showActivity, setShowActivity] = useState(false)
+  const [fileForDetails, setFileForDetails] = useState<LibraryFile | null>(null)
+
+  // Advanced search/filter state
+  const [advancedSearch, setAdvancedSearch] = useState({
+    search: "",
+    fileType: undefined as string | undefined,
+    dateFrom: "",
+    dateTo: "",
+    sortBy: "createdAt",
+    sortOrder: "desc" as "asc" | "desc",
+  })
 
   const { toast } = useToast()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<LibraryFile | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const dropZoneRef = useRef<HTMLDivElement | null>(null)
 
   // In your LibraryTab component
   const handleDelete = async () => {
@@ -171,30 +210,32 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
-  const handleDownload = async (file: LibraryFile) => {
+  const handleDownload = async (file: LibraryFile, useBulk: boolean = false) => {
     try {
       setDownloadingId(file._id)
 
-      // Prefer the stored public URL (it may already include a version flag).
-      // Fall back to path-based download only if url is missing.
+      // If bulk download with multiple files selected
+      if (useBulk && selectedFiles.size > 1) {
+        await handleBulkDownload()
+        return
+      }
+
+      // Single file download
       const downloadUrl = file.url
         ? withVersion(file.url, true)
         : (() => {
             const path = `${engagement._id}/${file.category}/${file.fileName}`
-            // Generate a fresh public URL from the path as a fallback
             const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
             return withVersion(data.publicUrl, true)
           })()
 
-      // Use fetch to control cache behavior explicitly
       const resp = await fetch(downloadUrl, { cache: "no-store" })
       if (!resp.ok) throw new Error(`HTTP ${resp.status} downloading file`)
       const blob = await resp.blob()
 
-      // Create a blob URL and download
       const a = document.createElement("a")
       a.href = URL.createObjectURL(blob)
-      a.download = file.fileName || "download.xlsx" // fallback name
+      a.download = file.fileName || "download.xlsx"
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -209,6 +250,100 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     } finally {
       setDownloadingId(null)
     }
+  }
+
+  // Bulk download handler
+  const handleBulkDownload = async () => {
+    if (selectedFiles.size === 0) return
+
+    try {
+      const fileNames = Array.from(selectedFiles)
+      const filesToDownload = filteredFiles.filter(f => fileNames.includes(f.fileName || f._id))
+
+      // For now, download files individually
+      // In a production environment, you would use a backend endpoint to create ZIP
+      toast({
+        title: "Downloading files",
+        description: `Starting download of ${fileNames.length} file(s)...`,
+      })
+
+      for (const file of filesToDownload) {
+        try {
+          await handleDownload(file, false)
+          // Small delay between downloads to avoid browser blocking
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (err) {
+          console.error(`Failed to download ${file.fileName}:`, err)
+        }
+      }
+
+      setSelectedFiles(new Set())
+      toast({
+        title: "Download complete",
+        description: `Downloaded ${fileNames.length} file(s)`,
+      })
+    } catch (err: any) {
+      toast({
+        title: "Download failed",
+        description: err.message || "Unable to download files",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // File preview handler
+  const handlePreview = async (file: LibraryFile) => {
+    try {
+      const previewUrl = file.url
+        ? withVersion(file.url, false)
+        : (() => {
+            const path = `${engagement._id}/${file.category}/${file.fileName}`
+            const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
+            return withVersion(data.publicUrl, false)
+          })()
+
+      setPreviewFile(file)
+      setPreviewUrl(previewUrl)
+    } catch (err: any) {
+      toast({
+        title: "Preview failed",
+        description: err.message || "Unable to preview file",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Toggle file selection
+  const toggleFileSelection = (fileId: string) => {
+    const newSelection = new Set(selectedFiles)
+    if (newSelection.has(fileId)) {
+      newSelection.delete(fileId)
+    } else {
+      newSelection.add(fileId)
+    }
+    setSelectedFiles(newSelection)
+  }
+
+  const selectAllFiles = () => {
+    if (selectedFiles.size === filteredFiles.length) {
+      setSelectedFiles(new Set())
+    } else {
+      setSelectedFiles(new Set(filteredFiles.map(f => f.fileName || f._id)))
+    }
+  }
+
+  // Version history handler (simulated - would need backend support)
+  const handleViewVersions = async (file: LibraryFile) => {
+    setFileForDetails(file)
+    setShowVersions(true)
+    // In a real implementation, this would fetch version history from backend
+  }
+
+  // Activity log handler (simulated - would need backend support)
+  const handleViewActivity = async (file: LibraryFile) => {
+    setFileForDetails(file)
+    setShowActivity(true)
+    // In a real implementation, this would fetch activity log from backend
   }
 
   const getFileIcon = (fileName: string) => {
@@ -256,17 +391,26 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }, [engagement?._id])
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileUpload = async (files: File[]) => {
+    if (files.length === 0) return
 
     setUploading(true)
     try {
-      await engagementApi.uploadToLibrary(engagement._id, file, selectedFolder)
+      for (const file of files) {
+        if (file.size > 20 * 1024 * 1024) {
+          toast({
+            title: "File too large",
+            description: `${file.name} exceeds 20 MB limit`,
+            variant: "destructive",
+          })
+          continue
+        }
+        await engagementApi.uploadToLibrary(engagement._id, file, selectedFolder)
+      }
       await fetchLibraryFiles()
       toast({
         title: "Success",
-        description: "File uploaded successfully",
+        description: `${files.length} file(s) uploaded successfully`,
       })
     } catch (error: any) {
       console.error(error)
@@ -277,7 +421,38 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       })
     } finally {
       setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
+  }
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    await handleFileUpload(files)
+  }
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const droppedFiles = Array.from(e.dataTransfer.files)
+    if (droppedFiles.length === 0) return
+
+    await handleFileUpload(droppedFiles)
   }
 
   // Somewhere in your component…
@@ -303,12 +478,72 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
-  // Filter files by selected folder and search term
-  const filteredFiles = libraryFiles.filter((file) => {
-    const matchesFolder = file.category === selectedFolder
-    const matchesSearch = searchTerm === "" || file.fileName?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesFolder && matchesSearch
-  })
+  // Enhanced filtering with advanced search
+  const filteredFiles = useMemo(() => {
+    let filtered = libraryFiles.filter((file) => {
+      const matchesFolder = file.category === selectedFolder
+      if (!matchesFolder) return false
+
+      // Basic search
+      const searchTermLower = localSearchTerm.toLowerCase()
+      const matchesSearch = !searchTermLower || file.fileName?.toLowerCase().includes(searchTermLower)
+      if (!matchesSearch) return false
+
+      // File type filter
+      if (advancedSearch.fileType && advancedSearch.fileType !== "all") {
+        const fileExt = file.fileName?.split(".").pop()?.toLowerCase() || ""
+        if (advancedSearch.fileType === "pdf" && fileExt !== "pdf") return false
+        if (advancedSearch.fileType === "docx" && !["docx", "doc"].includes(fileExt)) return false
+        if (advancedSearch.fileType === "xlsx" && !["xlsx", "xls"].includes(fileExt)) return false
+        if (advancedSearch.fileType === "jpg" && !["jpg", "jpeg"].includes(fileExt)) return false
+        if (advancedSearch.fileType === "png" && fileExt !== "png") return false
+        if (advancedSearch.fileType === "zip" && fileExt !== "zip") return false
+      }
+
+      // Date range filter
+      if (advancedSearch.dateFrom) {
+        const fileDate = new Date(file.createdAt)
+        const fromDate = new Date(advancedSearch.dateFrom)
+        if (fileDate < fromDate) return false
+      }
+      if (advancedSearch.dateTo) {
+        const fileDate = new Date(file.createdAt)
+        const toDate = new Date(advancedSearch.dateTo)
+        toDate.setHours(23, 59, 59, 999) // End of day
+        if (fileDate > toDate) return false
+      }
+
+      return true
+    })
+
+    // Sorting
+    filtered.sort((a, b) => {
+      let comparison = 0
+      switch (advancedSearch.sortBy) {
+        case "fileName":
+          comparison = (a.fileName || "").localeCompare(b.fileName || "")
+          break
+        case "fileSize":
+          comparison = (a.fileSize || 0) - (b.fileSize || 0)
+          break
+        case "createdAt":
+        default:
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+      }
+      return advancedSearch.sortOrder === "asc" ? comparison : -comparison
+    })
+
+    return filtered
+  }, [libraryFiles, selectedFolder, localSearchTerm, advancedSearch])
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAdvancedSearch(prev => ({ ...prev, search: localSearchTerm }))
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [localSearchTerm])
 
   // Group files by category for folder counts
   const filesByCategory = libraryFiles.reduce(
@@ -436,22 +671,188 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm">
           {/* Search and upload bar */}
           <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center space-x-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search files..."
+                    className="pl-10"
+                    value={localSearchTerm}
+                    onChange={(e) => setLocalSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+                  className={showAdvancedSearch ? 'bg-gray-100' : ''}
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
+                </Button>
                 <Input
-                  placeholder="Search files..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={onFileChange}
+                  disabled={uploading}
+                  className="hidden"
                 />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Input type="file" onChange={onFileChange} disabled={uploading} className="w-56" />
-                <Button disabled={uploading}>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
                   <Upload className="h-4 w-4 mr-2" />
                   {uploading ? "Uploading..." : "Upload"}
                 </Button>
+                {selectedFiles.size > 0 && (
+                  <Button
+                    onClick={handleBulkDownload}
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download ({selectedFiles.size})
+                  </Button>
+                )}
+              </div>
+
+              {/* Advanced search/filter panel */}
+              {showAdvancedSearch && (
+                <div className="p-4 bg-white rounded-lg border-2 border-gray-300 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAdvancedSearch(false)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="file-type">File Type</Label>
+                      <Select
+                        value={advancedSearch.fileType || "all"}
+                        onValueChange={(value) => {
+                          setAdvancedSearch(prev => ({ ...prev, fileType: value === "all" ? undefined : value }))
+                        }}
+                      >
+                        <SelectTrigger id="file-type">
+                          <SelectValue placeholder="All types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All types</SelectItem>
+                          <SelectItem value="pdf">PDF</SelectItem>
+                          <SelectItem value="docx">Word</SelectItem>
+                          <SelectItem value="xlsx">Excel</SelectItem>
+                          <SelectItem value="jpg">Image</SelectItem>
+                          <SelectItem value="png">PNG</SelectItem>
+                          <SelectItem value="zip">ZIP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sort-by">Sort By</Label>
+                      <Select
+                        value={advancedSearch.sortBy}
+                        onValueChange={(value) => {
+                          setAdvancedSearch(prev => ({ ...prev, sortBy: value }))
+                        }}
+                      >
+                        <SelectTrigger id="sort-by">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="createdAt">Upload Date</SelectItem>
+                          <SelectItem value="fileName">File Name</SelectItem>
+                          <SelectItem value="fileSize">File Size</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sort-order">Order</Label>
+                      <Select
+                        value={advancedSearch.sortOrder}
+                        onValueChange={(value: "asc" | "desc") => {
+                          setAdvancedSearch(prev => ({ ...prev, sortOrder: value }))
+                        }}
+                      >
+                        <SelectTrigger id="sort-order">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="desc">Descending</SelectItem>
+                          <SelectItem value="asc">Ascending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date-from">Date From</Label>
+                      <Input
+                        id="date-from"
+                        type="date"
+                        value={advancedSearch.dateFrom}
+                        onChange={(e) => {
+                          setAdvancedSearch(prev => ({ ...prev, dateFrom: e.target.value }))
+                        }}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date-to">Date To</Label>
+                      <Input
+                        id="date-to"
+                        type="date"
+                        value={advancedSearch.dateTo}
+                        onChange={(e) => {
+                          setAdvancedSearch(prev => ({ ...prev, dateTo: e.target.value }))
+                        }}
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAdvancedSearch({
+                            search: "",
+                            fileType: undefined,
+                            dateFrom: "",
+                            dateTo: "",
+                            sortBy: "createdAt",
+                            sortOrder: "desc",
+                          })
+                          setLocalSearchTerm("")
+                        }}
+                        className="w-full"
+                      >
+                        Clear Filters
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Drag and drop zone */}
+              <div
+                ref={dropZoneRef}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-6 text-center transition-all",
+                  isDragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-300 bg-gray-50/50 hover:border-gray-400"
+                )}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm text-gray-600">Drag and drop files here to upload</p>
+                <p className="text-xs text-gray-500 mt-1">File size must be less than 20 MB</p>
               </div>
             </div>
           </div>
@@ -462,81 +863,139 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
               <div className="space-y-1">
                 {/* Header */}
                 <div className="grid grid-cols-12 gap-4 p-2 text-xs font-medium text-gray-500 border-b">
-                  <div className="col-span-6">Name</div>
+                  <div className="col-span-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={selectAllFiles}
+                      className="h-6 w-6"
+                    >
+                      {selectedFiles.size === filteredFiles.length ? (
+                        <CheckSquare className="h-4 w-4" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <div className="col-span-5">Name</div>
                   <div className="col-span-2">Type</div>
                   <div className="col-span-2">Modified</div>
                   <div className="col-span-2">Actions</div>
                 </div>
                 {/* Files */}
                 {filteredFiles.length > 0 ? (
-                  filteredFiles.map((file) => (
-                    <div
-                      key={file._id}
-                      className="grid grid-cols-12 gap-4 p-2 hover:bg-gray-50 rounded cursor-pointer group"
-                    >
-                      <div className="col-span-6 flex items-center space-x-2">
-                        {getFileIcon(file.fileName || "")}
-                        <span className="text-sm">{decodeURIComponent(file.fileName)}</span>
-                      </div>
-                      <div className="col-span-2 items-center flex text-sm text-gray-500">
-                        {file.fileName?.split(".").pop()?.toUpperCase()} File
-                      </div>
-                      <div className="col-span-2 flex items-center justify-between">
-                        <span className="text-sm text-gray-500">{new Date(file.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      <div className="col-span-2 flex items-center">
-                        <Button
-                          onClick={() => handleDownload(file)}
-                          disabled={downloadingId === file._id}
-                          className="p-2 rounded bg-inherit hover:bg-gray-200"
-                        >
-                          {downloadingId === file._id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-600 bg-inherit hover:bg-gray-200" />
-                          ) : (
-                            <Download className="h-4 w-4 text-gray-600" />
+                  filteredFiles.map((file) => {
+                    const fileId = file.fileName || file._id
+                    const isSelected = selectedFiles.has(fileId)
+                    const fileExt = file.fileName?.split(".").pop()?.toLowerCase() || ""
+                    const canPreview = ["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes(fileExt)
+                    
+                    return (
+                      <div
+                        key={file._id}
+                        className={cn(
+                          "grid grid-cols-12 gap-4 p-2 hover:bg-gray-50 rounded cursor-pointer group",
+                          isSelected && "bg-blue-50 border border-blue-200"
+                        )}
+                      >
+                        <div className="col-span-1 flex items-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleFileSelection(fileId)}
+                            className="h-6 w-6"
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <div className="col-span-5 flex items-center space-x-2">
+                          {getFileIcon(file.fileName || "")}
+                          <span className="text-sm">{decodeURIComponent(file.fileName)}</span>
+                          {file.version && (
+                            <Badge variant="outline" className="text-xs">v{file.version}</Badge>
                           )}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
-                              <FolderInputIcon className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div className="col-span-2 items-center flex text-sm text-gray-500">
+                          {file.fileName?.split(".").pop()?.toUpperCase()} File
+                        </div>
+                        <div className="col-span-2 flex items-center justify-between">
+                          <span className="text-sm text-gray-500">{new Date(file.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="col-span-2 flex items-center gap-1">
+                          {canPreview && (
+                            <Button
+                              onClick={() => handlePreview(file)}
+                              className="p-2 rounded bg-inherit hover:bg-gray-200"
+                              title="Preview"
+                            >
+                              <Eye className="h-4 w-4 text-gray-600" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
-                            {categories.map((category) => (
+                          )}
+                          <Button
+                            onClick={() => handleViewVersions(file)}
+                            className="p-2 rounded bg-inherit hover:bg-gray-200"
+                            title="Version History"
+                          >
+                            <History className="h-4 w-4 text-gray-600" />
+                          </Button>
+                          <Button
+                            onClick={() => handleViewActivity(file)}
+                            className="p-2 rounded bg-inherit hover:bg-gray-200"
+                            title="Activity Log"
+                          >
+                            <FileCheck className="h-4 w-4 text-gray-600" />
+                          </Button>
+                          <Button
+                            onClick={() => handleDownload(file)}
+                            disabled={downloadingId === file._id}
+                            className="p-2 rounded bg-inherit hover:bg-gray-200"
+                            title="Download"
+                          >
+                            {downloadingId === file._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
+                            ) : (
+                              <Download className="h-4 w-4 text-gray-600" />
+                            )}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                                <MoreVertical className="h-4 w-4 text-gray-600" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
+                              {categories.map((category) => (
+                                <DropdownMenuItem
+                                  key={category}
+                                  className="bg-inherit hover:bg-sidebar-foreground"
+                                  onClick={() => changeFolder(category, file.url)}
+                                  disabled={file.category === category}
+                                >
+                                  <FolderInputIcon className="h-4 w-4 mr-2" />
+                                  Move to {category}
+                                </DropdownMenuItem>
+                              ))}
                               <DropdownMenuItem
-                                key={category}
-                                className="bg-inherit hover:bg-sidebar-foreground"
-                                onClick={() => changeFolder(category, file.url)}
-                                disabled={file.category === category}
+                                className="text-red-600"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  setFileToDelete(file)
+                                  setDeleteDialogOpen(true)
+                                }}
                               >
-                                Move to {category}
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
                               </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setFileToDelete(file)
-                            setDeleteDialogOpen(true)
-                          }}
-                          className="
-                                p-2 
-                                rounded 
-                                bg-inherit 
-                                hover:bg-gray-200 
-                                text-gray-600       /* default icon color */
-                                hover:text-red-600  /* icon turns red when BUTTON is hovered */
-                              "
-                        >
-                          {/* no explicit color on the icon! it will pick up the button’s text color */}
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                      {/* Direct download link only */}
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-12 text-gray-500">
                     <Folder className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -631,6 +1090,96 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         handleDelete={handleDelete}
         deletingId={deletingId}
       />
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] bg-white">
+          <DialogHeader>
+            <DialogTitle>{previewFile?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {previewUrl && previewFile && (
+              <div className="w-full h-[70vh] overflow-auto border rounded-lg">
+                {previewFile.fileType === "pdf" || (previewFile.fileName?.toLowerCase().endsWith(".pdf")) ? (
+                  <iframe src={previewUrl} className="w-full h-full" />
+                ) : (["jpg", "jpeg", "png"].includes(previewFile.fileName?.split(".").pop()?.toLowerCase() || "")) ? (
+                  <img src={previewUrl} alt={previewFile.fileName} className="w-full h-auto" />
+                ) : (["docx", "doc"].includes(previewFile.fileName?.split(".").pop()?.toLowerCase() || "")) ? (
+                  <iframe
+                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
+                    className="w-full h-full"
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-500">Preview not available for this file type</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(previewUrl, "_blank")}
+                      className="ml-4"
+                    >
+                      Open in New Tab
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Version History Dialog */}
+      <Dialog open={showVersions} onOpenChange={setShowVersions}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle>Version History - {fileForDetails?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">Version 1</Badge>
+                  <Badge variant="outline">Latest</Badge>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Uploaded on {fileForDetails ? new Date(fileForDetails.createdAt).toLocaleString() : "N/A"}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {fileForDetails?.fileSize ? `Size: ${(fileForDetails.fileSize / 1024).toFixed(2)} KB` : ""}
+                </p>
+              </div>
+              <p className="text-center text-gray-500 py-4 text-sm">
+                Version history tracking will be available when backend support is added
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Activity Log Dialog */}
+      <Dialog open={showActivity} onOpenChange={setShowActivity}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle>Activity Log - {fileForDetails?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">Upload</Badge>
+                  <span className="font-medium">System</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {fileForDetails ? new Date(fileForDetails.createdAt).toLocaleString() : "N/A"}
+                </p>
+              </div>
+              <p className="text-center text-gray-500 py-4 text-sm">
+                Activity logging will be available when backend support is added
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

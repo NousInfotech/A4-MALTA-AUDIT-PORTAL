@@ -1,6 +1,11 @@
+// Updated CompanyHierarchy.tsx with fixes for loading and full-quality PDF export
+// --- FIXES INCLUDED ---
+// 1. Removed initial flicker: no more showing "no data" for 5-10 seconds.
+// 2. Rewritten PDF export: captures full flow at full resolution.
+
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import ReactFlow, {
   MiniMap,
@@ -13,17 +18,18 @@ import ReactFlow, {
   Edge,
   Node,
   Position,
+  ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { Button } from "../ui/button";
+import { EnhancedLoader } from "../ui/enhanced-loader";
 
-// GAP settings for TOP -> BOTTOM
-const levelGapY = 250; // vertical gap between levels
-const levelGapX = 380; // horizontal spacing
-const nodeWidth = 300;
+const LEVEL_GAP_Y = 280;
+const NODE_WIDTH = 320;
+const HORIZONTAL_SPACING = NODE_WIDTH + 80;
 
 interface HierarchyTreeNode {
   id: string;
@@ -32,7 +38,9 @@ interface HierarchyTreeNode {
   percentage?: number;
   class?: string;
   address?: string;
+  nationality?: string;
   totalShares?: number;
+  roles?: string[];
   children?: HierarchyTreeNode[];
   shareholders?: HierarchyTreeNode[];
 }
@@ -46,166 +54,265 @@ interface HierarchyNodeData {
 }
 
 export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) => {
-  const [nodes, setNodes, onNodesChange] =
-    useNodesState<HierarchyNodeData>([]);
+
+
+  console.log("hdata",rootData);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<HierarchyNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
+  const flowWrapperRef = useRef<HTMLDivElement | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
 
-  /* ------------------------
-        ✅ Export to PDF
-  -------------------------*/
-  const exportToPDF = async () => {
-    const el = document.getElementById("hierarchy-wrapper");
-    if (!el) return;
+  const [scrollZoomEnabled, setScrollZoomEnabled] = useState(false);
 
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      backgroundColor: "#ffffff",
-      useCORS: true,
-    });
+  const isStillLoading = rootData === undefined; // FIX #1: distinct loading state
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("l", "pt", "a4");
+  const { initialNodes, initialEdges, bounds } = useMemo(() => {
+    if (!rootData) return { initialNodes: [], initialEdges: [], bounds: { width: 0, height: 0 } };
 
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-
-    const imgW = pageW;
-    const imgH = (canvas.height * imgW) / canvas.width;
-
-    let y = 0;
-    while (y < imgH) {
-      if (y > 0) pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, -y, imgW, imgH);
-      y += pageH;
-    }
-
-    pdf.save("hierarchy.pdf");
-  };
-
-  /* ------------------------
-      ✅ Generate Nodes
-  -------------------------*/
-  const { initialNodes, initialEdges } = useMemo(() => {
-    if (!rootData) return { initialNodes: [], initialEdges: [] };
-
-    const generatedEdges: Edge[] = [];
     const nodeMap = new Map<string, Node<HierarchyNodeData>>();
-    let leafIndex = 0;
+    const generatedEdges: Edge[] = [];
+    const NODES_PER_ROW = 3;
 
-    const buildNodesAndEdges = (
-      node: HierarchyTreeNode,
-      parentId: string | null,
-      level: number
-    ): { top: number; bottom: number } => {
-      const nodeId = String(node.id);
-      const isCompany = node.type === "company";
-      const descendants = node.children ?? node.shareholders ?? [];
+    const baseNodeStyle = {
+      background: "transparent",
+      border: "none",
+      padding: 0,
+      borderRadius: 0,
+      width: NODE_WIDTH,
+      boxShadow: "none",
+    } as const;
 
-      const baseNodeStyle = {
-        background:
-          "linear-gradient(135deg, #6366f1 0%, #22d3ee 50%, #10b981 100%)",
-        padding: 2,
-        borderRadius: 16,
-        width: nodeWidth,
-        height: "auto", // ✅ AUTO HEIGHT
-        boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
-      } as const;
+    // Helper function to create label content for a node
+    const createLabelContent = (node: HierarchyTreeNode) => {
+      // Ensure companies with shares show "Shareholder" role if not already set
+      const displayRoles = node.roles && Array.isArray(node.roles) && node.roles.length > 0
+        ? node.roles
+        : (node.type === "company" && node.percentage !== undefined && node.percentage > 0
+          ? ["Shareholder"]
+          : node.roles);
 
-      const labelContent = (
-        <div className="relative animate-fadeIn group rounded-[14px] bg-white p-3 h-auto">
-          <div className="pointer-events-none absolute inset-x-0 -top-[2px] h-1 rounded-t-[14px] bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400" />
-
-          <div className="space-y-1">
-            <div className="flex flex-col items-center gap-2">
-              <strong className="block text-sm capitalize leading-tight">
-                {node.name}
-              </strong>
-
-              {(node.percentage !== undefined || node.class) && (
-                <div className="flex items-center gap-1">
-                  {node.percentage !== undefined && (
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[15px] font-bold">
-                      {node.percentage}%
-                    </span>
-                  )}
-                  {node.class && (
-                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                      {node.class}
-                    </span>
-                  )}
-                </div>
-              )}
+      return (
+        <div
+          style={{
+            width: NODE_WIDTH,
+            fontFamily: "Inter, system-ui, sans-serif",
+            borderRadius: 8,
+            overflow: "hidden",
+            border: "1px solid black",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          {/* Top Section - Light Gray Background */}
+          <div
+            style={{
+              backgroundColor: "#f3f4f6",
+              padding: "12px",
+              color: "#111827",
+            }}
+          >
+            {/* Name */}
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 16,
+                marginBottom: 8,
+                textTransform: "uppercase",
+                color: "#1f2937",
+              }}
+            >
+              {node.name}
             </div>
+            
+            {/* Address */}
+            {node.address && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "black",
+                  marginBottom: 6,
+                  lineHeight: 1.4,
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Address: </span> {node.address}
+              </div>
+            )}
+            
+            {/* Nationality (for persons and companies if available) */}
+            {node.nationality && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "black",
+                  marginTop: 4,
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Nationality: </span> {node.nationality}
+              </div>
+            )}
+          </div>
 
-            {node.address && <div className="text-black">{node.address}</div>}
+          {/* Middle Section - Dark Gray Background for Roles */}
+          {displayRoles && Array.isArray(displayRoles) && displayRoles.length > 0 && (
+            <div
+              style={{
+                backgroundColor: "black",
+                padding: "10px 12px",
+                color: "white",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  lineHeight: 1.4,
+                }}
+              >
+                {displayRoles.join(" / ")}
+              </div>
+            </div>
+          )}
 
+          {/* Bottom Section - Light Gray Background */}
+          <div
+            style={{
+              backgroundColor: "#f3f4f6",
+              padding: "12px",
+              color: "#111827",
+            }}
+          >
+            {/* Percentage and Shares */}
+            {node.percentage !== undefined && (
+              <div
+                style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: "#1f2937",
+                  marginBottom: 6,
+                }}
+              >
+                {node.percentage.toFixed(0)}%
+              </div>
+            )}
+            
             {node.totalShares !== undefined && (
-              <div className="font-bold text-lg">
-                Total: {node.totalShares?.toLocaleString?.()}
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "black",
+                  marginBottom: 4,
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>Shares: </span> {node.totalShares.toLocaleString()}
+                {node.class && ` (${node.class})`}
               </div>
             )}
 
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-
-            <div className="flex items-center gap-1 text-[10px] font-medium">
+            {/* Person/Company Indicator */}
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: "black",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
               <span
-                className="inline-block h-2 w-2 rounded-full"
                 style={{
-                  background: isCompany ? "#4f46e5" : "#059669",
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: node.type === "company" ? "#3b82f6" : "#10b981",
+                  flexShrink: 0,
                 }}
               />
-              <span className="text-gray-600">
-                {isCompany ? "Company" : "Person"}
+              <span style={{ fontWeight: 500 }}>
+                {node.type === "company" ? "Company" : "Person"}
               </span>
             </div>
           </div>
         </div>
       );
+    };
 
-      /* ✅ LEAF NODE */
-      if (!descendants.length) {
-        const y = leafIndex * levelGapX;
-        leafIndex += 1;
+    // Function to arrange nodes in rows of 3, with companies in the last row
+    const arrangeNodesInRows = (
+      nodes: HierarchyTreeNode[],
+      startX: number,
+      startY: number
+    ): { positions: Array<{ node: HierarchyTreeNode; x: number; y: number; level: number }>; maxX: number; maxY: number } => {
+      if (nodes.length === 0) return { positions: [], maxX: startX, maxY: startY };
 
-        nodeMap.set(nodeId, {
-          id: nodeId,
-          data: { label: labelContent },
-          position: { x: y, y: level * levelGapY }, // ✅ TOP → BOTTOM
-          draggable: false,
-          selectable: false,
-          style: baseNodeStyle,
-          sourcePosition: Position.Bottom,
-          targetPosition: Position.Top,
+      // Separate persons and companies
+      const persons = nodes.filter(n => n.type !== "company");
+      const companies = nodes.filter(n => n.type === "company");
+
+      const allNodes = [...persons, ...companies]; // Persons first, then companies
+      const positions: Array<{ node: HierarchyTreeNode; x: number; y: number; level: number }> = [];
+
+      let currentX = startX;
+      let currentY = startY;
+      let nodesInCurrentRow = 0;
+      let currentLevel = Math.floor(startY / LEVEL_GAP_Y);
+
+      allNodes.forEach((node, index) => {
+        // Check if we need to start a new row (every 3 nodes, or if we're starting companies and there are persons)
+        if (nodesInCurrentRow >= NODES_PER_ROW) {
+          currentLevel++;
+          currentY = currentLevel * LEVEL_GAP_Y;
+          currentX = startX;
+          nodesInCurrentRow = 0;
+        }
+
+        // If we're starting companies and there are persons, ensure companies are on a new row
+        if (index === persons.length && persons.length > 0) {
+          // If current row is not empty, move to next row
+          if (nodesInCurrentRow > 0) {
+            currentLevel++;
+            currentY = currentLevel * LEVEL_GAP_Y;
+            currentX = startX;
+            nodesInCurrentRow = 0;
+          }
+        }
+
+        positions.push({
+          node,
+          x: currentX,
+          y: currentY,
+          level: currentLevel,
         });
 
-        if (parentId) {
-          generatedEdges.push({
-            id: `${parentId}-${nodeId}`,
-            source: parentId,
-            target: nodeId,
-            type: "smoothstep",
-          });
-        }
-        return { top: y, bottom: y };
-      }
-
-      /* ✅ NON LEAF NODE */
-      let top = Infinity;
-      let bottom = -Infinity;
-
-      descendants.forEach((child) => {
-        const range = buildNodesAndEdges(child, nodeId, level + 1);
-        top = Math.min(top, range.top);
-        bottom = Math.max(bottom, range.bottom);
+        currentX += HORIZONTAL_SPACING;
+        nodesInCurrentRow++;
       });
 
-      const centerY =
-        top === Infinity ? leafIndex * levelGapX : (top + bottom) / 2;
+      const maxX = Math.max(...positions.map(p => p.x + NODE_WIDTH), startX);
+      const maxY = positions.length > 0 ? Math.max(...positions.map(p => p.y)) : startY;
 
+      return { positions, maxX, maxY };
+    };
+
+    // Recursive function to build the hierarchy
+    const build = (
+      node: HierarchyTreeNode,
+      parentId: string | null,
+      level: number,
+      startX: number = 0
+    ): { left: number; right: number; maxY: number; childLevel: number } => {
+      const nodeId = String(node.id);
+      const descendants = node.children ?? node.shareholders ?? [];
+      const isLeaf = descendants.length === 0;
+
+      const labelContent = createLabelContent(node);
+
+      // Position the current node
       nodeMap.set(nodeId, {
         id: nodeId,
         data: { label: labelContent },
-        position: { x: centerY, y: level * levelGapY },
+        position: { x: startX, y: level * LEVEL_GAP_Y },
         draggable: false,
         selectable: false,
         style: baseNodeStyle,
@@ -219,65 +326,201 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           source: parentId,
           target: nodeId,
           type: "smoothstep",
+          style: { stroke: "#111827", strokeWidth: 1.2 },
         });
       }
 
+      if (isLeaf) {
+        return {
+          left: startX,
+          right: startX + NODE_WIDTH,
+          maxY: level * LEVEL_GAP_Y,
+          childLevel: level,
+        };
+      }
+
+      // Non-leaf node: arrange children in rows of 3
+      // Start children at the next level
+      const startChildY = (level + 1) * LEVEL_GAP_Y;
+      const { positions: childPositions, maxX: childrenMaxX, maxY: childrenMaxY } = arrangeNodesInRows(
+        descendants,
+        startX,
+        startChildY
+      );
+
+      let maxChildY = childrenMaxY;
+      let maxChildX = childrenMaxX;
+      let maxChildLevel = level + 1;
+
+      // Recursively build children using their assigned positions
+      childPositions.forEach(({ node: childNode, x, y, level: childLevel }) => {
+        const childResult = build(childNode, nodeId, childLevel, x);
+        maxChildY = Math.max(maxChildY, childResult.maxY);
+        maxChildX = Math.max(maxChildX, childResult.right);
+        maxChildLevel = Math.max(maxChildLevel, childResult.childLevel);
+      });
+
+      // Update parent node position to center it above its children
+      const childrenCenterX =
+        childPositions.length > 0
+          ? (Math.min(...childPositions.map((p) => p.x)) +
+              Math.max(...childPositions.map((p) => p.x + NODE_WIDTH))) /
+              2 -
+            NODE_WIDTH / 2
+          : startX;
+
+      // Update the node position
+      const existingNode = nodeMap.get(nodeId);
+      if (existingNode) {
+        existingNode.position.x = childrenCenterX;
+        nodeMap.set(nodeId, existingNode);
+      }
+
       return {
-        top: top === Infinity ? centerY : top,
-        bottom: bottom === -Infinity ? centerY : bottom,
+        left: Math.min(childrenCenterX, ...childPositions.map((p) => p.x)),
+        right: Math.max(childrenCenterX + NODE_WIDTH, maxChildX),
+        maxY: maxChildY,
+        childLevel: maxChildLevel,
       };
     };
 
-    buildNodesAndEdges(rootData, null, 0);
+    const rootResult = build(rootData, null, 0, 0);
 
     const generatedNodes = Array.from(nodeMap.values());
-    return { initialNodes: generatedNodes, initialEdges: generatedEdges };
+    const maxX = Math.max(...generatedNodes.map((n) => n.position.x + NODE_WIDTH));
+    const maxY = rootResult.maxY + LEVEL_GAP_Y;
+
+    return {
+      initialNodes: generatedNodes,
+      initialEdges: generatedEdges,
+      bounds: { width: maxX + 200, height: maxY + 200 },
+    };
   }, [rootData]);
 
   useEffect(() => {
+    if (isStillLoading) return;
+    if (rootData === null) return;
+
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
+    setTimeout(() => {
+      reactFlowRef.current?.fitView({ padding: 0.2 });
+      setScrollZoomEnabled(false);
+    }, 80);
+  }, [initialNodes, initialEdges, rootData, isStillLoading]);
 
   const onConnect = useCallback(
     (params: Edge | Connection) =>
-      setEdges((eds) =>
-        addEdge({ ...params, type: "smoothstep", animated: true }, eds)
-      ),
+      setEdges((eds) => addEdge({ ...params, type: "smoothstep", style: { stroke: "#111827", strokeWidth: 1.2 } }, eds)),
     [setEdges]
   );
 
-  if (!rootData) {
+  const handleWrapperFocus = useCallback(() => setScrollZoomEnabled(true), []);
+  const handleWrapperBlur = useCallback(() => setScrollZoomEnabled(false), []);
+
+  // FIX #2 — High‑quality full‑canvas PDF export
+  const exportToPDF = useCallback(async () => {
+    const wrap = flowWrapperRef.current;
+    if (!wrap) return;
+
+    const viewport = wrap.querySelector<HTMLElement>(".react-flow__viewport");
+    const originalTransform = viewport?.style.transform ?? "";
+
+    if (viewport) viewport.style.transform = "translate(0px,0px) scale(1)";
+
+    await new Promise((res) => setTimeout(res, 100));
+
+    const canvas = await html2canvas(wrap, {
+      scale: 3, // HIGH DPI
+      backgroundColor: "#ffffff",
+      useCORS: true,
+    });
+
+    const img = canvas.toDataURL("image/png", 1.0);
+
+    const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+
+    let y = 0;
+    while (y < imgH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(img, "PNG", 0, -y, imgW, imgH, undefined, "FAST");
+      y += pageH;
+    }
+
+    pdf.save("hierarchy.pdf");
+
+    if (viewport) viewport.style.transform = originalTransform;
+  }, []);
+
+  // AUTO-FIT WIDTH FIX — keeps full tree visible top‑to‑bottom on screen
+  // After layout is built, we force ReactFlow to fit the entire diagram vertically
+  useEffect(() => {
+    if (!reactFlowRef.current || !rootData) return;
+    // Fit diagram so top-to-bottom is fully visible on load
+    reactFlowRef.current.fitView({ padding: 0.1, minZoom: 0.1, maxZoom: 1 });
+  }, [bounds, rootData]);
+
+  // ---- Render ----
+  if (isStillLoading) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500">
-        No hierarchy data available.
+      <div className="flex h-48 items-center justify-center border border-dashed rounded-md">
+        <EnhancedLoader size="lg" text="Loading hierarchy..." />
       </div>
     );
   }
 
-  return (
-    <div>
-      {/* ✅ Download Button */}
-      <Button
-        onClick={exportToPDF}
-        variant="default"
-      >
-        Download PDF
-      </Button>
+  if (rootData === null) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500">
+        <EnhancedLoader size="lg" text="No hierarchy data available." />
+      </div>
+    );
+  }
 
-      <div id="hierarchy-wrapper" style={{ width: "100%", height: "800px" }}>
+  const wrapperStyle: React.CSSProperties = {
+    width: "100%",
+    height: Math.max(bounds.height, 600),
+    overflow: "visible",
+  };
+
+return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <Button onClick={exportToPDF}>Download PDF</Button>
+        <div className="text-sm text-gray-600">Click inside diagram to zoom.</div>
+      </div>
+
+      <div
+        ref={flowWrapperRef}
+        tabIndex={0}
+        onFocus={handleWrapperFocus}
+        onBlur={handleWrapperBlur}
+        style={wrapperStyle}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          fitView
+          fitView={false}
           proOptions={{ hideAttribution: true }}
+          minZoom={0.1}
+          maxZoom={2}
+          zoomOnScroll={scrollZoomEnabled}
+          panOnDrag={true}
+          onInit={(instance) => (reactFlowRef.current = instance)}
+          defaultEdgeOptions={{ style: { stroke: "#111827", strokeWidth: 1.2 }, type: "smoothstep" }}
         >
-          <MiniMap pannable zoomable style={{ background: "#f8fafc" }} />
+          <MiniMap nodeStrokeColor={() => "#111827"} nodeColor={() => "#fff"} />
           <Controls showInteractive={false} />
-          <Background gap={16} color="#e5e7eb" />
+          <Background gap={16} color="#f3f4f6" />
         </ReactFlow>
       </div>
     </div>

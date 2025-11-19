@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -62,8 +62,15 @@ export const AddClient = () => {
     industry: "",
     summary: "",
     customValue: "",
+    nationality: "",
+    address: "",
+    phoneNumber: "",
+    companyId: "",
   });
   const [showPassword, setShowPassword] = useState(true);
+  const [nationalityOptions, setNationalityOptions] = useState<
+    { value: string; label: string; isEuropean: boolean }[]
+  >([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -73,12 +80,66 @@ export const AddClient = () => {
   const { toast } = useToast();
   const { logCreateClient } = useActivityLogger();
 
+  // Fetch nationality options
+  useEffect(() => {
+    const fetchNationalities = async () => {
+      try {
+        const res = await fetch(
+          "https://cdn.jsdelivr.net/npm/world-countries@latest/countries.json"
+        );
+        if (!res.ok) throw new Error("Failed to load nationalities");
+        const raw = await res.json();
+
+        const items: { value: string; label: string; isEuropean: boolean }[] = [];
+        const seen = new Set<string>();
+
+        (Array.isArray(raw) ? raw : []).forEach((entry: any) => {
+          const region = entry?.region || "";
+          const demonym = entry?.demonyms?.eng?.m || entry?.demonyms?.eng?.f || "";
+          const label = demonym || entry?.name?.common || "";
+          if (!label) return;
+          const key = label.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push({
+            value: label,
+            label,
+            isEuropean: region === "Europe",
+          });
+        });
+
+        items.sort((a, b) => {
+          if (a.isEuropean !== b.isEuropean) return a.isEuropean ? -1 : 1;
+          return a.label.localeCompare(b.label);
+        });
+
+        setNationalityOptions(items);
+      } catch (e) {
+        console.error(e);
+        const fallback = [
+          { value: "Maltese", label: "Maltese", isEuropean: true },
+          { value: "Italian", label: "Italian", isEuropean: true },
+          { value: "French", label: "French", isEuropean: true },
+          { value: "German", label: "German", isEuropean: true },
+          { value: "Spanish", label: "Spanish", isEuropean: true },
+          { value: "British", label: "British", isEuropean: true },
+          { value: "American", label: "American", isEuropean: false },
+          { value: "Canadian", label: "Canadian", isEuropean: false },
+          { value: "Australian", label: "Australian", isEuropean: false },
+        ];
+        setNationalityOptions(fallback);
+      }
+    };
+
+    fetchNationalities();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, phoneNumber, companyId } =
       formData;
 
     const industry =
@@ -102,6 +163,11 @@ export const AddClient = () => {
             companyNumber,
             industry,
             summary,
+            nationality,
+            address,
+            phoneNumber,
+            companyId: companyId || undefined,
+            role: "client",
           }),
         }
       );
@@ -264,6 +330,22 @@ export const AddClient = () => {
                       required
                     />
                   </div>
+                  <div className="space-y-3">
+                    <Label
+                      htmlFor="phoneNumber"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Phone Number
+                    </Label>
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      value={formData.phoneNumber}
+                      onChange={(e) => handleChange("phoneNumber", e.target.value)}
+                      placeholder="+356 2123 4567"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                    />
+                  </div>
                   <div className="space-y-3 relative">
                     <Label
                       htmlFor="password"
@@ -291,6 +373,64 @@ export const AddClient = () => {
                         <Eye className="h-5 w-5" />
                       )}
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Details */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <Users className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Personal Details
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label
+                      htmlFor="nationality"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Nationality *
+                    </Label>
+                    <Select
+                      value={formData.nationality}
+                      onValueChange={(value) => handleChange("nationality", value)}
+                    >
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                        <SelectValue placeholder="Select nationality" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-200 rounded-xl max-h-72">
+                        {nationalityOptions.map((opt) => (
+                          <SelectItem
+                            key={opt.value}
+                            value={opt.value}
+                            className="rounded-lg"
+                          >
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <Label
+                      htmlFor="address"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Address *
+                    </Label>
+                    <Input
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => handleChange("address", e.target.value)}
+                      placeholder="Enter address"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      required
+                    />
                   </div>
                 </div>
               </div>
