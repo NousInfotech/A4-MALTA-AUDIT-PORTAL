@@ -220,6 +220,33 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     );
   };
 
+  // Helper function to format Balance Sheet values (defined before calculations for use inside)
+  // In Balance Sheets:
+  // - Assets, Liabilities, and Equity should be positive (absolute value)
+  // - Contra-assets (like Accumulated Depreciation) should be negative (they reduce asset values)
+  const formatBalanceSheetValue = (value: number, accountName?: string): number => {
+    // Check if this is a contra-asset (typically has "Accumulated", "Provision", "Allowance", "Depn" in name)
+    const isContraAsset = accountName && (
+      accountName.toLowerCase().includes("accumulated") ||
+      accountName.toLowerCase().includes("provision") ||
+      accountName.toLowerCase().includes("allowance") ||
+      accountName.toLowerCase().includes("depreciation") ||
+      accountName.toLowerCase().includes("depn") || // Handle abbreviation "Depn"
+      accountName.toLowerCase().includes("prov for") // Handle "Prov for Depn" pattern
+    );
+    
+    // Contra-assets should always be negative (they reduce asset values)
+    // Convert to absolute value first, then make negative
+    if (isContraAsset) {
+      const absValue = value < 0 ? -value : value;
+      return -absValue; // Always return negative for contra-assets
+    }
+    
+    // For all other Balance Sheet items, return absolute value
+    // This handles cases where data is stored as negative (credit balances)
+    return value < 0 ? -value : value;
+  };
+
   // Calculate totals
   const calculations = useMemo(() => {
     // Use the same GROUPING_SIGNS as Income Statement (must be defined first)
@@ -351,7 +378,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     ): number => {
       if (!groupedData[group1]) return 0;
 
-      return Object.entries(groupedData[group1])
+      // Sum formatted values (not raw values) to match individual row display
+      const sum = Object.entries(groupedData[group1])
         .filter(([group2]) => {
           // Exclude "Current Year Profits & Losses" from Equity calculations
           if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
@@ -368,7 +396,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                 if (year === "current" && isRetainedEarningsRow(row)) {
                   value = calculatedRetainedEarningsCurrent;
                 } else {
-                  value = year === "current" ? row.currentYear : row.priorYear;
+                  // Use formatted value (absolute) to match row display
+                  const rawValue = year === "current" ? row.currentYear : row.priorYear;
+                  value = formatBalanceSheetValue(rawValue || 0, row.accountName);
                 }
                 return rowAcc + (value || 0);
               }, 0);
@@ -378,6 +408,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }, 0);
           return acc + group3Sum;
         }, 0);
+      
+      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
+      return sum < 0 ? -sum : sum;
     };
 
     const getGroup2Total = (
@@ -387,7 +420,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     ): number => {
       if (!groupedData[group1] || !groupedData[group1][group2]) return 0;
 
-      return Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
+      // Sum formatted values (not raw values) to match individual row display
+      const sum = Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
         const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
           const rowSum = rows.reduce((rowAcc, row) => {
             // Special case for Retained Earnings current year
@@ -395,7 +429,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             if (year === "current" && isRetainedEarningsRow(row)) {
               value = calculatedRetainedEarningsCurrent;
             } else {
-              value = year === "current" ? row.currentYear : row.priorYear;
+              // Use formatted value (absolute) to match row display
+              const rawValue = year === "current" ? row.currentYear : row.priorYear;
+              value = formatBalanceSheetValue(rawValue || 0, row.accountName);
             }
             return rowAcc + (value || 0);
           }, 0);
@@ -403,6 +439,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         }, 0);
         return g3Acc + group4Sum;
       }, 0);
+      
+      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
+      return sum < 0 ? -sum : sum;
     };
 
     const getGroup3Total = (
@@ -413,19 +452,25 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     ): number => {
       if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3]) return 0;
 
-      return Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
+      // Sum formatted values (not raw values) to match individual row display
+      const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((rowAcc, row) => {
           // Special case for Retained Earnings current year
           let value: number;
           if (year === "current" && isRetainedEarningsRow(row)) {
             value = calculatedRetainedEarningsCurrent;
           } else {
-            value = year === "current" ? row.currentYear : row.priorYear;
+            // Use formatted value (absolute) to match row display
+            const rawValue = year === "current" ? row.currentYear : row.priorYear;
+            value = formatBalanceSheetValue(rawValue || 0, row.accountName);
           }
           return rowAcc + (value || 0);
         }, 0);
         return g4Acc + rowSum;
       }, 0);
+      
+      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
+      return sum < 0 ? -sum : sum;
     };
 
     const getGroup4Total = (
@@ -437,16 +482,35 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     ): number => {
       if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3] || !groupedData[group1][group2][group3][group4]) return 0;
 
-      return groupedData[group1][group2][group3][group4].reduce((acc, row) => {
+      // Sum formatted values (not raw values) to match individual row display
+      const sum = groupedData[group1][group2][group3][group4].reduce((acc, row) => {
         // Special case for Retained Earnings current year
         let value: number;
         if (year === "current" && isRetainedEarningsRow(row)) {
           value = calculatedRetainedEarningsCurrent;
         } else {
-          value = year === "current" ? row.currentYear : row.priorYear;
+          // Use formatted value (absolute) to match row display
+          const rawValue = year === "current" ? row.currentYear : row.priorYear;
+          value = formatBalanceSheetValue(rawValue || 0, row.accountName);
         }
         return acc + (value || 0);
       }, 0);
+      
+      // Check if this is a contra-asset group4 (like "Accumulated Depreciation")
+      // If all rows are contra-assets, the sum will be negative and should remain negative
+      const isContraAssetGroup = group4.toLowerCase().includes("accumulated") ||
+                                  group4.toLowerCase().includes("depreciation") ||
+                                  group4.toLowerCase().includes("depn") ||
+                                  groupedData[group1][group2][group3][group4].every(row => {
+                                    const rawValue = year === "current" ? row.currentYear : row.priorYear;
+                                    return formatBalanceSheetValue(rawValue || 0, row.accountName) < 0;
+                                  });
+      
+      // For contra-asset groups, keep negative; for others, ensure positive
+      if (isContraAssetGroup) {
+        return sum; // Keep negative for contra-asset groups
+      }
+      return sum < 0 ? -sum : sum;
     };
 
     const assetsCurrent = getGroup1Total("Assets", "current");
@@ -494,7 +558,11 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     if (isRetainedEarningsRow(row)) {
       return calculations.calculatedRetainedEarningsCurrent;
     }
-    return row.currentYear || 0;
+    return formatBalanceSheetValue(row.currentYear || 0, row.accountName);
+  };
+
+  const getRowPriorYearValue = (row: ETBRow): number => {
+    return formatBalanceSheetValue(row.priorYear || 0, row.accountName);
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
@@ -619,13 +687,14 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                     // Use calculated value for Retained Earnings current year
                     const currentYearValue = isRetainedEarningsRow(row) 
                       ? calculatedRetainedEarningsCurrent 
-                      : (row.currentYear || 0);
+                      : formatBalanceSheetValue(row.currentYear || 0, row.accountName);
+                    const priorYearValue = formatBalanceSheetValue(row.priorYear || 0, row.accountName);
                     
                     tableData.push([
                       `${indent}${row.accountName}`,
                       row.code || "",
                       formatCurrency(currentYearValue),
-                      formatCurrency(row.priorYear || 0),
+                      formatCurrency(priorYearValue),
                     ]);
                   });
                 }
@@ -1010,7 +1079,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {formatCurrency(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.priorYear || 0)}
+                                                {formatCurrency(getRowPriorYearValue(row))}
                                               </td>
                                             </tr>
                                           ))}
@@ -1221,7 +1290,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {formatCurrency(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.priorYear || 0)}
+                                                {formatCurrency(getRowPriorYearValue(row))}
                                               </td>
                                             </tr>
                                           ))}

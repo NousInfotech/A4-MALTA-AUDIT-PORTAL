@@ -204,7 +204,16 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
         return g4Acc + rowSum;
       }, 0);
       const sign = GROUPING_SIGNS[grouping3] || "+";
-      return sign === "+" ? sum : -sum;
+      // For Income Statement display:
+      // Revenue/Income items (sign = "+") should be positive: flip if negative
+      // Expense items (sign = "-") should be negative: flip if positive
+      if (sign === "+") {
+        // Revenue/Income: ensure positive for display
+        return sum < 0 ? -sum : sum;
+      } else {
+        // Expenses: ensure negative for display
+        return sum > 0 ? -sum : sum;
+      }
     };
 
     const getGroup4Total = (
@@ -220,33 +229,55 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
         return acc + (value || 0);
       }, 0);
       const sign = GROUPING_SIGNS[grouping3] || "+";
-      return sign === "+" ? sum : -sum;
+      // For Income Statement display:
+      // Revenue/Income items (sign = "+") should be positive: flip if negative
+      // Expense items (sign = "-"): Group4 totals should match individual items display style
+      //   - For most expenses: positive (absolute value) to match individual items
+      //   - For Income tax expense: preserve original sign to handle credits vs expenses
+      if (sign === "+") {
+        // Revenue/Income: ensure positive for display
+        return sum < 0 ? -sum : sum;
+      } else {
+        // For Income tax expense, preserve original signs (credits can be positive, expenses negative)
+        if (grouping3 === "Income tax expense") {
+          return sum; // Preserve original sign for tax items
+        }
+        // Other expenses: Group4 totals should be positive (absolute value) to match individual items
+        return sum < 0 ? -sum : sum;
+      }
     };
 
-    // Gross Profit = Revenue - Cost of sales (independent)
+    // Gross Profit = Revenue - Cost of sales
+    // Since Cost of sales is already negative, adding is equivalent to subtracting
     const grossProfitCurrent =
       getValue("Revenue", "current") + getValue("Cost of sales", "current");
     const grossProfitPrior =
       getValue("Revenue", "prior") + getValue("Cost of sales", "prior");
 
-    // Operating Profit = Sales and marketing expenses + Administrative expenses + Other operating income (independent)
+    // Operating Profit = Gross Profit - Operating Expenses
+    // Since expenses are already negative, adding them to Gross Profit is correct
     const operatingProfitCurrent =
+      grossProfitCurrent +
       getValue("Sales and marketing expenses", "current") +
       getValue("Administrative expenses", "current") +
       getValue("Other operating income", "current");
     const operatingProfitPrior =
+      grossProfitPrior +
       getValue("Sales and marketing expenses", "prior") +
       getValue("Administrative expenses", "prior") +
       getValue("Other operating income", "prior");
 
-    // Net Profit Before Tax = Investment income - Investment losses - Finance costs + Share of profit - PBT Expenses (independent)
+    // Net Profit Before Tax = Operating Profit + Investment income + Investment losses + Finance costs + Share of profit + PBT Expenses
+    // Since expenses are already negative, adding them is correct
     const netProfitBeforeTaxCurrent =
+      operatingProfitCurrent +
       getValue("Investment income", "current") +
       getValue("Investment losses", "current") +
       getValue("Finance costs", "current") +
       getValue("Share of profit of subsidiary", "current") +
       getValue("PBT Expenses", "current");
     const netProfitBeforeTaxPrior =
+      operatingProfitPrior +
       getValue("Investment income", "prior") +
       getValue("Investment losses", "prior") +
       getValue("Finance costs", "prior") +
@@ -254,6 +285,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       getValue("PBT Expenses", "prior");
 
     // Net Profit After Tax = Net Profit Before Tax - Income tax expense
+    // Since Income tax expense is already negative, adding it is equivalent to subtracting
     const netProfitAfterTaxCurrent =
       netProfitBeforeTaxCurrent + getValue("Income tax expense", "current");
     const netProfitAfterTaxPrior =
@@ -279,6 +311,28 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  };
+
+  // Helper function to format individual row values with correct sign for Income Statement display
+  const formatRowValue = (value: number, grouping3: string): number => {
+    const sign = GROUPING_SIGNS[grouping3] || "+";
+    // For Income Statement display:
+    // Revenue/Income items (sign = "+") should be positive: flip if negative
+    // Expense items (sign = "-"): 
+    //   - For most expenses: Individual line items should be positive (absolute value)
+    //   - For Income tax expense: Preserve original sign to handle credits vs expenses correctly
+    if (sign === "+") {
+      // Revenue/Income: ensure positive for display
+      return value < 0 ? -value : value;
+    } else {
+      // For Income tax expense, preserve original signs (credits can be positive, expenses negative)
+      if (grouping3 === "Income tax expense") {
+        return value; // Preserve original sign for tax items
+      }
+      // Other expenses: Individual line items should be positive (absolute value)
+      // This is standard practice - individual costs shown as positive, totals as negative
+      return value < 0 ? -value : value;
+    }
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
@@ -359,8 +413,8 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                 tableData.push([
                   `${indent}${row.accountName}`,
                   row.code || "",
-                  formatCurrency(row.currentYear || 0),
-                  formatCurrency(row.priorYear || 0),
+                  formatCurrency(formatRowValue(row.currentYear || 0, grouping3)),
+                  formatCurrency(formatRowValue(row.priorYear || 0, grouping3)),
                 ]);
               });
             });
@@ -666,10 +720,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                                       {row.code || ""}
                                     </td>
                                     <td className="p-2 text-right text-xs">
-                                      {formatCurrency(row.currentYear || 0)}
+                                      {formatCurrency(formatRowValue(row.currentYear || 0, grouping3))}
                                     </td>
                                     <td className="p-2 text-right text-xs">
-                                      {formatCurrency(row.priorYear || 0)}
+                                      {formatCurrency(formatRowValue(row.priorYear || 0, grouping3))}
                                     </td>
                                   </tr>
                                 ))}
