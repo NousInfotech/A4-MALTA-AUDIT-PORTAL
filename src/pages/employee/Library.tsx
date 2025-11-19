@@ -28,7 +28,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon,MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck } from 'lucide-react'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon,MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck, ChevronRight, ChevronDown } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -74,10 +81,12 @@ export default function GlobalLibraryPage() {
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [isRenameFolderOpen, setIsRenameFolderOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState("")
+  const [selectedParentFolder, setSelectedParentFolder] = useState<GlobalFolder | null>(null)
   const [renameFolderName, setRenameFolderName] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [folderToDelete, setFolderToDelete] = useState<GlobalFolder | null>(null)
   const [fileToDelete, setFileToDelete] = useState<GlobalFile | null>(null)
+  const [contextMenuFolder, setContextMenuFolder] = useState<GlobalFolder | null>(null)
 
   // New state for enhanced features
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
@@ -134,6 +143,83 @@ export default function GlobalLibraryPage() {
     })
   }, [files, localSearchTerm])
 
+
+  // Build folder tree - only show root-level folders in sidebar (no nested folders)
+  const buildFolderTree = useMemo(() => {
+    // Only show folders without a parent (root-level folders)
+    const rootFolders = folders
+      .filter(folder => {
+        const parentId = folder.parentId?._id || folder.parentId
+        return !parentId
+      })
+      .map(folder => ({ ...folder, children: [] }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return rootFolders
+  }, [folders])
+
+  // Build full path for a folder by traversing up the parent chain
+  const getFolderPath = useCallback((folder: GlobalFolder | null): GlobalFolder[] => {
+    if (!folder) return []
+    
+    const path: GlobalFolder[] = []
+    const folderMap = new Map<string, GlobalFolder>()
+    
+    // Create a map of all folders by ID for quick lookup
+    folders.forEach(f => {
+      const id = f._id
+      folderMap.set(id, f)
+    })
+    
+    // Traverse up the parent chain
+    let current: GlobalFolder | null = folder
+    const visited = new Set<string>()
+    
+    while (current && !visited.has(current._id)) {
+      visited.add(current._id)
+      path.unshift(current) // Add to beginning to maintain order
+      
+      // Get parent ID (handle both object and string)
+      const parentId = current.parentId?._id || current.parentId
+      if (parentId) {
+        current = folderMap.get(String(parentId)) || null
+      } else {
+        current = null
+      }
+    }
+    
+    return path
+  }, [folders])
+
+  // No need to auto-expand in sidebar since we're not showing nested folders there
+  // Nested folders appear in the right panel instead
+
+  // Get nested folders for the selected folder
+  const nestedFolders = useMemo(() => {
+    if (!selectedFolder) return []
+    const selectedFolderId = String(selectedFolder._id)
+    const filtered = folders.filter(folder => {
+      // Handle both null and undefined for parentId
+      // parentId can be: null, undefined, string (_id), or object (populated)
+      const folderParentId = folder.parentId
+      
+      // If parentId is null or undefined, it's a root folder
+      if (!folderParentId) {
+        return false
+      }
+      
+      // If parentId is an object (populated), extract the _id
+      if (typeof folderParentId === 'object') {
+        const parentIdStr = String(folderParentId._id || folderParentId)
+        return parentIdStr === selectedFolderId
+      }
+      
+      // If parentId is a string, compare directly
+      return String(folderParentId) === selectedFolderId
+    })
+    return filtered.sort((a, b) => a.name.localeCompare(b.name))
+  }, [folders, selectedFolder])
+
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase()
     switch (ext) {
@@ -157,6 +243,85 @@ export default function GlobalLibraryPage() {
     }
   }
 
+
+  // Render folder list - only root-level folders (flat list, no nesting in sidebar)
+  const renderFolderTree = (folderTree: GlobalFolder[]): React.ReactNode => {
+    return folderTree.map((folder) => {
+      const isSelected = selectedFolder?._id === folder._id
+      const matchesSearch = !searchTerm || folder.name.toLowerCase().includes(searchTerm.toLowerCase())
+
+      if (searchTerm && !matchesSearch) {
+        return null
+      }
+
+      return (
+        <div key={folder._id} className="select-none">
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-gray-100 cursor-pointer group transition-colors",
+              isSelected ? "bg-blue-50 hover:bg-blue-100" : ""
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              setSelectedFolder(folder)
+            }}
+          >
+            {/* Folder icon */}
+            <div className={cn(
+              "w-5 h-5 flex items-center justify-center flex-shrink-0",
+              isSelected ? "text-blue-600" : "text-yellow-600"
+            )}>
+              <Folder className="h-4 w-4" />
+            </div>
+            
+            {/* Folder name */}
+            <span className={cn(
+              "text-sm truncate flex-1",
+              isSelected ? "font-semibold text-blue-900" : "font-medium text-gray-700"
+            )}>
+              {folder.name}
+            </span>
+            
+            {/* Actions menu */}
+            <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6 rounded hover:bg-gray-200">
+                    <MoreVertical className="h-3.5 w-3.5 text-gray-600" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white border border-gray-200 rounded-lg shadow-lg">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedFolder(folder)
+                      setRenameFolderName(folder.name)
+                      setIsRenameFolderOpen(true)
+                    }}
+                    className="rounded-md"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-red-600 rounded-md"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      confirmDeleteFolder(folder)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      )
+    })
+  }
+
   const refreshFolders = async () => {
     setLoading(true)
     try {
@@ -167,6 +332,8 @@ export default function GlobalLibraryPage() {
         const found = list.find((f) => f._id === selectedFolder._id)
         setSelectedFolder(found ?? null)
       }
+      // Keep expanded folders expanded after refresh
+      // This ensures nested folders remain visible after refresh
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to fetch folders", variant: "destructive" })
     } finally {
@@ -228,10 +395,27 @@ export default function GlobalLibraryPage() {
     if (!name) return
     setCreating(true)
     try {
-      await apiCreateFolder(name)
+      const parentId = selectedParentFolder?._id || null
+      const createdFolder = await apiCreateFolder(name, parentId)
+      
       setNewFolderName("")
+      setSelectedParentFolder(null)
       setIsCreateFolderOpen(false)
-      await refreshFolders()
+      
+      // Refresh folders to get the updated list
+      const updatedFolders = await apiGetFolders()
+      setFolders(updatedFolders)
+      
+      // Maintain selection if still exists
+      if (selectedFolder) {
+        const found = updatedFolders.find((f) => f._id === selectedFolder._id)
+        if (found) {
+          setSelectedFolder(found)
+          // Refresh files view to ensure nested folders show up
+          await refreshFiles(found)
+        }
+      }
+      
       toast({ title: "Folder created", description: `"${name}" is ready to use.` })
     } catch (e: any) {
       toast({ title: "Create failed", description: e.message || "Unable to create folder", variant: "destructive" })
@@ -484,10 +668,15 @@ export default function GlobalLibraryPage() {
   };
 
   const selectAllFiles = () => {
-    if (selectedFiles.size === filteredFiles.length) {
+    const totalItems = filteredFiles.length + nestedFolders.length
+    if (selectedFiles.size === totalItems) {
       setSelectedFiles(new Set());
     } else {
-      setSelectedFiles(new Set(filteredFiles.map(f => f.name || f.fileName || "")));
+      const allItems = [
+        ...filteredFiles.map(f => f.name || f.fileName || ""),
+        ...nestedFolders.map(f => f._id)
+      ]
+      setSelectedFiles(new Set(allItems));
     }
   };
 
@@ -560,7 +749,17 @@ export default function GlobalLibraryPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
-          <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+          <Dialog open={isCreateFolderOpen} onOpenChange={(open) => {
+            setIsCreateFolderOpen(open)
+            if (open) {
+              // When dialog opens, pre-select the currently selected folder as parent (if any)
+              setSelectedParentFolder(selectedFolder)
+            } else {
+              // Reset when dialog closes
+              setNewFolderName("")
+              setSelectedParentFolder(null)
+            }
+          }}>
             <DialogTrigger asChild>
               <Button 
                 variant="outline" 
@@ -575,12 +774,47 @@ export default function GlobalLibraryPage() {
                 <DialogTitle className="text-xl font-semibold text-gray-900">Create New Folder</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                <Input
-                  placeholder="Folder name"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="parent-folder" className="text-sm font-medium text-gray-700">Parent Folder</Label>
+                  <Select
+                    value={selectedParentFolder?._id || "root"}
+                    onValueChange={(value) => {
+                      if (value === "root") {
+                        setSelectedParentFolder(null)
+                      } else {
+                        const folder = folders.find(f => f._id === value)
+                        setSelectedParentFolder(folder || null)
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="parent-folder" className="h-12 border-gray-200 focus:border-gray-400 rounded-xl">
+                      <SelectValue placeholder="Select parent folder" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      <SelectItem value="root">Root (Top Level)</SelectItem>
+                      {folders.map((folder) => (
+                        <SelectItem key={folder._id} value={folder._id}>
+                          {folder.path.replace(/\/$/, '') || folder.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    {selectedParentFolder 
+                      ? `Creating folder inside: ${selectedParentFolder.name}`
+                      : "Creating folder at root level. Select a folder to create inside it."}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="folder-name" className="text-sm font-medium text-gray-700">Folder Name</Label>
+                  <Input
+                    id="folder-name"
+                    placeholder="Folder name"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                  />
+                </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button 
                     onClick={handleCreateFolder} 
@@ -592,7 +826,9 @@ export default function GlobalLibraryPage() {
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={() => setIsCreateFolderOpen(false)}
+                    onClick={() => {
+                      setIsCreateFolderOpen(false)
+                    }}
                     className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                   >
                     Cancel
@@ -652,17 +888,31 @@ export default function GlobalLibraryPage() {
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-3 text-gray-700 font-medium">
+                <div className="flex items-center gap-2 text-gray-700 font-medium flex-wrap">
                   <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
                     <Home className="h-4 w-4 text-primary-foreground" />
                   </div>
-                  <span>Global Library</span>
-                  {selectedFolder ? (
-                    <>
+                  <button
+                    onClick={() => setSelectedFolder(null)}
+                    className="hover:text-primary transition-colors"
+                  >
+                    Global Library
+                  </button>
+                  {selectedFolder && getFolderPath(selectedFolder).map((folder, index, pathArray) => (
+                    <span key={folder._id} className="flex items-center gap-2">
                       <span className="text-gray-400">/</span>
-                      <span className="text-gray-900 font-semibold">{selectedFolder.name}</span>
-                    </>
-                  ) : null}
+                      {index === pathArray.length - 1 ? (
+                        <span className="text-gray-900 font-semibold">{folder.name}</span>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedFolder(folder)}
+                          className="hover:text-primary transition-colors"
+                        >
+                          {folder.name}
+                        </button>
+                      )}
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -716,65 +966,19 @@ export default function GlobalLibraryPage() {
                     className="h-12 border-gray-200 focus:border-gray-400 rounded-xl"
                   />
                 </div>
-                <div className="p-4 space-y-2 max-h-[60vh] md:max-h-[70vh] overflow-auto">
-                  {folders
-                    .filter((f) => !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map((folder) => (
-                      <div
-                        key={folder._id}
-                        className={cn(
-                          "flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer group transition-all duration-300",
-                          selectedFolder?._id === folder._id ? "bg-gray-50 border border-gray-200 shadow-lg" : ""
-                        )}
-                        onClick={() => setSelectedFolder(folder)}
-                      >
-                        <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
-                          <Folder className="h-4 w-4 text-primary-foreground" />
-                        </div>
-                        <span className="text-sm truncate font-medium">{folder.name}</span>
-                        <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button size="icon" variant="outline" className="h-7 w-7 rounded-xl border-gray-200 hover:bg-gray-50">
-                              <MoreVertical className="h-4 w-4 text-gray-600" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-white border border-gray-200 rounded-xl">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedFolder(folder)
-                                setRenameFolderName(folder.name)
-                                setIsRenameFolderOpen(true)
-                              }}
-                              className="rounded-lg"
-                            >
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600 rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                confirmDeleteFolder(folder)
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                <div className="p-2 space-y-0.5 max-h-[60vh] md:max-h-[70vh] overflow-auto">
+                  {buildFolderTree.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {renderFolderTree(buildFolderTree)}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                        <Folder className="h-8 w-8 text-gray-600" />
                       </div>
+                      <p className="text-gray-600 font-medium">No folders yet. Create one to get started.</p>
                     </div>
-                  ))}
-                {folders.length === 0 && (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                      <Folder className="h-8 w-8 text-gray-600" />
-                    </div>
-                    <p className="text-gray-600 font-medium">No folders yet. Create one to get started.</p>
-                  </div>
-                )}
+                  )}
               </div>
             </aside>
 
@@ -1027,43 +1231,106 @@ export default function GlobalLibraryPage() {
                 </div>
               </div>
 
-              {/* Files list/grid */}
-              <div className="p-6">
-                {!selectedFolder ? (
-                  <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                      <FolderOpen className="h-10 w-10 text-gray-600" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-gray-800 mb-3">No folder selected</h3>
-                    <p className="text-gray-600 text-lg">
-                      Choose a folder on the left to view its files.
-                    </p>
-                  </div>
-                ) : viewMode === "list" ? (
-                  <div className="space-y-2">
-                    {/* Header (hidden on mobile) */}
-                    <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                      <div className="col-span-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={selectAllFiles}
-                          className="h-6 w-6"
-                        >
-                          {selectedFiles.size === filteredFiles.length ? (
-                            <CheckSquare className="h-4 w-4" />
-                          ) : (
-                            <Square className="h-4 w-4" />
-                          )}
-                        </Button>
+              {/* Files and Folders list/grid */}
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <div className="p-6 min-h-[400px]">
+                    {!selectedFolder ? (
+                      <div className="text-center py-16">
+                        <div className="w-20 h-20 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                          <FolderOpen className="h-10 w-10 text-gray-600" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-3">No folder selected</h3>
+                        <p className="text-gray-600 text-lg">
+                          Choose a folder on the left to view its contents.
+                        </p>
                       </div>
-                      <div className="col-span-5">Name</div>
-                      <div className="col-span-2">Type</div>
-                      <div className="col-span-2">Modified</div>
-                      <div className="col-span-2">Actions</div>
-                    </div>
-                    {/* Rows */}
-                    {filteredFiles.length > 0 ? (
+                    ) : viewMode === "list" ? (
+                      <div className="space-y-2">
+                        {/* Header (hidden on mobile) */}
+                        <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                          <div className="col-span-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={selectAllFiles}
+                              className="h-6 w-6"
+                            >
+                              {selectedFiles.size === (filteredFiles.length + nestedFolders.length) ? (
+                                <CheckSquare className="h-4 w-4" />
+                              ) : (
+                                <Square className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                          <div className="col-span-5">Name</div>
+                          <div className="col-span-2">Type</div>
+                          <div className="col-span-2">Modified</div>
+                          <div className="col-span-2">Actions</div>
+                        </div>
+                        
+                        {/* Nested Folders */}
+                        {nestedFolders.length > 0 && nestedFolders.map((folder) => (
+                          <div
+                            key={folder._id}
+                            className={cn(
+                              "grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300 cursor-pointer",
+                              selectedFolder?._id === folder._id && "bg-blue-50 border border-blue-200"
+                            )}
+                            onClick={() => setSelectedFolder(folder)}
+                          >
+                            <div className="sm:col-span-1 flex items-center">
+                              <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                                <Folder className="h-4 w-4 text-primary-foreground" />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 sm:col-span-5 min-w-0">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm truncate font-medium block">{folder.name}</span>
+                                <span className="text-xs text-gray-500">Folder</span>
+                              </div>
+                            </div>
+                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                              Folder
+                            </div>
+                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                              {new Date(folder.createdAt).toLocaleDateString()}
+                            </div>
+                            <div className="sm:col-span-2 flex items-center gap-1">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedFolder(folder)
+                                    setRenameFolderName(folder.name)
+                                    setIsRenameFolderOpen(true)
+                                  }}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Rename
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      confirmDeleteFolder(folder)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Files */}
+                        {filteredFiles.length > 0 ? (
                       filteredFiles.map((file) => {
                         const fileName = file.name || file.fileName || "";
                         const isSelected = selectedFiles.has(fileName);
@@ -1193,18 +1460,38 @@ export default function GlobalLibraryPage() {
                           </div>
                         );
                       })
-                    ) : (
+                    ) : nestedFolders.length === 0 ? (
                       <div className="text-center py-12">
                         <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
                           <File className="h-8 w-8 text-gray-600" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
-                        <p className="text-gray-600">Upload documents to get started</p>
+                        <p className="text-gray-600">Right-click to create a folder or upload files</p>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ) : viewMode === "grid" ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                    {/* Nested Folders in Grid */}
+                    {nestedFolders.length > 0 && nestedFolders.map((folder) => (
+                      <Card 
+                        key={folder._id} 
+                        className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                        onClick={() => setSelectedFolder(folder)}
+                      >
+                        <div className="mb-3 flex justify-center">
+                          <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
+                            <Folder className="h-6 w-6 text-primary" />
+                          </div>
+                        </div>
+                        <div className="text-sm font-semibold truncate text-gray-800 mb-1" title={folder.name}>
+                          {folder.name}
+                        </div>
+                        <div className="text-xs text-gray-500 mb-2">Folder</div>
+                      </Card>
+                    ))}
+                    
+                    {/* Files in Grid */}
                     {filteredFiles.length > 0 ? (
                       filteredFiles.map((file) => {
                         const fileName = file.name || file.fileName || "";
@@ -1290,23 +1577,61 @@ export default function GlobalLibraryPage() {
                           </Card>
                         );
                       })
-                    ) : (
+                    ) : nestedFolders.length === 0 ? (
                       <div className="col-span-full text-center py-12">
                         <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
                           <File className="h-8 w-8 text-gray-600" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
-                        <p className="text-gray-600">Upload documents to get started</p>
+                        <p className="text-gray-600">Right-click to create a folder or upload files</p>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ) : null}
-              </div>
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-56">
+                  <ContextMenuItem
+                    onClick={() => {
+                      if (selectedFolder) {
+                        setSelectedParentFolder(selectedFolder)
+                        setIsCreateFolderOpen(true)
+                      }
+                    }}
+                  >
+                    <Folder className="h-4 w-4 mr-2" />
+                    New Folder
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onClick={() => {
+                      if (selectedFolder) {
+                        fileInputRef.current?.click()
+                      }
+                    }}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Files
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onClick={() => {
+                      if (selectedFolder) {
+                        refreshFolders()
+                        refreshFiles(selectedFolder)
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
 
               {/* Status bar */}
               <div className="border-t border-gray-200 px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/30 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-sm text-gray-600">
                 <span className="truncate font-medium">
-                  {filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
+                  {nestedFolders.length + filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
+                  {nestedFolders.length > 0 && ` (${nestedFolders.length} folders, ${filteredFiles.length} files)`}
                 </span>
                 <span>{loading ? "Refreshing..." : ""}</span>
               </div>

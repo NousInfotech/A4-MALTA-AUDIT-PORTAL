@@ -129,7 +129,7 @@ const DeleteConfirmationDialog = ({
 )
 
 export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
-  const [selectedFolder, setSelectedFolder] = useState(categories[0])
+  const [selectedFolder, setSelectedFolder] = useState<string>(categories[0])
   const [viewMode, setViewMode] = useState<"grid" | "list">("list")
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -147,6 +147,13 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [showVersions, setShowVersions] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
   const [fileForDetails, setFileForDetails] = useState<LibraryFile | null>(null)
+  
+  // Folder path for breadcrumb navigation (currently just category, but prepared for nested folders)
+  const getFolderPath = useCallback((folder: string): string[] => {
+    // For now, return just the category
+    // When backend supports nested folders, this will traverse the parent chain
+    return [folder]
+  }, [])
 
   // Advanced search/filter state
   const [advancedSearch, setAdvancedSearch] = useState({
@@ -567,12 +574,31 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 rounded-t-2xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1 text-sm text-gray-600">
-              <Home className="h-4 w-4" />
-              <ChevronRight className="h-3 w-3" />
-              <span>Engagement Library</span>
-              <ChevronRight className="h-3 w-3" />
-              <span className="font-medium">{selectedFolder}</span>
+            <div className="flex items-center gap-2 text-gray-700 font-medium flex-wrap">
+              <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                <Home className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <button
+                onClick={() => setSelectedFolder(categories[0])}
+                className="hover:text-primary transition-colors"
+              >
+                Engagement Library
+              </button>
+              {selectedFolder && getFolderPath(selectedFolder).map((folder, index, pathArray) => (
+                <span key={folder} className="flex items-center gap-2">
+                  <span className="text-gray-400">/</span>
+                  {index === pathArray.length - 1 ? (
+                    <span className="text-gray-900 font-semibold">{folder}</span>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedFolder(folder)}
+                      className="hover:text-primary transition-colors"
+                    >
+                      {folder}
+                    </button>
+                  )}
+                </span>
+              ))}
             </div>
           </div>
           <div className="flex items-center space-x-2">
