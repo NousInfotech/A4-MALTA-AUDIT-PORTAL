@@ -5,7 +5,9 @@ export type GlobalFolder = {
   _id: string
   name: string
   path: string
+  parentId?: string | null
   createdAt: string
+  children?: GlobalFolder[]
 }
 
 export type GlobalFile = {
@@ -100,7 +102,7 @@ export async function getFolders(): Promise<GlobalFolder[]> {
   return res.json()
 }
 
-export async function createFolder(name: string): Promise<GlobalFolder> {
+export async function createFolder(name: string, parentId?: string | null): Promise<GlobalFolder> {
   const token = await getAuthToken()
   const res = await fetch(`${API_BASE}/api/global-library/folders`, {
     method: "POST",
@@ -108,7 +110,7 @@ export async function createFolder(name: string): Promise<GlobalFolder> {
       "Content-Type": "application/json",
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, parentId: parentId || null }),
   })
   if (!res.ok) await handleApiError(res)
   return res.json()
