@@ -2846,9 +2846,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const totals = useMemo(
 
-    () =>
-
-      sectionData.reduce(
+    () => {
+      // ✅ CRITICAL: Sum original values first (preserve precision), then round the final total
+      // This prevents rounding errors that occur when rounding each value before summing
+      const rawTotals = sectionData.reduce(
 
         (acc, row) => ({
 
@@ -2866,7 +2867,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
 
-      ),
+      );
+
+      // Round the final totals (not individual values)
+      return {
+        currentYear: Math.round(rawTotals.currentYear),
+        priorYear: Math.round(rawTotals.priorYear),
+        adjustments: Math.round(rawTotals.adjustments),
+        reclassification: Math.round(rawTotals.reclassification),
+        finalBalance: Math.round(rawTotals.finalBalance),
+      };
+    },
 
     [sectionData]
 
