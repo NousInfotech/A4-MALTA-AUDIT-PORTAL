@@ -379,6 +379,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       if (!groupedData[group1]) return 0;
 
       // Sum formatted values (not raw values) to match individual row display
+      // Round each value before summing to match displayed rounded values
       const sum = Object.entries(groupedData[group1])
         .filter(([group2]) => {
           // Exclude "Current Year Profits & Losses" from Equity calculations
@@ -400,7 +401,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                   const rawValue = year === "current" ? row.currentYear : row.priorYear;
                   value = formatBalanceSheetValue(rawValue || 0, row.accountName);
                 }
-                return rowAcc + (value || 0);
+                // Round to whole number before summing
+                return rowAcc + Math.round(value || 0);
               }, 0);
               return g4Acc + rowSum;
             }, 0);
@@ -421,6 +423,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       if (!groupedData[group1] || !groupedData[group1][group2]) return 0;
 
       // Sum formatted values (not raw values) to match individual row display
+      // Round each value before summing to match displayed rounded values
       const sum = Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
         const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
           const rowSum = rows.reduce((rowAcc, row) => {
@@ -433,7 +436,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
               const rawValue = year === "current" ? row.currentYear : row.priorYear;
               value = formatBalanceSheetValue(rawValue || 0, row.accountName);
             }
-            return rowAcc + (value || 0);
+            // Round to whole number before summing
+            return rowAcc + Math.round(value || 0);
           }, 0);
           return g4Acc + rowSum;
         }, 0);
@@ -453,6 +457,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3]) return 0;
 
       // Sum formatted values (not raw values) to match individual row display
+      // Round each value before summing to match displayed rounded values
       const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((rowAcc, row) => {
           // Special case for Retained Earnings current year
@@ -464,7 +469,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             const rawValue = year === "current" ? row.currentYear : row.priorYear;
             value = formatBalanceSheetValue(rawValue || 0, row.accountName);
           }
-          return rowAcc + (value || 0);
+          // Round to whole number before summing
+          return rowAcc + Math.round(value || 0);
         }, 0);
         return g4Acc + rowSum;
       }, 0);
@@ -483,6 +489,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3] || !groupedData[group1][group2][group3][group4]) return 0;
 
       // Sum formatted values (not raw values) to match individual row display
+      // Round each value before summing to match displayed rounded values
       const sum = groupedData[group1][group2][group3][group4].reduce((acc, row) => {
         // Special case for Retained Earnings current year
         let value: number;
@@ -493,7 +500,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           const rawValue = year === "current" ? row.currentYear : row.priorYear;
           value = formatBalanceSheetValue(rawValue || 0, row.accountName);
         }
-        return acc + (value || 0);
+        // Round to whole number before summing
+        return acc + Math.round(value || 0);
       }, 0);
       
       // Check if this is a contra-asset group4 (like "Accumulated Depreciation")
@@ -551,6 +559,38 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  };
+
+  // Format table row values: rounded to whole numbers, with parentheses for negative values
+  const formatTableRowValue = (value: number): string => {
+    // Round to whole number
+    const roundedValue = Math.round(value);
+    
+    // Format with commas, no decimal places
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(roundedValue));
+    
+    // Show negative values in parentheses
+    return roundedValue < 0 ? `(${formatted})` : formatted;
+  };
+
+  // Format totals: rounded to whole numbers, with parentheses for negative values
+  const formatTotalValue = (value: number): string => {
+    // Round to whole number
+    const roundedValue = Math.round(value);
+    
+    // Format with commas, no decimal places
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(roundedValue));
+    
+    // Show negative values in parentheses
+    return roundedValue < 0 ? `(${formatted})` : formatted;
   };
 
   // Helper to get the display value for a row (handles Retained Earnings calculation)
@@ -939,7 +979,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                 </td>
                                 <td className="p-3"></td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Assets",
                                       group2,
@@ -948,7 +988,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                   )}
                                 </td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Assets",
                                       group2,
@@ -987,7 +1027,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                         </td>
                                         <td className="p-2"></td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Assets",
                                               group2,
@@ -997,7 +1037,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                           )}
                                         </td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Assets",
                                               group2,
@@ -1039,7 +1079,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                               </td>
                                               <td className="p-2"></td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Assets",
                                                     group2,
@@ -1050,7 +1090,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 )}
                                               </td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Assets",
                                                     group2,
@@ -1076,10 +1116,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(getRowCurrentYearValue(row))}
+                                                {formatTableRowValue(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(getRowPriorYearValue(row))}
+                                                {formatTableRowValue(getRowPriorYearValue(row))}
                                               </td>
                                             </tr>
                                           ))}
@@ -1100,10 +1140,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           </td>
                           <td className="p-3"></td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.assetsCurrent)}
+                            {formatTotalValue(calculations.assetsCurrent)}
                           </td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.assetsPrior)}
+                            {formatTotalValue(calculations.assetsPrior)}
                           </td>
                         </tr>
                       </>
@@ -1150,7 +1190,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                 </td>
                                 <td className="p-3"></td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Liabilities",
                                       group2,
@@ -1159,7 +1199,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                   )}
                                 </td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Liabilities",
                                       group2,
@@ -1198,7 +1238,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                         </td>
                                         <td className="p-2"></td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Liabilities",
                                               group2,
@@ -1208,7 +1248,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                           )}
                                         </td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Liabilities",
                                               group2,
@@ -1250,7 +1290,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                               </td>
                                               <td className="p-2"></td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Liabilities",
                                                     group2,
@@ -1261,7 +1301,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 )}
                                               </td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Liabilities",
                                                     group2,
@@ -1287,10 +1327,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(getRowCurrentYearValue(row))}
+                                                {formatTableRowValue(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(getRowPriorYearValue(row))}
+                                                {formatTableRowValue(getRowPriorYearValue(row))}
                                               </td>
                                             </tr>
                                           ))}
@@ -1311,10 +1351,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           </td>
                           <td className="p-3"></td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.liabilitiesCurrent)}
+                            {formatTotalValue(calculations.liabilitiesCurrent)}
                           </td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.liabilitiesPrior)}
+                            {formatTotalValue(calculations.liabilitiesPrior)}
                           </td>
                         </tr>
                       </>
@@ -1362,7 +1402,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                 </td>
                                 <td className="p-3"></td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Equity",
                                       group2,
@@ -1371,7 +1411,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                   )}
                                 </td>
                                 <td className="p-3 text-right font-semibold">
-                                  {formatCurrency(
+                                  {formatTotalValue(
                                     calculations.getGroup2Total(
                                       "Equity",
                                       group2,
@@ -1410,7 +1450,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                         </td>
                                         <td className="p-2"></td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Equity",
                                               group2,
@@ -1420,7 +1460,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                           )}
                                         </td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatCurrency(
+                                          {formatTotalValue(
                                             calculations.getGroup3Total(
                                               "Equity",
                                               group2,
@@ -1462,7 +1502,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                               </td>
                                               <td className="p-2"></td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Equity",
                                                     group2,
@@ -1473,7 +1513,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 )}
                                               </td>
                                               <td className="p-2 text-right text-sm">
-                                                {formatCurrency(
+                                                {formatTotalValue(
                                                   calculations.getGroup4Total(
                                                     "Equity",
                                                     group2,
@@ -1500,7 +1540,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                               </td>
                                               <td className="p-2 text-right text-xs">
                                                 <div className="flex items-center justify-end gap-1">
-                                                  {formatCurrency(getRowCurrentYearValue(row))}
+                                                  {formatTableRowValue(getRowCurrentYearValue(row))}
                                                   {isRetainedEarningsRow(row) && (
                                                     <Dialog>
                                                       <DialogTrigger asChild>
@@ -1548,7 +1588,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 </div>
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                {formatCurrency(row.priorYear || 0)}
+                                                {formatTableRowValue(getRowPriorYearValue(row))}
                                               </td>
                                             </tr>
                                           ))}
@@ -1569,10 +1609,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           </td>
                           <td className="p-3"></td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.equityCurrent)}
+                            {formatTotalValue(calculations.equityCurrent)}
                           </td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(calculations.equityPrior)}
+                            {formatTotalValue(calculations.equityPrior)}
                           </td>
                         </tr>
 
@@ -1583,13 +1623,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           </td>
                           <td className="p-3"></td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(
+                            {formatTotalValue(
                               calculations.liabilitiesCurrent +
                                 calculations.equityCurrent
                             )}
                           </td>
                           <td className="p-3 text-right font-bold text-lg">
-                            {formatCurrency(
+                            {formatTotalValue(
                               calculations.liabilitiesPrior +
                                 calculations.equityPrior
                             )}
@@ -1612,10 +1652,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                       </td>
                       <td className="p-4"></td>
                       <td className="p-4 text-right font-bold text-lg">
-                        {formatCurrency(calculations.balanceCurrent)}
+                        {formatTotalValue(calculations.balanceCurrent)}
                       </td>
                       <td className="p-4 text-right font-bold text-lg">
-                        {formatCurrency(calculations.balancePrior)}
+                        {formatTotalValue(calculations.balancePrior)}
                       </td>
                     </tr>
                   </tbody>

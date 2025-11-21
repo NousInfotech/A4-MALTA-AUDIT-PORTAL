@@ -196,10 +196,12 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   const calculations = useMemo(() => {
     const getValue = (grouping3: string, year: "current" | "prior") => {
       const group4Map = groupedData[grouping3] || {};
+      // Round each value before summing to match displayed rounded values
       const sum = Object.values(group4Map).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((acc, row) => {
           const value = year === "current" ? row.currentYear : row.priorYear;
-          return acc + (value || 0);
+          // Round to whole number before summing
+          return acc + Math.round(value || 0);
         }, 0);
         return g4Acc + rowSum;
       }, 0);
@@ -224,9 +226,11 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       if (!groupedData[grouping3] || !groupedData[grouping3][grouping4]) return 0;
 
       const rows = groupedData[grouping3][grouping4];
+      // Round each value before summing to match displayed rounded values
       const sum = rows.reduce((acc, row) => {
         const value = year === "current" ? row.currentYear : row.priorYear;
-        return acc + (value || 0);
+        // Round to whole number before summing
+        return acc + Math.round(value || 0);
       }, 0);
       const sign = GROUPING_SIGNS[grouping3] || "+";
       // For Income Statement display:
@@ -333,6 +337,57 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       // This is standard practice - individual costs shown as positive, totals as negative
       return value < 0 ? -value : value;
     }
+  };
+
+  // Format table row values: rounded to whole numbers, with parentheses for negative (expenses)
+  const formatTableRowValue = (value: number, grouping3: string): string => {
+    const sign = GROUPING_SIGNS[grouping3] || "+";
+    let displayValue = value;
+    let shouldShowInParentheses = false;
+    
+    // Apply sign conversion logic
+    if (sign === "+") {
+      // Revenue/Income: ensure positive for display
+      displayValue = value < 0 ? -value : value;
+      shouldShowInParentheses = false;
+    } else {
+      // For Income tax expense, preserve original signs
+      if (grouping3 === "Income tax expense") {
+        displayValue = value;
+        // Show in parentheses only if negative (expense)
+        shouldShowInParentheses = value < 0;
+      } else {
+        // Other expenses: convert to positive (absolute value) and show in parentheses
+        displayValue = value < 0 ? -value : value;
+        shouldShowInParentheses = true;
+      }
+    }
+    
+    // Round to whole number
+    const roundedValue = Math.round(displayValue);
+    
+    // Format with commas, no decimal places
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(roundedValue));
+    
+    // Show in parentheses if needed
+    return shouldShowInParentheses ? `(${formatted})` : formatted;
+  };
+
+  // Format totals (profit/loss values): rounded to whole numbers, no parentheses
+  const formatTotalValue = (value: number): string => {
+    // Round to whole number
+    const roundedValue = Math.round(value);
+    
+    // Format with commas, no decimal places
+    return new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(roundedValue);
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
@@ -659,10 +714,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                             </td>
                             <td className="p-3"></td>
                             <td className="p-3 text-right font-semibold">
-                              {formatCurrency(currentValue)}
+                              {formatTableRowValue(currentValue, grouping3)}
                             </td>
                             <td className="p-3 text-right font-semibold">
-                              {formatCurrency(priorValue)}
+                              {formatTableRowValue(priorValue, grouping3)}
                             </td>
                           </tr>
 
@@ -695,13 +750,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                                     </td>
                                     <td className="p-2"></td>
                                     <td className="p-2 text-right text-sm font-medium">
-                                      {formatCurrency(
-                                        calculations.getGroup4Total(grouping3, group4, "current")
+                                      {formatTableRowValue(
+                                        calculations.getGroup4Total(grouping3, group4, "current"),
+                                        grouping3
                                       )}
                                     </td>
                                     <td className="p-2 text-right text-sm font-medium">
-                                      {formatCurrency(
-                                        calculations.getGroup4Total(grouping3, group4, "prior")
+                                      {formatTableRowValue(
+                                        calculations.getGroup4Total(grouping3, group4, "prior"),
+                                        grouping3
                                       )}
                                     </td>
                                   </tr>
@@ -720,10 +777,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                                       {row.code || ""}
                                     </td>
                                     <td className="p-2 text-right text-xs">
-                                      {formatCurrency(formatRowValue(row.currentYear || 0, grouping3))}
+                                      {formatTableRowValue(row.currentYear || 0, grouping3)}
                                     </td>
                                     <td className="p-2 text-right text-xs">
-                                      {formatCurrency(formatRowValue(row.priorYear || 0, grouping3))}
+                                      {formatTableRowValue(row.priorYear || 0, grouping3)}
                                     </td>
                                   </tr>
                                 ))}
@@ -742,10 +799,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                               <td className="p-3 font-bold">Gross Profit</td>
                               <td className="p-3"></td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(calculations.grossProfitCurrent)}
+                                {formatTotalValue(calculations.grossProfitCurrent)}
                               </td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(calculations.grossProfitPrior)}
+                                {formatTotalValue(calculations.grossProfitPrior)}
                               </td>
                             </tr>
                           )}
@@ -755,12 +812,12 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                               <td className="p-3 font-bold">Operating Profit</td>
                               <td className="p-3"></td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(
+                                {formatTotalValue(
                                   calculations.operatingProfitCurrent
                                 )}
                               </td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(calculations.operatingProfitPrior)}
+                                {formatTotalValue(calculations.operatingProfitPrior)}
                               </td>
                             </tr>
                           )}
@@ -772,12 +829,12 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                               </td>
                               <td className="p-3"></td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(
+                                {formatTotalValue(
                                   calculations.netProfitBeforeTaxCurrent
                                 )}
                               </td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(
+                                {formatTotalValue(
                                   calculations.netProfitBeforeTaxPrior
                                 )}
                               </td>
@@ -791,12 +848,12 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                               </td>
                               <td className="p-3"></td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(
+                                {formatTotalValue(
                                   calculations.netProfitAfterTaxCurrent
                                 )}
                               </td>
                               <td className="p-3 text-right font-bold">
-                                {formatCurrency(
+                                {formatTotalValue(
                                   calculations.netProfitAfterTaxPrior
                                 )}
                               </td>
