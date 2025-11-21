@@ -663,7 +663,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">
                 Select Existing {entityType === "person" ? "Person" : "Company"}
               </h3>
-              {!isGlobalSearchMode && (
+              {/* {!isGlobalSearchMode && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -673,7 +673,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   <Search className="h-4 w-4 mr-2" />
                   Search Globally
                 </Button>
-              )}
+              )} */}
             </div>
 
             {isGlobalSearchMode ? (
