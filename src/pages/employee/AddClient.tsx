@@ -64,7 +64,6 @@ export const AddClient = () => {
     customValue: "",
     nationality: "",
     address: "",
-    phoneNumber: "",
     companyId: "",
   });
   const [showPassword, setShowPassword] = useState(true);
@@ -139,7 +138,7 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary, nationality, address, phoneNumber, companyId } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId } =
       formData;
 
     const industry =
@@ -165,7 +164,6 @@ export const AddClient = () => {
             summary,
             nationality,
             address,
-            phoneNumber,
             companyId: companyId || undefined,
             role: "client",
           }),
@@ -328,22 +326,6 @@ export const AddClient = () => {
                       placeholder="contact@company.com"
                       className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                       required
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="phoneNumber"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Phone Number
-                    </Label>
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      value={formData.phoneNumber}
-                      onChange={(e) => handleChange("phoneNumber", e.target.value)}
-                      placeholder="+356 2123 4567"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                     />
                   </div>
                   <div className="space-y-3 relative">
