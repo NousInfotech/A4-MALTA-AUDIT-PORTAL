@@ -57,6 +57,11 @@ import {
   AlertCircle,
   Loader2,
   ChevronDown,
+  Info,
+  FileText,
+  ExternalLink,
+  Image,
+  File,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -110,9 +115,14 @@ import {
   addMappingToEvidence,
   updateEvidenceMapping,
   removeMappingFromEvidence,
+  getEvidenceByCellRange,
+  addReferenceFileToWorkbook,
   type ClassificationEvidence,
   type CreateMappingRequest as EvidenceCreateMappingRequest
 } from "@/lib/api/classificationEvidenceApi";
+import { uploadFileToStorage, validateFile } from "@/lib/file-upload-service";
+import { createClassificationEvidence } from "@/lib/api/classification-evidence-api";
+import { getClassificationId } from "@/lib/classification-mapping";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -259,6 +269,41 @@ interface ExcelViewerProps {
   // Loading state for sheets
   loadingSheets?: Set<string>;
   mappingsRefreshKey?: number;
+
+  // Reference files states
+  isDualOptionsDialogOpen?: boolean;
+  setIsDualOptionsDialogOpen?: (open: boolean) => void;
+  isReferenceFilesDialogOpen?: boolean;
+  setIsReferenceFilesDialogOpen?: (open: boolean) => void;
+  isUploadReferenceFilesDialogOpen?: boolean;
+  setIsUploadReferenceFilesDialogOpen?: (open: boolean) => void;
+  cellRangeEvidenceFiles?: ClassificationEvidence[];
+  setCellRangeEvidenceFiles?: Dispatch<SetStateAction<ClassificationEvidence[]>>;
+  loadingEvidenceFiles?: boolean;
+  setLoadingEvidenceFiles?: (loading: boolean) => void;
+  cellsWithEvidence?: Map<string, boolean>;
+  setCellsWithEvidence?: Dispatch<SetStateAction<Map<string, boolean>>>;
+  uploadingFiles?: boolean;
+  setUploadingFiles?: (uploading: boolean) => void;
+
+  // Reference files functions
+  fetchEvidenceFilesForRange?: (
+    sheet: string,
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number
+  ) => Promise<void>;
+  cellHasEvidence?: (row: number, col: number, sheet: string) => boolean;
+  handleOpenReferenceFilesDialog?: () => Promise<void>;
+  handleOpenFileInNewTab?: (fileUrl: string) => void;
+  handleReferenceFileUpload?: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+
+  // File preview states
+  filePreviewOpen?: boolean;
+  setFilePreviewOpen?: (open: boolean) => void;
+  selectedPreviewFile?: ClassificationEvidence | null;
+  setSelectedPreviewFile?: (file: ClassificationEvidence | null) => void;
   
 }
 
@@ -367,6 +412,35 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // Loading state
   loadingSheets = new Set(),
+
+  // Reference files states
+  isDualOptionsDialogOpen = false,
+  setIsDualOptionsDialogOpen = () => {},
+  isReferenceFilesDialogOpen = false,
+  setIsReferenceFilesDialogOpen = () => {},
+  isUploadReferenceFilesDialogOpen = false,
+  setIsUploadReferenceFilesDialogOpen = () => {},
+  cellRangeEvidenceFiles = [],
+  setCellRangeEvidenceFiles = () => {},
+  loadingEvidenceFiles = false,
+  setLoadingEvidenceFiles = () => {},
+  cellsWithEvidence = new Map(),
+  setCellsWithEvidence = () => {},
+  uploadingFiles = false,
+  setUploadingFiles = () => {},
+
+  // Reference files functions
+  fetchEvidenceFilesForRange,
+  cellHasEvidence,
+  handleOpenReferenceFilesDialog,
+  handleOpenFileInNewTab,
+  handleReferenceFileUpload,
+
+  // File preview states
+  filePreviewOpen = false,
+  setFilePreviewOpen = () => {},
+  selectedPreviewFile = null,
+  setSelectedPreviewFile = () => {},
 }) => {
   const { toast } = useToast();
   
@@ -451,6 +525,36 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const sheetData: SheetData = workbook?.fileData || {};
   const sheetNames = Object.keys(sheetData);
 
+  // ✅ DEBUG: Log workbook.referenceFiles whenever it changes
+  useEffect(() => {
+    const refFiles = workbook?.referenceFiles || [];
+    const refFilesForCurrentSheet = refFiles.filter((ref: any) => 
+      ref?.details?.sheet === selectedSheet
+    );
+    
+    console.log('📊 ExcelViewer: workbook.referenceFiles changed:', {
+      workbookId: workbook?.id,
+      workbookName: workbook?.name,
+      selectedSheet,
+      totalReferenceFilesCount: refFiles.length,
+      referenceFilesForCurrentSheet: refFilesForCurrentSheet.length,
+      referenceFiles: refFiles.map((ref: any) => ({
+        hasDetails: !!ref?.details,
+        sheet: ref?.details?.sheet,
+        start: ref?.details?.start,
+        end: ref?.details?.end,
+        evidenceCount: ref?.evidence?.length || 0,
+        evidenceIds: ref?.evidence?.map((e: any) => {
+          if (typeof e === 'string') return e;
+          if (e && typeof e === 'object') return e._id || e.id || e;
+          return e?.toString?.() || e;
+        }) || []
+      })) || [],
+      timestamp: (workbook as any)?._referenceFilesUpdateTimestamp,
+      workbookPropReference: workbook // Log the actual prop reference
+    });
+  }, [workbook?.id, workbook?.referenceFiles, (workbook as any)?._referenceFilesUpdateTimestamp, selectedSheet]);
+
   // Get cached sheet data from parent (ExcelViewerWithFullscreen will pass this)
   const sheetDataCacheProp = sheetDataCache;
 
@@ -531,6 +635,115 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       }
     }
   }, [workbook.id, sheetNames, selectedSheet, setSelectedSheet]);
+
+  // Helper to get cell key for evidence tracking (must be defined before useEffect)
+  const getCellKey = useCallback((row: number, col: number, sheet: string) => {
+    return `${sheet}_${row}_${col}`;
+  }, []);
+
+  // Effect to fetch evidence files for all mappings and referenceFiles in the current sheet
+  // ✅ This works for ALL workbooks regardless of rowType (etb, working-paper, evidence)
+  useEffect(() => {
+    if (!workbook?.id || !selectedSheet) {
+      setCellsWithEvidence(new Map());
+      return;
+    }
+
+    console.log('🔍 Fetching reference files for workbook:', {
+      workbookId: workbook.id,
+      workbookName: workbook.name,
+      selectedSheet,
+      rowType,
+      referenceFilesCount: workbook.referenceFiles?.length || 0
+    });
+
+    // ✅ IMPORTANT: Only process referenceFiles, NOT mappings
+    // Mappings are separate and handled by allMappings
+
+    // Get all reference file ranges from workbook.referenceFiles in the current sheet
+    // ✅ Handle both old format (ObjectIds) and new format (ReferenceSchema)
+    const sheetReferenceFiles = (workbook.referenceFiles || []).filter(
+      (ref: any) => {
+        // Skip old format entries (just ObjectIds without details)
+        if (!ref || typeof ref !== 'object' || !ref.details) return false;
+        return ref.details.sheet === selectedSheet;
+      }
+    );
+
+    if (sheetReferenceFiles.length === 0) {
+      // Clear evidence map if no reference files
+      // Note: Mappings are separate and don't affect this map
+      setCellsWithEvidence(new Map());
+      return;
+    }
+
+      // ✅ IMPORTANT: Only process referenceFiles (NOT mappings)
+      // Mappings and reference files are separate concepts:
+      // - Mappings: Link cells to ETB/Working Paper/Evidence rows (shown with "Mapping" label)
+      // - Reference Files: Directly attached to cell ranges (shown with "References" label)
+      const fetchEvidenceForRanges = async () => {
+        const newCellsWithEvidence = new Map<string, boolean>();
+        
+        // ✅ DO NOT process mappings here - mappings are separate and should not populate cellsWithEvidence
+        // Mappings will show "Mapping" label, reference files will show "References" label
+
+        // Process referenceFiles ONLY (new schema with details and evidence array)
+      // ✅ Handle both old format (ObjectIds) and new format (ReferenceSchema)
+      for (const refFile of sheetReferenceFiles) {
+        // Skip old format entries (just ObjectIds without details)
+        if (!refFile || typeof refFile !== 'object' || !refFile.details) {
+          console.warn('⚠️ Skipping old format referenceFile entry:', refFile);
+          continue;
+        }
+        
+        const { start, end } = refFile.details;
+        if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
+          console.warn('⚠️ Invalid referenceFile details.start:', refFile);
+          continue;
+        }
+
+        const evidenceIds = refFile.evidence || [];
+        
+        // Mark cells in this reference range if it has evidence
+        if (evidenceIds.length > 0) {
+          const startRow = start.row;
+          const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
+          const startCol = start.col;
+          const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
+
+          for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+              const cellKey = getCellKey(row, col, selectedSheet);
+              newCellsWithEvidence.set(cellKey, true);
+            }
+          }
+
+          console.log('📋 Reference file range marked:', {
+            workbookId: workbook.id,
+            refFileId: refFile._id,
+            sheet: selectedSheet,
+            startRow,
+            startCol,
+            endRow,
+            endCol,
+            evidenceCount: evidenceIds.length
+          });
+        }
+      }
+
+      console.log('📋 Updated cellsWithEvidence:', {
+        workbookId: workbook.id,
+        workbookName: workbook.name,
+        rowType,
+        sheet: selectedSheet,
+        totalCells: newCellsWithEvidence.size,
+        cells: Array.from(newCellsWithEvidence.keys())
+      });
+      setCellsWithEvidence(newCellsWithEvidence);
+    };
+
+    fetchEvidenceForRanges();
+  }, [workbook?.id, workbook?.name, workbook?.referenceFiles, (workbook as any)?._referenceFilesUpdateTimestamp, selectedSheet, allMappings, getCellKey, setCellsWithEvidence, rowType]);
 
   // Effect to populate newNamedRangeRange when Create Named Range dialog opens and a selection exists
   useEffect(() => {
@@ -814,15 +1027,15 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   const handleMouseUp = useCallback(() => {
     if (isSelecting && selections.length > 0) {
-      // Check if we have a valid selection and trigger mapping creation
+      // Check if we have a valid selection and trigger dual-options dialog
       const lastSelection = selections[selections.length - 1];
       if (lastSelection && lastSelection.sheet === selectedSheet) {
-        // Open ETB mapping creation dialog
-        setIsCreateETBMappingOpen(true);
+        // Open dual-options dialog instead of directly opening mapping dialog
+        setIsDualOptionsDialogOpen(true);
       }
     }
     setIsSelecting(false);
-  }, [isSelecting, selections, selectedSheet, setIsCreateETBMappingOpen, setIsSelecting]);
+  }, [isSelecting, selections, selectedSheet, setIsSelecting]);
 
   useEffect(() => {
     window.addEventListener("mouseup", handleMouseUp);
@@ -851,10 +1064,138 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     );
   };
 
+  // Helper functions for file preview
+  const getFileIcon = (fileUrl: string) => {
+    const fileName = fileUrl.split('/').pop() || '';
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) {
+      return <Image className="h-5 w-5 text-green-500" />;
+    }
+    if (extension === 'pdf') {
+      return <FileText className="h-5 w-5 text-red-500" />;
+    }
+    if (['doc', 'docx'].includes(extension)) {
+      return <FileText className="h-5 w-5 text-blue-500" />;
+    }
+    if (['xls', 'xlsx', 'csv'].includes(extension)) {
+      return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    }
+    return <File className="h-5 w-5 text-gray-500" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getFileType = (fileUrl: string): string => {
+    const fileName = fileUrl.split('/').pop() || '';
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    return extension || 'unknown';
+  };
+
+  const renderFilePreview = (evidence: ClassificationEvidence) => {
+    const fileUrl = evidence.evidenceUrl;
+    const fileName = fileUrl.split('/').pop() || 'Unknown File';
+    const fileType = getFileType(fileUrl).toLowerCase();
+
+    // For images
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(fileType)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <img
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+            style={{ maxHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // For PDFs
+    if (fileType === 'pdf') {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // For text files
+    if (['txt', 'csv'].includes(fileType)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // For Office documents
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(fileType)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // For other file types
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center p-8">
+          <div className="mb-4">
+            {getFileIcon(fileUrl)}
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{fileName}</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            {fileType.toUpperCase()} file
+          </p>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <p className="text-sm text-gray-500 mb-2">Preview not available for this file type</p>
+            <Button
+              variant="outline"
+              onClick={() => window.open(fileUrl, '_blank', 'noopener,noreferrer')}
+              className="mt-2"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Reference files functions are now passed as props from parent
+
   const getCellClassName = useCallback(
     (excelGridRowIndex: number, excelGridColIndex: number) => {
       let className =
-        "min-w-[100px] cursor-pointer select-none relative border border-gray-200 "; // Added default border
+        "min-w-[100px] cursor-pointer select-none relative border border-gray-200 "; // Added default border and relative positioning
 
       if (excelGridColIndex === 0 || excelGridRowIndex === 0) {
         className += "bg-gray-100 font-semibold text-gray-700 sticky ";
@@ -920,9 +1261,51 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       if (mapping) {
         className += `${mapping.color} `;
       }
+
+      // Check if cell is in a reference file range (for visual marking)
+      // ✅ Handle both old format (ObjectIds) and new format (ReferenceSchema)
+      const referenceFile = (workbook.referenceFiles || []).find((ref: any) => {
+        // Skip old format entries (just ObjectIds without details)
+        if (!ref || typeof ref !== 'object' || !ref.details) return false;
+        if (ref.details.sheet !== selectedSheet) return false;
+        
+        const { start, end } = ref.details;
+        if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
+          return false;
+        }
+
+        const startRow = start.row;
+        const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
+        const startCol = start.col;
+        const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
+        
+        return (
+          excelRowNumber >= startRow &&
+          excelRowNumber <= endRow &&
+          excelColIndex >= startCol &&
+          excelColIndex <= endCol &&
+          (ref.evidence || []).length > 0
+        );
+      });
+
+      // ✅ Visual marking for reference file ranges ONLY (not mappings)
+      // Mappings have their own color highlighting, reference files get blue background
+      if (referenceFile) {
+        // Light blue background to mark reference areas
+        className += "bg-blue-50 border-l-4 border-blue-400 ";
+      }
+
       return className;
     },
-    [selections, selectedSheet, allMappings]
+    [
+      selections, 
+      selectedSheet, 
+      allMappings, 
+      workbook.referenceFiles, 
+      (workbook as any)?._referenceFilesUpdateTimestamp,
+      (workbook as any)?.referenceFiles?.length, // ✅ Add length to dependencies to force re-render when referenceFiles change
+      cellsWithEvidence
+    ]
   );
 
   // Updated getSelectionText to work with the last selection in the array
@@ -2465,6 +2848,81 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                             )}
                           {/* end visible title */}
 
+                          {/* References title for cells with reference files (separate from mappings) */}
+                          {/* Show on ALL cells in reference range, not just first cell */}
+                          {!mapping &&
+                            !isHeaderCell &&
+                            excelGridColIndex > 0 &&
+                            excelGridRowIndex > 0 && (
+                              (() => {
+                                const cellRow = excelGridRowIndex;
+                                const cellCol = excelGridColIndex - 1;
+                                
+                                // Check if this cell is in a reference file range (from workbook.referenceFiles)
+                                const referenceFiles = (workbook.referenceFiles || []).filter((ref: any) => {
+                                  if (!ref || typeof ref !== 'object' || !ref.details) return false;
+                                  if (ref.details.sheet !== selectedSheet) return false;
+                                  
+                                  const { start, end } = ref.details;
+                                  if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
+                                    return false;
+                                  }
+
+                                  const startRow = start.row;
+                                  const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
+                                  const startCol = start.col;
+                                  const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
+                                  
+                                  return (
+                                    cellRow >= startRow &&
+                                    cellRow <= endRow &&
+                                    cellCol >= startCol &&
+                                    cellCol <= endCol &&
+                                    (ref.evidence || []).length > 0
+                                  );
+                                });
+
+                                // Check if this is the first cell of any reference range
+                                const isFirstCellOfReference = referenceFiles.some((ref: any) => {
+                                  const { start } = ref.details;
+                                  return cellRow === start.row && cellCol === start.col;
+                                });
+
+                                // Show "References" title on ALL cells in the reference range
+                                if (referenceFiles.length > 0) {
+                                  return (
+                                    <>
+                                      {/* invisible but occupying the enough space for the title */}
+                                      <span
+                                        className="invisible text-[15px] text-nowrap whitespace-nowrap font-semibold text-blue-600 px-1 rounded-sm bg-blue-50"
+                                        style={{
+                                          transform: "scale(0.8)",
+                                          transformOrigin: "top left",
+                                        }}
+                                      >
+                                        References
+                                      </span>
+                                      {/* visible title - only show on first cell to avoid clutter */}
+                                      {isFirstCellOfReference && (
+                                        <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-1 pointer-events-none z-10">
+                                          <span
+                                            className="text-[15px] font-semibold text-nowrap whitespace-nowrap text-blue-600 px-1 rounded-sm bg-blue-50"
+                                            style={{
+                                              transform: "scale(0.8)",
+                                              transformOrigin: "top left",
+                                            }}
+                                          >
+                                            References
+                                          </span>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                }
+                                return null;
+                              })()
+                            )}
+
                           {/* The small blue dot can remain or be removed, depending on preference */}
                           {excelGridColIndex > 0 &&
                             excelGridRowIndex > 0 &&
@@ -2476,6 +2934,140 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                 excelGridColIndex - 1 === m.details.start.col
                             ) && (
                               <div className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full" />
+                            )}
+
+                          {/* Information button for cells with reference files - show on first cell of each reference range */}
+                          {excelGridColIndex > 0 &&
+                            excelGridRowIndex > 0 && (
+                              (() => {
+                                const cellRow = excelGridRowIndex;
+                                const cellCol = excelGridColIndex - 1;
+                                
+                                // ✅ Check referenceFiles ONLY (not mappings)
+                                // Mappings are separate and don't show "i button" - they show "Mapping" label
+                                // ✅ CRITICAL: Use workbook prop - it should be reactive and update when state changes
+                                // The fix in refreshWorkbookMappings ensures we fetch the latest referenceFiles from backend
+                                const allReferenceFiles = workbook.referenceFiles || [];
+                                
+                                // ✅ DEBUG: Log when checking for reference files on specific cells (first few rows/cols)
+                                if (cellRow <= 20 && cellCol <= 5 && allReferenceFiles.length > 0) {
+                                  console.log(`🔍 Cell (${cellRow},${cellCol}) - Checking reference files:`, {
+                                    allReferenceFilesCount: allReferenceFiles.length,
+                                    selectedSheet,
+                                    referenceFiles: allReferenceFiles.map((ref: any) => ({
+                                      hasDetails: !!ref?.details,
+                                      sheet: ref?.details?.sheet,
+                                      start: ref?.details?.start,
+                                      end: ref?.details?.end,
+                                      evidenceCount: ref?.evidence?.length || 0,
+                                      evidence: ref?.evidence || []
+                                    }))
+                                  });
+                                }
+                                
+                                const referenceFiles = allReferenceFiles.filter((ref: any) => {
+                                  // Skip old format entries (just ObjectIds without details)
+                                  if (!ref || typeof ref !== 'object' || !ref.details) {
+                                    return false;
+                                  }
+                                  if (ref.details.sheet !== selectedSheet) {
+                                    return false;
+                                  }
+                                  
+                                  const { start, end } = ref.details;
+                                  if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
+                                    return false;
+                                  }
+
+                                  const startRow = start.row;
+                                  const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
+                                  const startCol = start.col;
+                                  const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
+                                  
+                                  return (
+                                    cellRow >= startRow &&
+                                    cellRow <= endRow &&
+                                    cellCol >= startCol &&
+                                    cellCol <= endCol &&
+                                    (ref.evidence || []).length > 0
+                                  );
+                                });
+
+                                // Check if this is the first cell of any reference range
+                                const isFirstCellOfReference = referenceFiles.some((ref: any) => {
+                                  const { start } = ref.details;
+                                  return cellRow === start.row && cellCol === start.col;
+                                });
+
+                                // Debug logging for first cell of reference range
+                                if (isFirstCellOfReference && referenceFiles.length > 0) {
+                                  console.log('🔵 Found first cell of reference range:', {
+                                    cellRow,
+                                    cellCol,
+                                    selectedSheet,
+                                    referenceFilesCount: referenceFiles.length,
+                                    workbookId: workbook.id
+                                  });
+                                }
+
+                                // Show "i button" ONLY for reference files (not mappings)
+                                // Show on first cell of each reference range
+                                if (isFirstCellOfReference && referenceFiles.length > 0) {
+                                  const refRange = referenceFiles.find((ref: any) => {
+                                    const { start } = ref.details;
+                                    return cellRow === start.row && cellCol === start.col;
+                                  });
+
+                                  if (refRange) {
+                                    const { start, end } = refRange.details;
+                                    return (
+                                      <button
+                                        className="absolute top-1 right-1 w-7 h-7 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center text-white text-xs z-[100] pointer-events-auto shadow-lg border-2 border-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          console.log('🔵 i button clicked for reference files:', {
+                                            sheet: selectedSheet,
+                                            startRow: start.row,
+                                            startCol: start.col,
+                                            endRow: (end && typeof end.row === 'number') ? end.row : start.row,
+                                            endCol: (end && typeof end.col === 'number') ? end.col : start.col
+                                          });
+                                          // Fetch evidence files for the entire reference range
+                                          if (fetchEvidenceFilesForRange) {
+                                            fetchEvidenceFilesForRange(
+                                              selectedSheet,
+                                              start.row,
+                                              start.col,
+                                              (end && typeof end.row === 'number') ? end.row : start.row,
+                                              (end && typeof end.col === 'number') ? end.col : start.col
+                                            ).then(() => {
+                                              console.log('✅ Evidence files fetched, opening dialog');
+                                              setIsReferenceFilesDialogOpen(true);
+                                            }).catch((error) => {
+                                              console.error('❌ Error fetching evidence files:', error);
+                                            });
+                                          } else {
+                                            console.warn('⚠️ fetchEvidenceFilesForRange function not available');
+                                            setIsReferenceFilesDialogOpen(true);
+                                          }
+                                        }}
+                                        title="View reference files"
+                                        onMouseDown={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.stopPropagation();
+                                        }}
+                                      >
+                                        <Info className="h-4 w-4" />
+                                      </button>
+                                    );
+                                  }
+                                }
+                                return null;
+                              })()
                             )}
                         </TableCell>
                       );
@@ -2750,6 +3342,227 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
 
 
+      {/* Dual Options Dialog */}
+      <Dialog open={isDualOptionsDialogOpen} onOpenChange={setIsDualOptionsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Action</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              What would you like to do with the selected cells?
+            </p>
+            {selections.length > 0 && (
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm font-medium">Selected Range:</p>
+                <p className="text-sm">
+                  {getSelectionText(selections[selections.length - 1])}
+                </p>
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-3">
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start"
+                onClick={() => {
+                  setIsDualOptionsDialogOpen(false);
+                  setIsCreateETBMappingOpen(true);
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Link className="h-5 w-5" />
+                  <span className="font-semibold">Create Mapping</span>
+                </div>
+                <span className="text-xs text-gray-500 text-left">
+                  Link the selected cells to a classification row
+                </span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start"
+                onClick={() => {
+                  setIsDualOptionsDialogOpen(false);
+                  setIsUploadReferenceFilesDialogOpen(true);
+                }}
+                disabled={loadingEvidenceFiles || uploadingFiles}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="h-5 w-5" />
+                  <span className="font-semibold">Add Reference Files</span>
+                </div>
+                <span className="text-xs text-gray-500 text-left">
+                  Upload and attach images or PDFs to the selected cells
+                </span>
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDualOptionsDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reference Files Dialog */}
+      <Dialog open={isReferenceFilesDialogOpen} onOpenChange={setIsReferenceFilesDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Reference Files</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {loadingEvidenceFiles ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Loading reference files...</span>
+              </div>
+            ) : cellRangeEvidenceFiles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No reference files found for the selected cells.</p>
+                <p className="text-sm mt-2">Add reference files using the "Add Reference Files" option.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                {cellRangeEvidenceFiles.map((evidence) => (
+                  <div
+                    key={evidence._id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {evidence.evidenceUrl.split('/').pop() || 'Reference File'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Uploaded by {evidence.uploadedBy?.name || 'Unknown'} • {new Date(evidence.createdAt).toLocaleDateString()}
+                        </p>
+                        {/* ✅ DO NOT show mapping count in reference files dialog - mappings and reference files are separate */}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPreviewFile(evidence);
+                        setFilePreviewOpen(true);
+                      }}
+                      className="ml-4 flex-shrink-0"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Preview
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsReferenceFilesDialogOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {selectedPreviewFile && getFileIcon(selectedPreviewFile.evidenceUrl)}
+                <span className="truncate max-w-md">
+                  {selectedPreviewFile?.evidenceUrl.split('/').pop() || 'Unknown File'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 font-normal">
+                Uploaded by: <span className="font-medium text-gray-700">
+                  {selectedPreviewFile?.uploadedBy?.name || 'Unknown'}
+                </span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col h-[75vh]">
+            {/* File Preview */}
+            <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
+              {selectedPreviewFile && renderFilePreview(selectedPreviewFile)}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Reference Files Dialog */}
+      <Dialog open={isUploadReferenceFilesDialogOpen} onOpenChange={setIsUploadReferenceFilesDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Reference Files</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              Upload files to attach to the selected cells. Files will be linked to this workbook and mapped to the selected range.
+            </p>
+            {selections.length > 0 && (
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm font-medium">Selected Range:</p>
+                <p className="text-sm">
+                  {getSelectionText(selections[selections.length - 1])}
+                </p>
+              </div>
+            )}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                multiple
+                accept="*/*"
+                onChange={handleReferenceFileUpload || (() => {})}
+                className="hidden"
+                id="reference-file-upload"
+                disabled={uploadingFiles}
+              />
+              <label
+                htmlFor="reference-file-upload"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="h-8 w-8 text-gray-400" />
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium text-blue-600 hover:text-blue-500">
+                    Click to upload
+                  </span>{" "}
+                  or drag and drop
+                </div>
+                <div className="text-xs text-gray-500">
+                  All file types supported (max 10MB per file)
+                </div>
+              </label>
+            </div>
+            {uploadingFiles && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading files...
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsUploadReferenceFilesDialogOpen(false)}
+              disabled={uploadingFiles}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Create ETB Mapping Dialog */}
       <Dialog open={isCreateETBMappingOpen} onOpenChange={setIsCreateETBMappingOpen}>
         <DialogContent>
@@ -3004,7 +3817,12 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   'isWorkbookMappingsDialogOpen' | 'setIsWorkbookMappingsDialogOpen' | 'isCreateWorkbookMappingOpen' | 'setIsCreateWorkbookMappingOpen' |
   'isEditWorkbookMappingOpen' | 'setIsEditWorkbookMappingOpen' | 'editingWorkbookMapping' | 'setEditingWorkbookMapping' |
   'isCreatingWorkbookMapping' | 'setIsCreatingWorkbookMapping' |
-  'etbData' | 'etbLoading' | 'etbError' | 'onRefreshETBData'
+  'etbData' | 'etbLoading' | 'etbError' | 'onRefreshETBData' |
+  'isDualOptionsDialogOpen' | 'setIsDualOptionsDialogOpen' | 'isReferenceFilesDialogOpen' | 'setIsReferenceFilesDialogOpen' |
+  'isUploadReferenceFilesDialogOpen' | 'setIsUploadReferenceFilesDialogOpen' | 'cellRangeEvidenceFiles' | 'setCellRangeEvidenceFiles' |
+  'loadingEvidenceFiles' | 'setLoadingEvidenceFiles' | 'cellsWithEvidence' | 'setCellsWithEvidence' | 'uploadingFiles' | 'setUploadingFiles' |
+  'fetchEvidenceFilesForRange' | 'cellHasEvidence' | 'handleOpenReferenceFilesDialog' | 'handleOpenFileInNewTab' | 'handleReferenceFileUpload' |
+  'filePreviewOpen' | 'setFilePreviewOpen' | 'selectedPreviewFile' | 'setSelectedPreviewFile'
 > & {
   parentEtbData?: ETBData | null; // ✅ NEW: Optional parent data to avoid re-fetching
   onRefreshETBData?: () => void; // ✅ NEW: Callback to refresh parent data
@@ -3060,6 +3878,830 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   // Add sheet data loading states
   const [sheetDataCache, setSheetDataCache] = useState<Map<string, any[][]>>(new Map());
   const [loadingSheets, setLoadingSheets] = useState<Set<string>>(new Set());
+
+  // State for dual-options dialog and reference files
+  const [isDualOptionsDialogOpen, setIsDualOptionsDialogOpen] = useState(false);
+  const [isReferenceFilesDialogOpen, setIsReferenceFilesDialogOpen] = useState(false);
+  const [isUploadReferenceFilesDialogOpen, setIsUploadReferenceFilesDialogOpen] = useState(false);
+  const [cellRangeEvidenceFiles, setCellRangeEvidenceFiles] = useState<ClassificationEvidence[]>([]);
+  const [loadingEvidenceFiles, setLoadingEvidenceFiles] = useState(false);
+  const [cellsWithEvidence, setCellsWithEvidence] = useState<Map<string, boolean>>(new Map());
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  // File preview state
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  const [selectedPreviewFile, setSelectedPreviewFile] = useState<ClassificationEvidence | null>(null);
+
+  // ✅ CRITICAL: Use a ref to store the latest workbook state
+  // This ensures fetchEvidenceFilesForRange always has access to the most up-to-date referenceFiles
+  const workbookRef = useRef(props.workbook);
+  useEffect(() => {
+    workbookRef.current = props.workbook;
+  }, [props.workbook]);
+
+  // Helper to get cell key for evidence tracking
+  const getCellKey = useCallback((row: number, col: number, sheet: string) => {
+    return `${sheet}_${row}_${col}`;
+  }, []);
+
+  // Function to fetch evidence files for a cell range
+  // ✅ CRITICAL: This function now reads from workbook.referenceFiles instead of calling the API
+  // ✅ Accepts optional workbook parameter to use latest state
+  const fetchEvidenceFilesForRange = useCallback(async (
+    sheet: string,
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number,
+    workbookOverride?: any // Optional: use this workbook instead of props.workbook
+  ) => {
+    // ✅ CRITICAL: Use workbookOverride if provided, otherwise use the latest workbook from ref
+    const workbookToUse = workbookOverride || workbookRef.current;
+    
+    if (!workbookToUse?.id) {
+      console.warn('⚠️ fetchEvidenceFilesForRange: No workbook ID');
+      return;
+    }
+
+    console.log('🔍 fetchEvidenceFilesForRange called:', {
+      workbookId: workbookToUse.id,
+      sheet,
+      startRow,
+      startCol,
+      endRow,
+      endCol,
+      workbookReferenceFilesCount: workbookToUse.referenceFiles?.length || 0,
+      referenceFiles: workbookToUse.referenceFiles?.map((ref: any) => ({
+        sheet: ref?.details?.sheet,
+        start: ref?.details?.start,
+        end: ref?.details?.end,
+        evidenceCount: ref?.evidence?.length || 0
+      })) || [],
+      usingOverride: !!workbookOverride
+    });
+
+    setLoadingEvidenceFiles(true);
+    try {
+      // ✅ CRITICAL: Read from workbook.referenceFiles instead of calling API
+      // Find reference file entries that match the cell range
+      const matchingRefFiles = (workbookToUse.referenceFiles || []).filter((ref: any) => {
+        if (!ref || typeof ref !== 'object' || !ref.details) return false;
+        if (ref.details.sheet !== sheet) return false;
+        
+        const { start, end } = ref.details;
+        if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
+        
+        const refStartRow = start.row;
+        const refEndRow = (end && typeof end.row === 'number') ? end.row : start.row;
+        const refStartCol = start.col;
+        const refEndCol = (end && typeof end.col === 'number') ? end.col : start.col;
+        
+        // Check if the requested range overlaps with this reference file range
+        const rangesOverlap = !(
+          endRow < refStartRow ||
+          startRow > refEndRow ||
+          endCol < refStartCol ||
+          startCol > refEndCol
+        );
+        
+        return rangesOverlap && (ref.evidence || []).length > 0;
+      });
+
+      console.log('🔍 Found matching reference file entries:', {
+        count: matchingRefFiles.length,
+        entries: matchingRefFiles.map((ref: any) => ({
+          sheet: ref.details?.sheet,
+          start: ref.details?.start,
+          end: ref.details?.end,
+          evidenceCount: ref.evidence?.length || 0
+        }))
+      });
+
+      // Collect all unique evidence IDs from matching reference files
+      const evidenceIds = new Set<string>();
+      matchingRefFiles.forEach((ref: any) => {
+        (ref.evidence || []).forEach((evId: any) => {
+          const id = typeof evId === 'string' ? evId : (evId?._id || evId?.id || evId);
+          if (id) evidenceIds.add(String(id));
+        });
+      });
+
+      console.log('🔍 Collected evidence IDs:', {
+        count: evidenceIds.size,
+        ids: Array.from(evidenceIds)
+      });
+
+      // Fetch evidence details for all evidence IDs
+      // Use the backend API to fetch evidence details
+      const { getEvidenceWithMappings } = await import('@/lib/api/classificationEvidenceApi');
+      const evidenceFilesPromises = Array.from(evidenceIds).map(async (evidenceId) => {
+        try {
+          const evidence = await getEvidenceWithMappings(evidenceId);
+          return evidence;
+        } catch (error) {
+          console.error(`Error fetching evidence ${evidenceId}:`, error);
+          return null;
+        }
+      });
+
+      const evidenceFilesResults = await Promise.all(evidenceFilesPromises);
+      const evidenceFiles = evidenceFilesResults.filter((e): e is any => e !== null);
+
+      console.log('✅ Evidence files fetched from workbook.referenceFiles:', {
+        count: evidenceFiles.length,
+        files: evidenceFiles.map(e => ({ id: e._id, url: e.evidenceUrl }))
+      });
+      
+      setCellRangeEvidenceFiles(evidenceFiles);
+      
+      // Update cellsWithEvidence map
+      setCellsWithEvidence(prev => {
+        const newCellsWithEvidence = new Map(prev);
+        for (let row = startRow; row <= endRow; row++) {
+          for (let col = startCol; col <= endCol; col++) {
+            const cellKey = getCellKey(row, col, sheet);
+            newCellsWithEvidence.set(cellKey, evidenceFiles.length > 0);
+          }
+        }
+        return newCellsWithEvidence;
+      });
+    } catch (error) {
+      console.error("Error fetching evidence files:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch reference files",
+      });
+    } finally {
+      setLoadingEvidenceFiles(false);
+    }
+  }, [props.workbook?.id, props.workbook?.referenceFiles, getCellKey, toast]);
+
+  // Function to check if a cell has evidence files
+  const cellHasEvidence = useCallback((row: number, col: number, sheet: string): boolean => {
+    const cellKey = getCellKey(row, col, sheet);
+    const hasEvidence = cellsWithEvidence.get(cellKey) || false;
+    
+    // Debug logging
+    if (hasEvidence) {
+      console.log('✅ Cell has evidence:', { row, col, sheet, cellKey });
+    }
+    
+    return hasEvidence;
+  }, [cellsWithEvidence, getCellKey]);
+
+  // Function to handle opening reference files dialog
+  const handleOpenReferenceFilesDialog = useCallback(async () => {
+    if (selections.length === 0) return;
+    
+    const lastSelection = selections[selections.length - 1];
+    if (!lastSelection || lastSelection.sheet !== selectedSheet) return;
+
+    const { start, end } = lastSelection;
+    await fetchEvidenceFilesForRange(
+      selectedSheet,
+      start.row,
+      start.col,
+      end.row,
+      end.col
+    );
+    setIsDualOptionsDialogOpen(false);
+    setIsReferenceFilesDialogOpen(true);
+  }, [selections, selectedSheet, fetchEvidenceFilesForRange]);
+
+  // Function to handle opening file in new tab
+  const handleOpenFileInNewTab = useCallback((fileUrl: string) => {
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  // Function to handle reference file upload
+  // ✅ This works for ALL workbooks regardless of rowType (etb, working-paper, evidence)
+  // Reference files can be added to any workbook in any tab (lead-sheet, working-papers, evidence)
+  const handleReferenceFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const workbook = props.workbook;
+    const setSelectedWorkbook = (props as any).setSelectedWorkbook;
+    const onRefreshMappings = (props as any).onRefreshMappings;
+    const rowType = (props as any).rowType || 'etb';
+
+    console.log('📤 Uploading reference files for workbook:', {
+      workbookId: workbook?.id,
+      workbookName: workbook?.name,
+      rowType,
+      engagementId,
+      classification,
+      fileCount: files.length
+    });
+
+    if (!engagementId || !classification || !workbook?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Engagement ID, classification, and workbook are required to upload reference files",
+      });
+      return;
+    }
+
+    if (selections.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select cells before uploading reference files",
+      });
+      return;
+    }
+
+    const lastSelection = selections[selections.length - 1];
+    if (!lastSelection || lastSelection.sheet !== selectedSheet) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid selection",
+      });
+      return;
+    }
+
+    setUploadingFiles(true);
+
+    try {
+      // Get classification ID
+      const classificationId = await getClassificationId(classification, engagementId);
+      console.log(`Uploading reference files for classification: ${classification} -> ${classificationId}`);
+
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // Validate file
+        const validation = validateFile(file);
+        if (!validation.isValid) {
+          throw new Error(validation.error || 'Invalid file');
+        }
+
+        // Upload file to storage
+        const uploadResult = await uploadFileToStorage(file);
+
+        // Create evidence record via API
+        const evidenceData = {
+          engagementId: engagementId,
+          classificationId: classificationId,
+          evidenceUrl: uploadResult.url
+        };
+
+        const response = await createClassificationEvidence(evidenceData);
+        const evidenceId = response.evidence._id;
+
+        // ✅ IMPORTANT: Add reference file to workbook WITHOUT creating a mapping
+        // Reference files and mappings are completely separate concepts
+        // Use the new endpoint that only updates referenceFiles, not mappings
+        const addRefResult = await addReferenceFileToWorkbook(
+          workbook.id,
+          evidenceId,
+          {
+            sheet: lastSelection.sheet,
+            start: {
+              row: lastSelection.start.row,
+              col: lastSelection.start.col,
+            },
+            end: {
+              row: lastSelection.end.row,
+              col: lastSelection.end.col,
+            },
+          }
+        );
+
+        if (!addRefResult.success) {
+          throw new Error(addRefResult.error || 'Failed to add reference file to workbook');
+        }
+
+        console.log('✅ Reference file added to workbook (no mapping created):', {
+          workbookId: workbook.id,
+          evidenceId,
+          cellRange: {
+            sheet: lastSelection.sheet,
+            start: lastSelection.start,
+            end: lastSelection.end
+          },
+          updatedWorkbook: addRefResult.workbook
+        });
+
+        return {
+          evidenceId,
+          fileName: uploadResult.fileName,
+          fileUrl: uploadResult.url,
+          fileType: uploadResult.fileType,
+          fileSize: uploadResult.fileSize,
+          updatedWorkbook: addRefResult.workbook, // Return updated workbook from backend
+        };
+      });
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+
+      console.log('✅ All files uploaded, updating workbook state:', {
+        uploadedFilesCount: uploadedFiles.length,
+        workbookId: workbook.id,
+        currentReferenceFilesCount: workbook.referenceFiles?.length || 0
+      });
+
+      // ✅ CRITICAL: Immediately update workbook's referenceFiles in local state
+      // Use the last updated workbook from backend response if available
+      // IMPORTANT: Preserve all existing workbook properties, especially fileData
+      let updatedWorkbook = workbook;
+      
+      // Try to use the updated workbook from the last backend response
+      // ✅ CRITICAL: Use the LAST uploaded file's response (most up-to-date)
+      const lastBackendResponse = uploadedFiles[uploadedFiles.length - 1];
+      if (lastBackendResponse?.updatedWorkbook) {
+        const backendWorkbook = lastBackendResponse.updatedWorkbook;
+        
+        // ✅ CRITICAL: Normalize workbook ID (backend might use _id, frontend uses id)
+        const normalizedBackendWorkbook = {
+          ...backendWorkbook,
+          id: backendWorkbook._id || backendWorkbook.id,
+        };
+        
+        // ✅ CRITICAL: Preserve fileData and other important properties from original workbook
+        updatedWorkbook = {
+          ...normalizedBackendWorkbook,
+          fileData: workbook.fileData || normalizedBackendWorkbook.fileData, // Preserve fileData
+          sheets: workbook.sheets || normalizedBackendWorkbook.sheets, // Preserve sheets
+          mappings: workbook.mappings || normalizedBackendWorkbook.mappings, // Preserve mappings
+          namedRanges: workbook.namedRanges || normalizedBackendWorkbook.namedRanges, // Preserve namedRanges
+        };
+        
+        // ✅ CRITICAL: Ensure referenceFiles is properly structured
+        if (updatedWorkbook.referenceFiles && Array.isArray(updatedWorkbook.referenceFiles)) {
+          // Normalize referenceFiles structure
+          updatedWorkbook.referenceFiles = updatedWorkbook.referenceFiles.map((ref: any) => {
+            if (!ref || typeof ref !== 'object' || !ref.details) return null;
+            
+            // Normalize evidence IDs (backend might populate them as objects)
+            const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+              // If it's already a string ID, return as is
+              if (typeof ev === 'string' || ev instanceof String) return ev;
+              // If it's an object with _id or id, extract the ID
+              if (ev && typeof ev === 'object') {
+                return ev._id || ev.id || ev;
+              }
+              return ev;
+            }).filter((ev: any) => ev !== null && ev !== undefined);
+            
+            return {
+              ...ref,
+              evidence: normalizedEvidence
+            };
+          }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+        }
+        
+        console.log('✅ Using updated workbook from backend response (with preserved fileData):', {
+          workbookId: updatedWorkbook.id,
+          workbookIdBackend: backendWorkbook._id,
+          referenceFilesCount: updatedWorkbook.referenceFiles?.length || 0,
+          referenceFiles: updatedWorkbook.referenceFiles?.map((ref: any) => ({
+            hasDetails: !!ref?.details,
+            sheet: ref?.details?.sheet,
+            start: ref?.details?.start,
+            end: ref?.details?.end,
+            evidenceCount: ref?.evidence?.length || 0,
+            evidenceIds: ref?.evidence?.map((e: any) => e?._id || e?.toString?.() || e) || []
+          })) || [],
+          hasFileData: !!updatedWorkbook.fileData,
+          fileDataKeys: updatedWorkbook.fileData ? Object.keys(updatedWorkbook.fileData) : []
+        });
+      } else {
+        // Fallback: manually construct updated workbook if backend didn't return it
+        // ✅ CRITICAL: Preserve all existing workbook properties
+        updatedWorkbook = { 
+          ...workbook, // This preserves fileData, sheets, mappings, etc.
+        };
+        if (!updatedWorkbook.referenceFiles) {
+          updatedWorkbook.referenceFiles = [];
+        }
+
+        // Clean up old format entries
+        updatedWorkbook.referenceFiles = updatedWorkbook.referenceFiles.filter((ref: any) => {
+          return ref && typeof ref === 'object' && ref.details && ref.details.sheet;
+        });
+
+        // Find or create reference file entry for this cell range
+        const { sheet, start, end } = lastSelection;
+        const normalizedEnd = {
+          row: end?.row ?? start.row,
+          col: end?.col ?? start.col,
+        };
+
+        let refFileEntry = updatedWorkbook.referenceFiles.find((ref: any) => {
+          if (!ref.details) return false;
+          return (
+            ref.details.sheet === sheet &&
+            ref.details.start.row === start.row &&
+            ref.details.start.col === start.col &&
+            ref.details.end.row === normalizedEnd.row &&
+            ref.details.end.col === normalizedEnd.col
+          );
+        });
+
+        if (refFileEntry) {
+          // Add all new evidence IDs to existing entry
+          uploadedFiles.forEach((file: any) => {
+            if (!refFileEntry.evidence) {
+              refFileEntry.evidence = [];
+            }
+            if (!refFileEntry.evidence.some((evId: any) => evId.toString() === file.evidenceId)) {
+              refFileEntry.evidence.push(file.evidenceId);
+            }
+          });
+        } else {
+          // Create new reference file entry
+          refFileEntry = {
+            details: {
+              sheet: sheet,
+              start: {
+                row: start.row,
+                col: start.col,
+              },
+              end: {
+                row: normalizedEnd.row,
+                col: normalizedEnd.col,
+              },
+            },
+            evidence: uploadedFiles.map((file: any) => file.evidenceId),
+          };
+          updatedWorkbook.referenceFiles.push(refFileEntry);
+        }
+        
+        console.log('✅ Manually constructed updated workbook:', {
+          workbookId: updatedWorkbook.id,
+          referenceFilesCount: updatedWorkbook.referenceFiles.length,
+          newEntry: refFileEntry,
+          hasFileData: !!updatedWorkbook.fileData,
+          fileDataKeys: updatedWorkbook.fileData ? Object.keys(updatedWorkbook.fileData) : []
+        });
+      }
+
+      // ✅ CRITICAL: Ensure fileData and all other important properties are preserved
+      // This is a safety check in case the backend response doesn't include these properties
+      if (!updatedWorkbook.fileData && workbook.fileData) {
+        updatedWorkbook.fileData = workbook.fileData;
+        console.log('⚠️ Restored fileData to updated workbook');
+      }
+      if (!updatedWorkbook.sheets && workbook.sheets) {
+        updatedWorkbook.sheets = workbook.sheets;
+      }
+      if (!updatedWorkbook.mappings && workbook.mappings) {
+        updatedWorkbook.mappings = workbook.mappings;
+      }
+      if (!updatedWorkbook.namedRanges && workbook.namedRanges) {
+        updatedWorkbook.namedRanges = workbook.namedRanges;
+      }
+      
+      // ✅ CRITICAL: Verify fileData is present before updating
+      if (!updatedWorkbook.fileData) {
+        console.error('❌ ERROR: fileData is missing from updated workbook!', {
+          workbookId: updatedWorkbook.id,
+          originalHasFileData: !!workbook.fileData,
+          originalFileDataKeys: workbook.fileData ? Object.keys(workbook.fileData) : []
+        });
+      }
+
+      // ✅ CRITICAL: Log the updated workbook structure before updating state
+      console.log('📋 Updated workbook structure before state update:', {
+        workbookId: updatedWorkbook.id,
+        referenceFilesCount: updatedWorkbook.referenceFiles?.length || 0,
+        referenceFiles: updatedWorkbook.referenceFiles?.map((ref: any) => ({
+          hasDetails: !!ref?.details,
+          sheet: ref?.details?.sheet,
+          start: ref?.details?.start,
+          end: ref?.details?.end,
+          evidenceCount: ref?.evidence?.length || 0,
+          evidenceIds: ref?.evidence?.map((e: any) => e?.toString?.() || e) || []
+        })) || [],
+        hasFileData: !!updatedWorkbook.fileData
+      });
+
+      // ✅ CRITICAL: Force immediate UI update by updating workbook state
+      // Set timestamp BEFORE creating new reference to ensure it's included
+      const updateTimestamp = Date.now();
+      (updatedWorkbook as any)._referenceFilesUpdateTimestamp = updateTimestamp;
+      
+      // ✅ CRITICAL: Normalize workbook ID (backend might use _id, frontend uses id)
+      if (updatedWorkbook._id && !updatedWorkbook.id) {
+        updatedWorkbook.id = updatedWorkbook._id;
+      }
+      
+      // ✅ CRITICAL: Ensure referenceFiles array is properly structured and has new reference
+      if (updatedWorkbook.referenceFiles) {
+        updatedWorkbook.referenceFiles = updatedWorkbook.referenceFiles.map((ref: any) => {
+          if (!ref || typeof ref !== 'object') return null;
+          // Normalize evidence IDs (might be objects from populate or just IDs)
+          const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+            if (typeof ev === 'string' || ev instanceof String) return ev;
+            if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+            return ev;
+          }).filter((ev: any) => ev !== null && ev !== undefined);
+          
+          return {
+            ...ref,
+            evidence: normalizedEvidence
+          };
+        }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+      }
+      
+      // ✅ CRITICAL: Create a completely new object reference to ensure React detects the change
+      // This is important because React uses shallow comparison for props
+      // Use deep clone for nested arrays to ensure new references
+      const newWorkbookReference = {
+        ...updatedWorkbook,
+        // Ensure referenceFiles is a new array reference with new object references
+        referenceFiles: updatedWorkbook.referenceFiles ? updatedWorkbook.referenceFiles.map((ref: any) => ({
+          ...ref,
+          details: ref.details ? { ...ref.details } : ref.details,
+          evidence: ref.evidence ? [...ref.evidence] : []
+        })) : [],
+        // ✅ CRITICAL: Include the timestamp in the new reference to force re-render
+        _referenceFilesUpdateTimestamp: updateTimestamp
+      };
+      
+      // Update workbook via setSelectedWorkbook if available
+      if (setSelectedWorkbook) {
+        // ✅ CRITICAL: Use functional update to ensure we get the latest state
+        setSelectedWorkbook((prevWorkbook: any) => {
+          // If prevWorkbook exists and has the same ID, merge with updated data
+          const prevId = prevWorkbook?.id || prevWorkbook?._id;
+          const newId = newWorkbookReference.id || newWorkbookReference._id;
+          
+          if (prevWorkbook && prevId === newId) {
+            const merged = {
+              ...prevWorkbook,
+              ...newWorkbookReference,
+              // Ensure referenceFiles is a completely new array reference
+              referenceFiles: newWorkbookReference.referenceFiles.map((ref: any) => ({
+                ...ref,
+                details: ref.details ? { ...ref.details } : ref.details,
+                evidence: ref.evidence ? [...ref.evidence] : []
+              })),
+              // Preserve fileData from previous if it exists
+              fileData: newWorkbookReference.fileData || prevWorkbook.fileData,
+              // Normalize ID
+              id: newId || prevId,
+              // ✅ CRITICAL: Include timestamp to force re-render
+              _referenceFilesUpdateTimestamp: updateTimestamp
+            };
+            console.log('🔄 Merged workbook in setSelectedWorkbook:', {
+              prevId: prevId,
+              newId: merged.id,
+              prevReferenceFilesCount: prevWorkbook.referenceFiles?.length || 0,
+              newReferenceFilesCount: merged.referenceFiles?.length || 0,
+              referenceFiles: merged.referenceFiles?.map((ref: any) => ({
+                sheet: ref?.details?.sheet,
+                start: ref?.details?.start,
+                end: ref?.details?.end,
+                evidenceCount: ref?.evidence?.length || 0
+              })) || [],
+              isNewReference: merged !== prevWorkbook,
+              referenceFilesIsNewArray: merged.referenceFiles !== prevWorkbook.referenceFiles
+            });
+            return merged;
+          }
+          console.log('🔄 Setting new workbook in setSelectedWorkbook:', {
+            workbookId: newId,
+            referenceFilesCount: newWorkbookReference.referenceFiles?.length || 0,
+            referenceFiles: newWorkbookReference.referenceFiles?.map((ref: any) => ({
+              sheet: ref?.details?.sheet,
+              start: ref?.details?.start,
+              evidenceCount: ref?.evidence?.length || 0
+            })) || []
+          });
+          return newWorkbookReference;
+        });
+        console.log('✅ Workbook referenceFiles updated immediately in UI via setSelectedWorkbook (with new reference):', {
+          workbookId: updatedWorkbook.id,
+          referenceFilesCount: updatedWorkbook.referenceFiles?.length || 0,
+          timestamp: (newWorkbookReference as any)._referenceFilesUpdateTimestamp,
+          hasFileData: !!updatedWorkbook.fileData,
+          fileDataKeys: updatedWorkbook.fileData ? Object.keys(updatedWorkbook.fileData) : [],
+          referenceFilesDetails: updatedWorkbook.referenceFiles?.map((ref: any) => ({
+            sheet: ref?.details?.sheet,
+            start: ref?.details?.start,
+            end: ref?.details?.end,
+            evidenceCount: ref?.evidence?.length || 0
+          })) || [],
+          newWorkbookReference: {
+            id: newWorkbookReference.id,
+            referenceFilesCount: newWorkbookReference.referenceFiles?.length || 0
+          }
+        });
+      } else {
+        // If setSelectedWorkbook is not available, update the workbook object directly
+        // This is a workaround - ideally we should always have setSelectedWorkbook
+        // ✅ CRITICAL: Preserve fileData when updating directly
+        const originalFileData = props.workbook.fileData;
+        // ✅ CRITICAL: Create new object reference, don't mutate directly
+        const updatedPropsWorkbook = {
+          ...props.workbook,
+          ...newWorkbookReference,
+          referenceFiles: [...(newWorkbookReference.referenceFiles || [])],
+          fileData: newWorkbookReference.fileData || originalFileData
+        };
+        Object.assign(props.workbook, updatedPropsWorkbook);
+        (props.workbook as any)._referenceFilesUpdateTimestamp = Date.now();
+        console.log('⚠️ setSelectedWorkbook not available, updated workbook directly with timestamp and preserved fileData');
+        console.log('📋 Updated props.workbook.referenceFiles:', {
+          count: props.workbook.referenceFiles?.length || 0,
+          referenceFiles: props.workbook.referenceFiles?.map((ref: any) => ({
+            hasDetails: !!ref?.details,
+            sheet: ref?.details?.sheet,
+            start: ref?.details?.start,
+            end: ref?.details?.end,
+            evidenceCount: ref?.evidence?.length || 0
+          })) || []
+        });
+      }
+
+      // Use updated workbook for subsequent operations
+      const workbookToUse = setSelectedWorkbook ? updatedWorkbook : props.workbook;
+      
+      // ✅ CRITICAL: Ensure workbook ID is valid before using it
+      const workbookId = workbookToUse?.id || workbookToUse?._id || workbook?.id || workbook?._id;
+      if (!workbookId) {
+        console.error('❌ ERROR: Workbook ID is missing!', {
+          workbookToUse,
+          updatedWorkbook,
+          originalWorkbook: workbook
+        });
+        throw new Error('Workbook ID is required but was not found');
+      }
+
+      // ✅ CRITICAL: Update UI immediately with the workbook from upload response
+      // This ensures the user sees the changes right away, before the backend refresh
+      // The initial update above should already show the changes, this refresh ensures data consistency
+      
+      // First, ensure the immediate update is complete and visible
+      console.log('✅ Immediate UI update completed, referenceFiles should now be visible');
+      
+      // Then, refresh from backend to ensure data consistency (this happens in background)
+      try {
+        const { db_WorkbookApi } = await import('@/lib/api/workbookApi');
+        const refreshedWorkbookResponse = await db_WorkbookApi.getWorkbookById(workbookId);
+        
+        if (refreshedWorkbookResponse.success && refreshedWorkbookResponse.data) {
+          const refreshedWorkbook = refreshedWorkbookResponse.data;
+          
+          // Normalize ID
+          if (refreshedWorkbook._id && !refreshedWorkbook.id) {
+            refreshedWorkbook.id = refreshedWorkbook._id;
+          }
+          
+          // Preserve fileData from current workbook
+          refreshedWorkbook.fileData = updatedWorkbook.fileData || workbook.fileData;
+          
+          // Normalize referenceFiles structure
+          if (refreshedWorkbook.referenceFiles && Array.isArray(refreshedWorkbook.referenceFiles)) {
+            refreshedWorkbook.referenceFiles = refreshedWorkbook.referenceFiles.map((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return null;
+              
+              // Normalize evidence IDs
+              const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+                if (typeof ev === 'string') return ev;
+                if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+                return ev;
+              }).filter((ev: any) => ev !== null && ev !== undefined);
+              
+              return {
+                ...ref,
+                evidence: normalizedEvidence
+              };
+            }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+          }
+          
+          // Update workbook with refreshed data
+          (refreshedWorkbook as any)._referenceFilesUpdateTimestamp = Date.now();
+          
+          // ✅ CRITICAL: Create completely new object references for React to detect changes
+          const refreshedWorkbookWithNewRefs = {
+            ...refreshedWorkbook,
+            referenceFiles: refreshedWorkbook.referenceFiles ? refreshedWorkbook.referenceFiles.map((ref: any) => ({
+              ...ref,
+              details: ref.details ? { ...ref.details } : ref.details,
+              evidence: ref.evidence ? [...ref.evidence] : []
+            })) : []
+          };
+          
+          if (setSelectedWorkbook) {
+            setSelectedWorkbook((prevWorkbook: any) => {
+              const prevId = prevWorkbook?.id || prevWorkbook?._id;
+              const newId = refreshedWorkbookWithNewRefs.id || refreshedWorkbookWithNewRefs._id;
+              
+              if (prevWorkbook && prevId === newId) {
+                const merged = {
+                  ...prevWorkbook,
+                  ...refreshedWorkbookWithNewRefs,
+                  referenceFiles: refreshedWorkbookWithNewRefs.referenceFiles.map((ref: any) => ({
+                    ...ref,
+                    details: ref.details ? { ...ref.details } : ref.details,
+                    evidence: ref.evidence ? [...ref.evidence] : []
+                  })),
+                  fileData: refreshedWorkbookWithNewRefs.fileData || prevWorkbook.fileData,
+                  id: newId || prevId
+                };
+                
+                console.log('✅ Workbook refreshed from backend after upload (merged):', {
+                  workbookId: merged.id,
+                  referenceFilesCount: merged.referenceFiles?.length || 0,
+                  referenceFiles: merged.referenceFiles?.map((ref: any) => ({
+                    sheet: ref?.details?.sheet,
+                    start: ref?.details?.start,
+                    end: ref?.details?.end,
+                    evidenceCount: ref?.evidence?.length || 0
+                  })) || [],
+                  isNewReference: merged !== prevWorkbook,
+                  referenceFilesIsNewArray: merged.referenceFiles !== prevWorkbook.referenceFiles
+                });
+                return merged;
+              }
+              
+              console.log('✅ Workbook refreshed from backend after upload (new):', {
+                workbookId: newId,
+                referenceFilesCount: refreshedWorkbookWithNewRefs.referenceFiles?.length || 0,
+                referenceFiles: refreshedWorkbookWithNewRefs.referenceFiles?.map((ref: any) => ({
+                  sheet: ref?.details?.sheet,
+                  start: ref?.details?.start,
+                  end: ref?.details?.end,
+                  evidenceCount: ref?.evidence?.length || 0
+                })) || []
+              });
+              return refreshedWorkbookWithNewRefs;
+            });
+          }
+        }
+      } catch (refreshError) {
+        console.error('❌ Error refreshing workbook from backend:', refreshError);
+        // Continue even if refresh fails - we already have the updated workbook
+      }
+
+      // Refresh evidence files for the cell range
+      // ✅ CRITICAL: Pass the updated workbook to ensure we use the latest referenceFiles
+      await fetchEvidenceFilesForRange(
+        lastSelection.sheet,
+        lastSelection.start.row,
+        lastSelection.start.col,
+        lastSelection.end.row,
+        lastSelection.end.col,
+        updatedWorkbook // Pass the updated workbook with latest referenceFiles
+      );
+
+      // Refresh mappings if callback provided - only if workbookId is valid
+      if (onRefreshMappings && workbookId) {
+        console.log('🔄 Refreshing mappings for workbook:', workbookId);
+        try {
+          await onRefreshMappings(workbookId);
+        } catch (error) {
+          console.error('❌ Error refreshing mappings:', error);
+          // Don't throw - this is not critical for the upload operation
+        }
+      } else if (onRefreshMappings && !workbookId) {
+        console.warn('⚠️ Skipping onRefreshMappings - workbookId is missing');
+      }
+
+      // ✅ CRITICAL: Force React to re-render by ensuring state updates are complete
+      // Wait a bit to ensure all state updates have been processed
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      toast({
+        title: "Success",
+        description: `${files.length} file(s) uploaded and linked to selected cells successfully`,
+      });
+
+      // Close upload dialog
+      setIsUploadReferenceFilesDialogOpen(false);
+      
+      // ✅ CRITICAL: Small delay before opening reference files dialog to ensure UI has updated
+      // This gives React time to re-render with the updated workbook prop showing the reference areas
+      // ✅ CRITICAL: Keep loader visible until dialog is ready to show
+      setTimeout(() => {
+        setIsReferenceFilesDialogOpen(true);
+        // ✅ CRITICAL: Turn off loader AFTER dialog is opened, not before
+        setUploadingFiles(false);
+      }, 150);
+    } catch (error: any) {
+      console.error('Error uploading reference files:', error);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error.message || 'Failed to upload files',
+      });
+      // ✅ CRITICAL: Turn off loader on error as well
+      setUploadingFiles(false);
+    } finally {
+      // ✅ CRITICAL: Only reset file input here, NOT the loader state
+      // The loader state is now managed in the success/error paths above
+      // Reset file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  }, [props, selections, selectedSheet, fetchEvidenceFilesForRange, toast]);
 
   const resolveFullscreenRowIdentifier = useCallback(
     (row?: Partial<ETBRow>, fallback?: string) => {
@@ -3595,7 +5237,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   return (
     <>
       <ExcelViewer
-        key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}`}
+        key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${(props.workbook as any)?._referenceFilesUpdateTimestamp || 0}-${(props.workbook as any)?.referenceFiles?.length || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}`}
         {...props}
         setSelectedWorkbook={props.setSelectedWorkbook}
         onToggleFullscreen={handleToggleFullscreen}
@@ -3658,7 +5300,36 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         onRefreshETBData={parentOnRefreshETBData || fetchETBData} // ✅ Use parent's refresh if provided
         sheetDataCache={sheetDataCache}
         loadingSheets={loadingSheets}
-            onEvidenceMappingUpdated={props.onEvidenceMappingUpdated}
+        onEvidenceMappingUpdated={props.onEvidenceMappingUpdated}
+
+        // Reference files states
+        isDualOptionsDialogOpen={isDualOptionsDialogOpen}
+        setIsDualOptionsDialogOpen={setIsDualOptionsDialogOpen}
+        isReferenceFilesDialogOpen={isReferenceFilesDialogOpen}
+        setIsReferenceFilesDialogOpen={setIsReferenceFilesDialogOpen}
+        isUploadReferenceFilesDialogOpen={isUploadReferenceFilesDialogOpen}
+        setIsUploadReferenceFilesDialogOpen={setIsUploadReferenceFilesDialogOpen}
+        cellRangeEvidenceFiles={cellRangeEvidenceFiles}
+        setCellRangeEvidenceFiles={setCellRangeEvidenceFiles}
+        loadingEvidenceFiles={loadingEvidenceFiles}
+        setLoadingEvidenceFiles={setLoadingEvidenceFiles}
+        cellsWithEvidence={cellsWithEvidence}
+        setCellsWithEvidence={setCellsWithEvidence}
+        uploadingFiles={uploadingFiles}
+        setUploadingFiles={setUploadingFiles}
+
+        // Reference files functions
+        fetchEvidenceFilesForRange={fetchEvidenceFilesForRange}
+        cellHasEvidence={cellHasEvidence}
+        handleOpenReferenceFilesDialog={handleOpenReferenceFilesDialog}
+        handleOpenFileInNewTab={handleOpenFileInNewTab}
+        handleReferenceFileUpload={handleReferenceFileUpload}
+
+        // File preview states
+        filePreviewOpen={filePreviewOpen}
+        setFilePreviewOpen={setFilePreviewOpen}
+        selectedPreviewFile={selectedPreviewFile}
+        setSelectedPreviewFile={setSelectedPreviewFile}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
@@ -3666,7 +5337,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
             {/* Render ExcelViewer inside the fullscreen dialog, passing the same state */}
             <ExcelViewer
               {...props}
-              key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}-fullscreen`}
+              key={`${props.workbook.id}-${(props.workbook as any)._mappingsUpdateTimestamp || 0}-${(props.workbook as any)?._referenceFilesUpdateTimestamp || 0}-${(props.workbook as any)?.referenceFiles?.length || 0}-${mappingsDialogRefreshKey}-${props.mappingsRefreshKey || 0}-fullscreen`}
               setSelectedWorkbook={props.setSelectedWorkbook}
               isFullscreenMode={true}
               onToggleFullscreen={() => setIsFullscreen(false)}
@@ -3733,6 +5404,35 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               onRefreshETBData={parentOnRefreshETBData || fetchETBData} // ✅ Use parent's refresh if provided
               sheetDataCache={sheetDataCache}
               loadingSheets={loadingSheets}
+
+              // Reference files states
+              isDualOptionsDialogOpen={isDualOptionsDialogOpen}
+              setIsDualOptionsDialogOpen={setIsDualOptionsDialogOpen}
+              isReferenceFilesDialogOpen={isReferenceFilesDialogOpen}
+              setIsReferenceFilesDialogOpen={setIsReferenceFilesDialogOpen}
+              isUploadReferenceFilesDialogOpen={isUploadReferenceFilesDialogOpen}
+              setIsUploadReferenceFilesDialogOpen={setIsUploadReferenceFilesDialogOpen}
+              cellRangeEvidenceFiles={cellRangeEvidenceFiles}
+              setCellRangeEvidenceFiles={setCellRangeEvidenceFiles}
+              loadingEvidenceFiles={loadingEvidenceFiles}
+              setLoadingEvidenceFiles={setLoadingEvidenceFiles}
+              cellsWithEvidence={cellsWithEvidence}
+              setCellsWithEvidence={setCellsWithEvidence}
+              uploadingFiles={uploadingFiles}
+              setUploadingFiles={setUploadingFiles}
+
+              // Reference files functions
+              fetchEvidenceFilesForRange={fetchEvidenceFilesForRange}
+              cellHasEvidence={cellHasEvidence}
+              handleOpenReferenceFilesDialog={handleOpenReferenceFilesDialog}
+              handleOpenFileInNewTab={handleOpenFileInNewTab}
+              handleReferenceFileUpload={handleReferenceFileUpload}
+
+              // File preview states
+              filePreviewOpen={filePreviewOpen}
+              setFilePreviewOpen={setFilePreviewOpen}
+              selectedPreviewFile={selectedPreviewFile}
+              setSelectedPreviewFile={setSelectedPreviewFile}
             />
           </div>
           <div className="absolute top-4 right-4 z-50">

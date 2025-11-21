@@ -3746,11 +3746,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           >
 
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-4">
 
               <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
 
-              <TabsTrigger value="working-papers">Working Papers</TabsTrigger>
+              {/* <TabsTrigger value="working-papers">Working Papers</TabsTrigger> */}
 
               <TabsTrigger value="evidence">Evidence</TabsTrigger>
 
@@ -5467,7 +5467,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           })}
 
         {/* NEW: WorkBook Section at the bottom */}
-        <div className="mt-8 border-t pt-6">
+        {/* <div className="mt-8 border-t pt-6">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
             Linked Workbooks
@@ -5482,7 +5482,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             rowType="etb"
             refreshTrigger={workbookRefreshTrigger}
           />
-        </div>
+        </div> */}
       </>
 
     );
