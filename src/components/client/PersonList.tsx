@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   User,
   Loader2,
+  View,
+  Eye,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -2508,7 +2510,10 @@ export const PersonList: React.FC<PersonListProps> = ({
                               </div>
                             )}
                           </div>
-                          <div className="flex gap-2 ml-4">
+                          <div className="flex gap-2 items-center">
+                            <Button variant="ghost" size="sm" onClick={() => handleNavigateToCompany(entry.companyId, entry.clientId)} className="rounded-xl bg-gray-100 hover:bg-gray-200">
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
