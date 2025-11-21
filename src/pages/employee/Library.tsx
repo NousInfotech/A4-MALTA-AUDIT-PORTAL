@@ -83,6 +83,8 @@ export default function GlobalLibraryPage() {
   const [newFolderName, setNewFolderName] = useState("")
   const [selectedParentFolder, setSelectedParentFolder] = useState<GlobalFolder | null>(null)
   const [renameFolderName, setRenameFolderName] = useState("")
+  const [isCreateFolderInCurrentOpen, setIsCreateFolderInCurrentOpen] = useState(false)
+  const [newFolderInCurrentName, setNewFolderInCurrentName] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [folderToDelete, setFolderToDelete] = useState<GlobalFolder | null>(null)
   const [fileToDelete, setFileToDelete] = useState<GlobalFile | null>(null)
@@ -417,6 +419,40 @@ export default function GlobalLibraryPage() {
       }
       
       toast({ title: "Folder created", description: `"${name}" is ready to use.` })
+    } catch (e: any) {
+      toast({ title: "Create failed", description: e.message || "Unable to create folder", variant: "destructive" })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleCreateFolderInCurrent = async () => {
+    if (!selectedFolder) {
+      toast({ title: "Select a folder", description: "Please select a folder first.", variant: "destructive" })
+      return
+    }
+    const name = newFolderInCurrentName.trim()
+    if (!name) return
+    setCreating(true)
+    try {
+      const parentId = selectedFolder._id
+      const createdFolder = await apiCreateFolder(name, parentId)
+      
+      setNewFolderInCurrentName("")
+      setIsCreateFolderInCurrentOpen(false)
+      
+      // Refresh folders to get the updated list
+      const updatedFolders = await apiGetFolders()
+      setFolders(updatedFolders)
+      
+      // Maintain selection and refresh files view to show the new nested folder
+      const found = updatedFolders.find((f) => f._id === selectedFolder._id)
+      if (found) {
+        setSelectedFolder(found)
+        await refreshFiles(found)
+      }
+      
+      toast({ title: "Folder created", description: `"${name}" created inside "${selectedFolder.name}".` })
     } catch (e: any) {
       toast({ title: "Create failed", description: e.message || "Unable to create folder", variant: "destructive" })
     } finally {
@@ -1008,6 +1044,17 @@ export default function GlobalLibraryPage() {
                       >
                         <Filter className="h-4 w-4 mr-2" />
                         Filters
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!selectedFolder || creating}
+                        onClick={() => setIsCreateFolderInCurrentOpen(true)}
+                        className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl transition-colors"
+                      >
+                        <Folder className="h-4 w-4 mr-2" />
+                        New Folder
                       </Button>
                       <Input
                         ref={fileInputRef}
@@ -1835,6 +1882,64 @@ export default function GlobalLibraryPage() {
             ) : (
               <p className="text-center text-gray-500 py-8">No activity recorded</p>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Folder in Current Folder Dialog */}
+      <Dialog open={isCreateFolderInCurrentOpen} onOpenChange={(open) => {
+        setIsCreateFolderInCurrentOpen(open)
+        if (!open) {
+          setNewFolderInCurrentName("")
+        }
+      }}>
+        <DialogContent className="bg-white border border-gray-200 rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedFolder && (
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                Creating folder inside: <span className="font-semibold text-gray-900">{selectedFolder.name}</span>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="folder-name-current" className="text-sm font-medium text-gray-700">Folder Name</Label>
+              <Input
+                id="folder-name-current"
+                placeholder="Enter folder name"
+                value={newFolderInCurrentName}
+                onChange={(e) => setNewFolderInCurrentName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newFolderInCurrentName.trim()) {
+                    handleCreateFolderInCurrent()
+                  }
+                }}
+                className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={handleCreateFolderInCurrent} 
+                disabled={!newFolderInCurrentName.trim() || creating || !selectedFolder} 
+                className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              >
+                {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
+                Create Folder
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsCreateFolderInCurrentOpen(false)
+                  setNewFolderInCurrentName("")
+                }}
+                disabled={creating}
+                className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
