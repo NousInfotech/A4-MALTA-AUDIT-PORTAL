@@ -200,8 +200,8 @@ export const AddClient = () => {
   };
 
   return (
-    <div className="min-h-screen  bg-brand-body p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="w-full bg-brand-body p-4 sm:p-6 box-border">
+      <div className="max-w-4xl mx-auto w-full box-border">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
@@ -230,25 +230,25 @@ export const AddClient = () => {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+        <div className="bg-white/80 border border-white/50 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden w-full">
           <div className="bg-gray-50 border-b border-gray-200 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
                 <Building2 className="h-6 w-6 text-primary-foreground" />
               </div>
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-2xl font-semibold text-gray-900 truncate">
                   Client Information
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-gray-600 truncate">
                   Enter the basic information for the new client company
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="p-8">
-            <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="p-8 w-full box-border">
+            <form onSubmit={handleSubmit} className="space-y-8 w-full">
               {/* Basic Info */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -260,8 +260,8 @@ export const AddClient = () => {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="name"
                       className="text-sm font-medium text-gray-700"
@@ -273,11 +273,11 @@ export const AddClient = () => {
                       value={formData.name}
                       onChange={(e) => handleChange("name", e.target.value)}
                       placeholder="Enter Client's name"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       required
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="companyName"
                       className="text-sm font-medium text-gray-700"
@@ -291,11 +291,11 @@ export const AddClient = () => {
                         handleChange("companyName", e.target.value)
                       }
                       placeholder="Enter company name"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       required
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="companyNumber"
                       className="text-sm font-medium text-gray-700"
@@ -309,11 +309,11 @@ export const AddClient = () => {
                         handleChange("companyNumber", e.target.value)
                       }
                       placeholder="Enter company registration number"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       required
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="email"
                       className="text-sm font-medium text-gray-700"
@@ -326,11 +326,11 @@ export const AddClient = () => {
                       value={formData.email}
                       onChange={(e) => handleChange("email", e.target.value)}
                       placeholder="contact@company.com"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       required
                     />
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="phoneNumber"
                       className="text-sm font-medium text-gray-700"
@@ -343,10 +343,10 @@ export const AddClient = () => {
                       value={formData.phoneNumber}
                       onChange={(e) => handleChange("phoneNumber", e.target.value)}
                       placeholder="+356 2123 4567"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                     />
                   </div>
-                  <div className="space-y-3 relative">
+                  <div className="space-y-3 relative min-w-0 w-full">
                     <Label
                       htmlFor="password"
                       className="text-sm font-medium text-gray-700"
@@ -359,7 +359,7 @@ export const AddClient = () => {
                       value={formData.password}
                       onChange={(e) => handleChange("password", e.target.value)}
                       placeholder="Client123"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full pr-12"
                       required
                     />
                     <button
@@ -388,8 +388,8 @@ export const AddClient = () => {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="nationality"
                       className="text-sm font-medium text-gray-700"
@@ -400,10 +400,10 @@ export const AddClient = () => {
                       value={formData.nationality}
                       onValueChange={(value) => handleChange("nationality", value)}
                     >
-                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full">
                         <SelectValue placeholder="Select nationality" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 rounded-xl max-h-72">
+                      <SelectContent className="bg-white border border-gray-200 rounded-xl max-h-72 w-[var(--radix-select-trigger-width)]">
                         {nationalityOptions.map((opt) => (
                           <SelectItem
                             key={opt.value}
@@ -416,7 +416,7 @@ export const AddClient = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="address"
                       className="text-sm font-medium text-gray-700"
@@ -428,7 +428,7 @@ export const AddClient = () => {
                       value={formData.address}
                       onChange={(e) => handleChange("address", e.target.value)}
                       placeholder="Enter address"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       required
                     />
                   </div>
@@ -446,8 +446,8 @@ export const AddClient = () => {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <div className="space-y-3 min-w-0 w-full">
                     <Label
                       htmlFor="industry"
                       className="text-sm font-medium text-gray-700"
@@ -458,10 +458,10 @@ export const AddClient = () => {
                       value={formData.industry}
                       onValueChange={(value) => handleChange("industry", value)}
                     >
-                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full">
                         <SelectValue placeholder="Select industry" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 rounded-xl">
+                      <SelectContent className="bg-white border border-gray-200 rounded-xl w-[var(--radix-select-trigger-width)]">
                         {industries.map((industry) => (
                           <SelectItem
                             key={industry}
@@ -475,7 +475,7 @@ export const AddClient = () => {
                     </Select>
                   </div>
                   {formData.industry === "Other" && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 min-w-0 w-full">
                       <Label
                         htmlFor="customValue"
                         className="text-sm font-medium text-gray-700"
@@ -489,7 +489,7 @@ export const AddClient = () => {
                           handleChange("customValue", e.target.value)
                         }
                         placeholder="Enter your custom value"
-                        className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                        className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
                       />
                     </div>
                   )}
@@ -507,7 +507,7 @@ export const AddClient = () => {
                   </h3>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 w-full box-border">
                   <Label
                     htmlFor="summary"
                     className="text-sm font-medium text-gray-700"
@@ -520,7 +520,7 @@ export const AddClient = () => {
                     onChange={(e) => handleChange("summary", e.target.value)}
                     placeholder="Brief description of what the company does..."
                     rows={4}
-                    className="border-gray-200 focus:border-gray-400 rounded-xl text-lg resize-none"
+                    className="border-gray-200 focus:border-gray-400 rounded-xl text-lg resize-none w-full"
                   />
                 </div>
               </div>
