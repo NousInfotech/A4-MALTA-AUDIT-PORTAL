@@ -246,7 +246,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                 src={logoUrl} 
                 alt="Logo" 
                 className={cn(
-                  "object-cover rounded-lg",
+                  "object-contain rounded-lg",
                   isCollapsed ? "h-10 w-10" : "h-12 w-12"
                 )} 
               />
