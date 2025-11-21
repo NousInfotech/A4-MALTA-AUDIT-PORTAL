@@ -39,27 +39,22 @@ const JournalEntriesTable = () => {
       <div className="overflow-x-auto"> {/* Makes the table horizontally scrollable */}
         <Table className="min-w-full bg-white rounded-lg">
           <TableHeader className="bg-gray-100 sticky top-0 z-10">
-            <TableRow>
-              <TableHead className="w-[120px] text-gray-700 font-semibold">ID</TableHead>
+            <TableRow><TableHead className="w-[120px] text-gray-700 font-semibold">ID</TableHead>
               <TableHead className="w-[120px] text-gray-700 font-semibold">Date</TableHead>
               <TableHead className="w-[150px] text-gray-700 font-semibold">Reference</TableHead>
-              <TableHead className="min-w-[250px] text-gray-700 font-semibold">Note</TableHead> {/* Adjusted width and no truncate */}
+              <TableHead className="min-w-[250px] text-gray-700 font-semibold">Note</TableHead>{/* Adjusted width and no truncate */}
               <TableHead className="w-[100px] text-gray-700 font-semibold">Currency</TableHead>
               <TableHead className="text-right w-[150px] text-gray-700 font-semibold">Total Amount</TableHead>
               <TableHead className="w-[120px] text-gray-700 font-semibold">Status</TableHead>
-              <TableHead className="w-[150px] text-gray-700 font-semibold">Details</TableHead>
-            </TableRow>
+              <TableHead className="w-[150px] text-gray-700 font-semibold">Details</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {journalEntries.map((entry) => (
               <React.Fragment key={entry.id}>
-                <TableRow className="border-b border-gray-200 hover:bg-blue-50 transition-colors">
-                  <TableCell className="font-medium text-gray-900">{entry.id}</TableCell>
+                <TableRow className="border-b border-gray-200 hover:bg-blue-50 transition-colors"><TableCell className="font-medium text-gray-900">{entry.id}</TableCell>
                   <TableCell className="text-gray-700">{entry.journal_date}</TableCell>
                   <TableCell className="text-gray-700">{entry.reference}</TableCell>
-                  <TableCell className="max-w-[300px] whitespace-normal text-gray-700"> {/* Allows full text to render */}
-                    {entry.note}
-                  </TableCell>
+                  <TableCell className="max-w-[300px] whitespace-normal text-gray-700">{entry.note}</TableCell>{/* Allows full text to render */}
                   <TableCell className="text-gray-700">{entry.currency}</TableCell>
                   <TableCell className="text-right font-semibold text-gray-800">
                     {entry.total_amount.toFixed(2)}
@@ -90,33 +85,26 @@ const JournalEntriesTable = () => {
                         </>
                       )}
                     </button>
-                  </TableCell>
-                </TableRow>
+                  </TableCell></TableRow>
                 {/* Expandable row for line items */}
                 {expandedRows.has(entry.id) && (
-                  <TableRow className="bg-gray-50 border-b border-gray-200">
-                    <TableCell colSpan={8} className="py-4 px-6">
+                  <TableRow className="bg-gray-50 border-b border-gray-200"><TableCell colSpan={8} className="py-4 px-6">
                       <div className="font-bold text-base text-gray-800 mb-3">
                         Line Items for Journal Entry <span className="text-blue-600">#{entry.id}</span>:
                       </div>
                       <div className="overflow-x-auto">
                         <Table className="min-w-full bg-white border border-gray-200 rounded-md shadow-inner">
                           <TableHeader className="bg-gray-100">
-                            <TableRow>
-                              <TableHead className="text-gray-600 font-medium">Account Name</TableHead>
+                            <TableRow><TableHead className="text-gray-600 font-medium">Account Name</TableHead>
                               <TableHead className="min-w-[200px] text-gray-600 font-medium">Description</TableHead>
                               <TableHead className="text-right text-gray-600 font-medium">Amount</TableHead>
                               <TableHead className="text-right text-gray-600 font-medium">Tax</TableHead>
-                              <TableHead className="text-gray-600 font-medium">Type</TableHead>
-                            </TableRow>
+                              <TableHead className="text-gray-600 font-medium">Type</TableHead></TableRow>
                           </TableHeader>
                           <TableBody>
                             {entry.line_items.map((item) => (
-                              <TableRow key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                                <TableCell className="text-gray-700 text-sm">{item.account_name}</TableCell>
-                                <TableCell className="max-w-[250px] whitespace-normal text-gray-600 text-sm"> {/* Allows full text to render */}
-                                  {item.description}
-                                </TableCell>
+                              <TableRow key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50"><TableCell className="text-gray-700 text-sm">{item.account_name}</TableCell>
+                                <TableCell className="max-w-[250px] whitespace-normal text-gray-600 text-sm">{item.description}</TableCell>{/* Allows full text to render */}
                                 <TableCell className="text-right text-gray-700 text-sm">
                                   {item.amount.toFixed(2)}
                                 </TableCell>
@@ -134,14 +122,12 @@ const JournalEntriesTable = () => {
                                   >
                                     {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
                                   </span>
-                                </TableCell>
-                              </TableRow>
+                                </TableCell></TableRow>
                             ))}
                           </TableBody>
                         </Table>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </TableCell></TableRow>
                 )}
               </React.Fragment>
             ))}

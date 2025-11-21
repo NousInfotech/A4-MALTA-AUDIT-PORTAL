@@ -303,3 +303,75 @@ export const getEvidenceMappingsByWorkbook = async (
   }
 };
 
+/**
+ * Gets evidence files for specific cell ranges in a workbook
+ * @param workbookId - The workbook ID
+ * @param sheet - The sheet name
+ * @param startRow - Start row index
+ * @param startCol - Start column index
+ * @param endRow - End row index
+ * @param endCol - End column index
+ * @returns Promise<ClassificationEvidence[]> - Array of evidence files
+ */
+// Add reference file to workbook (without creating mapping)
+// This is separate from mappings - reference files are just linked to cell ranges
+export const addReferenceFileToWorkbook = async (
+  workbookId: string,
+  evidenceId: string,
+  cellRange: {
+    sheet: string;
+    start: { row: number; col: number };
+    end?: { row: number; col: number };
+  }
+): Promise<{ success: boolean; workbook?: any; error?: string }> => {
+  try {
+    const response = await axiosInstance.post(
+      `/api/classification-evidence/workbooks/${workbookId}/reference-files/${evidenceId}`,
+      {
+        sheet: cellRange.sheet,
+        start: cellRange.start,
+        end: cellRange.end || cellRange.start,
+      }
+    );
+    return {
+      success: true,
+      workbook: response.data.workbook,
+    };
+  } catch (error: any) {
+    console.error("Error adding reference file to workbook:", error);
+    return {
+      success: false,
+      error: error.response?.data?.error || error.message || "Failed to add reference file",
+    };
+  }
+};
+
+export const getEvidenceByCellRange = async (
+  workbookId: string,
+  sheet: string,
+  startRow: number,
+  startCol: number,
+  endRow: number,
+  endCol: number
+): Promise<ClassificationEvidence[]> => {
+  try {
+    const response = await axiosInstance.get(
+      `/api/classification-evidence/workbooks/${workbookId}/cell-range`,
+      {
+        params: {
+          sheet,
+          startRow,
+          startCol,
+          endRow,
+          endCol
+        }
+      }
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("Error fetching evidence by cell range:", error);
+    throw error;
+  }
+};
+

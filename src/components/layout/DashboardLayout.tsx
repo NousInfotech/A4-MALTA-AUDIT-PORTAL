@@ -35,7 +35,7 @@ export const DashboardLayout = () => {
           onSidebarToggle={handleSidebarToggle}
           isSidebarCollapsed={isSidebarCollapsed}
         />
-        <main className="flex-1 overflow-y-auto bg-brand-body">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-brand-body">
           <Outlet />
         </main>
       </div>
