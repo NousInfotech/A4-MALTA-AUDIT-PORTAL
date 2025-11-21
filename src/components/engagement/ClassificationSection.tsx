@@ -3945,24 +3945,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             </TabsContent>
 
             {/* work book */}
-            <TabsContent
+            <TabsContent value="work-book" className="flex-1 flex flex-col">
 
-              value="work-book"
+              {loading ? (
 
-              className="flex-1 flex flex-col"
+                <div className="flex items-center justify-center h-64">
 
-            >
-              <>
-                {/* <div className="my-5">
-                {renderDataTable()}
-              </div> */}
-                <WorkBookApp 
-                  engagement={engagement} 
-                  engagementId={engagement.id || engagement._id} 
-                  classification={classification}
-                  refreshTrigger={workbookRefreshTrigger}
-                />
-              </>
+                  <EnhancedLoader
+
+                    variant="pulse"
+
+                    size="lg"
+
+                    text="Loading Lead Sheet..."
+
+                  />
+
+                </div>
+
+              ) : (
+
+                renderLeadSheetContentWithWorkbook()
+
+              )}
+
             </TabsContent>
 
           </Tabs>
@@ -5375,6 +5381,116 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   }
 
   function renderLeadSheetContent() {
+    console.log('🎨 renderLeadSheetContent called with sectionData:', {
+      rowCount: sectionData.length,
+      rowsWithLinkedFiles: sectionData.filter(r => r.linkedExcelFiles?.length > 0).length,
+      allRows: sectionData.map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      }))
+    });
+
+    const subSections = groupBySubCategory(sectionData);
+    
+    console.log('🎨 After groupBySubCategory:', {
+      sectionCount: subSections.length,
+      sections: subSections.map(s => ({
+        subCategoryName: s.subCategoryName,
+        rowCount: s.data.length,
+        rowsWithLinkedFiles: s.data.filter(r => r.linkedExcelFiles?.length > 0).length
+      }))
+    });
+
+    return (
+
+      <>
+        {/* Summary Cards - Keep the global totals here */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Current Year</div>
+            <div className="text-lg font-semibold">
+              {totals.currentYear.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Prior Year</div>
+            <div className="text-lg font-semibold">
+              {totals.priorYear.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Adjustments</div>
+            <div className="text-lg font-semibold">
+              {totals.adjustments.toLocaleString()}
+            </div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-gray-500">Final Balance</div>
+            <div className="text-lg font-semibold">
+              {totals.finalBalance.toLocaleString()}
+            </div>
+          </Card>
+        </div>
+
+        {/* Render each subcategory with its own totals */}
+        {/* Sort: sections without subCategoryName first, then sections with subCategoryName */}
+        {[...subSections]
+          .sort((a, b) => {
+            // Sections without subCategoryName (null) should come first
+            if (!a.subCategoryName && b.subCategoryName) return -1;
+            if (a.subCategoryName && !b.subCategoryName) return 1;
+            return 0;
+          })
+          .map((section, index) => {
+            // Round numeric values in section.data
+            const roundedData = section.data.map(row => ({
+              ...row,
+              currentYear: Math.round(row.currentYear),
+              priorYear: Math.round(row.priorYear),
+              adjustments: Math.round(row.adjustments),
+              reclassification: row.reclassification ? Math.round(row.reclassification) : row.reclassification,
+              finalBalance: Math.round(row.finalBalance),
+            }));
+            
+            const sectionTotals = calculateTotals(roundedData);
+            return (
+              <div key={index}>
+                {/* Show badge before table if subCategoryName exists */}
+                {section.subCategoryName && (
+                  <Badge className="my-5">{section.subCategoryName}</Badge>
+                )}
+                {/* Render table once per section */}
+                {renderDataTable(roundedData, sectionTotals)}
+              </div>
+            );
+          })}
+
+        {/* NEW: WorkBook Section at the bottom */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Linked Workbooks
+          </h3>
+          <WorkBookApp 
+            key={`workbook-app-${leadSheetRefreshTrigger}`}
+            engagement={engagement} 
+            engagementId={engagement.id || engagement._id} 
+            classification={classification}
+            etbRows={sectionData}
+            onRefreshData={refreshLeadSheetData}
+            rowType="etb"
+            refreshTrigger={workbookRefreshTrigger}
+          />
+        </div>
+      </>
+
+    );
+
+  }
+
+
+  function renderLeadSheetContentWithWorkbook() {
     console.log('🎨 renderLeadSheetContent called with sectionData:', {
       rowCount: sectionData.length,
       rowsWithLinkedFiles: sectionData.filter(r => r.linkedExcelFiles?.length > 0).length,
