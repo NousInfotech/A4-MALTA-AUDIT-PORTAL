@@ -108,6 +108,19 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           ) {
             return false;
           }
+          // Filter out zero-balance rows (where all fields are zero)
+          // This keeps the balance sheet clean and focused on accounts with activity
+          const currentYear = Math.abs(row.currentYear || 0);
+          const reclassification = Math.abs(row.reclassification || 0);
+          const adjustments = Math.abs(row.adjustments || 0);
+          const finalBalance = Math.abs(row.finalBalance || 0);
+          const priorYear = Math.abs(row.priorYear || 0);
+          
+          // Filter out if all fields are zero
+          if (currentYear === 0 && reclassification === 0 && adjustments === 0 && 
+              finalBalance === 0 && priorYear === 0) {
+            return false;
+          }
           return true;
         });
 
