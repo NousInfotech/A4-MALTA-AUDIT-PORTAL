@@ -199,7 +199,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       // Round each value before summing to match displayed rounded values
       const sum = Object.values(group4Map).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((acc, row) => {
-          const value = year === "current" ? row.currentYear : row.priorYear;
+          const value = year === "current" ? row.finalBalance : row.priorYear;
           // Round to whole number before summing
           return acc + Math.round(value || 0);
         }, 0);
@@ -228,7 +228,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
       const rows = groupedData[grouping3][grouping4];
       // Round each value before summing to match displayed rounded values
       const sum = rows.reduce((acc, row) => {
-        const value = year === "current" ? row.currentYear : row.priorYear;
+        const value = year === "current" ? row.finalBalance : row.priorYear;
         // Round to whole number before summing
         return acc + Math.round(value || 0);
       }, 0);
@@ -468,7 +468,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                 tableData.push([
                   `${indent}${row.accountName}`,
                   row.code || "",
-                  formatCurrency(formatRowValue(row.currentYear || 0, grouping3)),
+                  formatCurrency(formatRowValue(row.finalBalance || 0, grouping3)),
                   formatCurrency(formatRowValue(row.priorYear || 0, grouping3)),
                 ]);
               });
@@ -777,7 +777,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                                       {row.code || ""}
                                     </td>
                                     <td className="p-2 text-right text-xs">
-                                      {formatTableRowValue(row.currentYear || 0, grouping3)}
+                                      {formatTableRowValue(row.finalBalance || 0, grouping3)}
                                     </td>
                                     <td className="p-2 text-right text-xs">
                                       {formatTableRowValue(row.priorYear || 0, grouping3)}

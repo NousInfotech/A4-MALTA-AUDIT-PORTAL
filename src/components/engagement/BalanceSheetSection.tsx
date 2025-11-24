@@ -292,7 +292,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         // Sum all rows
         const sum = Object.values(group4Map).reduce((g4Acc, rows) => {
           const rowSum = rows.reduce((acc, row) => {
-            const value = year === "current" ? row.currentYear : row.priorYear;
+            const value = year === "current" ? row.finalBalance : row.priorYear;
             return acc + (value || 0);
           }, 0);
           return g4Acc + rowSum;
@@ -398,7 +398,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                   value = calculatedRetainedEarningsCurrent;
                 } else {
                   // Use formatted value (absolute) to match row display
-                  const rawValue = year === "current" ? row.currentYear : row.priorYear;
+                  const rawValue = year === "current" ? row.finalBalance : row.priorYear;
                   value = formatBalanceSheetValue(rawValue || 0, row.accountName);
                 }
                 // Round to whole number before summing
@@ -433,7 +433,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
               value = calculatedRetainedEarningsCurrent;
             } else {
               // Use formatted value (absolute) to match row display
-              const rawValue = year === "current" ? row.currentYear : row.priorYear;
+              const rawValue = year === "current" ? row.finalBalance : row.priorYear;
               value = formatBalanceSheetValue(rawValue || 0, row.accountName);
             }
             // Round to whole number before summing
@@ -466,7 +466,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             value = calculatedRetainedEarningsCurrent;
           } else {
             // Use formatted value (absolute) to match row display
-            const rawValue = year === "current" ? row.currentYear : row.priorYear;
+            const rawValue = year === "current" ? row.finalBalance : row.priorYear;
             value = formatBalanceSheetValue(rawValue || 0, row.accountName);
           }
           // Round to whole number before summing
@@ -497,7 +497,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           value = calculatedRetainedEarningsCurrent;
         } else {
           // Use formatted value (absolute) to match row display
-          const rawValue = year === "current" ? row.currentYear : row.priorYear;
+          const rawValue = year === "current" ? row.finalBalance : row.priorYear;
           value = formatBalanceSheetValue(rawValue || 0, row.accountName);
         }
         // Round to whole number before summing
@@ -510,7 +510,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                   group4.toLowerCase().includes("depreciation") ||
                                   group4.toLowerCase().includes("depn") ||
                                   groupedData[group1][group2][group3][group4].every(row => {
-                                    const rawValue = year === "current" ? row.currentYear : row.priorYear;
+                                    const rawValue = year === "current" ? row.finalBalance : row.priorYear;
                                     return formatBalanceSheetValue(rawValue || 0, row.accountName) < 0;
                                   });
       
@@ -598,7 +598,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     if (isRetainedEarningsRow(row)) {
       return calculations.calculatedRetainedEarningsCurrent;
     }
-    return formatBalanceSheetValue(row.currentYear || 0, row.accountName);
+    return formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
   };
 
   const getRowPriorYearValue = (row: ETBRow): number => {
@@ -727,7 +727,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                     // Use calculated value for Retained Earnings current year
                     const currentYearValue = isRetainedEarningsRow(row) 
                       ? calculatedRetainedEarningsCurrent 
-                      : formatBalanceSheetValue(row.currentYear || 0, row.accountName);
+                      : formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
                     const priorYearValue = formatBalanceSheetValue(row.priorYear || 0, row.accountName);
                     
                     tableData.push([

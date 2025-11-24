@@ -3547,7 +3547,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             {uploadingFiles && (
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Uploading files...
+                Uploading and processing files...
               </div>
             )}
           </div>
@@ -4535,155 +4535,118 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
       // ✅ CRITICAL: Update UI immediately with the workbook from upload response
       // This ensures the user sees the changes right away, before the backend refresh
-      // The initial update above should already show the changes, this refresh ensures data consistency
-      
-      // First, ensure the immediate update is complete and visible
       console.log('✅ Immediate UI update completed, referenceFiles should now be visible');
       
-      // Then, refresh from backend to ensure data consistency (this happens in background)
-      try {
-        const { db_WorkbookApi } = await import('@/lib/api/workbookApi');
-        const refreshedWorkbookResponse = await db_WorkbookApi.getWorkbookById(workbookId);
-        
-        if (refreshedWorkbookResponse.success && refreshedWorkbookResponse.data) {
-          const refreshedWorkbook = refreshedWorkbookResponse.data;
-          
-          // Normalize ID
-          if (refreshedWorkbook._id && !refreshedWorkbook.id) {
-            refreshedWorkbook.id = refreshedWorkbook._id;
-          }
-          
-          // Preserve fileData from current workbook
-          refreshedWorkbook.fileData = updatedWorkbook.fileData || workbook.fileData;
-          
-          // Normalize referenceFiles structure
-          if (refreshedWorkbook.referenceFiles && Array.isArray(refreshedWorkbook.referenceFiles)) {
-            refreshedWorkbook.referenceFiles = refreshedWorkbook.referenceFiles.map((ref: any) => {
-              if (!ref || typeof ref !== 'object' || !ref.details) return null;
-              
-              // Normalize evidence IDs
-              const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
-                if (typeof ev === 'string') return ev;
-                if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
-                return ev;
-              }).filter((ev: any) => ev !== null && ev !== undefined);
-              
-              return {
-                ...ref,
-                evidence: normalizedEvidence
-              };
-            }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
-          }
-          
-          // Update workbook with refreshed data
-          (refreshedWorkbook as any)._referenceFilesUpdateTimestamp = Date.now();
-          
-          // ✅ CRITICAL: Create completely new object references for React to detect changes
-          const refreshedWorkbookWithNewRefs = {
-            ...refreshedWorkbook,
-            referenceFiles: refreshedWorkbook.referenceFiles ? refreshedWorkbook.referenceFiles.map((ref: any) => ({
-              ...ref,
-              details: ref.details ? { ...ref.details } : ref.details,
-              evidence: ref.evidence ? [...ref.evidence] : []
-            })) : []
-          };
-          
-          if (setSelectedWorkbook) {
-            setSelectedWorkbook((prevWorkbook: any) => {
-              const prevId = prevWorkbook?.id || prevWorkbook?._id;
-              const newId = refreshedWorkbookWithNewRefs.id || refreshedWorkbookWithNewRefs._id;
-              
-              if (prevWorkbook && prevId === newId) {
-                const merged = {
-                  ...prevWorkbook,
-                  ...refreshedWorkbookWithNewRefs,
-                  referenceFiles: refreshedWorkbookWithNewRefs.referenceFiles.map((ref: any) => ({
-                    ...ref,
-                    details: ref.details ? { ...ref.details } : ref.details,
-                    evidence: ref.evidence ? [...ref.evidence] : []
-                  })),
-                  fileData: refreshedWorkbookWithNewRefs.fileData || prevWorkbook.fileData,
-                  id: newId || prevId
-                };
-                
-                console.log('✅ Workbook refreshed from backend after upload (merged):', {
-                  workbookId: merged.id,
-                  referenceFilesCount: merged.referenceFiles?.length || 0,
-                  referenceFiles: merged.referenceFiles?.map((ref: any) => ({
-                    sheet: ref?.details?.sheet,
-                    start: ref?.details?.start,
-                    end: ref?.details?.end,
-                    evidenceCount: ref?.evidence?.length || 0
-                  })) || [],
-                  isNewReference: merged !== prevWorkbook,
-                  referenceFilesIsNewArray: merged.referenceFiles !== prevWorkbook.referenceFiles
-                });
-                return merged;
-              }
-              
-              console.log('✅ Workbook refreshed from backend after upload (new):', {
-                workbookId: newId,
-                referenceFilesCount: refreshedWorkbookWithNewRefs.referenceFiles?.length || 0,
-                referenceFiles: refreshedWorkbookWithNewRefs.referenceFiles?.map((ref: any) => ({
-                  sheet: ref?.details?.sheet,
-                  start: ref?.details?.start,
-                  end: ref?.details?.end,
-                  evidenceCount: ref?.evidence?.length || 0
-                })) || []
-              });
-              return refreshedWorkbookWithNewRefs;
-            });
-          }
-        }
-      } catch (refreshError) {
-        console.error('❌ Error refreshing workbook from backend:', refreshError);
-        // Continue even if refresh fails - we already have the updated workbook
-      }
-
-      // Refresh evidence files for the cell range
-      // ✅ CRITICAL: Pass the updated workbook to ensure we use the latest referenceFiles
-      await fetchEvidenceFilesForRange(
-        lastSelection.sheet,
-        lastSelection.start.row,
-        lastSelection.start.col,
-        lastSelection.end.row,
-        lastSelection.end.col,
-        updatedWorkbook // Pass the updated workbook with latest referenceFiles
-      );
-
-      // Refresh mappings if callback provided - only if workbookId is valid
-      if (onRefreshMappings && workbookId) {
-        console.log('🔄 Refreshing mappings for workbook:', workbookId);
-        try {
-          await onRefreshMappings(workbookId);
-        } catch (error) {
-          console.error('❌ Error refreshing mappings:', error);
-          // Don't throw - this is not critical for the upload operation
-        }
-      } else if (onRefreshMappings && !workbookId) {
-        console.warn('⚠️ Skipping onRefreshMappings - workbookId is missing');
-      }
-
-      // ✅ CRITICAL: Force React to re-render by ensuring state updates are complete
-      // Wait a bit to ensure all state updates have been processed
-      await new Promise(resolve => setTimeout(resolve, 50));
-
+      // ✅ CRITICAL: Keep upload loader visible during evidence files fetching
+      // The loader will stay visible in the upload dialog until everything is ready
+      
       toast({
         title: "Success",
         description: `${files.length} file(s) uploaded and linked to selected cells successfully`,
       });
 
-      // Close upload dialog
+      // Refresh mappings if callback provided - only if workbookId is valid
+      // Do this in parallel with fetching evidence files for better performance
+      const mappingRefreshPromise = onRefreshMappings && workbookId 
+        ? (async () => {
+            console.log('🔄 Refreshing mappings for workbook:', workbookId);
+            try {
+              await onRefreshMappings(workbookId);
+            } catch (error) {
+              console.error('❌ Error refreshing mappings:', error);
+              // Don't throw - this is not critical for the upload operation
+            }
+          })()
+        : Promise.resolve();
+
+      // Refresh evidence files for the cell range
+      // ✅ CRITICAL: Wait for fetchEvidenceFilesForRange to complete BEFORE closing upload dialog
+      // This ensures loadingEvidenceFiles is set to false and files are loaded before dialog opens
+      // ✅ CRITICAL: Keep upload loader visible during this process
+      await Promise.all([
+        fetchEvidenceFilesForRange(
+          lastSelection.sheet,
+          lastSelection.start.row,
+          lastSelection.start.col,
+          lastSelection.end.row,
+          lastSelection.end.col,
+          updatedWorkbook // Pass the updated workbook with latest referenceFiles
+        ),
+        mappingRefreshPromise
+      ]);
+
+      // ✅ CRITICAL: Now that everything is ready, close upload dialog and turn off loader
       setIsUploadReferenceFilesDialogOpen(false);
+      setUploadingFiles(false);
+
+      // ✅ CRITICAL: Only open dialog AFTER fetchEvidenceFilesForRange completes successfully
+      // This ensures the dialog opens with files already loaded (no flickering)
+      // Use setTimeout(0) to ensure state updates from fetchEvidenceFilesForRange are processed
+      await new Promise(resolve => setTimeout(resolve, 0));
       
-      // ✅ CRITICAL: Small delay before opening reference files dialog to ensure UI has updated
-      // This gives React time to re-render with the updated workbook prop showing the reference areas
-      // ✅ CRITICAL: Keep loader visible until dialog is ready to show
-      setTimeout(() => {
-        setIsReferenceFilesDialogOpen(true);
-        // ✅ CRITICAL: Turn off loader AFTER dialog is opened, not before
-        setUploadingFiles(false);
-      }, 150);
+      setIsReferenceFilesDialogOpen(true);
+
+      // ✅ Refresh from backend in the background after dialog opens to ensure data consistency
+      // This runs asynchronously and won't cause flickering since dialog is already open
+      (async () => {
+        try {
+          const { db_WorkbookApi } = await import('@/lib/api/workbookApi');
+          const refreshedWorkbookResponse = await db_WorkbookApi.getWorkbookById(workbookId);
+          
+          if (refreshedWorkbookResponse.success && refreshedWorkbookResponse.data && setSelectedWorkbook) {
+            const refreshedWorkbook = refreshedWorkbookResponse.data;
+            
+            // Normalize ID
+            if (refreshedWorkbook._id && !refreshedWorkbook.id) {
+              refreshedWorkbook.id = refreshedWorkbook._id;
+            }
+            
+            // Preserve fileData from current workbook
+            refreshedWorkbook.fileData = updatedWorkbook.fileData || workbook.fileData;
+            
+            // Normalize referenceFiles structure
+            if (refreshedWorkbook.referenceFiles && Array.isArray(refreshedWorkbook.referenceFiles)) {
+              refreshedWorkbook.referenceFiles = refreshedWorkbook.referenceFiles.map((ref: any) => {
+                if (!ref || typeof ref !== 'object' || !ref.details) return null;
+                
+                // Normalize evidence IDs
+                const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+                  if (typeof ev === 'string') return ev;
+                  if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+                  return ev;
+                }).filter((ev: any) => ev !== null && ev !== undefined);
+                
+                return {
+                  ...ref,
+                  evidence: normalizedEvidence
+                };
+              }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+            }
+            
+            // Update workbook with refreshed data (only if dialog is still open)
+            setSelectedWorkbook((prevWorkbook: any) => {
+              const prevId = prevWorkbook?.id || prevWorkbook?._id;
+              const newId = refreshedWorkbook.id || refreshedWorkbook._id;
+              
+              if (prevWorkbook && prevId === newId) {
+                return {
+                  ...prevWorkbook,
+                  ...refreshedWorkbook,
+                  referenceFiles: refreshedWorkbook.referenceFiles || prevWorkbook.referenceFiles,
+                  fileData: refreshedWorkbook.fileData || prevWorkbook.fileData,
+                  id: newId || prevId
+                };
+              }
+              return refreshedWorkbook;
+            });
+            
+            console.log('✅ Workbook refreshed from backend (background)');
+          }
+        } catch (refreshError) {
+          console.error('❌ Error refreshing workbook from backend (background):', refreshError);
+          // Continue silently - this is a background refresh
+        }
+      })();
     } catch (error: any) {
       console.error('Error uploading reference files:', error);
       toast({
@@ -4691,7 +4654,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         title: "Upload Failed",
         description: error.message || 'Failed to upload files',
       });
-      // ✅ CRITICAL: Turn off loader on error as well
+      // ✅ CRITICAL: Close upload dialog and turn off loader on error
+      setIsUploadReferenceFilesDialogOpen(false);
       setUploadingFiles(false);
     } finally {
       // ✅ CRITICAL: Only reset file input here, NOT the loader state
