@@ -73,8 +73,8 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrandingProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <BrandingProvider>
         <NotificationInitializer />
         <TourProvider>
           <DataProvider>
@@ -191,8 +191,8 @@ const App = () => (
           </SidebarStatsProvider>
           </DataProvider>
         </TourProvider>
-      </AuthProvider>
-    </BrandingProvider>
+      </BrandingProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

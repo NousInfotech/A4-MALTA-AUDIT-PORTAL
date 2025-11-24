@@ -21,57 +21,82 @@ const ColorPicker: React.FC<{
 }> = ({ label, value, onChange, description }) => {
   // Convert HSL to hex for color input
   const hslToHex = (hsl: string) => {
-    const [h, s, l] = hsl.split(' ').map((v) => parseFloat(v.replace('%', '')));
-    const hue = h;
-    const saturation = s / 100;
-    const lightness = l / 100;
+    try {
+      // Parse HSL format: "H S% L%" or "H S L" (with or without %)
+      const parts = hsl.trim().split(/\s+/);
+      if (parts.length < 3) {
+        return '#000000'; // Default to black if invalid
+      }
+      
+      const h = parseFloat(parts[0]) || 0;
+      const s = parseFloat(parts[1].replace('%', '')) || 0;
+      const l = parseFloat(parts[2].replace('%', '')) || 0;
+      
+      const hue = h;
+      const saturation = Math.max(0, Math.min(100, s)) / 100;
+      const lightness = Math.max(0, Math.min(100, l)) / 100;
 
-    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-    const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
-    const m = lightness - chroma / 2;
+      const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+      const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+      const m = lightness - chroma / 2;
 
-    let r = 0, g = 0, b = 0;
-    if (hue >= 0 && hue < 60) { r = chroma; g = x; b = 0; }
-    else if (hue >= 60 && hue < 120) { r = x; g = chroma; b = 0; }
-    else if (hue >= 120 && hue < 180) { r = 0; g = chroma; b = x; }
-    else if (hue >= 180 && hue < 240) { r = 0; g = x; b = chroma; }
-    else if (hue >= 240 && hue < 300) { r = x; g = 0; b = chroma; }
-    else if (hue >= 300 && hue < 360) { r = chroma; g = 0; b = x; }
+      let r = 0, g = 0, b = 0;
+      if (hue >= 0 && hue < 60) { r = chroma; g = x; b = 0; }
+      else if (hue >= 60 && hue < 120) { r = x; g = chroma; b = 0; }
+      else if (hue >= 120 && hue < 180) { r = 0; g = chroma; b = x; }
+      else if (hue >= 180 && hue < 240) { r = 0; g = x; b = chroma; }
+      else if (hue >= 240 && hue < 300) { r = x; g = 0; b = chroma; }
+      else if (hue >= 300 && hue < 360) { r = chroma; g = 0; b = x; }
 
-    const toHex = (val: number) => {
-      const hex = Math.round((val + m) * 255).toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    };
+      const toHex = (val: number) => {
+        const clamped = Math.max(0, Math.min(1, val + m));
+        const hex = Math.round(clamped * 255).toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      };
 
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    } catch (error) {
+      console.error('Error converting HSL to hex:', error);
+      return '#000000';
+    }
   };
 
   // Convert hex to HSL
   const hexToHsl = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    try {
+      // Ensure hex is valid
+      if (!hex || !hex.startsWith('#') || hex.length !== 7) {
+        return '0 0% 0%'; // Default to black
+      }
+      
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
 
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const delta = max - min;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const delta = max - min;
 
-    let h = 0;
-    if (delta !== 0) {
-      if (max === r) h = ((g - b) / delta) % 6;
-      else if (max === g) h = (b - r) / delta + 2;
-      else h = (r - g) / delta + 4;
+      let h = 0;
+      if (delta !== 0) {
+        if (max === r) h = ((g - b) / delta) % 6;
+        else if (max === g) h = (b - r) / delta + 2;
+        else h = (r - g) / delta + 4;
+      }
+      h = Math.round(h * 60);
+      if (h < 0) h += 360;
+
+      const l = (max + min) / 2;
+      const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+
+      return `${h} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+    } catch (error) {
+      console.error('Error converting hex to HSL:', error);
+      return '0 0% 0%';
     }
-    h = Math.round(h * 60);
-    if (h < 0) h += 360;
-
-    const l = (max + min) / 2;
-    const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
-
-    return `${h} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
   };
 
-  const hexValue = hslToHex(value);
+  const hexValue = hslToHex(value || '0 0% 0%');
 
   return (
     <div className="space-y-2">
@@ -429,7 +454,7 @@ export const BrandingSettings: React.FC = () => {
             <CardHeader>
               <CardTitle>Logo</CardTitle>
               <CardDescription>
-                Upload your organization's logo (recommended size: 200x200px, max 5MB)
+                Upload your organization's logo (any size accepted - will be automatically optimized to 512x512px max, max 5MB). Supports PNG, JPG, SVG, and other image formats.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

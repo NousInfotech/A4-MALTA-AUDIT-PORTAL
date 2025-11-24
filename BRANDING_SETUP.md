@@ -89,9 +89,10 @@ npm run dev
 
 - **Organization Name:** Displayed in sidebar header
 - **Logo Image:** 
-  - Recommended size: 200x200px
+  - Any size accepted - automatically optimized to 512x512px max (maintains aspect ratio)
   - Max file size: 5MB
-  - Formats: JPG, PNG, SVG, WebP
+  - Formats: PNG, JPG, SVG, WebP, and other image formats
+  - System handles resizing automatically for optimal display
 
 ## 🎯 How It Works
 
