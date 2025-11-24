@@ -76,7 +76,7 @@ export const BrandingTour: React.FC<BrandingTourProps> = ({ onComplete }) => {
     {
       target: '[data-tour="logo-upload"]',
       title: 'Upload Your Company Logo 🖼️',
-      description: 'Upload your logo (PNG, JPG, or SVG). Recommended size: 200x200px or 400x400px for best quality. AI will analyze your logo and can suggest matching color themes automatically!',
+      description: 'Upload your logo (PNG, JPG, SVG, or any image format). Any size is accepted - the system will automatically optimize it for best display. AI will analyze your logo and can suggest matching color themes automatically!',
       position: 'right',
     },
     {

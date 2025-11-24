@@ -86,7 +86,9 @@ The Audit Portal now includes a comprehensive white-label branding system that a
    - Enter your organization name
    - Click "Choose Logo" to upload an image
    - Preview shows before saving
-   - Recommended size: 200x200px, max 5MB
+   - Any image size is accepted - automatically optimized to 512x512px max (maintains aspect ratio)
+   - Supports PNG, JPG, SVG, and other image formats
+   - Max file size: 5MB
 
 4. **Save Changes:**
    - Click "Save Changes" button
