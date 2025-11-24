@@ -668,21 +668,44 @@ export default function WorkBookApp({
       );
 
       if (response.success && response.data) {
-        const fetchedWorkbooks: Workbook[] = response.data.map((item: any) => ({
-          id: item._id || item.id,
-          cloudFileId: item.cloudFileId,
-          name: item.name,
-          webUrl: item.webUrl,
-          uploadedDate: item.uploadedDate
-            ? new Date(item.uploadedDate).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0],
-          version: item.version || "v1",
-          lastModified: item.lastModifiedDate,
-          lastModifiedBy: item.lastModifiedBy,
-          classification: item.classification,
-          engagementId: item.engagementId,
-          fileData: {},
-        }));
+        const fetchedWorkbooks: Workbook[] = response.data.map((item: any) => {
+          // ✅ CRITICAL: Normalize referenceFiles structure
+          let normalizedReferenceFiles: any[] = [];
+          if (item.referenceFiles && Array.isArray(item.referenceFiles)) {
+            normalizedReferenceFiles = item.referenceFiles.map((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return null;
+              
+              // Normalize evidence IDs (might be populated objects or just IDs)
+              const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+                if (typeof ev === 'string') return ev;
+                if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+                return ev;
+              }).filter((ev: any) => ev !== null && ev !== undefined);
+              
+              return {
+                ...ref,
+                evidence: normalizedEvidence
+              };
+            }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+          }
+          
+          return {
+            id: item._id || item.id,
+            cloudFileId: item.cloudFileId,
+            name: item.name,
+            webUrl: item.webUrl,
+            uploadedDate: item.uploadedDate
+              ? new Date(item.uploadedDate).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0],
+            version: item.version || "v1",
+            lastModified: item.lastModifiedDate,
+            lastModifiedBy: item.lastModifiedBy,
+            classification: item.classification,
+            engagementId: item.engagementId,
+            fileData: {},
+            referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles
+          };
+        });
         setWorkbooks(fetchedWorkbooks);
         return fetchedWorkbooks; // Return the fetched workbooks for the next step
       } else {
@@ -907,9 +930,57 @@ export default function WorkBookApp({
         fetchedMappings = [];
       }
   
-      // Get current workbook mappings to merge with
-      const currentWorkbook = (workbooks as any[]).find((wb: any) => wb.id === workbookId);
-      const currentMappings = currentWorkbook?.mappings || [];
+      // ✅ CRITICAL: Fetch the latest workbook from backend to ensure we have the most up-to-date referenceFiles
+      // This prevents reading stale state from closures
+      let currentWorkbook: any = null;
+      let currentMappings: any[] = [];
+      let currentReferenceFiles: any[] = [];
+      
+      try {
+        // Fetch the latest workbook from backend to get the most up-to-date referenceFiles
+        const workbookResponse = await db_WorkbookApi.getWorkbookById(workbookId);
+        if (workbookResponse.success && workbookResponse.data) {
+          currentWorkbook = workbookResponse.data;
+          // Normalize ID
+          if (currentWorkbook._id && !currentWorkbook.id) {
+            currentWorkbook.id = currentWorkbook._id;
+          }
+          // Normalize referenceFiles structure
+          if (currentWorkbook.referenceFiles && Array.isArray(currentWorkbook.referenceFiles)) {
+            currentWorkbook.referenceFiles = currentWorkbook.referenceFiles.map((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return null;
+              // Normalize evidence IDs
+              const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+                if (typeof ev === 'string') return ev;
+                if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+                return ev;
+              }).filter((ev: any) => ev !== null && ev !== undefined);
+              return {
+                ...ref,
+                evidence: normalizedEvidence
+              };
+            }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+          }
+          currentMappings = currentWorkbook.mappings || [];
+          currentReferenceFiles = currentWorkbook.referenceFiles || [];
+        }
+      } catch (fetchError) {
+        console.error('❌ Error fetching workbook from backend:', fetchError);
+        // Fallback to local state if backend fetch fails
+        currentWorkbook = selectedWorkbook && selectedWorkbook.id === workbookId 
+          ? selectedWorkbook 
+          : (workbooks as any[]).find((wb: any) => wb.id === workbookId);
+        currentMappings = currentWorkbook?.mappings || [];
+        currentReferenceFiles = currentWorkbook?.referenceFiles || [];
+      }
+      
+      console.log('🔄 refreshWorkbookMappings: Current workbook state:', {
+        workbookId,
+        mappingsCount: currentMappings.length,
+        referenceFilesCount: currentReferenceFiles.length,
+        hasReferenceFiles: currentReferenceFiles.length > 0,
+        source: currentWorkbook ? 'backend' : 'local'
+      });
   
       // ✅ CRITICAL FIX: Merge fetched mappings with existing ones
       // This prevents overwriting any local changes that haven't been saved yet
@@ -948,27 +1019,74 @@ export default function WorkBookApp({
       setMappings([...enhancedMappings]);
   
       // Update selected workbook with new mappings (NEW object reference)
-      if (selectedWorkbook && selectedWorkbook.id === workbookId) {
-        const updatedWorkbook = {
-          ...selectedWorkbook,
-          mappings: [...enhancedMappings],
-          _mappingsUpdateTimestamp: Date.now()
-        };
-        setSelectedWorkbook(updatedWorkbook);
-        console.log('🔄 Updated selectedWorkbook with refreshed mappings');
-      }
+      // ✅ CRITICAL: Preserve referenceFiles when updating mappings
+      // Use functional update to get the latest state
+      setSelectedWorkbook((prevSelectedWorkbook: any) => {
+        if (prevSelectedWorkbook && prevSelectedWorkbook.id === workbookId) {
+          // ✅ CRITICAL: Use currentReferenceFiles from backend fetch, or fallback to prevSelectedWorkbook
+          const latestRefFiles = currentReferenceFiles.length > 0 
+            ? currentReferenceFiles 
+            : (prevSelectedWorkbook.referenceFiles || []);
+          
+          // ✅ CRITICAL: Preserve fileData and other important properties
+          const updatedWorkbook = {
+            ...prevSelectedWorkbook,
+            ...(currentWorkbook || {}), // Merge backend data if available
+            mappings: [...enhancedMappings],
+            _mappingsUpdateTimestamp: Date.now(),
+            // ✅ CRITICAL: Preserve referenceFiles from the latest workbook state
+            referenceFiles: latestRefFiles.map((ref: any) => ({
+              ...ref,
+              details: ref.details ? { ...ref.details } : ref.details,
+              evidence: ref.evidence ? [...ref.evidence] : []
+            })),
+            // ✅ CRITICAL: Preserve fileData from previous state
+            fileData: prevSelectedWorkbook.fileData || currentWorkbook?.fileData,
+            // Normalize ID
+            id: workbookId
+          };
+          
+          console.log('🔄 Updated selectedWorkbook with refreshed mappings (preserved referenceFiles):', {
+            mappingsCount: enhancedMappings.length,
+            referenceFilesCount: updatedWorkbook.referenceFiles?.length || 0,
+            referenceFilesFrom: currentReferenceFiles.length > 0 ? 'backend' : 'prevSelectedWorkbook',
+            hasFileData: !!updatedWorkbook.fileData
+          });
+          
+          return updatedWorkbook;
+        }
+        return prevSelectedWorkbook;
+      });
   
       // Update workbooks list with new mappings (NEW object references)
+      // ✅ CRITICAL: Preserve referenceFiles when updating mappings
       setWorkbooks(prev => {
-        const updated = prev.map(wb =>
-          wb.id === workbookId
-            ? {
-                ...wb,
-                mappings: [...enhancedMappings],
-                _mappingsUpdateTimestamp: Date.now()
-              }
-            : wb
-        );
+        const updated = prev.map(wb => {
+          if (wb.id === workbookId) {
+            // ✅ CRITICAL: Get the latest referenceFiles from backend fetch or existing wb
+            const latestRefFiles = currentReferenceFiles.length > 0 
+              ? currentReferenceFiles 
+              : (wb.referenceFiles || []);
+            
+            return {
+              ...wb,
+              ...(currentWorkbook || {}), // Merge backend data if available
+              mappings: [...enhancedMappings],
+              _mappingsUpdateTimestamp: Date.now(),
+              // ✅ CRITICAL: Preserve referenceFiles from the latest workbook state
+              referenceFiles: latestRefFiles.map((ref: any) => ({
+                ...ref,
+                details: ref.details ? { ...ref.details } : ref.details,
+                evidence: ref.evidence ? [...ref.evidence] : []
+              })),
+              // ✅ CRITICAL: Preserve fileData from existing wb
+              fileData: wb.fileData || currentWorkbook?.fileData,
+              // Normalize ID
+              id: workbookId
+            };
+          }
+          return wb;
+        });
         return updated;
       });
   
@@ -1045,11 +1163,32 @@ export default function WorkBookApp({
         fetchedMappings = fullWorkbookFromDB.mappings || []; // Fallback to workbook-level mappings
       }
 
+      // ✅ CRITICAL: Normalize referenceFiles structure from backend
+      let normalizedReferenceFiles: any[] = [];
+      if (fullWorkbookFromDB.referenceFiles && Array.isArray(fullWorkbookFromDB.referenceFiles)) {
+        normalizedReferenceFiles = fullWorkbookFromDB.referenceFiles.map((ref: any) => {
+          if (!ref || typeof ref !== 'object' || !ref.details) return null;
+          
+          // Normalize evidence IDs (might be populated objects or just IDs)
+          const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+            if (typeof ev === 'string') return ev;
+            if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+            return ev;
+          }).filter((ev: any) => ev !== null && ev !== undefined);
+          
+          return {
+            ...ref,
+            evidence: normalizedEvidence
+          };
+        }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+      }
+
       const updatedWorkbook = {
         ...workbook,
         fileData: fetchedFileData,
         namedRanges: fullWorkbookFromDB.namedRanges || [],
         mappings: fetchedMappings, // ✅ Use fetched mappings from correct model
+        referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles from backend
       };
 
       setWorkbooks((prev) =>

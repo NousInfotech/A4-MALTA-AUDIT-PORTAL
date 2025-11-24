@@ -68,6 +68,22 @@ export const EditClient = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({
+    name: "",
+    email: "",
+    companyName: "",
+    companyNumber: "",
+    industry: "",
+    customValue: "",
+  });
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    companyName: false,
+    companyNumber: false,
+    industry: false,
+    customValue: false,
+  });
 
   // Fetch client email from API
   const getClientEmail = async (userId: string): Promise<string> => {
@@ -150,15 +166,104 @@ export const EditClient = () => {
     fetchClientData();
   }, [id, navigate, toast]);
 
+  // Validate a single field
+  const validateField = (field: string, value: string): string => {
+    switch (field) {
+      case "name":
+        return !value.trim() ? "Client name is required" : "";
+      case "email":
+        if (!value.trim()) return "Email is required";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+          return "Invalid email format";
+        return "";
+      case "companyName":
+        return !value.trim() ? "Company name is required" : "";
+      case "companyNumber":
+        return !value.trim() ? "Company number is required" : "";
+      case "industry":
+        return !value ? "Industry is required" : "";
+      case "customValue":
+        if (formData.industry === "Other" && !value.trim()) {
+          return "Please specify the industry";
+        }
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  // Check if form is valid
+  const isFormValid = (): boolean => {
+    const { name, email, companyName, companyNumber, industry, customValue } =
+      formData;
+
+    if (!name.trim() || !email.trim() || !companyName.trim() || !companyNumber.trim() || !industry) {
+      return false;
+    }
+
+    if (industry === "Other" && !customValue.trim()) {
+      return false;
+    }
+
+    // Check email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return false;
+    }
+
+    return true;
+  };
+
   // Handle input changes
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    
+    // Validate on change if field was touched
+    if (touched[field]) {
+      const error = validateField(field, value);
+      setFieldErrors((prev) => ({ ...prev, [field]: error }));
+    }
+  };
+
+  // Handle blur to mark field as touched
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const error = validateField(field, formData[field]);
+    setFieldErrors((prev) => ({ ...prev, [field]: error }));
   };
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Mark all fields as touched
+    const allTouched = {
+      name: true,
+      email: true,
+      companyName: true,
+      companyNumber: true,
+      industry: true,
+      customValue: true,
+    };
+    setTouched(allTouched);
+
+    // Validate all fields
+    const errors = {
+      name: validateField("name", formData.name),
+      email: validateField("email", formData.email),
+      companyName: validateField("companyName", formData.companyName),
+      companyNumber: validateField("companyNumber", formData.companyNumber),
+      industry: validateField("industry", formData.industry),
+      customValue: validateField("customValue", formData.customValue),
+    };
+    setFieldErrors(errors);
+
+    // Check if there are any errors
+    if (Object.values(errors).some((err) => err !== "")) {
+      setError("Please fix all validation errors before submitting.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const { name, email, companyName, companyNumber, summary } = formData;
@@ -277,7 +382,9 @@ export const EditClient = () => {
                     label="Client Name *"
                     value={formData.name}
                     onChange={(e) => handleChange("name", e.target.value)}
+                    onBlur={() => handleBlur("name")}
                     placeholder="Enter Client's name"
+                    error={touched.name ? fieldErrors.name : ""}
                   />
                   <InputGroup
                     id="companyName"
@@ -286,7 +393,9 @@ export const EditClient = () => {
                     onChange={(e) =>
                       handleChange("companyName", e.target.value)
                     }
+                    onBlur={() => handleBlur("companyName")}
                     placeholder="Enter company name"
+                    error={touched.companyName ? fieldErrors.companyName : ""}
                   />
                   <InputGroup
                     id="companyNumber"
@@ -295,7 +404,9 @@ export const EditClient = () => {
                     onChange={(e) =>
                       handleChange("companyNumber", e.target.value)
                     }
+                    onBlur={() => handleBlur("companyNumber")}
                     placeholder="Enter company registration number"
+                    error={touched.companyNumber ? fieldErrors.companyNumber : ""}
                   />
                   <InputGroup
                     id="email"
@@ -303,7 +414,9 @@ export const EditClient = () => {
                     label="Company Email *"
                     value={formData.email}
                     onChange={(e) => handleChange("email", e.target.value)}
+                    onBlur={() => handleBlur("email")}
                     placeholder="contact@company.com"
+                    error={touched.email ? fieldErrors.email : ""}
                     required
                   />
                 </div>
@@ -325,9 +438,14 @@ export const EditClient = () => {
                     <Label>Industry *</Label>
                     <Select
                       value={formData.industry}
-                      onValueChange={(value) => handleChange("industry", value)}
+                      onValueChange={(value) => {
+                        handleChange("industry", value);
+                        handleBlur("industry");
+                      }}
                     >
-                      <SelectTrigger className="h-12 rounded-xl text-lg">
+                      <SelectTrigger className={`h-12 rounded-xl text-lg ${
+                        touched.industry && fieldErrors.industry ? "border-red-500" : ""
+                      }`}>
                         <SelectValue placeholder="Select industry" />
                       </SelectTrigger>
                       <SelectContent>
@@ -338,16 +456,21 @@ export const EditClient = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {touched.industry && fieldErrors.industry && (
+                      <p className="text-sm text-red-600 mt-1">{fieldErrors.industry}</p>
+                    )}
                   </div>
                   {formData.industry === "Other" && (
                     <InputGroup
                       id="customValue"
-                      label="Please Specify The Industry"
+                      label="Please Specify The Industry *"
                       value={formData.customValue}
                       onChange={(e) =>
                         handleChange("customValue", e.target.value)
                       }
+                      onBlur={() => handleBlur("customValue")}
                       placeholder="Enter your custom value"
+                      error={touched.customValue ? fieldErrors.customValue : ""}
                     />
                   )}
                 </div>
@@ -378,8 +501,8 @@ export const EditClient = () => {
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  disabled={isSubmitting || !isFormValid()}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-8 py-3 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -406,15 +529,20 @@ export const EditClient = () => {
 };
 
 // Small reusable input group
-const InputGroup = ({ id, label, ...props }) => (
+const InputGroup = ({ id, label, error, ...props }) => (
   <div className="space-y-3">
     <Label htmlFor={id} className="text-sm font-medium text-gray-700">
       {label}
     </Label>
     <Input
       id={id}
-      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+      className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg ${
+        error ? "border-red-500 focus:border-red-500" : ""
+      }`}
       {...props}
     />
+    {error && (
+      <p className="text-sm text-red-600 mt-1">{error}</p>
+    )}
   </div>
 );

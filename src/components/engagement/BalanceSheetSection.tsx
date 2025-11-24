@@ -769,7 +769,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Add balance check
       tableData.push([
         {
-          content: "Balance Check (Assets - Liabilities - Equity)",
+          content: "Balance Check (Assets = Liabilities + Equity)",
           styles: { fontStyle: "bold", fillColor: calculations.balanceCurrent === 0 ? [187, 247, 208] : [254, 202, 202] },
         },
         "",
@@ -1648,7 +1648,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                       }`}
                     >
                       <td className="p-4 font-bold text-lg">
-                        Balance Check (Assets - Liabilities - Equity)
+                        Balance Check (Assets = Liabilities + Equity)
                       </td>
                       <td className="p-4"></td>
                       <td className="p-4 text-right font-bold text-lg">

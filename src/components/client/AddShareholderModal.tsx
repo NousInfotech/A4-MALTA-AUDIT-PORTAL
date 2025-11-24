@@ -49,6 +49,9 @@ interface ExistingEntity {
   name: string;
   type: "person" | "company";
   sharesData: ShareDataItem[];
+  classAShares?: number;
+  classBShares?: number;
+  classCShares?: number;
   expanded?: boolean;
 }
 
@@ -65,7 +68,10 @@ interface NewEntityForm {
   industry?: string;
   description?: string;
   companyStartedAt?: string;
-  // Common
+  // Shares
+  classAShares: number;
+  classBShares: number;
+  classCShares: number;
   sharesData: ShareDataItem[];
 }
 
@@ -89,6 +95,9 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       name: "",
       nationality: "",
       address: "",
+      classAShares: 0,
+      classBShares: 0,
+      classCShares: 0,
       sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
     },
   ]);
@@ -335,6 +344,9 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           name: entity.name,
           type: entityType,
           sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
+          classAShares: 0,
+          classBShares: 0,
+          classCShares: 0,
           expanded: true,
         },
       ]);
@@ -352,6 +364,26 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       }
       return next;
     });
+  };
+
+  // Helper function to convert class fields to sharesData array
+  const classFieldsToSharesData = (classA: number, classB: number, classC: number): ShareDataItem[] => {
+    const sharesData: ShareDataItem[] = [];
+    if (classA > 0) sharesData.push({ totalShares: classA, shareClass: "A", shareType: "Ordinary" });
+    if (classB > 0) sharesData.push({ totalShares: classB, shareClass: "B", shareType: "Ordinary" });
+    if (classC > 0) sharesData.push({ totalShares: classC, shareClass: "C", shareType: "Ordinary" });
+    return sharesData;
+  };
+
+  // Helper function to convert sharesData array to class fields
+  const sharesDataToClassFields = (sharesData: ShareDataItem[]) => {
+    let classA = 0, classB = 0, classC = 0;
+    sharesData.forEach(sd => {
+      if (sd.shareClass === "A") classA += Number(sd.totalShares) || 0;
+      if (sd.shareClass === "B") classB += Number(sd.totalShares) || 0;
+      if (sd.shareClass === "C") classC += Number(sd.totalShares) || 0;
+    });
+    return { classA, classB, classC };
   };
 
   // Get remaining shares for display
@@ -397,62 +429,33 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     return totalShares - occupiedShares - formShares;
   };
 
-  const handleExistingEntitySharesDataChange = (
+  const handleExistingEntityClassSharesChange = (
     entityId: string,
-    index: number,
-    field: "totalShares" | "shareClass",
-    value: number | string
+    shareClass: "A" | "B" | "C",
+    value: number
   ) => {
     setSelectedExistingEntities(
       selectedExistingEntities.map((entity) => {
         if (entity.id === entityId) {
-          const updatedSharesData = [...entity.sharesData];
-          updatedSharesData[index] = {
-            ...updatedSharesData[index],
-            [field]: value,
-            shareType: "Ordinary", // Always Ordinary
-          };
-          return { ...entity, sharesData: updatedSharesData };
+          const updated = { ...entity };
+          if (shareClass === "A") updated.classAShares = value;
+          if (shareClass === "B") updated.classBShares = value;
+          if (shareClass === "C") updated.classCShares = value;
+          
+          // Sync with sharesData
+          updated.sharesData = classFieldsToSharesData(
+            updated.classAShares || 0,
+            updated.classBShares || 0,
+            updated.classCShares || 0
+          );
+          
+          return updated;
         }
         return entity;
       })
     );
     
     // Validate after change
-    setTimeout(() => validateShares(), 0);
-  };
-
-  const addExistingEntitySharesData = (entityId: string) => {
-    setSelectedExistingEntities(
-      selectedExistingEntities.map((entity) => {
-        if (entity.id === entityId) {
-          return {
-            ...entity,
-            sharesData: [
-              ...entity.sharesData,
-              { totalShares: 0, shareClass: "A", shareType: "Ordinary" },
-            ],
-          };
-        }
-        return entity;
-      })
-    );
-    setTimeout(() => validateShares(), 0);
-  };
-
-  const removeExistingEntitySharesData = (entityId: string, index: number) => {
-    setSelectedExistingEntities(
-      selectedExistingEntities.map((entity) => {
-        if (entity.id === entityId) {
-          const updatedSharesData = entity.sharesData.filter((_, i) => i !== index);
-          return {
-            ...entity,
-            sharesData: updatedSharesData.length > 0 ? updatedSharesData : [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
-          };
-        }
-        return entity;
-      })
-    );
     setTimeout(() => validateShares(), 0);
   };
 
@@ -467,62 +470,33 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     );
   };
 
-  const handleNewEntitySharesDataChange = (
+  const handleNewEntityClassSharesChange = (
     entityIndex: number,
-    sharesIndex: number,
-    field: "totalShares" | "shareClass",
-    value: number | string
+    shareClass: "A" | "B" | "C",
+    value: number
   ) => {
     setNewEntities(
       newEntities.map((entity, i) => {
         if (i === entityIndex) {
-          const updatedSharesData = [...entity.sharesData];
-          updatedSharesData[sharesIndex] = {
-            ...updatedSharesData[sharesIndex],
-            [field]: value,
-            shareType: "Ordinary", // Always Ordinary
-          };
-          return { ...entity, sharesData: updatedSharesData };
+          const updated = { ...entity };
+          if (shareClass === "A") updated.classAShares = value;
+          if (shareClass === "B") updated.classBShares = value;
+          if (shareClass === "C") updated.classCShares = value;
+          
+          // Sync with sharesData
+          updated.sharesData = classFieldsToSharesData(
+            updated.classAShares || 0,
+            updated.classBShares || 0,
+            updated.classCShares || 0
+          );
+          
+          return updated;
         }
         return entity;
       })
     );
     
     // Validate after change
-    setTimeout(() => validateShares(), 0);
-  };
-
-  const addNewEntitySharesData = (entityIndex: number) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i === entityIndex) {
-          return {
-            ...entity,
-            sharesData: [
-              ...entity.sharesData,
-              { totalShares: 0, shareClass: "A", shareType: "Ordinary" },
-            ],
-          };
-        }
-        return entity;
-      })
-    );
-    setTimeout(() => validateShares(), 0);
-  };
-
-  const removeNewEntitySharesData = (entityIndex: number, sharesIndex: number) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i === entityIndex) {
-          const updatedSharesData = entity.sharesData.filter((_, idx) => idx !== sharesIndex);
-          return {
-            ...entity,
-            sharesData: updatedSharesData.length > 0 ? updatedSharesData : [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
-          };
-        }
-        return entity;
-      })
-    );
     setTimeout(() => validateShares(), 0);
   };
 
@@ -533,6 +507,9 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         name: "",
         nationality: "",
         address: "",
+        classAShares: 0,
+        classBShares: 0,
+        classCShares: 0,
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
       },
     ]);
@@ -868,6 +845,9 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         name: "",
         nationality: "",
         address: "",
+        classAShares: 0,
+        classBShares: 0,
+        classCShares: 0,
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
       },
     ]);
@@ -1014,82 +994,67 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                                   </div>
                                 )}
                                 <div className="space-y-3">
-                                  {selectedEntity.sharesData.map((shareData, index) => {
-                                    const hasError = shareValidationErrors.global ? true : false;
-                                    return (
-                                      <div key={index} className="flex gap-3 items-end">
-                                        <div className="flex-1">
-                                          <Label className="text-xs text-gray-600">Total Shares</Label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            placeholder="0"
-                                            value={shareData.totalShares || ""}
-                                            onChange={(e) =>
-                                              handleExistingEntitySharesDataChange(
-                                                entityId,
-                                                index,
-                                                "totalShares",
-                                                Number(e.target.value) || 0
-                                              )
-                                            }
-                                            className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                          />
-                                          {hasError && (
-                                            <p className="text-xs text-red-600 mt-1">
-                                              {shareValidationErrors.global}
-                                            </p>
-                                          )}
-                                        </div>
-                                        <div className="w-32">
-                                          <Label className="text-xs text-gray-600">Class</Label>
-                                          <Select
-                                            value={shareData.shareClass}
-                                            onValueChange={(value) =>
-                                              handleExistingEntitySharesDataChange(
-                                                entityId,
-                                                index,
-                                                "shareClass",
-                                                value
-                                              )
-                                            }
-                                          >
-                                            <SelectTrigger className="rounded-lg">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {SHARE_CLASSES.map((cls) => (
-                                                <SelectItem key={cls} value={cls}>
-                                                  {cls}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                        {selectedEntity.sharesData.length > 1 && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeExistingEntitySharesData(entityId, index)}
-                                            className="text-red-600 hover:text-red-700"
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </Button>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => addExistingEntitySharesData(entityId)}
-                                    className="w-full rounded-lg"
-                                  >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add More Shares
-                                  </Button>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <Label className="text-xs text-gray-600">Class A Shares</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="0"
+                                        value={selectedEntity.classAShares || ""}
+                                        onChange={(e) =>
+                                          handleExistingEntityClassSharesChange(
+                                            entityId,
+                                            "A",
+                                            Number(e.target.value) || 0
+                                          )
+                                        }
+                                        className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-gray-600">Class B Shares</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="0"
+                                        value={selectedEntity.classBShares || ""}
+                                        onChange={(e) =>
+                                          handleExistingEntityClassSharesChange(
+                                            entityId,
+                                            "B",
+                                            Number(e.target.value) || 0
+                                          )
+                                        }
+                                        className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs text-gray-600">Class C Shares</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        placeholder="0"
+                                        value={selectedEntity.classCShares || ""}
+                                        onChange={(e) =>
+                                          handleExistingEntityClassSharesChange(
+                                            entityId,
+                                            "C",
+                                            Number(e.target.value) || 0
+                                          )
+                                        }
+                                        className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                      />
+                                    </div>
+                                  </div>
+                                  {shareValidationErrors.global && (
+                                    <p className="text-xs text-red-600">
+                                      {shareValidationErrors.global}
+                                    </p>
+                                  )}
                                 </div>
                               </CardContent>
                             </Card>
@@ -1205,82 +1170,67 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                                     </div>
                                   )}
                                   <div className="space-y-3">
-                                    {selectedEntity.sharesData.map((shareData, index) => {
-                                      const hasError = shareValidationErrors.global ? true : false;
-                                      return (
-                                        <div key={index} className="flex gap-3 items-end">
-                                          <div className="flex-1">
-                                            <Label className="text-xs text-gray-600">Total Shares</Label>
-                                            <Input
-                                              type="number"
-                                              min="0"
-                                              step="1"
-                                              placeholder="0"
-                                              value={shareData.totalShares || ""}
-                                              onChange={(e) =>
-                                                handleExistingEntitySharesDataChange(
-                                                  entityId,
-                                                  index,
-                                                  "totalShares",
-                                                  Number(e.target.value) || 0
-                                                )
-                                              }
-                                              className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                            />
-                                            {hasError && (
-                                              <p className="text-xs text-red-600 mt-1">
-                                                {shareValidationErrors.global}
-                                              </p>
-                                            )}
-                                          </div>
-                                          <div className="w-32">
-                                            <Label className="text-xs text-gray-600">Class</Label>
-                                            <Select
-                                              value={shareData.shareClass}
-                                              onValueChange={(value) =>
-                                                handleExistingEntitySharesDataChange(
-                                                  entityId,
-                                                  index,
-                                                  "shareClass",
-                                                  value
-                                                )
-                                              }
-                                            >
-                                              <SelectTrigger className="rounded-lg">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                {SHARE_CLASSES.map((cls) => (
-                                                  <SelectItem key={cls} value={cls}>
-                                                    {cls}
-                                                  </SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                          {selectedEntity.sharesData.length > 1 && (
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => removeExistingEntitySharesData(entityId, index)}
-                                              className="text-red-600 hover:text-red-700"
-                                            >
-                                              <X className="h-4 w-4" />
-                                            </Button>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => addExistingEntitySharesData(entityId)}
-                                      className="w-full rounded-lg"
-                                    >
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Add More Shares
-                                    </Button>
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <div>
+                                        <Label className="text-xs text-gray-600">Class A Shares</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          placeholder="0"
+                                          value={selectedEntity.classAShares || ""}
+                                          onChange={(e) =>
+                                            handleExistingEntityClassSharesChange(
+                                              entityId,
+                                              "A",
+                                              Number(e.target.value) || 0
+                                            )
+                                          }
+                                          className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-gray-600">Class B Shares</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          placeholder="0"
+                                          value={selectedEntity.classBShares || ""}
+                                          onChange={(e) =>
+                                            handleExistingEntityClassSharesChange(
+                                              entityId,
+                                              "B",
+                                              Number(e.target.value) || 0
+                                            )
+                                          }
+                                          className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-gray-600">Class C Shares</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          placeholder="0"
+                                          value={selectedEntity.classCShares || ""}
+                                          onChange={(e) =>
+                                            handleExistingEntityClassSharesChange(
+                                              entityId,
+                                              "C",
+                                              Number(e.target.value) || 0
+                                            )
+                                          }
+                                          className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                        />
+                                      </div>
+                                    </div>
+                                    {shareValidationErrors.global && (
+                                      <p className="text-xs text-red-600">
+                                        {shareValidationErrors.global}
+                                      </p>
+                                    )}
                                   </div>
                                 </CardContent>
                               </Card>
@@ -1502,83 +1452,67 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           </div>
                         )}
                         <div className="space-y-3">
-                          {entity.sharesData.map((shareData, sharesIndex) => {
-                            const hasError = shareValidationErrors.global ? true : false;
-                            return (
-                              <div key={sharesIndex} className="flex gap-3 items-end">
-                                <div className="flex-1">
-                                  <Label className="text-xs text-gray-600">Total Shares</Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    placeholder="0"
-                                    value={shareData.totalShares || ""}
-                                    onChange={(e) =>
-                                      handleNewEntitySharesDataChange(
-                                        entityIndex,
-                                        sharesIndex,
-                                        "totalShares",
-                                        Number(e.target.value) || 0
-                                      )
-                                    }
-                                    className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                  />
-                                  {hasError && (
-                                    <p className="text-xs text-red-600 mt-1">
-                                      {shareValidationErrors.global}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="w-32">
-                                  <Label className="text-xs text-gray-600">Class</Label>
-                                  <Select
-                                    value={shareData.shareClass}
-                                    onValueChange={(value) =>
-                                      handleNewEntitySharesDataChange(
-                                        entityIndex,
-                                        sharesIndex,
-                                        "shareClass",
-                                        value
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger className="rounded-lg">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SHARE_CLASSES.map((cls) => (
-                                        <SelectItem key={cls} value={cls}>
-                                          {cls}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                {entity.sharesData.length > 1 && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeNewEntitySharesData(entityIndex, sharesIndex)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addNewEntitySharesData(entityIndex)}
-                            className="w-full rounded-lg"
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add More Shares
-                          </Button>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <Label className="text-xs text-gray-600">Class A Shares</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="0"
+                                value={entity.classAShares || ""}
+                                onChange={(e) =>
+                                  handleNewEntityClassSharesChange(
+                                    entityIndex,
+                                    "A",
+                                    Number(e.target.value) || 0
+                                  )
+                                }
+                                className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-600">Class B Shares</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="0"
+                                value={entity.classBShares || ""}
+                                onChange={(e) =>
+                                  handleNewEntityClassSharesChange(
+                                    entityIndex,
+                                    "B",
+                                    Number(e.target.value) || 0
+                                  )
+                                }
+                                className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-gray-600">Class C Shares</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                placeholder="0"
+                                value={entity.classCShares || ""}
+                                onChange={(e) =>
+                                  handleNewEntityClassSharesChange(
+                                    entityIndex,
+                                    "C",
+                                    Number(e.target.value) || 0
+                                  )
+                                }
+                                className={`rounded-lg ${shareValidationErrors.global ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                              />
+                            </div>
+                          </div>
+                          {shareValidationErrors.global && (
+                            <p className="text-xs text-red-600">
+                              {shareValidationErrors.global}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
