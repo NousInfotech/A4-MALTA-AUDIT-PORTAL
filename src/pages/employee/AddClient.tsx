@@ -20,6 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
@@ -32,6 +41,9 @@ import {
   Sparkles,
   EyeOff,
   Eye,
+  Plus,
+  X,
+  Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
@@ -51,6 +63,16 @@ const industries = [
   "Other",
 ];
 
+const shareClasses = ["A", "B", "C"];
+const shareTypes = ["Ordinary", "Preferred"];
+const roles = [
+  "Shareholder",
+  "Director",
+  "Judicial Representative",
+  "Legal Representative",
+  "Secretary",
+];
+
 export const AddClient = () => {
   const [formData, setFormData] = useState({
     name: "",
@@ -65,8 +87,17 @@ export const AddClient = () => {
     nationality: "",
     address: "",
     companyId: "",
+    isCreateCompany: false,
+    isNewCompany: true,
+    totalShares: "",
+    selectedRoles: [] as string[],
+    sharesData: [] as Array<{ totalShares: string; class: string }>,
   });
   const [showPassword, setShowPassword] = useState(true);
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [companies, setCompanies] = useState<Array<{ _id: string; name: string; registrationNumber: string }>>([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[]
   >([]);
@@ -133,12 +164,74 @@ export const AddClient = () => {
     fetchNationalities();
   }, []);
 
+  // Search companies
+  const searchCompanies = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setCompanies([]);
+      return;
+    }
+
+    setIsLoadingCompanies(true);
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/company/search/global?search=${encodeURIComponent(searchTerm)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session?.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to search companies");
+
+      const res = await response.json();
+      if (res.success) {
+        setCompanies(res.data || []);
+      }
+    } catch (err) {
+      console.error("Error searching companies:", err);
+      toast({
+        title: "Error",
+        description: "Failed to search companies",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingCompanies(false);
+    }
+  };
+
+  // Handle company search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showCompanyDialog) {
+        searchCompanies(companySearch);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [companySearch, showCompanyDialog]);
+
+  const handleSelectCompany = (company: { _id: string; name: string; registrationNumber: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      companyId: company._id,
+      companyName: company.name,
+      companyNumber: company.registrationNumber,
+      isNewCompany: false,
+    }));
+    setShowCompanyDialog(false);
+    setCompanySearch("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, totalShares, selectedRoles, sharesData } =
       formData;
 
     const industry =
@@ -146,6 +239,52 @@ export const AddClient = () => {
 
     try {
       const { data, error } = await supabase.auth.getSession();
+      
+      // Prepare request body
+      const requestBody: any = {
+        email,
+        password,
+        name,
+        companyName,
+        companyNumber,
+        industry,
+        summary,
+        nationality,
+        address,
+        companyId: companyId || undefined,
+        role: "client",
+        isCreateCompany,
+        isNewCompany: formData.isNewCompany,
+      };
+
+      // Add company creation data if enabled
+      if (isCreateCompany) {
+        // Add shareHolderData if totalShares is provided or sharesData exists
+        if (totalShares || (sharesData && sharesData.length > 0)) {
+          const validShares = sharesData
+            .filter((share) => share.totalShares)
+            .map((share) => ({
+              totalShares: parseInt(share.totalShares) || 0,
+              class: share.class,
+              type: "Ordinary", // Default type
+            }));
+
+          requestBody.shareHolderData = {
+            totalShares: totalShares ? parseInt(totalShares) : undefined,
+            shares: validShares.length > 0 ? validShares : undefined,
+          };
+        }
+
+        // Add representationalSchema if roles are selected
+        if (selectedRoles.length > 0) {
+          requestBody.representationalSchema = [
+            {
+              role: selectedRoles,
+            },
+          ];
+        }
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_APIURL}/api/users/create`,
         {
@@ -154,19 +293,7 @@ export const AddClient = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${data.session?.access_token}`,
           },
-          body: JSON.stringify({
-            email,
-            password,
-            name,
-            companyName,
-            companyNumber,
-            industry,
-            summary,
-            nationality,
-            address,
-            companyId: companyId || undefined,
-            role: "client",
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 
@@ -193,8 +320,48 @@ export const AddClient = () => {
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleRoleToggle = (role: string) => {
+    setFormData((prev) => {
+      const currentRoles = prev.selectedRoles || [];
+      const newRoles = currentRoles.includes(role)
+        ? currentRoles.filter((r) => r !== role)
+        : [...currentRoles, role];
+      return { ...prev, selectedRoles: newRoles };
+    });
+  };
+
+  const addShareData = () => {
+    setFormData((prev) => ({
+      ...prev,
+      sharesData: [
+        ...prev.sharesData,
+        { totalShares: "", class: "A" },
+      ],
+    }));
+  };
+
+  const removeShareData = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      sharesData: prev.sharesData.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateShareData = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      sharesData: prev.sharesData.map((share, i) =>
+        i === index ? { ...share, [field]: value } : share
+      ),
+    }));
   };
 
   return (
@@ -359,64 +526,6 @@ export const AddClient = () => {
                 </div>
               </div>
 
-              {/* Personal Details */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
-                    <Users className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Personal Details
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="nationality"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Nationality *
-                    </Label>
-                    <Select
-                      value={formData.nationality}
-                      onValueChange={(value) => handleChange("nationality", value)}
-                    >
-                      <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
-                        <SelectValue placeholder="Select nationality" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 rounded-xl max-h-72">
-                        {nationalityOptions.map((opt) => (
-                          <SelectItem
-                            key={opt.value}
-                            value={opt.value}
-                            className="rounded-lg"
-                          >
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-3">
-                    <Label
-                      htmlFor="address"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Address *
-                    </Label>
-                    <Input
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => handleChange("address", e.target.value)}
-                      placeholder="Enter address"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* Industry */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -507,6 +616,298 @@ export const AddClient = () => {
                 </div>
               </div>
 
+              {/* Create Company Options */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                    <Building2 className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Company Creation
+                  </h3>
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Company Record
+                    </Label>
+                    <p className="text-sm text-gray-500">
+                      Choose to create a new company record or link to an existing one
+                    </p>
+                  </div>
+                  <div className="flex gap-4">
+                    <Button
+                      type="button"
+                      variant={formData.isCreateCompany && formData.isNewCompany ? "default" : "outline"}
+                      onClick={() => {
+                        handleChange("isCreateCompany", true);
+                        handleChange("isNewCompany", true);
+                        handleChange("companyId", "");
+                      }}
+                      className="flex-1"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Company
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={formData.isCreateCompany && !formData.isNewCompany ? "default" : "outline"}
+                      onClick={() => {
+                        handleChange("isCreateCompany", true);
+                        handleChange("isNewCompany", false);
+                        setShowCompanyDialog(true);
+                      }}
+                      className="flex-1"
+                    >
+                      <Search className="h-4 w-4 mr-2" />
+                      Add Existing Company
+                    </Button>
+                  </div>
+                  {formData.isCreateCompany && !formData.isNewCompany && formData.companyId && (
+                    <div className="p-3 bg-white rounded-lg border border-gray-200">
+                      <p className="text-sm font-medium text-gray-700">Selected Company:</p>
+                      <p className="text-sm text-gray-600">{formData.companyName}</p>
+                      <p className="text-xs text-gray-500">Reg: {formData.companyNumber}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Company Creation Fields - Only show if creating new company */}
+              {formData.isCreateCompany && formData.isNewCompany && (
+                <>
+                  {/* Address and Nationality */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                        <Users className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Company & Person Details
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="address"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Address *
+                        </Label>
+                        <Input
+                          id="address"
+                          value={formData.address}
+                          onChange={(e) => handleChange("address", e.target.value)}
+                          placeholder="Enter address"
+                          className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="nationality"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Nationality *
+                        </Label>
+                        <Select
+                          value={formData.nationality}
+                          onValueChange={(value) => handleChange("nationality", value)}
+                        >
+                          <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
+                            <SelectValue placeholder="Select nationality" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-200 rounded-xl max-h-72">
+                            {nationalityOptions.map((opt) => (
+                              <SelectItem
+                                key={opt.value}
+                                value={opt.value}
+                                className="rounded-lg"
+                              >
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Roles */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                        <Users className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Roles
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Select Roles *
+                      </Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {roles.map((role) => (
+                          <div
+                            key={role}
+                            className="flex items-center space-x-2"
+                          >
+                            <Checkbox
+                              id={`role-${role}`}
+                              checked={formData.selectedRoles.includes(role)}
+                              onCheckedChange={() => handleRoleToggle(role)}
+                            />
+                            <Label
+                              htmlFor={`role-${role}`}
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              {role}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Share Data */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                        <Sparkles className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Share Information
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                      {/* Company Total Shares */}
+                      <div className="space-y-3">
+                        <Label
+                          htmlFor="totalShares"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Company Total Shares *
+                        </Label>
+                        <Input
+                          id="totalShares"
+                          type="number"
+                          value={formData.totalShares}
+                          onChange={(e) =>
+                            handleChange("totalShares", e.target.value)
+                          }
+                          placeholder="100"
+                          className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                          min="0"
+                          required
+                        />
+                        <p className="text-xs text-gray-500">
+                          Total number of shares issued by the company
+                        </p>
+                      </div>
+
+                      {/* Client Share Holdings */}
+                      <div className="space-y-3 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium text-gray-700">
+                            Client Share Holdings
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={addShareData}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Share Holding
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Total shares the client holds and their class
+                        </p>
+
+                        {formData.sharesData.length === 0 && (
+                          <p className="text-sm text-gray-500 italic p-3 bg-white rounded-lg border border-gray-200">
+                            No share holdings added. Click "Add Share Holding" to add client's share information.
+                          </p>
+                        )}
+
+                        {formData.sharesData.map((share, index) => (
+                          <div
+                            key={index}
+                            className="p-4 border border-gray-200 rounded-xl bg-white space-y-3"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm font-medium text-gray-700">
+                                Share Holding {index + 1}
+                              </Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeShareData(index)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium text-gray-600">
+                                  Total Shares Held *
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={share.totalShares}
+                                  onChange={(e) =>
+                                    updateShareData(
+                                      index,
+                                      "totalShares",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  className="h-10 border-gray-200 focus:border-gray-400 rounded-xl"
+                                  min="0"
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium text-gray-600">
+                                  Share Class *
+                                </Label>
+                                <Select
+                                  value={share.class}
+                                  onValueChange={(value) =>
+                                    updateShareData(index, "class", value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-10 border-gray-200 focus:border-gray-400 rounded-xl">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {shareClasses.map((cls) => (
+                                      <SelectItem key={cls} value={cls}>
+                                        {cls}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Actions */}
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
@@ -532,6 +933,71 @@ export const AddClient = () => {
           </div>
         </div>
       </div>
+
+      {/* Company Selection Dialog */}
+      <Dialog open={showCompanyDialog} onOpenChange={setShowCompanyDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Existing Company</DialogTitle>
+            <DialogDescription>
+              Search and select an existing company to link with this client
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="company-search">Search Companies</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="company-search"
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                  placeholder="Type company name to search..."
+                  className="pl-10 h-12"
+                />
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+              {isLoadingCompanies ? (
+                <div className="p-8 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                  <p className="text-sm text-gray-500 mt-2">Searching companies...</p>
+                </div>
+              ) : companies.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-gray-500">
+                    {companySearch.trim()
+                      ? "No companies found. Try a different search term."
+                      : "Start typing to search for companies"}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {companies.map((company) => (
+                    <button
+                      key={company._id}
+                      type="button"
+                      onClick={() => handleSelectCompany(company)}
+                      className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{company.name}</p>
+                          <p className="text-sm text-gray-500">
+                            Reg: {company.registrationNumber}
+                          </p>
+                        </div>
+                        <Building2 className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
