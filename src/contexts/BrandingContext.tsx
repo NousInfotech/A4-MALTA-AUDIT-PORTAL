@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './AuthContext';
 
 const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
 
@@ -63,6 +64,7 @@ const defaultBranding: BrandingSettings = {
 const BrandingContext = createContext<BrandingContextType | undefined>(undefined);
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [branding, setBranding] = useState<BrandingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -147,11 +149,29 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   }, []);
 
-  // Fetch branding settings
+  // Fetch branding settings for the current user's organization
   const fetchBranding = useCallback(async () => {
+    // Only fetch if user is authenticated and has organizationId
+    if (!user || !user.organizationId) {
+      setIsLoading(false);
+      // Use default branding if no user/organization
+      setBranding(defaultBranding);
+      applyCSSVariables(defaultBranding);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_URL}/api/branding`);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        throw new Error('No session available');
+      }
+
+      const response = await axios.get(`${API_URL}/api/branding`, {
+        headers: {
+          'Authorization': `Bearer ${sessionData.session.access_token}`,
+        },
+      });
       const settings = response.data || defaultBranding;
       setBranding(settings);
       applyCSSVariables(settings);
@@ -163,9 +183,9 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } finally {
       setIsLoading(false);
     }
-  }, [applyCSSVariables]);
+  }, [applyCSSVariables, user]);
 
-  // Initial fetch
+  // Initial fetch - refetch when user or organizationId changes
   useEffect(() => {
     fetchBranding();
   }, [fetchBranding]);
