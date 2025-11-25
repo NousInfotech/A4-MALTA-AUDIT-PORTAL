@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { supabase } from '@/integrations/supabase/client';
 import { io, Socket } from 'socket.io-client';
+import axiosInstance from '@/lib/axiosInstance';
 
 const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
 
@@ -125,6 +126,29 @@ export const engagementApi = {
     });
   },
 
+  // Folder management
+  getEngagementFolders: async (engagementId: string) => {
+    const response = await axiosInstance.get(`/api/engagements/${engagementId}/library/folders`)
+    return response.data
+  },
+  createEngagementFolder: async (engagementId: string, name: string, parentId?: string | null, category?: string) => {
+    const response = await axiosInstance.post(`/api/engagements/${engagementId}/library/folders`, {
+      name,
+      parentId: parentId || null,
+      category: category || "Others",
+    })
+    return response.data
+  },
+  renameEngagementFolder: async (engagementId: string, folderId: string, newName: string) => {
+    const response = await axiosInstance.patch(`/api/engagements/${engagementId}/library/folders/${folderId}`, {
+      newName,
+    })
+    return response.data
+  },
+  deleteEngagementFolder: async (engagementId: string, folderId: string) => {
+    const response = await axiosInstance.delete(`/api/engagements/${engagementId}/library/folders/${folderId}`)
+    return response.data
+  },
   getLibraryFiles: async (engagementId: string) => {
     // Now using apiCall which handles the session and token
     return apiCall(`/api/engagements/${engagementId}/library`);
@@ -1380,6 +1404,60 @@ export const adjustmentApi = {
     console.log('📝 Fetching adjustment history:', id);
     return apiCall(`/api/adjustments/${id}/history`);
   },
+
+  /**
+   * Export adjustments to Excel
+   */
+  export: async (engagementId: string) => {
+    console.log('📝 Exporting adjustments for engagement:', engagementId);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(`${API_URL}/api/adjustments/engagement/${engagementId}/export`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(error.message || 'Failed to export adjustments');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `adjustments_${engagementId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  },
+
+  /**
+   * Add evidence file to an adjustment
+   */
+  addEvidenceFile: async (adjustmentId: string, fileName: string, fileUrl: string) => {
+    console.log('📝 Adding evidence file to adjustment:', adjustmentId);
+    return apiCall(`/api/adjustments/${adjustmentId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName, fileUrl }),
+    });
+  },
+
+  /**
+   * Remove evidence file from an adjustment
+   */
+  removeEvidenceFile: async (adjustmentId: string, evidenceId: string) => {
+    console.log('📝 Removing evidence file from adjustment:', adjustmentId, evidenceId);
+    return apiCall(`/api/adjustments/${adjustmentId}/evidence/${evidenceId}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // Reclassification API
@@ -1499,5 +1577,59 @@ export const reclassificationApi = {
   getHistory: async (id: string) => {
     console.log('📝 Fetching reclassification history:', id);
     return apiCall(`/api/reclassifications/${id}/history`);
+  },
+
+  /**
+   * Export reclassifications to Excel
+   */
+  export: async (engagementId: string) => {
+    console.log('📝 Exporting reclassifications for engagement:', engagementId);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(`${API_URL}/api/reclassifications/engagement/${engagementId}/export`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(error.message || 'Failed to export reclassifications');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reclassifications_${engagementId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  },
+
+  /**
+   * Add evidence file to a reclassification
+   */
+  addEvidenceFile: async (reclassificationId: string, fileName: string, fileUrl: string) => {
+    console.log('📝 Adding evidence file to reclassification:', reclassificationId);
+    return apiCall(`/api/reclassifications/${reclassificationId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName, fileUrl }),
+    });
+  },
+
+  /**
+   * Remove evidence file from a reclassification
+   */
+  removeEvidenceFile: async (reclassificationId: string, evidenceId: string) => {
+    console.log('📝 Removing evidence file from reclassification:', reclassificationId, evidenceId);
+    return apiCall(`/api/reclassifications/${reclassificationId}/evidence/${evidenceId}`, {
+      method: 'DELETE',
+    });
   },
 };

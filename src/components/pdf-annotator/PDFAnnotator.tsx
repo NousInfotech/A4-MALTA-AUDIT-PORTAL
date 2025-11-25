@@ -78,6 +78,41 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   onClose,
   onSave,
 }) => {
+  // Decode URL to handle double encoding issues
+  const decodeUrl = (url: string): string => {
+    try {
+      // Try decoding once
+      let decoded = decodeURIComponent(url);
+      // Check if it's still encoded (double-encoded)
+      if (decoded.includes('%')) {
+        try {
+          decoded = decodeURIComponent(decoded);
+        } catch {
+          // If second decode fails, use first decode
+        }
+      }
+      return decoded;
+    } catch {
+      // If decoding fails, return original URL
+      return url;
+    }
+  };
+
+  // Process the file URL to handle encoding and add cache-busting
+  const processedFileUrl = React.useMemo(() => {
+    const decoded = decodeUrl(fileUrl);
+    try {
+      const url = new URL(decoded);
+      // Add cache-busting parameter
+      url.searchParams.set("v", String(Date.now()));
+      return url.toString();
+    } catch {
+      // If URL parsing fails, try to add cache-busting manually
+      const separator = decoded.includes("?") ? "&" : "?";
+      return `${decoded}${separator}v=${Date.now()}`;
+    }
+  }, [fileUrl]);
+
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(0.90);
@@ -901,7 +936,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
 
           <div className="flex justify-center">
             <Document
-              file={fileUrl}
+              file={processedFileUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={(error) => {
                 console.error("Error loading PDF:", error);
