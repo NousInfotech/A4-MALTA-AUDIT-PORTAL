@@ -26,6 +26,7 @@ interface TeamTabProps {
 
 interface Auditor {
   auditorId: string;
+  auditorName?: string;
   assignedAt: Date;
   assignedBy: string;
 }
@@ -367,17 +368,23 @@ export const TeamTab: React.FC<TeamTabProps> = ({ engagementId }) => {
                     <div className="flex items-center gap-4">
                       <Avatar className="h-12 w-12">
                         <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                          {getInitials(userInfo?.name, userInfo?.email)}
+                          {getInitials(auditor.auditorName || userInfo?.name, userInfo?.email)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="font-semibold text-gray-900 text-lg">
-                          {userInfo?.name || userInfo?.email || auditor.auditorId}
+                          {auditor.auditorName || userInfo?.name || userInfo?.email || auditor.auditorId}
                         </div>
                         {userInfo?.email && (
                           <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                             <Mail className="h-3 w-3" />
                             {userInfo.email}
+                          </div>
+                        )}
+                        {!userInfo?.email && auditor.auditorName && (
+                          <div className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                            <User className="h-3 w-3" />
+                            {auditor.auditorName}
                           </div>
                         )}
                         <div className="flex items-center gap-4 mt-2">

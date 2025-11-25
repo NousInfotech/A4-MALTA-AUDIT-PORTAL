@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -47,11 +48,24 @@ import {
   X,
   FileCheck,
   MoreVertical,
+  Pencil,
+  Tag,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { engagementApi } from "@/services/api"
 import { supabase } from "@/integrations/supabase/client"
 import { EnhancedLoader } from "../ui/enhanced-loader"
+import { PDFAnnotator } from "../pdf-annotator/PDFAnnotator"
+import {
+  getFileVersions,
+  restoreVersion,
+  getFileActivity,
+  updateFileMetadata,
+  bulkDownload as apiBulkDownload,
+  previewFile as apiPreviewFile,
+  type DocumentVersion,
+  type DocumentActivity,
+} from "@/lib/api/global-library"
 
 const categories = [
   "Trial Balance",
@@ -89,6 +103,8 @@ interface LibraryFile {
   uploadedByRole?: string
   version?: number
   fileType?: string
+  description?: string
+  tags?: string[]
 }
 interface DeleteConfirmationDialogProps {
   deleteDialogOpen: boolean
@@ -143,10 +159,21 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [previewFile, setPreviewFile] = useState<LibraryFile | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [showAnnotator, setShowAnnotator] = useState(false)
+  const [annotatorFile, setAnnotatorFile] = useState<LibraryFile | null>(null)
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
   const [fileForDetails, setFileForDetails] = useState<LibraryFile | null>(null)
+  const [versionHistory, setVersionHistory] = useState<DocumentVersion[]>([])
+  const [fileActivity, setFileActivity] = useState<DocumentActivity[]>([])
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [loadingActivity, setLoadingActivity] = useState(false)
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false)
+  const [fileForMetadata, setFileForMetadata] = useState<LibraryFile | null>(null)
+  const [fileDescription, setFileDescription] = useState("")
+  const [fileTags, setFileTags] = useState<string[]>([])
+  const [newTag, setNewTag] = useState("")
   
   // Folder path for breadcrumb navigation (currently just category, but prepared for nested folders)
   const getFolderPath = useCallback((folder: string): string[] => {
@@ -259,7 +286,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
-  // Bulk download handler
+  // Bulk download handler - using global library API
   const handleBulkDownload = async () => {
     if (selectedFiles.size === 0) return
 
@@ -267,8 +294,37 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       const fileNames = Array.from(selectedFiles)
       const filesToDownload = filteredFiles.filter(f => fileNames.includes(f.fileName || f._id))
 
-      // For now, download files individually
-      // In a production environment, you would use a backend endpoint to create ZIP
+      if (filesToDownload.length === 0) return
+
+      // Use global library bulk download if all files are in the same category
+      const categories = new Set(filesToDownload.map(f => f.category))
+      if (categories.size === 1) {
+        const category = Array.from(categories)[0]
+        const fileNamesList = filesToDownload.map(f => f.fileName || "").filter(Boolean)
+        
+        try {
+          const blob = await apiBulkDownload(category, fileNamesList)
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `engagement-library-${category}-${Date.now()}.zip`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+          
+          setSelectedFiles(new Set())
+          toast({
+            title: "Download complete",
+            description: `Downloaded ${fileNamesList.length} file(s) as ZIP`,
+          })
+          return
+        } catch (err) {
+          console.error("Bulk download failed, falling back to individual downloads:", err)
+        }
+      }
+
+      // Fallback to individual downloads
       toast({
         title: "Downloading files",
         description: `Starting download of ${fileNames.length} file(s)...`,
@@ -277,7 +333,6 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       for (const file of filesToDownload) {
         try {
           await handleDownload(file, false)
-          // Small delay between downloads to avoid browser blocking
           await new Promise(resolve => setTimeout(resolve, 500))
         } catch (err) {
           console.error(`Failed to download ${file.fileName}:`, err)
@@ -320,6 +375,29 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
+  // Open PDF annotator
+  const handleOpenAnnotator = async (file: LibraryFile) => {
+    try {
+      const annotatorUrl = file.url
+        ? withVersion(file.url, false)
+        : (() => {
+            const path = `${engagement._id}/${file.category}/${file.fileName}`
+            const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
+            return withVersion(data.publicUrl, false)
+          })()
+
+      setAnnotatorFile(file)
+      setPreviewUrl(annotatorUrl)
+      setShowAnnotator(true)
+    } catch (err: any) {
+      toast({
+        title: "Failed to open annotator",
+        description: err.message || "Unable to open PDF annotator",
+        variant: "destructive",
+      })
+    }
+  }
+
   // Toggle file selection
   const toggleFileSelection = (fileId: string) => {
     const newSelection = new Set(selectedFiles)
@@ -339,18 +417,99 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
-  // Version history handler (simulated - would need backend support)
+  // Version history handler - using global library API
   const handleViewVersions = async (file: LibraryFile) => {
     setFileForDetails(file)
+    setLoadingVersions(true)
     setShowVersions(true)
-    // In a real implementation, this would fetch version history from backend
+    try {
+      const versions = await getFileVersions(file.category, file.fileName || "")
+      setVersionHistory(versions)
+    } catch (error: any) {
+      console.error("Failed to fetch versions:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load version history",
+        variant: "destructive",
+      })
+      setVersionHistory([])
+    } finally {
+      setLoadingVersions(false)
+    }
   }
 
-  // Activity log handler (simulated - would need backend support)
+  // Activity log handler - using global library API
   const handleViewActivity = async (file: LibraryFile) => {
     setFileForDetails(file)
+    setLoadingActivity(true)
     setShowActivity(true)
-    // In a real implementation, this would fetch activity log from backend
+    try {
+      const activity = await getFileActivity(file.category, file.fileName || "")
+      setFileActivity(activity)
+    } catch (error: any) {
+      console.error("Failed to fetch activity:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load activity log",
+        variant: "destructive",
+      })
+      setFileActivity([])
+    } finally {
+      setLoadingActivity(false)
+    }
+  }
+
+  // Handle version restore
+  const handleRestoreVersion = async (file: LibraryFile, version: number) => {
+    try {
+      await restoreVersion(file.category, file.fileName || "", version)
+      toast({
+        title: "Success",
+        description: `Version ${version} restored successfully`,
+      })
+      await fetchLibraryFiles()
+      setShowVersions(false)
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to restore version",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle metadata update
+  const handleUpdateMetadata = async () => {
+    if (!fileForMetadata) return
+    try {
+      await updateFileMetadata(fileForMetadata.category, fileForMetadata.fileName || "", {
+        description: fileDescription,
+        tags: fileTags,
+      })
+      toast({
+        title: "Success",
+        description: "File metadata updated successfully",
+      })
+      await fetchLibraryFiles()
+      setShowMetadataDialog(false)
+      setFileForMetadata(null)
+      setFileDescription("")
+      setFileTags([])
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update metadata",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Open metadata dialog
+  const handleOpenMetadata = (file: LibraryFile) => {
+    setFileForMetadata(file)
+    setFileDescription(file.description || "")
+    setFileTags(file.tags || [])
+    setShowMetadataDialog(true)
   }
 
   const getFileIcon = (fileName: string) => {
@@ -940,9 +1099,28 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                         </div>
                         <div className="col-span-5 flex items-center space-x-2">
                           {getFileIcon(file.fileName || "")}
-                          <span className="text-sm">{decodeURIComponent(file.fileName)}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm truncate">{decodeURIComponent(file.fileName)}</span>
+                            {file.description && (
+                              <span className="text-xs text-gray-500 truncate max-w-xs">{file.description}</span>
+                            )}
+                            {file.tags && file.tags.length > 0 && (
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {file.tags.slice(0, 3).map((tag, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs px-1 py-0">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {file.tags.length > 3 && (
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    +{file.tags.length - 3}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           {file.version && (
-                            <Badge variant="outline" className="text-xs">v{file.version}</Badge>
+                            <Badge variant="outline" className="text-xs flex-shrink-0">v{file.version}</Badge>
                           )}
                         </div>
                         <div className="col-span-2 items-center flex text-sm text-gray-500">
@@ -953,13 +1131,24 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                         </div>
                         <div className="col-span-2 flex items-center gap-1">
                           {canPreview && (
-                            <Button
-                              onClick={() => handlePreview(file)}
-                              className="p-2 rounded bg-inherit hover:bg-gray-200"
-                              title="Preview"
-                            >
-                              <Eye className="h-4 w-4 text-gray-600" />
-                            </Button>
+                            <>
+                              {fileExt === "pdf" && (
+                                <Button
+                                  onClick={() => handleOpenAnnotator(file)}
+                                  className="p-2 rounded bg-inherit hover:bg-gray-200"
+                                  title="Annotate PDF"
+                                >
+                                  <FileText className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
+                              <Button
+                                onClick={() => handlePreview(file)}
+                                className="p-2 rounded bg-inherit hover:bg-gray-200"
+                                title="Preview"
+                              >
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              </Button>
+                            </>
                           )}
                           <Button
                             onClick={() => handleViewVersions(file)}
@@ -974,6 +1163,13 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                             title="Activity Log"
                           >
                             <FileCheck className="h-4 w-4 text-gray-600" />
+                          </Button>
+                          <Button
+                            onClick={() => handleOpenMetadata(file)}
+                            className="p-2 rounded bg-inherit hover:bg-gray-200"
+                            title="Edit Metadata"
+                          >
+                            <Pencil className="h-4 w-4 text-gray-600" />
                           </Button>
                           <Button
                             onClick={() => handleDownload(file)}
@@ -1117,8 +1313,28 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         deletingId={deletingId}
       />
 
+      {/* PDF Annotator */}
+      {showAnnotator && annotatorFile && previewUrl && (
+        <PDFAnnotator
+          fileUrl={previewUrl}
+          fileName={annotatorFile.fileName || "document.pdf"}
+          engagementId={engagement._id}
+          fileId={annotatorFile._id}
+          onClose={() => {
+            setShowAnnotator(false)
+            setAnnotatorFile(null)
+            setPreviewUrl(null)
+          }}
+          onSave={(annotations) => {
+            // Annotations are automatically saved to localStorage
+            // You can extend this to save to backend if needed
+            console.log("Annotations saved:", annotations)
+          }}
+        />
+      )}
+
       {/* Preview Dialog */}
-      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
+      <Dialog open={!!previewFile && !showAnnotator} onOpenChange={(open) => !open && setPreviewFile(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] bg-white">
           <DialogHeader>
             <DialogTitle>{previewFile?.fileName}</DialogTitle>
@@ -1127,7 +1343,19 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             {previewUrl && previewFile && (
               <div className="w-full h-[70vh] overflow-auto border rounded-lg">
                 {previewFile.fileType === "pdf" || (previewFile.fileName?.toLowerCase().endsWith(".pdf")) ? (
-                  <iframe src={previewUrl} className="w-full h-full" />
+                  <div className="flex flex-col gap-2 p-4">
+                    <Button
+                      onClick={() => {
+                        setPreviewFile(null)
+                        handleOpenAnnotator(previewFile)
+                      }}
+                      className="w-full"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Open in PDF Annotator
+                    </Button>
+                    <iframe src={previewUrl} className="w-full h-full min-h-[500px]" />
+                  </div>
                 ) : (["jpg", "jpeg", "png"].includes(previewFile.fileName?.split(".").pop()?.toLowerCase() || "")) ? (
                   <img src={previewUrl} alt={previewFile.fileName} className="w-full h-auto" />
                 ) : (["docx", "doc"].includes(previewFile.fileName?.split(".").pop()?.toLowerCase() || "")) ? (
@@ -1161,23 +1389,54 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             <DialogTitle>Version History - {fileForDetails?.fileName}</DialogTitle>
           </DialogHeader>
           <div className="mt-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-2">
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Badge variant="default">Version 1</Badge>
-                  <Badge variant="outline">Latest</Badge>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  Uploaded on {fileForDetails ? new Date(fileForDetails.createdAt).toLocaleString() : "N/A"}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {fileForDetails?.fileSize ? `Size: ${(fileForDetails.fileSize / 1024).toFixed(2)} KB` : ""}
-                </p>
+            {loadingVersions ? (
+              <div className="flex items-center justify-center py-8">
+                <EnhancedLoader size="md" text="Loading versions..." />
               </div>
-              <p className="text-center text-gray-500 py-4 text-sm">
-                Version history tracking will be available when backend support is added
-              </p>
-            </div>
+            ) : versionHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No version history available for this file</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {versionHistory.map((version) => (
+                  <div key={version.version} className="p-4 border rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={version.isLatest ? "default" : "outline"}>
+                          Version {version.version}
+                        </Badge>
+                        {version.isLatest && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                            Latest
+                          </Badge>
+                        )}
+                      </div>
+                      {!version.isLatest && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => fileForDetails && handleRestoreVersion(fileForDetails, version.version)}
+                        >
+                          Restore
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Uploaded by {version.uploadedBy} on {new Date(version.uploadedAt).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Size: {(version.fileSize / 1024).toFixed(2)} KB
+                    </p>
+                    {version.restoredFromVersion && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Restored from version {version.restoredFromVersion}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1189,19 +1448,103 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             <DialogTitle>Activity Log - {fileForDetails?.fileName}</DialogTitle>
           </DialogHeader>
           <div className="mt-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-2">
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Upload</Badge>
-                  <span className="font-medium">System</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {fileForDetails ? new Date(fileForDetails.createdAt).toLocaleString() : "N/A"}
-                </p>
+            {loadingActivity ? (
+              <div className="flex items-center justify-center py-8">
+                <EnhancedLoader size="md" text="Loading activity..." />
               </div>
-              <p className="text-center text-gray-500 py-4 text-sm">
-                Activity logging will be available when backend support is added
-              </p>
+            ) : fileActivity.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No activity recorded for this file</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {fileActivity.map((activity) => (
+                  <div key={activity._id} className="p-4 border rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{activity.action}</Badge>
+                      <span className="font-medium">{activity.userName}</span>
+                      <span className="text-xs text-gray-500">({activity.userRole})</span>
+                    </div>
+                    {activity.details && (
+                      <p className="text-sm text-gray-600 mt-1">{activity.details}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Metadata Dialog */}
+      <Dialog open={showMetadataDialog} onOpenChange={setShowMetadataDialog}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle>Edit Metadata - {fileForMetadata?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Enter file description..."
+                value={fileDescription}
+                onChange={(e) => setFileDescription(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags</Label>
+              <div className="flex gap-2 flex-wrap">
+                {fileTags.map((tag, index) => (
+                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <button
+                      onClick={() => setFileTags(fileTags.filter((_, i) => i !== index))}
+                      className="ml-1 hover:text-red-600"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  id="tags"
+                  placeholder="Add a tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && newTag.trim()) {
+                      e.preventDefault()
+                      setFileTags([...fileTags, newTag.trim()])
+                      setNewTag("")
+                    }
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    if (newTag.trim()) {
+                      setFileTags([...fileTags, newTag.trim()])
+                      setNewTag("")
+                    }
+                  }}
+                >
+                  <Tag className="h-4 w-4 mr-2" />
+                  Add Tag
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowMetadataDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateMetadata}>
+                Save Metadata
+              </Button>
             </div>
           </div>
         </DialogContent>
