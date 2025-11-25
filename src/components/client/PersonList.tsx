@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Users,
@@ -34,6 +35,7 @@ import { AddPersonFromShareholdingModal } from "./AddPersonFromShareholdingModal
 import { AddShareholderRepresentativeModal } from "./AddShareholderRepresentativeModal";
 import { AddRepresentativeModal } from "./AddRepresentativeModal";
 import { AddShareholderModal } from "./AddShareholderModal";
+import { EditShares, type ShareValues } from "./EditShares";
 import {
   Select,
   SelectContent,
@@ -115,10 +117,14 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [shareholdingError, setShareholdingError] = useState<string>("");
   const [companySearchTerm, setCompanySearchTerm] = useState<string>("");
   const [isSubmittingShare, setIsSubmittingShare] = useState(false);
-  const [editingSelectedCompanyId, setEditingSelectedCompanyId] = useState<string>("");
-  const [editingSharePercentage, setEditingSharePercentage] = useState<string>("");
-  const [editingShareClass, setEditingShareClass] = useState<string>("General");
   const [editingShareError, setEditingShareError] = useState<string>("");
+  const [editingShareValidationError, setEditingShareValidationError] = useState<string | null>(null);
+  const [editingShareValues, setEditingShareValues] = useState<ShareValues>({
+    sharesA: "",
+    sharesB: "",
+    sharesC: "",
+    sharesOrdinary: "",
+  });
   const [isCompanyOptionsLoading, setIsCompanyOptionsLoading] = useState(false);
   const [companyLookup, setCompanyLookup] = useState<Record<string, CompanyMetadata>>({});
   const [hasFetchedCompanyOptions, setHasFetchedCompanyOptions] = useState(false);
@@ -136,6 +142,20 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isAddCompanyRepresentativeModalOpen, setIsAddCompanyRepresentativeModalOpen] = useState(false);
   const [isAddPersonShareholderModalOpen, setIsAddPersonShareholderModalOpen] = useState(false);
   const [isAddCompanyShareholderModalOpen, setIsAddCompanyShareholderModalOpen] = useState(false);
+  
+  // Inline form state: tracks which form is currently shown inline
+  // Format: "person-representative" | "company-representative" | "person-shareholder" | "company-shareholder" | null
+  const [activeInlineForm, setActiveInlineForm] = useState<string | null>(null);
+  
+  // Company representative edit/delete states
+  const [isEditCompanyRepRolesOpen, setIsEditCompanyRepRolesOpen] = useState(false);
+  const [editingCompanyRep, setEditingCompanyRep] = useState<any | null>(null);
+  const [editingRoles, setEditingRoles] = useState<string[]>([]);
+  const [isDeleteCompanyRepDialogOpen, setIsDeleteCompanyRepDialogOpen] = useState(false);
+  const [companyRepToDelete, setCompanyRepToDelete] = useState<any | null>(null);
+  const [isDeletingCompanyRep, setIsDeletingCompanyRep] = useState(false);
+  const [isSavingRoles, setIsSavingRoles] = useState(false);
+  
   const { toast } = useToast();
 
   const apiCompany = null;
@@ -752,31 +772,47 @@ export const PersonList: React.FC<PersonListProps> = ({
   // Handle edit company shareholder
   const handleEditCompanyShare = async (share: any) => {
     setEditingCompanyShare(share);
-    const normalizedCompanyId = typeof share.companyId === 'object' && share.companyId !== null
-      ? share.companyId._id
-      : share.companyId;
-    // sharePercentage is now at the shareHoldingCompany level
-    const existingSharePct = share?.sharePercentage ?? "";
-    const normalizedSharePct =
-      typeof existingSharePct === "number"
-        ? existingSharePct.toString()
-        : existingSharePct || "";
-    setEditingSelectedCompanyId(normalizedCompanyId || "");
-    setEditingSharePercentage(normalizedSharePct);
-    const existingShareClass = share?.sharesData?.class || share?.shareClass || "General";
-    setEditingShareClass(existingShareClass);
+    
+    // Initialize share values from sharesData - show current values
+    const sharesByClass: Record<string, number> = { A: 0, B: 0, C: 0, Ordinary: 0 };
+    
+    if (Array.isArray(share.sharesData)) {
+      share.sharesData.forEach((sd: any) => {
+        const shareClass = sd.shareClass || sd.class || "A";
+        const shareCount = Number(sd.totalShares) || 0;
+        if (shareClass in sharesByClass) {
+          sharesByClass[shareClass] += shareCount;
+        } else if (shareClass === "Ordinary") {
+          sharesByClass.Ordinary += shareCount;
+        }
+      });
+    }
+    
+    // Show current values - always convert to string for display
+    setEditingShareValues({
+      sharesA: sharesByClass.A.toString(),
+      sharesB: sharesByClass.B.toString(),
+      sharesC: sharesByClass.C.toString(),
+      sharesOrdinary: sharesByClass.Ordinary.toString(),
+    });
+    
     setEditingShareError("");
     setIsEditCompanyShareOpen(true);
-    // Fetch companies list if not already loaded
-    if (existingCompanies.length === 0) {
-      await fetchCompanies();
-    }
+  };
+
+  // Handle share change from EditShares component
+  const handleCompanyShareChange = (shareClass: "A" | "B" | "C" | "Ordinary", value: string) => {
+    setEditingShareValues((prev) => ({
+      ...prev,
+      [shareClass === "Ordinary" ? "sharesOrdinary" : `shares${shareClass}`]: value,
+    }));
+    setEditingShareError("");
   };
 
   // Handle update company shareholder
   const handleUpdateCompanyShare = async () => {
-    if (!editingCompanyShare || !editingSelectedCompanyId || !editingSharePercentage) {
-      const message = "Please select a company and enter share percentage";
+    if (!editingCompanyShare) {
+      const message = "No company shareholding selected";
       setEditingShareError(message);
       toast({
         title: "Error",
@@ -786,9 +822,14 @@ export const PersonList: React.FC<PersonListProps> = ({
       return;
     }
 
-    const sharePct = parseFloat(editingSharePercentage);
-    if (isNaN(sharePct) || sharePct <= 0 || sharePct > 100) {
-      const message = "Share percentage must be between 0 and 100";
+    const sharesA = parseInt(editingShareValues.sharesA || "0", 10) || 0;
+    const sharesB = parseInt(editingShareValues.sharesB || "0", 10) || 0;
+    const sharesC = parseInt(editingShareValues.sharesC || "0", 10) || 0;
+    const sharesOrdinary = parseInt(editingShareValues.sharesOrdinary || "0", 10) || 0;
+    const totalShares = sharesA + sharesB + sharesC + sharesOrdinary;
+
+    if (totalShares === 0) {
+      const message = "Please enter at least one share";
       setEditingShareError(message);
       toast({
         title: "Error",
@@ -798,56 +839,86 @@ export const PersonList: React.FC<PersonListProps> = ({
       return;
     }
 
-    // Validate total shares don't exceed 100%
-    // For editing, we need to exclude the original shareholding being edited
-    const currentPersonTotal = (company?.shareHolders || []).reduce(
-      (acc: number, shareHolder: any) => {
-        // sharePercentage is now at the shareHolder level, not in sharesData
-        const pct = shareHolder?.sharePercentage ?? 0;
-        const numeric = typeof pct === "number" ? pct : Number(pct) || 0;
-        return acc + (isNaN(numeric) ? 0 : numeric);
-      },
-      0
-    );
+    // Validate shares don't exceed available amounts per class
+    if (company?.totalShares && Array.isArray(company.totalShares)) {
+      const totalSharesByClass: Record<string, number> = {};
+      company.totalShares.forEach((share: any) => {
+        const shareClass = share.class || "A";
+        totalSharesByClass[shareClass] = Number(share.totalShares) || 0;
+      });
 
-    const currentShareholdings = company?.shareHoldingCompanies || [];
-    const originalShareCompanyId =
-      typeof editingCompanyShare.companyId === "object"
-        ? editingCompanyShare.companyId._id
-        : editingCompanyShare.companyId;
+      // Calculate allocated shares excluding current company shareholding
+      const allocatedByClass: Record<string, number> = { A: 0, B: 0, C: 0, Ordinary: 0 };
+      
+      // From person shareholders
+      if (Array.isArray(company.shareHolders)) {
+        company.shareHolders.forEach((sh: any) => {
+          if (Array.isArray(sh.sharesData)) {
+            sh.sharesData.forEach((sd: any) => {
+              const shareClass = sd.shareClass || sd.class || "A";
+              allocatedByClass[shareClass] = (allocatedByClass[shareClass] || 0) + (Number(sd.totalShares) || 0);
+            });
+          }
+        });
+      }
 
-    // Calculate company total excluding the one being edited
-    let currentCompanyTotal = 0;
-    currentShareholdings.forEach((share: any) => {
-      const shareCompanyId =
-        typeof share.companyId === "object" ? share.companyId._id : share.companyId;
-      // Skip the shareholding being edited
-      if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
+      // From company shareholders (excluding current one being edited)
+      const editingCompanyIdNormalized =
+        typeof editingCompanyShare.companyId === "object"
+          ? editingCompanyShare.companyId._id
+          : editingCompanyShare.companyId;
+      
+      if (Array.isArray(company.shareHoldingCompanies)) {
+        company.shareHoldingCompanies.forEach((sh: any) => {
+          const shareCompanyId = typeof sh.companyId === "object" ? sh.companyId._id : sh.companyId;
+          if (String(shareCompanyId) === String(editingCompanyIdNormalized)) return;
+          
+          if (Array.isArray(sh.sharesData)) {
+            sh.sharesData.forEach((sd: any) => {
+              const shareClass = sd.shareClass || sd.class || "A";
+              allocatedByClass[shareClass] = (allocatedByClass[shareClass] || 0) + (Number(sd.totalShares) || 0);
+            });
+          }
+        });
+      }
+
+      // Check if new shares exceed available
+      const errors: string[] = [];
+      if (sharesA > 0) {
+        const available = (totalSharesByClass.A || 0) - allocatedByClass.A;
+        if (sharesA > available) {
+          errors.push(`Class A shares exceed available. Available: ${available.toLocaleString()}, Requested: ${sharesA.toLocaleString()}`);
+        }
+      }
+      if (sharesB > 0) {
+        const available = (totalSharesByClass.B || 0) - allocatedByClass.B;
+        if (sharesB > available) {
+          errors.push(`Class B shares exceed available. Available: ${available.toLocaleString()}, Requested: ${sharesB.toLocaleString()}`);
+        }
+      }
+      if (sharesC > 0) {
+        const available = (totalSharesByClass.C || 0) - allocatedByClass.C;
+        if (sharesC > available) {
+          errors.push(`Class C shares exceed available. Available: ${available.toLocaleString()}, Requested: ${sharesC.toLocaleString()}`);
+        }
+      }
+      if (sharesOrdinary > 0) {
+        const available = (totalSharesByClass.Ordinary || 0) - allocatedByClass.Ordinary;
+        if (sharesOrdinary > available) {
+          errors.push(`Ordinary shares exceed available. Available: ${available.toLocaleString()}, Requested: ${sharesOrdinary.toLocaleString()}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        const message = errors.join("; ");
+        setEditingShareError(message);
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
         return;
       }
-      // sharePercentage is now at the shareHoldingCompany level, not in sharesData
-      const shareValue = share?.sharePercentage ?? 0;
-      const numPct =
-        typeof shareValue === "number" ? shareValue : Number(shareValue) || 0;
-      if (!isNaN(numPct) && numPct > 0) {
-        currentCompanyTotal += numPct;
-      }
-    });
-
-    const newTotal = currentPersonTotal + currentCompanyTotal + sharePct;
-    const available = Math.max(0, 100 - (currentPersonTotal + currentCompanyTotal));
-
-    if (newTotal > 100) {
-      const message = `Total shares cannot exceed 100%. Maximum available: ${available.toFixed(
-        2
-      )}%`;
-      setEditingShareError(message);
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
-      return;
     }
 
     try {
@@ -855,6 +926,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
+      const currentShareholdings = company?.shareHoldingCompanies || [];
       const editingCompanyIdNormalized =
         typeof editingCompanyShare.companyId === "object"
           ? editingCompanyShare.companyId._id
@@ -865,29 +937,38 @@ export const PersonList: React.FC<PersonListProps> = ({
         return shareCompanyId?.toString() === editingCompanyIdNormalized?.toString();
       });
 
+      // Build sharesData array
+      const sharesDataArray: Array<{ totalShares: number; shareClass: "A" | "B" | "C" | "Ordinary"; shareType?: "Ordinary" }> = [];
+      
+      if (sharesA > 0) {
+        sharesDataArray.push({ totalShares: sharesA, shareClass: "A", shareType: "Ordinary" });
+      }
+      if (sharesB > 0) {
+        sharesDataArray.push({ totalShares: sharesB, shareClass: "B", shareType: "Ordinary" });
+      }
+      if (sharesC > 0) {
+        sharesDataArray.push({ totalShares: sharesC, shareClass: "C", shareType: "Ordinary" });
+      }
+      if (sharesOrdinary > 0) {
+        sharesDataArray.push({ totalShares: sharesOrdinary, shareClass: "Ordinary", shareType: "Ordinary" });
+      }
+
       let updatedShareholdings;
       if (existingIndex >= 0) {
-        // Update existing shareholding - preserve existing sharesData structure
+        // Update existing shareholding
         updatedShareholdings = [...currentShareholdings];
         const existing = currentShareholdings[existingIndex];
         updatedShareholdings[existingIndex] = {
-          companyId: editingSelectedCompanyId,
-          sharesData: {
-            ...(existing?.sharesData || {}),
-            percentage: sharePct,
-            class: editingShareClass || "General",
-          },
+          ...existing,
+          sharesData: sharesDataArray,
         };
       } else {
         // This shouldn't happen, but handle it anyway
         updatedShareholdings = [
           ...currentShareholdings,
           {
-            companyId: editingSelectedCompanyId,
-            sharesData: {
-              percentage: sharePct,
-              class: editingShareClass || "General",
-            },
+            companyId: editingCompanyIdNormalized,
+            sharesData: sharesDataArray,
           },
         ];
       }
@@ -918,10 +999,14 @@ export const PersonList: React.FC<PersonListProps> = ({
       });
 
       // Reset form
-      setEditingSelectedCompanyId("");
-      setEditingSharePercentage("");
-      setEditingShareClass("General");
+      setEditingShareValues({
+        sharesA: "",
+        sharesB: "",
+        sharesC: "",
+        sharesOrdinary: "",
+      });
       setEditingShareError("");
+      setEditingShareValidationError(null);
       setEditingCompanyShare(null);
       setIsEditCompanyShareOpen(false);
       onUpdate();
@@ -1008,6 +1093,165 @@ export const PersonList: React.FC<PersonListProps> = ({
     navigate(`/employee/clients/${resolvedClientId}/company/${companyIdToNavigate}`);
   };
 
+  // Handle delete company representative click
+  const handleDeleteCompanyRepClick = (repCompany: any) => {
+    setCompanyRepToDelete(repCompany);
+    setIsDeleteCompanyRepDialogOpen(true);
+  };
+
+  // Handle delete company representative confirm
+  const handleDeleteCompanyRepConfirm = async () => {
+    if (!companyRepToDelete) return;
+
+    try {
+      setIsDeletingCompanyRep(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Not authenticated");
+
+      const companyData = companyRepToDelete.companyId || {};
+      const companyIdStr = typeof companyData === 'string' 
+        ? companyData 
+        : (companyData?._id || companyData?.id || (typeof companyData === 'object' ? String(companyData) : companyData));
+
+      if (!companyIdStr) {
+        throw new Error("Invalid company ID");
+      }
+
+      // Remove company from representationalCompany
+      const currentCompany = company || {};
+      const updatedRepresentationalCompany =
+        (currentCompany.representationalCompany || []).filter(
+          (rc: any) => {
+            const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
+            return String(rcId) !== String(companyIdStr);
+          }
+        );
+
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+          body: JSON.stringify({
+            ...currentCompany,
+            representationalCompany: updatedRepresentationalCompany,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to remove company representative");
+      }
+
+      toast({
+        title: "Success",
+        description: "Company representative removed successfully",
+      });
+
+      setIsDeleteCompanyRepDialogOpen(false);
+      setCompanyRepToDelete(null);
+      onUpdate();
+    } catch (error: any) {
+      console.error("Error removing company representative:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove company representative",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingCompanyRep(false);
+    }
+  };
+
+  // Handle edit company representative roles
+  const handleEditCompanyRep = (repCompany: any) => {
+    const roles = Array.isArray(repCompany.role) ? repCompany.role : (repCompany.role ? [repCompany.role] : []);
+    // Exclude Shareholder role from editing (as it's filtered out in display)
+    const editableRoles = roles.filter((r: string) => r !== "Shareholder");
+    setEditingRoles([...editableRoles]);
+    setEditingCompanyRep(repCompany);
+    setIsEditCompanyRepRolesOpen(true);
+  };
+
+  // Handle save company representative roles
+  const handleSaveCompanyRepRoles = async () => {
+    if (!editingCompanyRep) return;
+
+    try {
+      setIsSavingRoles(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Not authenticated");
+
+      const currentCompany = company || {};
+      const representationalCompany = currentCompany.representationalCompany || [];
+      
+      // Find the company representative entry to update
+      const companyData = editingCompanyRep.companyId || {};
+      const companyIdStr = typeof companyData === 'string' 
+        ? companyData 
+        : (companyData?._id || companyData?.id || (typeof companyData === 'object' ? String(companyData) : companyData));
+
+      // Update the roles in representationalCompany array
+      const updatedRepresentationalCompany = representationalCompany.map((rc: any) => {
+        const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
+        if (String(rcId) === String(companyIdStr)) {
+          // Preserve Shareholder role if it exists, add new roles
+          const existingRoles = Array.isArray(rc.role) ? rc.role : (rc.role ? [rc.role] : []);
+          const hasShareholder = existingRoles.includes("Shareholder");
+          const newRoles = hasShareholder ? [...editingRoles, "Shareholder"] : editingRoles;
+          return {
+            ...rc,
+            role: newRoles.length === 1 ? newRoles[0] : newRoles,
+          };
+        }
+        return rc;
+      });
+
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+          body: JSON.stringify({
+            ...currentCompany,
+            representationalCompany: updatedRepresentationalCompany,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to update roles");
+      }
+
+      toast({
+        title: "Success",
+        description: "Roles updated successfully",
+      });
+
+      setIsEditCompanyRepRolesOpen(false);
+      setEditingCompanyRep(null);
+      setEditingRoles([]);
+      onUpdate();
+    } catch (error: any) {
+      console.error("Error updating roles:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update roles",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingRoles(false);
+    }
+  };
+
   const getRoleBadgeVariant = (role: string) => {
     if (role === "Shareholder") return "bg-blue-100 text-blue-700 border-blue-200";
     if (role === "Director") return "bg-green-100 text-green-700 border-green-200";
@@ -1016,6 +1260,14 @@ export const PersonList: React.FC<PersonListProps> = ({
     if (role === "Secretary") return "bg-gray-100 text-gray-700 border-gray-200";
     return "bg-gray-100 text-gray-700 border-gray-200";
   };
+
+  // Available roles for company representatives (excluding Shareholder)
+  const COMPANY_REP_ROLES = [
+    "Director",
+    "Judicial Representative",
+    "Legal Representative",
+    "Secretary",
+  ];
 
   function getEntityId(entity: any): string | undefined {
     if (!entity) return undefined;
@@ -1310,6 +1562,15 @@ export const PersonList: React.FC<PersonListProps> = ({
         return roles.length > 0 && !(roles.length === 1 && roles[0] === "Shareholder");
       });
   }, [company?.representationalSchema, personShareholderIds]);
+
+  // Filter company representatives to exclude those that only have "Shareholder" role
+  const validCompanyRepresentatives = useMemo(() => {
+    return (company?.representationalCompany || []).filter((repCompany: any) => {
+      const roles = Array.isArray(repCompany.role) ? repCompany.role : (repCompany.role ? [repCompany.role] : []);
+      const nonShareholderRoles = roles.filter((r: string) => r !== "Shareholder");
+      return nonShareholderRoles.length > 0;
+    });
+  }, [company?.representationalCompany]);
 
   const representativeIdSet = useMemo(() => {
     const ids = new Set<string>();
@@ -1669,17 +1930,32 @@ export const PersonList: React.FC<PersonListProps> = ({
         }
       });
     });
+
+    // Calculate actual total shares from company.totalShares (handling array or number)
+    let calculatedTotalShares = 0;
+    if (Array.isArray(company?.totalShares)) {
+      calculatedTotalShares = company.totalShares.reduce((sum: number, item: any) => {
+        return sum + (Number(item?.totalShares) || 0);
+      }, 0);
+    } else {
+      calculatedTotalShares = Number(company?.totalShares) || 0;
+    }
     
     // Convert maps to arrays and calculate percentages
-    const personEntries = Array.from(personMap.values()).map((person) => ({
-      ...person,
-      sharePercentage: companyTotalShares > 0 ? (person.totalShares / companyTotalShares) * 100 : 0,
-    }));
+    // Filter out entries with 0 total shares
+    const personEntries = Array.from(personMap.values())
+      .filter(p => p.totalShares > 0)
+      .map((person) => ({
+        ...person,
+        sharePercentage: calculatedTotalShares > 0 ? (person.totalShares / calculatedTotalShares) * 100 : 0,
+      }));
     
-    const companyEntries = Array.from(companyMap.values()).map((comp) => ({
-      ...comp,
-      sharePercentage: companyTotalShares > 0 ? (comp.totalShares / companyTotalShares) * 100 : 0,
-    }));
+    const companyEntries = Array.from(companyMap.values())
+      .filter(c => c.totalShares > 0)
+      .map((comp) => ({
+        ...comp,
+        sharePercentage: calculatedTotalShares > 0 ? (comp.totalShares / calculatedTotalShares) * 100 : 0,
+      }));
     
     // Combine: persons first, then companies, then sort by share percentage within each group
     const sortedPersons = personEntries.sort((a, b) => {
@@ -1988,9 +2264,10 @@ export const PersonList: React.FC<PersonListProps> = ({
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value) =>
-            setActiveTab(value as "representatives" | "shareholders")
-          }
+          onValueChange={(value) => {
+            setActiveTab(value as "representatives" | "shareholders");
+            setActiveInlineForm(null); // Reset inline form when switching tabs
+          }}
           className="w-full"
         >
           <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -2007,54 +2284,166 @@ export const PersonList: React.FC<PersonListProps> = ({
             {activeTab === "representatives" ? (
               <>
                 <Button
-                  variant="default"
-                  className="flex-1 rounded-xl border-gray-300"
-                  onClick={() => setIsAddPersonRepresentativeModalOpen(true)}
+                  variant={activeInlineForm === "person-representative" ? "default" : "default"}
+                  className={`flex-1 rounded-xl ${
+                    activeInlineForm === "person-representative"
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "border-gray-300"
+                  }`}
+                  onClick={() => {
+                    if (activeInlineForm === "person-representative") {
+                      setActiveInlineForm(null);
+                    } else {
+                      setActiveInlineForm("person-representative");
+                    }
+                  }}
                 >
-                  <User className="h-4 w-4 mr-2" />
-                  Add Person
+                  {activeInlineForm === "person-representative" ? (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </>
+                  ) : (
+                    <>
+                      <User className="h-4 w-4 mr-2" />
+                      Add Person
+                    </>
+                  )}
                 </Button>
                 <Button
-                  variant="default"
-                  className="flex-1 rounded-xl border-gray-300"
-                  onClick={() => setIsAddCompanyRepresentativeModalOpen(true)}
+                  variant={activeInlineForm === "company-representative" ? "default" : "default"}
+                  className={`flex-1 rounded-xl ${
+                    activeInlineForm === "company-representative"
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "border-gray-300"
+                  }`}
+                  onClick={() => {
+                    if (activeInlineForm === "company-representative") {
+                      setActiveInlineForm(null);
+                    } else {
+                      setActiveInlineForm("company-representative");
+                    }
+                  }}
                 >
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Add Company
+                  {activeInlineForm === "company-representative" ? (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="h-4 w-4 mr-2" />
+                      Add Company
+                    </>
+                  )}
                 </Button>
               </>
             ) : (
               <>
                 <Button
-                  variant="default"
-                  className="flex-1 rounded-xl border-gray-300"
-                  onClick={() => setIsAddPersonShareholderModalOpen(true)}
+                  variant={activeInlineForm === "person-shareholder" ? "default" : "default"}
+                  className={`flex-1 rounded-xl ${
+                    activeInlineForm === "person-shareholder"
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "border-gray-300"
+                  }`}
+                  onClick={() => {
+                    if (activeInlineForm === "person-shareholder") {
+                      setActiveInlineForm(null);
+                    } else {
+                      setActiveInlineForm("person-shareholder");
+                    }
+                  }}
                 >
-                  <User className="h-4 w-4 mr-2" />
-                  Add Person
+                  {activeInlineForm === "person-shareholder" ? (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </>
+                  ) : (
+                    <>
+                      <User className="h-4 w-4 mr-2" />
+                      Add Person
+                    </>
+                  )}
                 </Button>
                 <Button
-                  variant="default"
-                  className="flex-1 rounded-xl border-gray-300"
-                  onClick={() => setIsAddCompanyShareholderModalOpen(true)}
+                  variant={activeInlineForm === "company-shareholder" ? "default" : "default"}
+                  className={`flex-1 rounded-xl ${
+                    activeInlineForm === "company-shareholder"
+                      ? "bg-green-600 hover:bg-green-700 text-white"
+                      : "border-gray-300"
+                  }`}
+                  onClick={() => {
+                    if (activeInlineForm === "company-shareholder") {
+                      setActiveInlineForm(null);
+                    } else {
+                      setActiveInlineForm("company-shareholder");
+                    }
+                  }}
                 >
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Add Company
+                  {activeInlineForm === "company-shareholder" ? (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="h-4 w-4 mr-2" />
+                      Add Company
+                    </>
+                  )}
                 </Button>
               </>
             )}
           </div>
           {/* Representatives Tab */}
-          <TabsContent value="representatives" className="space-y-4 mt-6 h-96 overflow-y-auto">
-            {isLoadingRelationships && Object.keys(personRelationships).length === 0 && (
-              <div className="flex items-center justify-center py-8">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Loading relationships...</span>
-                </div>
+          <TabsContent value="representatives" className="space-y-4 mt-6">
+            {/* Inline Form View */}
+            {(activeInlineForm === "person-representative" || activeInlineForm === "company-representative") ? (
+              <div className="h-[600px] overflow-y-auto border rounded-xl p-6 bg-white">
+                {activeInlineForm === "person-representative" && (
+                  <AddRepresentativeModal
+                    isOpen={true}
+                    inline={true}
+                    onClose={() => setActiveInlineForm(null)}
+                    onSuccess={() => {
+                      setActiveInlineForm(null);
+                      fetchPersons();
+                      onUpdate();
+                    }}
+                    clientId={clientId}
+                    companyId={companyId}
+                    entityType="person"
+                  />
+                )}
+                {activeInlineForm === "company-representative" && (
+                  <AddRepresentativeModal
+                    isOpen={true}
+                    inline={true}
+                    onClose={() => setActiveInlineForm(null)}
+                    onSuccess={() => {
+                      setActiveInlineForm(null);
+                      fetchPersons();
+                      onUpdate();
+                    }}
+                    clientId={clientId}
+                    companyId={companyId}
+                    entityType="company"
+                  />
+                )}
               </div>
-            )}
-             {sortedRepresentatives.length > 0 ? (
+            ) : (
+              <div className="h-96 overflow-y-auto">
+                {isLoadingRelationships && Object.keys(personRelationships).length === 0 && (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Loading relationships...</span>
+                    </div>
+                  </div>
+                )}
+                {sortedRepresentatives.length > 0 ? (
               <div className="space-y-4">
                 {sortedRepresentatives.map((person) => {
                   const uboInfo = isUBO(person);
@@ -2210,17 +2599,20 @@ export const PersonList: React.FC<PersonListProps> = ({
             )}
 
             {/* Company Representatives Section */}
-            {(company?.representationalCompany || []).length > 0 && (
+            {validCompanyRepresentatives.length > 0 && (
               <div className="mt-6 pt-6 border-t">
                 <h4 className="text-md font-semibold text-gray-900 mb-4">
                   Company Representatives
                 </h4>
                 <div className="space-y-4">
-                  {(company?.representationalCompany || []).map((repCompany: any) => {
+                  {validCompanyRepresentatives.map((repCompany: any) => {
                     const companyData = repCompany.companyId || {};
                     const roles = Array.isArray(repCompany.role) ? repCompany.role : (repCompany.role ? [repCompany.role] : []);
                     const rolesArray = roles.filter((r: string) => r !== "Shareholder");
-                    const companyId_rep = companyData._id || companyData.id || companyData;
+                    // Extract company ID - handle both object and string cases
+                    const companyId_rep = typeof companyData === 'string' 
+                      ? companyData 
+                      : (companyData?._id || companyData?.id || (typeof companyData === 'object' ? String(companyData) : companyData));
 
                     return (
                       <Card
@@ -2266,70 +2658,70 @@ export const PersonList: React.FC<PersonListProps> = ({
                             </div>
 
                             <div className="flex gap-2 ml-4">
+                              {/* View Button - Navigate to company details */}
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  // Navigate to company details
-                                  const metadata = getCompanyMetadata(companyId_rep);
-                                  const resolvedClientId = metadata?.clientId || clientId;
-                                  handleNavigateToCompany(companyId_rep, resolvedClientId);
-                                }}
-                                className="rounded-xl hover:bg-gray-100"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={async () => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   try {
-                                    const { data: sessionData } = await supabase.auth.getSession();
-                                    if (!sessionData.session) throw new Error("Not authenticated");
+                                    // Ensure companyId_rep is a string
+                                    const companyIdStr = typeof companyId_rep === 'string' 
+                                      ? companyId_rep 
+                                      : (typeof companyId_rep === 'object' 
+                                          ? (companyId_rep?._id || companyId_rep?.id || String(companyId_rep))
+                                          : String(companyId_rep));
+                                    
+                                    if (!companyIdStr) {
+                                      toast({
+                                        title: "Error",
+                                        description: "Invalid company ID",
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
 
-                                    // Remove company from representationalCompany
-                                    const currentCompany = company || {};
-                                    const updatedRepresentationalCompany =
-                                      (currentCompany.representationalCompany || []).filter(
-                                        (rc: any) => {
-                                          const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
-                                          return String(rcId) !== String(companyId_rep);
-                                        }
-                                      );
-
-                                    const response = await fetch(
-                                      `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-                                      {
-                                        method: "PUT",
-                                        headers: {
-                                          "Content-Type": "application/json",
-                                          Authorization: `Bearer ${sessionData.session.access_token}`,
-                                        },
-                                        body: JSON.stringify({
-                                          ...currentCompany,
-                                          representationalCompany: updatedRepresentationalCompany,
-                                        }),
-                                      }
-                                    );
-
-                                    if (!response.ok) throw new Error("Failed to remove company representative");
-
-                                    toast({
-                                      title: "Success",
-                                      description: "Company representative removed successfully",
-                                    });
-
-                                    onUpdate();
+                                    // Navigate to company details
+                                    const metadata = getCompanyMetadata(companyIdStr);
+                                    const resolvedClientId = metadata?.clientId || clientId;
+                                    handleNavigateToCompany(companyIdStr, resolvedClientId);
                                   } catch (error: any) {
-                                    console.error("Error removing company representative:", error);
+                                    console.error("Error navigating to company:", error);
                                     toast({
                                       title: "Error",
-                                      description: error.message || "Failed to remove company representative",
+                                      description: error.message || "Failed to navigate to company",
                                       variant: "destructive",
                                     });
                                   }
                                 }}
+                                className="rounded-xl hover:bg-gray-100"
+                                title="View Company"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {/* Edit Button - Open edit modal */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditCompanyRep(repCompany);
+                                }}
+                                className="rounded-xl hover:bg-gray-100"
+                                title="Edit Company"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              {/* Delete Button - Show confirmation dialog */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCompanyRepClick(repCompany);
+                                }}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                title="Delete Company Representative"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -2342,18 +2734,60 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </div>
               </div>
             )}
+              </div>
+            )}
            </TabsContent>
 
           {/* Shareholders Tab */}
-          <TabsContent value="shareholders" className="space-y-4 mt-6 h-96 overflow-y-auto">
-            <div className="mb-4">
-              <h4 className="text-md font-semibold text-gray-900">Shareholders</h4>
-              <p className="text-sm text-gray-600">
-                Individuals and companies holding shares in this company 
-              </p>
-            </div>
-              
-            {combinedShareholders.length > 0 ? (
+          <TabsContent value="shareholders" className="space-y-4 mt-6">
+            {/* Inline Form View */}
+            {(activeInlineForm === "person-shareholder" || activeInlineForm === "company-shareholder") ? (
+              <div className="h-[600px] overflow-y-auto border rounded-xl p-6 bg-white">
+                {activeInlineForm === "person-shareholder" && (
+                  <AddShareholderModal
+                    isOpen={true}
+                    inline={true}
+                    onClose={() => setActiveInlineForm(null)}
+                    onSuccess={() => {
+                      setActiveInlineForm(null);
+                      fetchPersons();
+                      onUpdate();
+                    }}
+                    clientId={clientId}
+                    companyId={companyId}
+                    entityType="person"
+                    companyTotalShares={company?.totalShares || 0}
+                    existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+                  />
+                )}
+                {activeInlineForm === "company-shareholder" && (
+                  <AddShareholderModal
+                    isOpen={true}
+                    inline={true}
+                    onClose={() => setActiveInlineForm(null)}
+                    onSuccess={() => {
+                      setActiveInlineForm(null);
+                      fetchPersons();
+                      onUpdate();
+                    }}
+                    clientId={clientId}
+                    companyId={companyId}
+                    entityType="company"
+                    companyTotalShares={company?.totalShares || 0}
+                    existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="h-96 overflow-y-auto">
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold text-gray-900">Shareholders</h4>
+                  <p className="text-sm text-gray-600">
+                    Individuals and companies holding shares in this company 
+                  </p>
+                </div>
+                  
+                {combinedShareholders.length > 0 ? (
               <div className="space-y-4">
                 {combinedShareholders.map((entry, index) => {
                   if (entry.type === "person") {
@@ -2574,6 +3008,8 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </div>
               </div>
             )}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -2604,6 +3040,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         person={selectedPerson}
         clientId={clientId}
         companyId={companyId}
+        company={company}
         existingShareTotal={shareTotals.personTotal + shareTotals.companyTotal}
         companyTotalShares={company?.totalShares || 0}
         existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
@@ -2653,199 +3090,69 @@ export const PersonList: React.FC<PersonListProps> = ({
           setIsEditCompanyShareOpen(open);
           if (!open) {
             // Reset form when closing
-            setEditingSelectedCompanyId("");
-            setEditingSharePercentage("");
-            setEditingShareClass("General");
+            setEditingShareValues({
+              sharesA: "",
+              sharesB: "",
+              sharesC: "",
+              sharesOrdinary: "",
+            });
             setEditingShareError("");
+            setEditingShareValidationError(null);
             setEditingCompanyShare(null);
           }
         }}
       >
-        <DialogContent className="max-w-md p-0">
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-gray-900">Edit Shareholding Company</h4>
-              {/* <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setIsEditCompanyShareOpen(false)}
-              >
-               
-              </Button> */}
-            </div>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Edit Shareholding Company Shares
+            </DialogTitle>
+            {editingCompanyShare?.companyId?.name && (
+              <p className="text-sm text-gray-600 mt-1">
+                Editing shares for <span className="font-semibold">{editingCompanyShare.companyId.name}</span>
+              </p>
+            )}
+          </DialogHeader>
 
-            {/* Company Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-company-select" className="text-sm font-medium text-gray-700">
-                Company <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={editingSelectedCompanyId}
-                onValueChange={(value) => {
-                  setEditingSelectedCompanyId(value);
-                  setEditingShareError("");
-                }}
-              >
-                <SelectTrigger id="edit-company-select" className="rounded-lg">
-                  <SelectValue placeholder="Select a company" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {existingCompanies.length === 0 ? (
-                    <SelectItem value="no-companies" disabled>
-                      No companies available
-                    </SelectItem>
-                  ) : (
-                    existingCompanies.map((comp) => (
-                      <SelectItem key={comp._id} value={comp._id}>
-                        {comp.name}
-                        {comp.registrationNumber && ` (${comp.registrationNumber})`}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="py-4">
+            <EditShares
+              company={company}
+              companyShare={editingCompanyShare}
+              shareValues={editingShareValues}
+              onShareChange={handleCompanyShareChange}
+              error={editingShareError || editingShareValidationError || undefined}
+              onValidationError={setEditingShareValidationError}
+            />
+          </div>
 
-            {/* Share Percentage */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-share-percentage" className="text-sm font-medium text-gray-700">
-                Share Percentage <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="edit-share-percentage"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                placeholder="0.00"
-                value={editingSharePercentage}
-                onChange={(e) => {
-                  setEditingSharePercentage(e.target.value);
-                  setEditingShareError("");
-                  // Real-time validation for editing
-                  const value = e.target.value;
-                  if (value && editingSelectedCompanyId && editingCompanyShare) {
-                    const sharePct = parseFloat(value);
-                    if (!isNaN(sharePct)) {
-                      // Calculate excluding the original shareholding being edited
-                      const currentPersonTotal = (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-                        // sharePercentage is now at the shareHolder level
-                        const pct = shareHolder?.sharePercentage ?? 0;
-                        return acc + (isNaN(pct) ? 0 : pct);
-                      }, 0);
-
-                      const currentShareholdings = company?.shareHoldingCompanies || [];
-                      const originalShareCompanyId = typeof editingCompanyShare.companyId === 'object'
-                        ? editingCompanyShare.companyId._id
-                        : editingCompanyShare.companyId;
-                      
-                      let currentCompanyTotal = 0;
-                      currentShareholdings.forEach((share: any) => {
-                        const shareCompanyId = typeof share.companyId === 'object' ? share.companyId._id : share.companyId;
-                        if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
-                          return; // Skip the one being edited
-                        }
-                        // sharePercentage is now at the shareHoldingCompany level
-                        const sharePct = share?.sharePercentage ?? 0;
-                        const numPct = typeof sharePct === "number" ? sharePct : 0;
-                        if (!isNaN(numPct) && numPct > 0) {
-                          currentCompanyTotal += numPct;
-                        }
-                      });
-
-                      const newTotal = currentPersonTotal + currentCompanyTotal + sharePct;
-                      const available = Math.max(0, 100 - (currentPersonTotal + currentCompanyTotal));
-                      
-                      if (newTotal > 100) {
-                        setEditingShareError(`Total shares cannot exceed 100%. Maximum available: ${available.toFixed(2)}%`);
-                      }
-                    }
-                  }
-                }}
-                className={`rounded-lg ${editingShareError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-              />
-              {editingShareError && (
-                <p className="text-sm text-red-600 mt-1">{editingShareError}</p>
-              )}
-              {/* Show available percentage */}
-              {!editingShareError && editingSharePercentage && editingSelectedCompanyId && editingCompanyShare && (
-                (() => {
-                  const sharePct = parseFloat(editingSharePercentage) || 0;
-                  if (isNaN(sharePct)) return null;
-                  
-                  // Calculate excluding the original shareholding being edited
-                  const currentPersonTotal = (company?.shareHolders || []).reduce((acc: number, shareHolder: any) => {
-                    // sharePercentage is now at the shareHolder level
-                    const pct = shareHolder?.sharePercentage ?? 0;
-                    return acc + (isNaN(pct) ? 0 : pct);
-                  }, 0);
-
-                  const currentShareholdings = company?.shareHoldingCompanies || [];
-                  const originalShareCompanyId = typeof editingCompanyShare.companyId === 'object'
-                    ? editingCompanyShare.companyId._id
-                    : editingCompanyShare.companyId;
-                  
-                  let currentCompanyTotal = 0;
-                  currentShareholdings.forEach((share: any) => {
-                    const shareCompanyId = typeof share.companyId === 'object' ? share.companyId._id : share.companyId;
-                    if (shareCompanyId?.toString() === originalShareCompanyId?.toString()) {
-                      return; // Skip the one being edited
-                    }
-                    // sharePercentage is now at the shareHoldingCompany level
-                    const sharePct = share?.sharePercentage ?? 0;
-                    const numPct = typeof sharePct === "number" ? sharePct : 0;
-                    if (!isNaN(numPct) && numPct > 0) {
-                      currentCompanyTotal += numPct;
-                    }
-                  });
-
-                  const newTotal = currentPersonTotal + currentCompanyTotal + sharePct;
-                  const available = Math.max(0, 100 - (currentPersonTotal + currentCompanyTotal));
-                  
-                  return (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Total after updating: {newTotal.toFixed(2)}% / 100%
-                      {available < 100 && ` (Available: ${available.toFixed(2)}%)`}
-                    </p>
-                  );
-                })()
-              )}
-            </div>
-
-            {/* Share Class */}
-            <div className="space-y-2">
-              <Label htmlFor="edit-share-class" className="text-sm font-medium text-gray-700">
-                Class <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={editingShareClass}
-                onValueChange={(value) => {
-                  setEditingShareClass(value);
-                  setEditingShareError("");
-                }}
-              >
-                <SelectTrigger id="edit-share-class" className="rounded-lg">
-                  <SelectValue placeholder="Select share class" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="A">A</SelectItem>
-                  <SelectItem value="B">B</SelectItem>
-                  <SelectItem value="General">General</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Done Button */}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditCompanyShareOpen(false);
+                setEditingShareValidationError(null);
+              }}
+              disabled={isSubmittingShare}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
             <Button
               type="button"
               onClick={handleUpdateCompanyShare}
-              disabled={isSubmittingShare || !editingSelectedCompanyId || !editingSharePercentage}
-              className="w-full bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+              disabled={isSubmittingShare || !!editingShareValidationError}
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
             >
-              {isSubmittingShare ? "Updating..." : "Update"}
+              {isSubmittingShare ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Shares"
+              )}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2966,6 +3273,150 @@ export const PersonList: React.FC<PersonListProps> = ({
         companyId={companyId}
         entityType="company"
       />
+
+      {/* Edit Company Representative Roles Dialog */}
+      <Dialog 
+        open={isEditCompanyRepRolesOpen} 
+        onOpenChange={(open) => {
+          if (!open && !isSavingRoles) {
+            setIsEditCompanyRepRolesOpen(false);
+            setEditingCompanyRep(null);
+            setEditingRoles([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Edit Company Representative Roles
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 mt-2">
+              {editingCompanyRep?.companyId?.name && (
+                <span>Update roles for <span className="font-semibold">{editingCompanyRep.companyId.name}</span></span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-gray-700">Select Roles</Label>
+              <div className="space-y-2">
+                {COMPANY_REP_ROLES.map((role) => {
+                  const isChecked = editingRoles.includes(role);
+                  return (
+                    <div key={role} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`role-${role}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setEditingRoles([...editingRoles, role]);
+                          } else {
+                            setEditingRoles(editingRoles.filter((r) => r !== role));
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`role-${role}`}
+                        className="text-sm font-normal cursor-pointer flex-1"
+                      >
+                        {role}
+                      </Label>
+                    </div>
+                  );
+                })}
+              </div>
+              {editingRoles.length === 0 && (
+                <p className="text-sm text-amber-600 mt-2">
+                  Please select at least one role
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-3 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditCompanyRepRolesOpen(false);
+                setEditingCompanyRep(null);
+                setEditingRoles([]);
+              }}
+              disabled={isSavingRoles}
+              className="rounded-xl flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveCompanyRepRoles}
+              disabled={isSavingRoles || editingRoles.length === 0}
+              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl flex-1"
+            >
+              {isSavingRoles ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Roles"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Company Representative Confirmation Dialog */}
+      <Dialog 
+        open={isDeleteCompanyRepDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open && !isDeletingCompanyRep) {
+            setIsDeleteCompanyRepDialogOpen(false);
+            setCompanyRepToDelete(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <DialogTitle className="text-xl font-semibold text-gray-900">
+                Remove Company Representative
+              </DialogTitle>
+            </div>
+          </DialogHeader>
+
+          <DialogDescription className="text-gray-600 py-4">
+            Are you sure you want to remove <span className="font-semibold text-gray-900">
+              {companyRepToDelete?.companyId?.name || companyRepToDelete?.companyName || "this company"}
+            </span> as a company representative?
+            This action cannot be undone and will permanently remove this representative relationship.
+          </DialogDescription>
+
+          <DialogFooter className="flex gap-3 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteCompanyRepDialogOpen(false);
+                setCompanyRepToDelete(null);
+              }}
+              disabled={isDeletingCompanyRep}
+              className="rounded-xl flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCompanyRepConfirm}
+              disabled={isDeletingCompanyRep}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl flex-1"
+            >
+              {isDeletingCompanyRep ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

@@ -45,7 +45,11 @@ interface Company {
   address?: string;
   industry?: string;
   status: "active" | "record";
-  totalShares?: number;
+  totalShares?: Array<{
+    totalShares: number;
+    class: string;
+    type: string;
+  }>;
   persons?: Person[];
   supportingDocuments?: string[];
   timelineStart?: string;
@@ -77,6 +81,12 @@ interface Company {
   }>;
   createdAt?: string;
 }
+
+// Helper function to calculate total shares from array
+const calculateTotalSharesSum = (totalSharesArray?: Array<{ totalShares: number; class: string; type: string }>): number => {
+  if (!Array.isArray(totalSharesArray)) return 0;
+  return totalSharesArray.reduce((sum, item) => sum + (Number(item.totalShares) || 0), 0);
+};
 
 export const CompanyDetail: React.FC = () => {
   const { clientId, companyId } = useParams<{ clientId: string; companyId: string }>();
@@ -453,13 +463,22 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )}
 
-              {company.totalShares && (
+              {company.totalShares && company.totalShares.length > 0 && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <PieChart
                     className="h-5 w-5 text-gray-600 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Total Shares</p>
-                    <p className="text-gray-900">{company.totalShares}</p>
+                    <p className="text-gray-900">{calculateTotalSharesSum(company.totalShares).toLocaleString()}</p>
+                    <div className="mt-2 space-y-1">
+                      {company.totalShares.map((share, idx) => (
+                        share.totalShares > 0 && (
+                          <p key={idx} className="text-xs text-gray-600">
+                            {share.class}: {share.totalShares.toLocaleString()} shares
+                          </p>
+                        )
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -557,8 +576,9 @@ export const CompanyDetail: React.FC = () => {
                     <div className="space-y-2">
                       {company.shareHoldingCompanies.map((share: any, index: number) => {
                         let companyName = "Unknown";
-                        const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0);
-                        const totalSharePercentage = company.totalShares ? (totalShares / company.totalShares) * 100 : 0;
+                        const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0) || 0;
+                        const companyTotalSharesSum = calculateTotalSharesSum(company.totalShares);
+                        const totalSharePercentage = companyTotalSharesSum > 0 ? (totalShares / companyTotalSharesSum) * 100 : 0;
                         if (share.companyId) {
                           if (typeof share.companyId === 'object' && share.companyId.name) {
                             companyName = share.companyId.name;
@@ -577,11 +597,11 @@ export const CompanyDetail: React.FC = () => {
                             </p>
 
                             <p className="text-xs text-gray-600 mt-1">
-                              {`${totalShares ?? 0} / ${company.totalShares}`} shares
+                              {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
                             </p>
 
                             <p className="text-xs text-gray-600">
-                              {(totalSharePercentage ?? 0) + "% owned"}
+                              {totalSharePercentage.toFixed(2)}% owned
                             </p>
                           </div>
 
@@ -621,7 +641,7 @@ export const CompanyDetail: React.FC = () => {
                   sharePercentage: share.sharePercentage ?? 0,
                   sharesData: share.sharesData || [],
                 }))}
-                companyTotalShares={company?.totalShares || 0}
+                companyTotalShares={calculateTotalSharesSum(company?.totalShares)}
                 title="Distribution"
               />
             </TabsContent>
