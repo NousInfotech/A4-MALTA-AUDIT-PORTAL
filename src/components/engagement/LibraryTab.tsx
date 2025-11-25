@@ -150,6 +150,18 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([])
+  const [engagementFolders, setEngagementFolders] = useState<EngagementFolder[]>([])
+  const [currentFolder, setCurrentFolder] = useState<EngagementFolder | null>(null)
+  const [folderPath, setFolderPath] = useState<EngagementFolder[]>([])
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
+  const [isRenameFolderOpen, setIsRenameFolderOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState("")
+  const [renameFolderName, setRenameFolderName] = useState("")
+  const [folderToDelete, setFolderToDelete] = useState<EngagementFolder | null>(null)
+  const [deleteFolderDialogOpen, setDeleteFolderDialogOpen] = useState(false)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [renamingFolder, setRenamingFolder] = useState(false)
+  const [deletingFolder, setDeletingFolder] = useState(false)
 
   
   const [searchTerm, setSearchTerm] = useState("")
@@ -229,7 +241,16 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   // put this near the top, outside the component
   function withVersion(url: string, addDownload = false) {
     try {
-      const u = new URL(url)
+      // Decode URL first to avoid double encoding
+      let decodedUrl = url
+      try {
+        decodedUrl = decodeURIComponent(url)
+      } catch {
+        // If decoding fails, use original URL
+        decodedUrl = url
+      }
+      
+      const u = new URL(decodedUrl)
       if (addDownload && !u.searchParams.has("download")) {
         // makes the CDN return with Content-Disposition: attachment
         u.searchParams.set("download", "")
@@ -238,9 +259,17 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       u.searchParams.set("v", String(Date.now()))
       return u.toString()
     } catch {
-      const join = url.includes("?") ? "&" : "?"
+      // If URL parsing fails, try to fix encoding
+      let fixedUrl = url
+      try {
+        // Decode if double-encoded
+        fixedUrl = decodeURIComponent(url)
+      } catch {
+        fixedUrl = url
+      }
+      const join = fixedUrl.includes("?") ? "&" : "?"
       const download = addDownload ? `${join}download=&` : join
-      return `${url}${download}v=${Date.now()}`
+      return `${fixedUrl}${download}v=${Date.now()}`
     }
   }
 
@@ -356,13 +385,20 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   // File preview handler
   const handlePreview = async (file: LibraryFile) => {
     try {
-      const previewUrl = file.url
-        ? withVersion(file.url, false)
-        : (() => {
-            const path = `${engagement._id}/${file.category}/${file.fileName}`
-            const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
-            return withVersion(data.publicUrl, false)
-          })()
+      let previewUrl: string
+      if (file.url) {
+        // Decode URL to avoid double encoding
+        try {
+          const decodedUrl = decodeURIComponent(file.url)
+          previewUrl = withVersion(decodedUrl, false)
+        } catch {
+          previewUrl = withVersion(file.url, false)
+        }
+      } else {
+        const path = `${engagement._id}/${file.category}/${file.fileName}`
+        const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
+        previewUrl = withVersion(data.publicUrl, false)
+      }
 
       setPreviewFile(file)
       setPreviewUrl(previewUrl)
@@ -378,13 +414,20 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   // Open PDF annotator
   const handleOpenAnnotator = async (file: LibraryFile) => {
     try {
-      const annotatorUrl = file.url
-        ? withVersion(file.url, false)
-        : (() => {
-            const path = `${engagement._id}/${file.category}/${file.fileName}`
-            const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
-            return withVersion(data.publicUrl, false)
-          })()
+      let annotatorUrl: string
+      if (file.url) {
+        // Decode URL to avoid double encoding
+        try {
+          const decodedUrl = decodeURIComponent(file.url)
+          annotatorUrl = withVersion(decodedUrl, false)
+        } catch {
+          annotatorUrl = withVersion(file.url, false)
+        }
+      } else {
+        const path = `${engagement._id}/${file.category}/${file.fileName}`
+        const { data } = supabase.storage.from("engagement-documents").getPublicUrl(path)
+        annotatorUrl = withVersion(data.publicUrl, false)
+      }
 
       setAnnotatorFile(file)
       setPreviewUrl(annotatorUrl)
@@ -537,8 +580,15 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const fetchLibraryFiles = async () => {
     setLoading(true)
     try {
-      const files = await engagementApi.getLibraryFiles(engagement._id)
-      setLibraryFiles(files)
+      const response = await engagementApi.getLibraryFiles(engagement._id)
+      // Handle both old format (array) and new format (object with files and folders)
+      if (Array.isArray(response)) {
+        setLibraryFiles(response)
+        setEngagementFolders([])
+      } else {
+        setLibraryFiles(response.files || [])
+        setEngagementFolders(response.folders || [])
+      }
       setLoading(false)
     } catch (error) {
       console.error("Failed to fetch library files:", error)
@@ -551,11 +601,160 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
+  const fetchFolders = async () => {
+    try {
+      const foldersData = await engagementApi.getEngagementFolders(engagement._id)
+      setEngagementFolders(foldersData)
+    } catch (error) {
+      console.error("Failed to fetch folders:", error)
+    }
+  }
+
+  // Get subfolders of current folder
+  const currentSubfolders = useMemo(() => {
+    if (!currentFolder) {
+      // Show root folders in current category
+      return engagementFolders.filter(f => {
+        const parentId = f.parentId?._id || f.parentId
+        return !parentId && f.category === selectedFolder
+      })
+    }
+    // Show subfolders of current folder
+    return engagementFolders.filter(f => {
+      const parentId = f.parentId?._id || f.parentId
+      return parentId === currentFolder._id
+    })
+  }, [engagementFolders, currentFolder, selectedFolder])
+
+  // Navigate into folder
+  const navigateToFolder = (folder: EngagementFolder) => {
+    setCurrentFolder(folder)
+    // Build folder path
+    const path: EngagementFolder[] = []
+    const folderMap = new Map<string, EngagementFolder>()
+    engagementFolders.forEach(f => {
+      const id = f._id
+      folderMap.set(id, f)
+    })
+    let current: EngagementFolder | null = folder
+    const visited = new Set<string>()
+    while (current && !visited.has(current._id)) {
+      visited.add(current._id)
+      path.unshift(current)
+      const parentId = current.parentId?._id || current.parentId
+      if (parentId) {
+        current = folderMap.get(String(parentId)) || null
+      } else {
+        current = null
+      }
+    }
+    setFolderPath(path)
+  }
+
+  // Navigate up (back)
+  const navigateUp = () => {
+    if (folderPath.length > 0) {
+      const newPath = [...folderPath]
+      newPath.pop()
+      setFolderPath(newPath)
+      setCurrentFolder(newPath.length > 0 ? newPath[newPath.length - 1] : null)
+    } else {
+      setCurrentFolder(null)
+      setFolderPath([])
+    }
+  }
+
+  // Create folder
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return
+    setCreatingFolder(true)
+    try {
+      const parentId = currentFolder?._id || null
+      await engagementApi.createEngagementFolder(engagement._id, newFolderName.trim(), parentId, selectedFolder)
+      await fetchLibraryFiles()
+      await fetchFolders()
+      setIsCreateFolderOpen(false)
+      setNewFolderName("")
+      toast({
+        title: "Success",
+        description: "Folder created successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create folder",
+        variant: "destructive",
+      })
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
+  // Rename folder
+  const handleRenameFolder = async () => {
+    if (!renameFolderName.trim() || !currentFolder) return
+    setRenamingFolder(true)
+    try {
+      await engagementApi.renameEngagementFolder(engagement._id, currentFolder._id, renameFolderName.trim())
+      await fetchLibraryFiles()
+      await fetchFolders()
+      setIsRenameFolderOpen(false)
+      setRenameFolderName("")
+      toast({
+        title: "Success",
+        description: "Folder renamed successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to rename folder",
+        variant: "destructive",
+      })
+    } finally {
+      setRenamingFolder(false)
+    }
+  }
+
+  // Delete folder
+  const handleDeleteFolder = async () => {
+    if (!folderToDelete) return
+    setDeletingFolder(true)
+    try {
+      await engagementApi.deleteEngagementFolder(engagement._id, folderToDelete._id)
+      await fetchLibraryFiles()
+      await fetchFolders()
+      setDeleteFolderDialogOpen(false)
+      setFolderToDelete(null)
+      if (currentFolder?._id === folderToDelete._id) {
+        navigateUp()
+      }
+      toast({
+        title: "Success",
+        description: "Folder deleted successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete folder",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingFolder(false)
+    }
+  }
+
   useEffect(() => {
     if (engagement?._id) {
       fetchLibraryFiles()
+      fetchFolders()
     }
   }, [engagement?._id])
+
+  // Reset folder navigation when category changes
+  useEffect(() => {
+    setCurrentFolder(null)
+    setFolderPath([])
+  }, [selectedFolder])
 
   const handleFileUpload = async (files: File[]) => {
     if (files.length === 0) return
@@ -646,7 +845,17 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
   // Enhanced filtering with advanced search
   const filteredFiles = useMemo(() => {
-    let filtered = libraryFiles.filter((file) => {
+    // First filter by folder
+    let baseFiltered: LibraryFile[]
+    if (!currentFolder) {
+      // Show files without folderId (in category root)
+      baseFiltered = libraryFiles.filter(f => !f.folderId && f.category === selectedFolder)
+    } else {
+      // Show files in current folder
+      baseFiltered = libraryFiles.filter(f => f.folderId === currentFolder._id)
+    }
+
+    let filtered = baseFiltered.filter((file) => {
       const matchesFolder = file.category === selectedFolder
       if (!matchesFolder) return false
 
@@ -695,13 +904,12 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         case "createdAt":
         default:
           comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          break
       }
       return advancedSearch.sortOrder === "asc" ? comparison : -comparison
     })
 
     return filtered
-  }, [libraryFiles, selectedFolder, localSearchTerm, advancedSearch])
+  }, [libraryFiles, currentFolder, selectedFolder, localSearchTerm, advancedSearch])
 
   // Debounced search effect
   useEffect(() => {
@@ -1044,6 +1252,100 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
           {/* File listing */}
           <div className="flex-1 overflow-y-auto p-4">
+            {/* Breadcrumb and folder management */}
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCurrentFolder(null)
+                    setFolderPath([])
+                  }}
+                  className={!currentFolder ? "font-semibold" : ""}
+                >
+                  <Home className="h-4 w-4 mr-1" />
+                  {selectedFolder}
+                </Button>
+                {folderPath.map((folder, idx) => (
+                  <React.Fragment key={folder._id}>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const newPath = folderPath.slice(0, idx + 1)
+                        setFolderPath(newPath)
+                        setCurrentFolder(folder)
+                      }}
+                      className={idx === folderPath.length - 1 ? "font-semibold" : ""}
+                    >
+                      {folder.name}
+                    </Button>
+                  </React.Fragment>
+                ))}
+                {currentFolder && (
+                  <>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-semibold">{currentFolder.name}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCreateFolderOpen(true)}
+                >
+                  <FolderInputIcon className="h-4 w-4 mr-2" />
+                  New Folder
+                </Button>
+                {currentFolder && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRenameFolderName(currentFolder.name)
+                        setIsRenameFolderOpen(true)
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Rename
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFolderToDelete(currentFolder)
+                        setDeleteFolderDialogOpen(true)
+                      }}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Subfolders */}
+            {currentSubfolders.length > 0 && (
+              <div className="mb-4 grid grid-cols-4 gap-2">
+                {currentSubfolders.map((folder) => (
+                  <div
+                    key={folder._id}
+                    onClick={() => navigateToFolder(folder)}
+                    className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                  >
+                    <Folder className="h-5 w-5 text-yellow-600" />
+                    <span className="text-sm font-medium truncate">{folder.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {viewMode === "list" ? (
               <div className="space-y-1">
                 {/* Header */}
@@ -1312,6 +1614,125 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
         handleDelete={handleDelete}
         deletingId={deletingId}
       />
+
+      {/* Create Folder Dialog */}
+      <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Folder Name</Label>
+              <Input
+                id="folder-name"
+                placeholder="Enter folder name..."
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && newFolderName.trim()) {
+                    handleCreateFolder()
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim() || creatingFolder}
+              >
+                {creatingFolder ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Folder Dialog */}
+      <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rename-folder-name">Folder Name</Label>
+              <Input
+                id="rename-folder-name"
+                placeholder="Enter new folder name..."
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && renameFolderName.trim()) {
+                    handleRenameFolder()
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsRenameFolderOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRenameFolder}
+                disabled={!renameFolderName.trim() || renamingFolder}
+              >
+                {renamingFolder ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Renaming...
+                  </>
+                ) : (
+                  "Rename"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Folder Dialog */}
+      <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the folder "{folderToDelete?.name}"? This action cannot be undone.
+              The folder must be empty (no files or subfolders) to be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteFolder}
+              disabled={deletingFolder}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingFolder ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* PDF Annotator */}
       {showAnnotator && annotatorFile && previewUrl && (

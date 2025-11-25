@@ -63,6 +63,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { useActivityLogger } from "@/hooks/useActivityLogger"
+import { PDFAnnotator } from "@/components/pdf-annotator/PDFAnnotator"
 
 export default function GlobalLibraryPage() {
   const [folders, setFolders] = useState<GlobalFolder[]>([])
@@ -94,6 +95,9 @@ export default function GlobalLibraryPage() {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [previewFileState, setPreviewFileState] = useState<GlobalFile | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [showAnnotator, setShowAnnotator] = useState(false)
+  const [annotatorFile, setAnnotatorFile] = useState<GlobalFile | null>(null)
+  const [annotatorUrl, setAnnotatorUrl] = useState<string | null>(null)
   const [versionHistory, setVersionHistory] = useState<DocumentVersion[]>([])
   const [showVersions, setShowVersions] = useState(false)
   const [fileForVersions, setFileForVersions] = useState<GlobalFile | null>(null)
@@ -629,6 +633,68 @@ export default function GlobalLibraryPage() {
       setPreviewUrl(result.previewUrl);
     } catch (e: any) {
       toast({ title: "Preview failed", description: e.message || "Unable to preview file", variant: "destructive" });
+    }
+  };
+
+  // Open PDF annotator
+  // Helper function to decode URLs and add version parameter (similar to engagement library)
+  const withVersion = (url: string, addDownload = false) => {
+    try {
+      // Decode URL first to avoid double encoding
+      let decodedUrl = url
+      try {
+        decodedUrl = decodeURIComponent(url)
+      } catch {
+        // If decoding fails, use original URL
+        decodedUrl = url
+      }
+      
+      const u = new URL(decodedUrl)
+      if (addDownload && !u.searchParams.has("download")) {
+        // makes the CDN return with Content-Disposition: attachment
+        u.searchParams.set("download", "")
+      }
+      // force a fresh URL every time to avoid disk cache
+      u.searchParams.set("v", String(Date.now()))
+      return u.toString()
+    } catch {
+      // If URL parsing fails, try to fix encoding
+      let fixedUrl = url
+      try {
+        // Decode if double-encoded
+        fixedUrl = decodeURIComponent(url)
+      } catch {
+        fixedUrl = url
+      }
+      const join = fixedUrl.includes("?") ? "&" : "?"
+      const download = addDownload ? `${join}download=&` : join
+      return `${fixedUrl}${download}v=${Date.now()}`
+    }
+  }
+
+  const handleOpenAnnotator = async (file: GlobalFile) => {
+    if (!selectedFolder) return;
+    try {
+      const result = await previewFile(selectedFolder.name, file.name || file.fileName || "");
+      setAnnotatorFile(file);
+      // Decode and process the URL to avoid double encoding issues
+      let processedUrl = result.previewUrl;
+      try {
+        // Try decoding once to handle double encoding
+        const decoded = decodeURIComponent(result.previewUrl);
+        processedUrl = withVersion(decoded, false);
+      } catch {
+        // If decoding fails, use original URL with version
+        processedUrl = withVersion(result.previewUrl, false);
+      }
+      setAnnotatorUrl(processedUrl);
+      setShowAnnotator(true);
+    } catch (e: any) {
+      toast({ 
+        title: "Failed to open annotator", 
+        description: e.message || "Unable to open PDF annotator", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -1434,15 +1500,29 @@ export default function GlobalLibraryPage() {
                             {/* Actions */}
                             <div className="sm:col-span-2 flex items-center gap-1 flex-wrap">
                               {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handlePreview(file)}
-                                  className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                  aria-label={`Preview ${fileName}`}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <>
+                                  {fileName.toLowerCase().endsWith(".pdf") && (
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => handleOpenAnnotator(file)}
+                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
+                                      aria-label={`Annotate ${fileName}`}
+                                      title="Annotate PDF"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handlePreview(file)}
+                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                    aria-label={`Preview ${fileName}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </>
                               )}
                               <Button
                                 variant="outline"
@@ -1555,15 +1635,29 @@ export default function GlobalLibraryPage() {
                             )}
                             <div className="mt-3 flex justify-center gap-2 flex-wrap">
                               {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handlePreview(file)}
-                                  className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                  aria-label={`Preview ${fileName}`}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <>
+                                  {fileName.toLowerCase().endsWith(".pdf") && (
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => handleOpenAnnotator(file)}
+                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
+                                      aria-label={`Annotate ${fileName}`}
+                                      title="Annotate PDF"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => handlePreview(file)}
+                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                    aria-label={`Preview ${fileName}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </>
                               )}
                               <Button
                                 variant="outline"
@@ -1736,8 +1830,27 @@ export default function GlobalLibraryPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* PDF Annotator */}
+      {showAnnotator && annotatorFile && annotatorUrl && selectedFolder && (
+        <PDFAnnotator
+          fileUrl={annotatorUrl}
+          fileName={annotatorFile.name || annotatorFile.fileName || "document.pdf"}
+          engagementId={`global-${selectedFolder.name}`}
+          fileId={`${selectedFolder.name}-${annotatorFile.name || annotatorFile.fileName || ""}`}
+          onClose={() => {
+            setShowAnnotator(false);
+            setAnnotatorFile(null);
+            setAnnotatorUrl(null);
+          }}
+          onSave={(annotations) => {
+            // Annotations are automatically saved to localStorage
+            console.log("Annotations saved:", annotations);
+          }}
+        />
+      )}
+
       {/* Preview Modal */}
-      <Dialog open={!!previewFileState} onOpenChange={(open) => !open && setPreviewFileState(null)}>
+      <Dialog open={!!previewFileState && !showAnnotator} onOpenChange={(open) => !open && setPreviewFileState(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] bg-white">
           <DialogHeader>
             <DialogTitle>{previewFileState?.name || previewFileState?.fileName}</DialogTitle>
@@ -1746,7 +1859,19 @@ export default function GlobalLibraryPage() {
             {previewUrl && (
               <div className="w-full h-[70vh] overflow-auto border rounded-lg">
                 {previewFileState?.fileType === "pdf" ? (
-                  <iframe src={previewUrl} className="w-full h-full" />
+                  <div className="flex flex-col gap-2 p-4">
+                    <Button
+                      onClick={() => {
+                        setPreviewFileState(null);
+                        handleOpenAnnotator(previewFileState);
+                      }}
+                      className="w-full"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Open in PDF Annotator
+                    </Button>
+                    <iframe src={previewUrl} className="w-full h-full min-h-[500px]" />
+                  </div>
                 ) : (["jpg", "jpeg", "png"].includes(previewFileState?.fileType || "")) ? (
                   <img src={previewUrl} alt={previewFileState?.name} className="w-full h-auto" />
                 ) : (["docx", "doc"].includes(previewFileState?.fileType || "")) ? (

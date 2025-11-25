@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { supabase } from '@/integrations/supabase/client';
 import { io, Socket } from 'socket.io-client';
+import axiosInstance from '@/lib/axiosInstance';
 
 const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
 
@@ -125,6 +126,29 @@ export const engagementApi = {
     });
   },
 
+  // Folder management
+  getEngagementFolders: async (engagementId: string) => {
+    const response = await axiosInstance.get(`/api/engagements/${engagementId}/library/folders`)
+    return response.data
+  },
+  createEngagementFolder: async (engagementId: string, name: string, parentId?: string | null, category?: string) => {
+    const response = await axiosInstance.post(`/api/engagements/${engagementId}/library/folders`, {
+      name,
+      parentId: parentId || null,
+      category: category || "Others",
+    })
+    return response.data
+  },
+  renameEngagementFolder: async (engagementId: string, folderId: string, newName: string) => {
+    const response = await axiosInstance.patch(`/api/engagements/${engagementId}/library/folders/${folderId}`, {
+      newName,
+    })
+    return response.data
+  },
+  deleteEngagementFolder: async (engagementId: string, folderId: string) => {
+    const response = await axiosInstance.delete(`/api/engagements/${engagementId}/library/folders/${folderId}`)
+    return response.data
+  },
   getLibraryFiles: async (engagementId: string) => {
     // Now using apiCall which handles the session and token
     return apiCall(`/api/engagements/${engagementId}/library`);
