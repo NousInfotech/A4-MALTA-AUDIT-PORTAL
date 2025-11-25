@@ -47,6 +47,14 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import {
+  ShareClassInput,
+  type ShareClassValues,
+  type ShareClassErrors,
+  getDefaultShareClassValues,
+  getDefaultShareClassErrors,
+  buildTotalSharesPayload,
+} from "@/components/client/ShareClassInput";
 
 const industries = [
   "Technology",
@@ -90,6 +98,9 @@ export const AddClient = () => {
     isCreateCompany: false,
     isNewCompany: true,
     totalShares: "",
+    shareClassValues: getDefaultShareClassValues(),
+    useClassShares: false,
+    visibleShareClasses: [] as string[],
     selectedRoles: [] as string[],
     sharesData: [] as Array<{ totalShares: string; class: string }>,
   });
@@ -231,7 +242,7 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, totalShares, selectedRoles, sharesData } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData } =
       formData;
 
     const industry =
@@ -259,8 +270,13 @@ export const AddClient = () => {
 
       // Add company creation data if enabled
       if (isCreateCompany) {
+        // Build totalShares payload using ShareClassInput data
+        const totalSharesPayload = formData.shareClassValues && formData.useClassShares !== undefined
+          ? buildTotalSharesPayload(formData.shareClassValues, formData.useClassShares)
+          : undefined;
+
         // Add shareHolderData if totalShares is provided or sharesData exists
-        if (totalShares || (sharesData && sharesData.length > 0)) {
+        if ((totalSharesPayload && totalSharesPayload.length > 0) || (sharesData && sharesData.length > 0)) {
           const validShares = sharesData
             .filter((share) => share.totalShares)
             .map((share) => ({
@@ -270,7 +286,7 @@ export const AddClient = () => {
             }));
 
           requestBody.shareHolderData = {
-            totalShares: totalShares ? parseInt(totalShares) : undefined,
+            totalShares: totalSharesPayload && totalSharesPayload.length > 0 ? totalSharesPayload : undefined,
             shares: validShares.length > 0 ? validShares : undefined,
           };
         }
@@ -861,23 +877,23 @@ export const AddClient = () => {
                     <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
                       {/* Company Total Shares */}
                       <div className="space-y-3">
-                        <Label
-                          htmlFor="totalShares"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Company Total Shares *
-                        </Label>
-                        <Input
-                          id="totalShares"
-                          type="number"
-                          value={formData.totalShares}
-                          onChange={(e) =>
-                            handleChange("totalShares", e.target.value)
-                          }
-                          placeholder="100"
-                          className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                          min="0"
-                          required
+                        <ShareClassInput
+                          values={formData.shareClassValues}
+                          errors={getDefaultShareClassErrors()}
+                          useClassShares={formData.useClassShares}
+                          visibleShareClasses={formData.visibleShareClasses}
+                          onValuesChange={(values) => {
+                            handleChange("shareClassValues", values);
+                          }}
+                          onUseClassSharesChange={(useClassShares) => {
+                            handleChange("useClassShares", useClassShares);
+                          }}
+                          onVisibleShareClassesChange={(visibleShareClasses) => {
+                            handleChange("visibleShareClasses", visibleShareClasses);
+                          }}
+                          showTotal={true}
+                          label="Company Total Shares *"
+                          className="mt-2"
                         />
                         <p className="text-xs text-gray-500">
                           Total number of shares issued by the company
