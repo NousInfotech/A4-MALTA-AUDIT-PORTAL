@@ -527,13 +527,21 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               <MessageSquare className="h-3 w-3 text-white" />
             </div>
             {selectedAnnotation?.id === annotation.id && (
-              <div className="absolute top-6 left-0 bg-white border rounded-lg p-2 shadow-lg max-w-xs z-20">
-                <p className="text-sm">{annotation.content}</p>
+              <div
+                className="absolute top-7 left-0 bg-white border rounded-lg p-3 shadow-lg max-w-sm z-20 overflow-hidden"
+                style={{
+                  // Keep the comment bubble within the visible PDF area
+                  maxWidth: "320px",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                <p className="text-sm leading-snug">{annotation.content}</p>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => deleteAnnotation(annotation.id)}
-                  className="mt-2"
+                  className="mt-2 p-0 h-7"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
