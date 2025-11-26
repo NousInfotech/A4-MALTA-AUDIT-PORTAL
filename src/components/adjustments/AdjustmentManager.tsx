@@ -1167,7 +1167,7 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Paperclip className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm font-medium">Evidence Files</span>
+                            <span className="text-sm font-medium">Attached Files</span>
                             <Badge variant="outline" className="text-xs">
                               {adj.evidenceFiles?.length || 0}
                             </Badge>
@@ -1292,7 +1292,7 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
       <Dialog open={showEvidenceDialog} onOpenChange={setShowEvidenceDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Manage Evidence Files</DialogTitle>
+            <DialogTitle>Manage Attached Files</DialogTitle>
             <DialogDescription>
               Upload and manage evidence files for {selectedAdjustmentForEvidence?.adjustmentNo}
             </DialogDescription>
@@ -1325,7 +1325,7 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
 
             {/* Existing Files */}
             <div>
-              <Label>Linked Evidence Files</Label>
+              <Label>Linked Attached Files</Label>
               {selectedAdjustmentForEvidence?.evidenceFiles &&
               selectedAdjustmentForEvidence.evidenceFiles.length > 0 ? (
                 <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
