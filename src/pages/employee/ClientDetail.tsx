@@ -166,7 +166,7 @@ export const ClientDetail: React.FC = () => {
                 className="rounded-xl"
               >
                 <Link to="/employee/clients">
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="h-4 w-4 text-brand-body" />
                 </Link>
               </Button>
               <div className="flex items-center gap-3">

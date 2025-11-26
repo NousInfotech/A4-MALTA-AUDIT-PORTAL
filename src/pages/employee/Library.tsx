@@ -1497,8 +1497,8 @@ export default function GlobalLibraryPage() {
                               {(fileName.split(".").pop() || "").toUpperCase()} • {new Date(file.updatedAt || file.uploadedAt || Date.now()).toLocaleDateString()}
                             </div>
 
-                            {/* Actions */}
-                            <div className="sm:col-span-2 flex items-center gap-1 flex-wrap">
+                            {/* Actions - vertically aligned buttons */}
+                            <div className="sm:col-span-2 flex flex-col items-start gap-2">
                               {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
                                 <>
                                   {fileName.toLowerCase().endsWith(".pdf") && (
@@ -1527,30 +1527,12 @@ export default function GlobalLibraryPage() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                onClick={() => handleViewVersions(file)}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                aria-label={`View versions ${fileName}`}
-                              >
-                                <History className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleViewActivity(file)}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                aria-label={`View activity ${fileName}`}
-                              >
-                                <FileCheck className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
                                 onClick={(e) => {
                                   e.stopPropagation(); // Prevent triggering row selection
                                   handleDownload(file, false); // Always direct download, never ZIP
                                 }}
                                 disabled={downloading === fileName}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
                                 aria-label={`Download ${fileName}`}
                               >
                                 {downloading === fileName ? (
@@ -1561,15 +1543,41 @@ export default function GlobalLibraryPage() {
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800" aria-label={`More actions ${fileName}`}>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                    aria-label={`More actions ${fileName}`}
+                                  >
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl">
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
+                                >
+                                  <DropdownMenuItem
+                                    onClick={() => handleViewVersions(file)}
+                                    className="rounded-xl"
+                                  >
+                                    <History className="h-4 w-4 mr-2" />
+                                    Version History
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleViewActivity(file)}
+                                    className="rounded-xl"
+                                  >
+                                    <FileCheck className="h-4 w-4 mr-2" />
+                                    Activity Log
+                                  </DropdownMenuItem>
                                   {folders
                                     .filter((f) => selectedFolder && f._id !== selectedFolder._id)
                                     .map((f) => (
-                                      <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)} className="rounded-xl">
+                                      <DropdownMenuItem
+                                        key={f._id}
+                                        onClick={() => handleMoveFile(file, f)}
+                                        className="rounded-xl"
+                                      >
                                         <FolderInputIcon className="h-4 w-4 mr-2" />
                                         Move to {f.name}
                                       </DropdownMenuItem>
@@ -1633,7 +1641,7 @@ export default function GlobalLibraryPage() {
                             {file.version && (
                               <div className="text-xs text-gray-500 mb-2">v{file.version}</div>
                             )}
-                            <div className="mt-3 flex justify-center gap-2 flex-wrap">
+                            <div className="mt-3 flex flex-col items-center gap-2">
                               {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
                                 <>
                                   {fileName.toLowerCase().endsWith(".pdf") && (
@@ -1667,7 +1675,7 @@ export default function GlobalLibraryPage() {
                                   handleDownload(file, false); // Always direct download, never ZIP
                                 }}
                                 disabled={downloading === fileName}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
                                 aria-label={`Download ${fileName}`}
                               >
                                 {downloading === fileName ? (
@@ -1678,11 +1686,19 @@ export default function GlobalLibraryPage() {
                               </Button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800" aria-label={`More actions ${fileName}`}>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                    aria-label={`More actions ${fileName}`}
+                                  >
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="max-h-44 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl">
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
+                                >
                                   <DropdownMenuItem
                                     onClick={() => handleViewVersions(file)}
                                     className="rounded-xl"

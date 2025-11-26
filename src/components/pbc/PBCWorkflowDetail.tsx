@@ -110,7 +110,7 @@ export function PBCWorkflowDetail({
           onClick={onBack}
           className="bg- flex items-center gap-2 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl hover:brightness-105"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 text-brand-body" />
           Back to Dashboard
         </Button>
       </div>
