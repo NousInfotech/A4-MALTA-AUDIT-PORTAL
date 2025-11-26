@@ -1,20 +1,12 @@
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, FileSpreadsheet, FolderOpen, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
 
-interface ExportDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface ExportSectionProps {
   engagement: any;
+  onClose?: () => void;
 }
 
 // Helper function to get auth token
@@ -24,10 +16,9 @@ async function getAuthToken() {
   return data?.session?.access_token;
 }
 
-export const ExportDialog: React.FC<ExportDialogProps> = ({
-  open,
-  onOpenChange,
+export const ExportSection: React.FC<ExportSectionProps> = ({
   engagement,
+  onClose,
 }) => {
   const [exporting, setExporting] = useState<string | null>(null);
   const { toast } = useToast();
@@ -123,18 +114,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Export Data</DialogTitle>
-          <DialogDescription>
-            Export Extended Trial Balance, Adjustments, Reclassifications, and Evidence Files
-          </DialogDescription>
-        </DialogHeader>
+    <div className="h-full flex flex-col bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
+      <div className="flex-shrink-0 border-b bg-gray-50/80 backdrop-blur-sm px-6 py-4">
+        <h2 className="text-xl font-semibold text-gray-900">Export Data</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          Export Extended Trial Balance, Adjustments, Reclassifications, and Evidence Files
+        </p>
+      </div>
 
-        <div className="space-y-4 py-4">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-4">
           {/* Export Extended Trial Balance */}
-          <div className="border rounded-lg p-4 space-y-3">
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <FileSpreadsheet className="h-5 w-5 text-blue-600" />
@@ -188,7 +179,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           </div>
 
           {/* Export Adjustments */}
-          <div className="border rounded-lg p-4 space-y-3">
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-100 rounded-lg">
                 <FileSpreadsheet className="h-5 w-5 text-amber-600" />
@@ -242,7 +233,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           </div>
 
           {/* Export Reclassifications */}
-          <div className="border rounded-lg p-4 space-y-3">
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <FileSpreadsheet className="h-5 w-5 text-purple-600" />
@@ -296,7 +287,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           </div>
 
           {/* Export Evidence Files (ZIP) */}
-          <div className="border rounded-lg p-4 space-y-3">
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
                 <FolderOpen className="h-5 w-5 text-green-600" />
@@ -329,8 +320,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
 
