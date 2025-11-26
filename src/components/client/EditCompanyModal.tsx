@@ -674,7 +674,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       <span className="text-sm text-gray-600">
         Total: {totalSharesSum.toLocaleString()}
       </span>
-      <div className="flex items-center gap-2">
+      {/* <div className="flex items-center gap-2">
         <span className="text-sm text-gray-600">Share Classes</span>
         <Switch
           checked={useClassShares}
@@ -705,7 +705,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
             }
           }}
         />
-      </div>
+      </div> */}
     </div>
   </div>
             {/* Dynamic Share Class Inputs */}

@@ -255,9 +255,9 @@ export const EngagementDetails = () => {
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
             <Button
-              variant="outline"
+              variant="default"
               size="icon"
-              className="rounded-xl border-gray-200 hover:bg-gray-50"
+              className="rounded-xl"
               aria-label="Back to engagements"
               onClick={() => {
                 if (window.history.length > 1) {

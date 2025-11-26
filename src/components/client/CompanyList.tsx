@@ -207,9 +207,9 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
 
                     <div className="flex gap-2">
                       <Button
-                        variant="ghost"
+                        variant="default"
                         size="sm"
-                        className="flex-1 hover:bg-gray-100 rounded-xl"
+                        className="flex-1 rounded-xl"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewDetails(company);
