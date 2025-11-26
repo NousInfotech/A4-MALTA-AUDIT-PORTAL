@@ -19,8 +19,8 @@ export interface CreateCompanyPayload {
     companyId: string | { _id: string };
     sharesData?: Array<{
       totalShares: number;
-      shareClass: "A" | "B" | "C";
-      shareType?: "Ordinary" | "Preferred";
+      shareClass: "A" | "B" | "C" | "Ordinary";
+      shareType?: "Ordinary";
     }>;
   }>;
 }
@@ -34,8 +34,8 @@ export interface UpdateCompanyPayload extends Partial<CreateCompanyPayload> {
 
 export interface ShareDataItem {
   totalShares: number;
-  shareClass: "A" | "B" | "C";
-  shareType?: "Ordinary" | "Preferred";
+  shareClass: "A" | "B" | "C" | "Ordinary";
+  shareType?: "Ordinary";
 }
 
 export interface AddShareHolderPersonPayload {

@@ -1404,6 +1404,60 @@ export const adjustmentApi = {
     console.log('📝 Fetching adjustment history:', id);
     return apiCall(`/api/adjustments/${id}/history`);
   },
+
+  /**
+   * Export adjustments to Excel
+   */
+  export: async (engagementId: string) => {
+    console.log('📝 Exporting adjustments for engagement:', engagementId);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(`${API_URL}/api/adjustments/engagement/${engagementId}/export`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(error.message || 'Failed to export adjustments');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `adjustments_${engagementId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  },
+
+  /**
+   * Add evidence file to an adjustment
+   */
+  addEvidenceFile: async (adjustmentId: string, fileName: string, fileUrl: string) => {
+    console.log('📝 Adding evidence file to adjustment:', adjustmentId);
+    return apiCall(`/api/adjustments/${adjustmentId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName, fileUrl }),
+    });
+  },
+
+  /**
+   * Remove evidence file from an adjustment
+   */
+  removeEvidenceFile: async (adjustmentId: string, evidenceId: string) => {
+    console.log('📝 Removing evidence file from adjustment:', adjustmentId, evidenceId);
+    return apiCall(`/api/adjustments/${adjustmentId}/evidence/${evidenceId}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // Reclassification API
@@ -1523,5 +1577,59 @@ export const reclassificationApi = {
   getHistory: async (id: string) => {
     console.log('📝 Fetching reclassification history:', id);
     return apiCall(`/api/reclassifications/${id}/history`);
+  },
+
+  /**
+   * Export reclassifications to Excel
+   */
+  export: async (engagementId: string) => {
+    console.log('📝 Exporting reclassifications for engagement:', engagementId);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const response = await fetch(`${API_URL}/api/reclassifications/engagement/${engagementId}/export`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      throw new Error(error.message || 'Failed to export reclassifications');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reclassifications_${engagementId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return { success: true };
+  },
+
+  /**
+   * Add evidence file to a reclassification
+   */
+  addEvidenceFile: async (reclassificationId: string, fileName: string, fileUrl: string) => {
+    console.log('📝 Adding evidence file to reclassification:', reclassificationId);
+    return apiCall(`/api/reclassifications/${reclassificationId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName, fileUrl }),
+    });
+  },
+
+  /**
+   * Remove evidence file from a reclassification
+   */
+  removeEvidenceFile: async (reclassificationId: string, evidenceId: string) => {
+    console.log('📝 Removing evidence file from reclassification:', reclassificationId, evidenceId);
+    return apiCall(`/api/reclassifications/${reclassificationId}/evidence/${evidenceId}`, {
+      method: 'DELETE',
+    });
   },
 };

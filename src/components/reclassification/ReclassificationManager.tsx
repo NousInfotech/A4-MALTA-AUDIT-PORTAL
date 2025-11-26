@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2, History } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, FileText, Check, X, Edit2, History, Download, Paperclip, ExternalLink, Eye, Image, FileSpreadsheet, File } from "lucide-react";
 import { toast } from "sonner";
 import { useReclassification } from "@/hooks/useReclassification";
 import { ReclassificationHistory } from "./ReclassificationHistory";
+import { reclassificationApi, engagementApi } from "@/services/api";
+import { Label } from "@/components/ui/label";
 
 interface ETBRow {
   _id?: string;
@@ -86,6 +88,12 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
   const [entries, setEntries] = useState<ReclassificationEntry[]>([]);
   const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [selectedReclassificationForHistory, setSelectedReclassificationForHistory] = useState<any>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showEvidenceDialog, setShowEvidenceDialog] = useState(false);
+  const [selectedReclassificationForEvidence, setSelectedReclassificationForEvidence] = useState<any>(null);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [previewFile, setPreviewFile] = useState<any>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Use the reclassification hook
   const {
@@ -108,6 +116,22 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
   useEffect(() => {
     refetch();
   }, []);
+
+  // Sync selected reclassification for evidence dialog when reclassifications list changes
+  useEffect(() => {
+    if (selectedReclassificationForEvidence && reclassifications.length > 0) {
+      const updated = reclassifications.find(r => r._id === selectedReclassificationForEvidence._id);
+      if (updated) {
+        // Only update if the evidence files are different to avoid unnecessary re-renders
+        const currentFiles = selectedReclassificationForEvidence.evidenceFiles || [];
+        const updatedFiles = updated.evidenceFiles || [];
+        if (currentFiles.length !== updatedFiles.length || 
+            JSON.stringify(currentFiles.map((f: any) => f._id)) !== JSON.stringify(updatedFiles.map((f: any) => f._id))) {
+          setSelectedReclassificationForEvidence(updated);
+        }
+      }
+    }
+  }, [reclassifications, selectedReclassificationForEvidence?._id]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -191,7 +215,6 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
 
     setEntries((prev) => [...prev, newEntry]);
     setShowAccountSelector(false);
-    setSearchTerm("");
   };
 
   // Remove entry
@@ -405,6 +428,255 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
     setSelectedReclassificationForHistory(null);
   };
 
+  // Export reclassifications to Excel
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await reclassificationApi.export(engagement._id);
+      toast.success("Reclassifications exported successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to export reclassifications");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Open evidence dialog
+  const handleOpenEvidenceDialog = (reclassification: any) => {
+    setSelectedReclassificationForEvidence(reclassification);
+    setShowEvidenceDialog(true);
+  };
+
+  // Upload evidence file
+  const handleUploadEvidence = async (file: File) => {
+    if (!selectedReclassificationForEvidence) return;
+
+    setUploadingEvidence(true);
+    try {
+      // Upload file to engagement library
+      const uploadResult = await engagementApi.uploadToLibrary(
+        engagement._id,
+        file,
+        "Reclassifications"
+      );
+
+      // Extract file URL and name
+      const fileUrl = uploadResult.url || uploadResult.data?.url;
+      const fileName = file.name;
+
+      if (!fileUrl) {
+        throw new Error("Failed to get file URL after upload");
+      }
+
+      // Link evidence file to reclassification
+      await reclassificationApi.addEvidenceFile(
+        selectedReclassificationForEvidence._id,
+        fileName,
+        fileUrl
+      );
+
+      toast.success("Evidence file uploaded and linked successfully");
+      
+      // Refresh reclassifications list
+      await refetch();
+      
+      // Update selected reclassification
+      const updated = reclassifications.find(r => r._id === selectedReclassificationForEvidence._id);
+      if (updated) {
+        setSelectedReclassificationForEvidence(updated);
+      }
+      
+      // Close the dialog after successful upload
+      setShowEvidenceDialog(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload evidence file");
+    } finally {
+      setUploadingEvidence(false);
+    }
+  };
+
+  // Remove evidence file
+  const handleRemoveEvidence = async (evidenceId: string) => {
+    if (!selectedReclassificationForEvidence) return;
+
+    if (!confirm("Are you sure you want to remove this evidence file?")) {
+      return;
+    }
+
+    const reclassificationId = selectedReclassificationForEvidence._id;
+
+    try {
+      // Optimistically update the UI immediately
+      setSelectedReclassificationForEvidence((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          evidenceFiles: (prev.evidenceFiles || []).filter(
+            (file: any) => file._id?.toString() !== evidenceId
+          ),
+        };
+      });
+
+      await reclassificationApi.removeEvidenceFile(reclassificationId, evidenceId);
+
+      toast.success("Evidence file removed successfully");
+      
+      // Refresh reclassifications list
+      await refetch();
+      
+      // Fetch the specific reclassification by ID to get the latest data
+      try {
+        const response = await reclassificationApi.getById(reclassificationId);
+        if (response?.data) {
+          setSelectedReclassificationForEvidence(response.data);
+        }
+      } catch (fetchError) {
+        // If fetching by ID fails, try to find from reclassifications array
+        const updated = reclassifications.find(r => r._id === reclassificationId);
+        if (updated) {
+          setSelectedReclassificationForEvidence(updated);
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove evidence file");
+      
+      // Revert optimistic update on error by fetching latest data
+      try {
+        const response = await reclassificationApi.getById(reclassificationId);
+        if (response?.data) {
+          setSelectedReclassificationForEvidence(response.data);
+        }
+      } catch (fetchError) {
+        // If fetching by ID fails, try to find from reclassifications array
+        await refetch();
+        const updated = reclassifications.find(r => r._id === reclassificationId);
+        if (updated) {
+          setSelectedReclassificationForEvidence(updated);
+        }
+      }
+    }
+  };
+
+  // Helper functions for file preview
+  const getFileIcon = (fileName: string) => {
+    const type = fileName.toLowerCase();
+    if (type.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) return <Image className="h-5 w-5 text-green-500" />;
+    if (type.match(/\.(pdf)$/i)) return <FileText className="h-5 w-5 text-red-500" />;
+    if (type.match(/\.(doc|docx)$/i)) return <FileText className="h-5 w-5 text-blue-500" />;
+    if (type.match(/\.(xls|xlsx)$/i)) return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    return <File className="h-5 w-5 text-gray-500" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string | Date) => {
+    if (!dateString) return 'Unknown date';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const renderFilePreview = (file: any) => {
+    const fileName = file.fileName || '';
+    const fileUrl = file.fileUrl || '';
+    const type = fileName.toLowerCase();
+
+    // Images
+    if (type.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <img
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+            style={{ maxHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // PDFs
+    if (type.match(/\.(pdf)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // Office documents
+    if (type.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // Text files
+    if (type.match(/\.(txt|csv)$/i)) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-50">
+          <iframe
+            src={fileUrl}
+            className="w-full h-full border-0 rounded-lg shadow-sm"
+            title={fileName}
+            style={{ minHeight: '70vh' }}
+          />
+        </div>
+      );
+    }
+
+    // Default: Show file info
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-center p-8">
+          <div className="mb-4">
+            {getFileIcon(fileName)}
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{fileName}</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Preview not available for this file type
+          </p>
+          <div className="bg-white rounded-lg p-4 shadow-sm border">
+            <p className="text-xs text-gray-400">
+              File uploaded on {formatDate(file.uploadedAt)}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => window.open(fileUrl, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Open file preview
+  const handleOpenPreview = (file: any) => {
+    setPreviewFile(file);
+    setPreviewOpen(true);
+  };
+
   // Account Selector Dialog
   const AccountSelectorDialog = () => {
     const [tempAmount, setTempAmount] = useState("");
@@ -556,10 +828,26 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
           <p className="text-gray-500">Manage audit reclassifications for this engagement</p>
         </div>
         {!isCreating && !isViewingHistory && (
-          <Button onClick={handleStartCreating}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Reclassification
-          </Button>
+          <div className="flex items-center gap-2">
+            {reclassifications.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Export to Excel
+              </Button>
+            )}
+            <Button onClick={handleStartCreating}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Reclassification
+            </Button>
+          </div>
         )}
       </div>
 
@@ -873,6 +1161,65 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                           </tbody>
                         </table>
                       </div>
+
+                      {/* Evidence Files Section */}
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Paperclip className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium">Evidence Files</span>
+                            <Badge variant="outline" className="text-xs">
+                              {adj.evidenceFiles?.length || 0}
+                            </Badge>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenEvidenceDialog(adj)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Manage
+                          </Button>
+                        </div>
+                        {adj.evidenceFiles && adj.evidenceFiles.length > 0 && (
+                          <div className="space-y-1">
+                            {adj.evidenceFiles.slice(0, 3).map((file: any) => (
+                              <div
+                                key={file._id || file.fileName}
+                                className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded"
+                              >
+                                <span className="truncate flex-1">{file.fileName}</span>
+                                <div className="flex items-center gap-1 ml-2">
+                                  <button
+                                    onClick={() => handleOpenPreview(file)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Preview"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </button>
+                                  <a
+                                    href={file.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Open in new tab"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                            {adj.evidenceFiles.length > 3 && (
+                              <p className="text-xs text-gray-500">
+                                +{adj.evidenceFiles.length - 3} more file(s)
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {(!adj.evidenceFiles || adj.evidenceFiles.length === 0) && (
+                          <p className="text-xs text-gray-400">No evidence files linked</p>
+                        )}
+                      </div>
                     </div>
 
                     {/* Actions */}
@@ -940,6 +1287,149 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
 
       {/* Account Selector Dialog */}
       <AccountSelectorDialog />
+
+      {/* Evidence Files Dialog */}
+      <Dialog open={showEvidenceDialog} onOpenChange={setShowEvidenceDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage Evidence Files</DialogTitle>
+            <DialogDescription>
+              Upload and manage evidence files for {selectedReclassificationForEvidence?.reclassificationNo}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Upload Section */}
+            <div>
+              <Label htmlFor="evidence-upload">Upload Evidence File</Label>
+              <Input
+                id="evidence-upload"
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleUploadEvidence(file);
+                    e.target.value = ""; // Reset input
+                  }
+                }}
+                disabled={uploadingEvidence}
+                className="mt-1"
+              />
+              {uploadingEvidence && (
+                <p className="text-xs text-gray-500 mt-1">
+                  <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
+                  Uploading...
+                </p>
+              )}
+            </div>
+
+            {/* Existing Files */}
+            <div>
+              <Label>Linked Evidence Files</Label>
+              {selectedReclassificationForEvidence?.evidenceFiles &&
+              selectedReclassificationForEvidence.evidenceFiles.length > 0 ? (
+                <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                  {selectedReclassificationForEvidence.evidenceFiles.map((file: any) => (
+                    <div
+                      key={file._id || file.fileName}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          Uploaded by {file.uploadedBy?.userName || "Unknown"} •{" "}
+                          {file.uploadedAt
+                            ? new Date(file.uploadedAt).toLocaleDateString()
+                            : "Unknown date"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleOpenPreview(file)}
+                          title="Preview file"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => window.open(file.fileUrl, "_blank")}
+                          title="Open in new tab"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveEvidence(file._id)}
+                          title="Remove file"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 mt-2">No evidence files linked</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEvidenceDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {previewFile && getFileIcon(previewFile.fileName)}
+                <span className="truncate max-w-md">{previewFile?.fileName}</span>
+              </div>
+              <div className="text-sm text-gray-500 font-normal">
+                Uploaded by: <span className="font-medium text-gray-700">
+                  {previewFile?.uploadedBy?.userName || "Unknown"}
+                </span>
+                {previewFile?.uploadedAt && (
+                  <span className="ml-2">
+                    • {formatDate(previewFile.uploadedAt)}
+                  </span>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col h-[75vh]">
+            {/* File Preview */}
+            <div className="flex-1 border rounded-lg overflow-hidden mb-4 bg-gray-50">
+              {previewFile && renderFilePreview(previewFile)}
+            </div>
+
+            {/* File Actions */}
+            <div className="flex items-center justify-end gap-2 border-t pt-4">
+              <Button
+                variant="outline"
+                onClick={() => previewFile && window.open(previewFile.fileUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </Button>
+              <Button variant="outline" onClick={() => setPreviewOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

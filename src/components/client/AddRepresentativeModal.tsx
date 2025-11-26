@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Building2, Plus, X, ChevronDown, ChevronUp, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,76 @@ import {
 } from "@/lib/api/company";
 import { fetchCompanies } from "@/lib/api/company";
 
+const SHARE_CLASS_CONFIG = [
+  { key: "classA", label: "Class A", backendValue: "A" },
+  { key: "classB", label: "Class B", backendValue: "B" },
+  { key: "classC", label: "Class C", backendValue: "C" },
+  { key: "ordinary", label: "Ordinary", backendValue: "Ordinary" },
+] as const;
+
+type ShareClassKey = (typeof SHARE_CLASS_CONFIG)[number]["key"];
+type ShareClassValues = Record<ShareClassKey, number>;
+type ShareClassErrors = Record<ShareClassKey, string>;
+
+const DEFAULT_SHARE_TYPE = "Ordinary";
+
+const getDefaultShareClassValues = (): ShareClassValues => ({
+  classA: 0,
+  classB: 0,
+  classC: 0,
+  ordinary: 100,
+});
+
+const getDefaultShareClassErrors = (): ShareClassErrors => ({
+  classA: "",
+  classB: "",
+  classC: "",
+  ordinary: "",
+});
+
+/**
+ * Builds the totalShares payload for the backend.
+ * IMPORTANT: Only includes the selected mode's data:
+ * - If useClassShares is false: ONLY sends Ordinary share data (A, B, C are excluded)
+ * - If useClassShares is true: ONLY sends Class A, B, C share data (Ordinary is excluded)
+ */
+const buildTotalSharesPayload = (values: ShareClassValues, useClassShares: boolean) => {
+  if (useClassShares) {
+    // Share Classes mode: ONLY include Class A, B, C (Ordinary is completely excluded)
+    return SHARE_CLASS_CONFIG
+      .filter(({ key }) => key !== "ordinary")
+      .map(({ key, backendValue }) => ({
+        totalShares: Number(values[key]) || 0,
+        class: backendValue,
+        type: DEFAULT_SHARE_TYPE,
+      }));
+  } else {
+    // Ordinary mode: ONLY include Ordinary (A, B, C are completely excluded)
+    return SHARE_CLASS_CONFIG
+      .filter(({ key }) => key === "ordinary")
+      .map(({ key, backendValue }) => ({
+        totalShares: Number(values[key]) || 0,
+        class: backendValue,
+        type: DEFAULT_SHARE_TYPE,
+      }));
+  }
+};
+
+const calculateTotalSharesSum = (values: ShareClassValues, useClassShares: boolean) => {
+  if (useClassShares) {
+    // Only sum Class A, B, C (exclude Ordinary)
+    return SHARE_CLASS_CONFIG.filter(({ key }) => key !== "ordinary")
+      .reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
+  } else {
+    // Only sum Ordinary (exclude A, B, C)
+    return Number(values.ordinary) || 0;
+  }
+};
+
+const OPTIONAL_SHARE_CLASS_LABELS = SHARE_CLASS_CONFIG.filter(
+  ({ key }) => key !== "ordinary"
+).map(({ label }) => label);
+
 interface AddRepresentativeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -43,6 +114,7 @@ interface AddRepresentativeModalProps {
   clientId: string;
   companyId: string;
   entityType: "person" | "company";
+  inline?: boolean; // When true, renders without Dialog wrapper
 }
 
 interface ExistingEntity {
@@ -62,12 +134,15 @@ interface NewEntityForm {
   phoneNumber?: string;
   // Company fields
   registrationNumber?: string;
-  totalShares?: number;
   industry?: string;
   description?: string;
   companyStartedAt?: string;
   // Common
   roles: string[];
+  // Share class fields (for companies)
+  shareClassValues?: ShareClassValues;
+  useClassShares?: boolean;
+  visibleShareClasses?: string[];
 }
 
 const REPRESENTATIVE_ROLES = [
@@ -84,6 +159,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   clientId,
   companyId,
   entityType,
+  inline = false,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [existingEntities, setExistingEntities] = useState<any[]>([]);
@@ -94,12 +170,21 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       nationality: "",
       address: "",
       roles: [],
+      // Initialize share class values for companies
+      ...(entityType === "company" && {
+        shareClassValues: getDefaultShareClassValues(),
+        useClassShares: false,
+        visibleShareClasses: [],
+      }),
     },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[]
   >([]);
+  
+  // View mode: "existing" or "new"
+  const [viewMode, setViewMode] = useState<"existing" | "new">("existing");
   
   // Global search state
   const [isGlobalSearchMode, setIsGlobalSearchMode] = useState(false);
@@ -321,6 +406,12 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         nationality: "",
         address: "",
         roles: [],
+        // Initialize share class values for companies
+        ...(entityType === "company" && {
+          shareClassValues: getDefaultShareClassValues(),
+          useClassShares: false,
+          visibleShareClasses: [],
+        }),
       },
     ]);
   };
@@ -354,6 +445,85 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           return { ...entity, roles: newRoles };
         }
         return entity;
+      })
+    );
+  };
+
+  const handleShareValueChange = (
+    index: number,
+    key: ShareClassKey,
+    label: string,
+    rawValue: string
+  ) => {
+    setNewEntities(
+      newEntities.map((entity, i) => {
+        if (i !== index || !entity.shareClassValues) return entity;
+
+        if (rawValue === "") {
+          return {
+            ...entity,
+            shareClassValues: { ...entity.shareClassValues, [key]: 0 },
+          };
+        }
+
+        const parsedValue = parseInt(rawValue, 10);
+        if (Number.isNaN(parsedValue) || parsedValue < 0) {
+          return entity;
+        }
+
+        // Reset the inactive mode when entering a value
+        const updatedValues = { ...entity.shareClassValues };
+        if (key === "ordinary") {
+          // If entering Ordinary, reset A, B, C
+          updatedValues.classA = 0;
+          updatedValues.classB = 0;
+          updatedValues.classC = 0;
+          updatedValues.ordinary = parsedValue;
+        } else {
+          // If entering A, B, or C, reset Ordinary
+          updatedValues.ordinary = 0;
+          updatedValues[key] = parsedValue;
+        }
+
+        return {
+          ...entity,
+          shareClassValues: updatedValues,
+        };
+      })
+    );
+  };
+
+  const handleShareClassToggle = (index: number, checked: boolean) => {
+    setNewEntities(
+      newEntities.map((entity, i) => {
+        if (i !== index || !entity.shareClassValues) return entity;
+
+        if (!checked) {
+          // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
+          return {
+            ...entity,
+            useClassShares: false,
+            visibleShareClasses: [],
+            shareClassValues: {
+              ...entity.shareClassValues,
+              classA: 0,
+              classB: 0,
+              classC: 0,
+              ordinary: entity.shareClassValues.ordinary || 100,
+            },
+          };
+        } else {
+          // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
+          return {
+            ...entity,
+            useClassShares: true,
+            visibleShareClasses: OPTIONAL_SHARE_CLASS_LABELS,
+            shareClassValues: {
+              ...entity.shareClassValues,
+              ordinary: 0,
+            },
+          };
+        }
       })
     );
   };
@@ -392,6 +562,16 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       } else {
         if (!entity.registrationNumber?.trim()) {
           return `Please enter registration number for ${entity.name || `new company #${i + 1}`}`;
+        }
+        // Validate total shares for companies
+        if (entity.shareClassValues) {
+          const totalSum = calculateTotalSharesSum(
+            entity.shareClassValues,
+            entity.useClassShares || false
+          );
+          if (totalSum <= 0) {
+            return `Please enter at least one share amount greater than 0 for ${entity.name || `new company #${i + 1}`}`;
+          }
         }
       }
       if (!entity.address.trim()) {
@@ -513,6 +693,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             });
           } else {
             // First create the company
+            // Build totalShares payload with only the selected mode's data
+            const totalSharesPayload = entity.shareClassValues && entity.useClassShares !== undefined
+              ? buildTotalSharesPayload(entity.shareClassValues, entity.useClassShares)
+              : undefined;
+
             const companyResponse = await fetch(
               `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
               {
@@ -525,7 +710,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   name: entity.name,
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
-                  totalShares: entity.totalShares || undefined,
+                  totalShares: totalSharesPayload,
                   industry: entity.industry || undefined,
                   description: entity.description || undefined,
                   companyStartedAt: entity.companyStartedAt || undefined,
@@ -542,7 +727,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             const companyId_new = companyResult.data?._id || companyResult.data?.id;
 
             // Then add representation
-            await addRepresentationCompanyNew(clientId, companyId, {
+            await addRepresentationCompanyNew("non-primary", companyId, {
               companyId: companyId_new,
               role: entity.roles,
             });
@@ -647,17 +832,49 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     onClose();
   };
 
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-semibold text-gray-900">
+  if (!isOpen) return null;
+
+  const formContent = (
+    <div className={`${inline ? '' : 'max-w-5xl max-h-[90vh]'} overflow-y-auto`}>
+      <div className={inline ? 'p-0' : ''}>
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-gray-900">
             Add {entityType === "person" ? "Person" : "Company"} Representative
-          </DialogTitle>
-        </DialogHeader>
+          </h2>
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+            <Button
+              type="button"
+              variant={viewMode === "existing" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("existing")}
+              className={`rounded-md ${
+                viewMode === "existing"
+                  ? "bg-white shadow-sm text-gray-900"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Existing
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "new" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("new")}
+              className={`rounded-md ${
+                viewMode === "new"
+                  ? "bg-white shadow-sm text-gray-900"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Create New
+            </Button>
+          </div>
+        </div>
 
         <div className="space-y-6 mt-4">
           {/* Select Existing Entity Section */}
+          {viewMode === "existing" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -917,8 +1134,10 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               </>
             )}
           </div>
+          )}
 
           {/* Create New Entity Section */}
+          {viewMode === "new" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -936,7 +1155,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               </Button>
             </div>
 
-            <div className="space-y-6 max-h-96 overflow-y-auto border rounded-lg p-4">
+ 
               {newEntities.map((entity, index) => (
                 <Card key={index} className="relative">
                   <CardContent className="p-4 space-y-4">
@@ -1056,36 +1275,97 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                     )}
 
                     {entityType === "company" && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Total Shares</Label>
-                          <Input
-                            type="number"
-                            min="100"
-                            placeholder="Enter total shares"
-                            value={entity.totalShares || ""}
-                            onChange={(e) =>
-                              handleNewEntityChange(
-                                index,
-                                "totalShares",
-                                e.target.value ? parseInt(e.target.value) : undefined
-                              )
-                            }
-                            className="rounded-xl"
-                          />
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Industry</Label>
+                            <Input
+                              placeholder="Enter industry"
+                              value={entity.industry || ""}
+                              onChange={(e) =>
+                                handleNewEntityChange(index, "industry", e.target.value)
+                              }
+                              className="rounded-xl"
+                            />
+                          </div>
                         </div>
+
+                        {/* Total Shares Section */}
                         <div className="space-y-2">
-                          <Label>Industry</Label>
-                          <Input
-                            placeholder="Enter industry"
-                            value={entity.industry || ""}
-                            onChange={(e) =>
-                              handleNewEntityChange(index, "industry", e.target.value)
-                            }
-                            className="rounded-xl"
-                          />
+                          <div className="flex items-center justify-between">
+                            <Label className="text-gray-700 font-semibold">
+                              Total Shares
+                            </Label>
+                            <div className="flex items-center gap-4">
+                              <span className="text-sm text-gray-600">
+                                Total:{" "}
+                                {entity.shareClassValues
+                                  ? calculateTotalSharesSum(
+                                      entity.shareClassValues,
+                                      entity.useClassShares || false
+                                    ).toLocaleString()
+                                  : "0"}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Share Classes</span>
+                                <Switch
+                                  checked={entity.useClassShares || false}
+                                  onCheckedChange={(checked) =>
+                                    handleShareClassToggle(index, checked)
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dynamic Share Class Inputs */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {SHARE_CLASS_CONFIG.map(({ key, label }) => {
+                              const isOrdinary = key === "ordinary";
+                              const shouldRender = isOrdinary
+                                ? !(entity.useClassShares || false)
+                                : (entity.useClassShares || false) &&
+                                  (entity.visibleShareClasses || []).includes(label);
+
+                              if (!shouldRender || !entity.shareClassValues) {
+                                return null;
+                              }
+
+                              const value = entity.shareClassValues[key];
+
+                              return (
+                                <div className="space-y-2" key={key}>
+                                  <div className="flex items-center justify-between">
+                                    <Label
+                                      htmlFor={`${index}-${key}`}
+                                      className="text-gray-700 font-semibold"
+                                    >
+                                      {label}
+                                    </Label>
+                                  </div>
+                                  <Input
+                                    id={`${index}-${key}`}
+                                    min={0}
+                                    type="number"
+                                    step={1}
+                                    placeholder={`Enter ${label} shares`}
+                                    value={value === 0 ? "" : value}
+                                    onChange={(e) =>
+                                      handleShareValueChange(
+                                        index,
+                                        key,
+                                        label,
+                                        e.target.value
+                                      )
+                                    }
+                                    className="rounded-xl border-gray-200"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
 
                     {entityType === "company" && (
@@ -1117,6 +1397,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                       </div>
                     )}
 
+
                     <div className="space-y-2 pt-2 border-t">
                       <Label className="text-sm font-semibold">
                         Select Roles (at least one required) <span className="text-red-500">*</span>
@@ -1146,10 +1427,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                 </Card>
               ))}
             </div>
-          </div>
+        
+          )}
         </div>
 
-        <DialogFooter className="flex gap-2 mt-6">
+        <div className={`${inline ? 'flex gap-2 mt-6' : 'mt-6'}`}>
           <Button
             type="button"
             variant="outline"
@@ -1173,7 +1455,19 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               "Submit Added Representatives"
             )}
           </Button>
-        </DialogFooter>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (inline) {
+    return formContent;
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        {formContent}
       </DialogContent>
     </Dialog>
   );
