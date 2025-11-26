@@ -249,7 +249,7 @@ export const AuditorLogs = () => {
               className="border-gray-300 hover:bg-gray-100 text-brand-body hover:text-gray-900 rounded-xl px-6 py-3 h-auto"
             >
               <Link to="/admin">
-                <ArrowLeft className="h-5 w-5 mr-2" />
+                <ArrowLeft className="h-5 w-5 mr-2 text-brand-body" />
                 Back to Dashboard
               </Link>
             </Button>

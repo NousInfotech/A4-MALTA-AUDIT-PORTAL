@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
+import { Download } from "lucide-react"
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 const withUids = (procedures: any[]) =>
@@ -506,6 +507,122 @@ export const CompletionProcedureView: React.FC<{
       return acc
     }, {})
 
+  // Export completion procedures to PDF (summary of all sections)
+  const handleExportCompletionPDF = async () => {
+    try {
+      const [{ default: jsPDF }] = await Promise.all([import("jspdf")])
+      const autoTable = (await import("jspdf-autotable")).default
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 14
+
+      const addFooter = () => {
+        const pageCount = doc.getNumberOfPages()
+        doc.setFontSize(8)
+        doc.setTextColor(120)
+        doc.setFont("helvetica", "normal")
+        const footerY = pageHeight - 8
+        doc.text(
+          "Confidential — For audit completion purposes only.",
+          margin,
+          footerY
+        )
+        doc.text(`Page ${pageCount}`, pageWidth - margin, footerY, { align: "right" })
+      }
+
+      const safeTitle = proc?.engagementTitle || engagement?.title || "Engagement"
+
+      // Cover
+      doc.setFillColor(245, 246, 248)
+      doc.rect(0, 0, pageWidth, pageHeight, "F")
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(20)
+      doc.setFontSize(18)
+      doc.text("Completion Procedures Report", margin, 40)
+
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Engagement: ${safeTitle}`, margin, 55)
+      doc.text(`Mode: ${String(proc?.mode || "MANUAL").toUpperCase()}`, margin, 63)
+      doc.text(`Status: ${String(proc?.status || "draft")}`, margin, 71)
+
+      addFooter()
+
+      // Sections and questions
+      Array.isArray(proc.procedures) &&
+        proc.procedures.forEach((sec: any, index: number) => {
+          if (index > 0) {
+            doc.addPage()
+          }
+
+          doc.setFont("helvetica", "bold")
+          doc.setFontSize(14)
+          doc.text(`Section: ${sec.title || `Section ${index + 1}`}`, margin, 20)
+
+          const body: any[] = []
+          ;(sec.fields || []).forEach((f: any) => {
+            const t = normalizeType(f.type)
+            if (f.key === "documentation_reminder") return
+            const label = f.label || f.key
+            let answer = ""
+            if (t === "multiselect") {
+              answer = (Array.isArray(f.answer) ? f.answer : []).join(", ")
+            } else if (t === "table") {
+              const cols = Array.isArray(f.columns) ? f.columns : []
+              const rows = Array.isArray(f.answer) ? f.answer : []
+              answer = rows
+                .map((row: any) => cols.map((c: string) => String(row?.[c] ?? "")).join(" | "))
+                .join("  /  ")
+            } else if (t === "group") {
+              const val = f.answer && typeof f.answer === "object" ? f.answer : {}
+              const keys = Object.keys(val).filter((k) => !!val[k])
+              answer = keys.join(", ")
+            } else if (t === "checkbox") {
+              answer = f.answer ? "Yes" : "No"
+            } else {
+              answer = String(f.answer ?? "")
+            }
+            body.push([label, answer || "—"])
+          })
+
+          if (body.length) {
+            // @ts-ignore
+            autoTable(doc, {
+              startY: 28,
+              head: [["Procedure", "Answer / Result"]],
+              body,
+              styles: { font: "helvetica", fontSize: 9, cellPadding: 2, valign: "top" },
+              headStyles: { fillColor: [240, 240, 240], textColor: 20, halign: "left" },
+              margin: { left: margin, right: margin },
+              didDrawPage: addFooter,
+            })
+          } else {
+            addFooter()
+          }
+        })
+
+      const date = new Date()
+      const fname = `Completion_Procedures_${safeTitle
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "_")
+        .slice(0, 60)}_${date.toISOString().slice(0, 10)}.pdf`
+
+      doc.save(fname)
+      toast({
+        title: "Exported",
+        description: `${fname} has been downloaded.`,
+      })
+    } catch (e: any) {
+      console.error(e)
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not export completion procedures.",
+        variant: "destructive",
+      })
+    }
+  }
   if (!proc) return null
 
   return (
@@ -513,15 +630,23 @@ export const CompletionProcedureView: React.FC<{
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="font-heading text-xl">Completion Procedures</CardTitle>
+            <div>
+              <CardTitle className="font-heading text-xl">Completion Procedures</CardTitle>
+              <div className="text-sm text-muted-foreground font-body">
+                Mode: {proc.mode?.toUpperCase() || "MANUAL"}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               {statusBadge}
               <Badge variant="outline" className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-purple-500" /> Completion
               </Badge>
+              <Button variant="outline" size="sm" onClick={handleExportCompletionPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </Button>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground font-body">Mode: {proc.mode?.toUpperCase() || "MANUAL"}</div>
         </CardHeader>
 
         <CardContent className="space-y-6">
