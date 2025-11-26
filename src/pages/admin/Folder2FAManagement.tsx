@@ -159,7 +159,7 @@ export function Folder2FAManagement() {
               to={isAdminPortal ? "/admin" : "/employee/library"}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 text-brand-body" />
               <span>Back to {isAdminPortal ? "Admin" : "Library"}</span>
             </Link>
           </div>

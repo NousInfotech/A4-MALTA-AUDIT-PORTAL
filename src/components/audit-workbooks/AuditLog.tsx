@@ -23,7 +23,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ auditLogs, workbook, onBack 
       <header className="bg-white shadow-sm border-b px-4 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 text-brand-body" />
           </Button>
           <div>
             <h1 className="text-lg font-semibold">Audit Log for {workbook.name}</h1>

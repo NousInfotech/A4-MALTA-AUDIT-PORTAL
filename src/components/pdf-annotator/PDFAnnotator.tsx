@@ -22,6 +22,10 @@ import {
   Minimize,
   ChevronLeft,
   ChevronRight,
+  MousePointer2,
+  Eraser,
+  ArrowRight,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +33,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +49,16 @@ import "react-pdf/dist/Page/TextLayer.css";
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.mjs`;
 
-export type AnnotationType = "highlight" | "comment" | "draw" | "rectangle" | "circle" | "text";
+export type AnnotationType =
+  | "highlight"
+  | "comment"
+  | "draw"
+  | "rectangle"
+  | "circle"
+  | "text"
+  | "arrow";
+
+type ToolType = AnnotationType | "cursor" | "eraser";
 
 export interface Annotation {
   id: string;
@@ -115,10 +135,10 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
 
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(0.90);
+  const [scale, setScale] = useState(0.9);
   const [rotation, setRotation] = useState(0);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [selectedTool, setSelectedTool] = useState<AnnotationType | null>(null);
+  const [selectedTool, setSelectedTool] = useState<ToolType | null>("cursor");
   const [selectedColor, setSelectedColor] = useState<string>(COLORS.highlight[0]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
@@ -135,6 +155,12 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number; page: number } | null>(null);
   const [currentSelection, setCurrentSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [previewShape, setPreviewShape] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [previewArrow, setPreviewArrow] = useState<{
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  } | null>(null);
+  const [eraserSize, setEraserSize] = useState<number>(24);
+  const [recentColors, setRecentColors] = useState<string[]>([]);
 
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
@@ -198,15 +224,28 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   };
 
   const handlePageMouseDown = (e: React.MouseEvent<HTMLDivElement>, pageNum: number) => {
-    if (!selectedTool) return;
+    if (!selectedTool || selectedTool === "cursor") return;
 
     const coords = getPageCoordinates(e, pageNum);
     if (!coords) return;
 
-    const pageRef = pageRefs.current.get(pageNum);
-    if (!pageRef) return;
+    // Eraser removes annotations in the hit area instead of creating new ones
+    if (selectedTool === "eraser") {
+      const radius = eraserSize;
+      const cx = coords.x;
+      const cy = coords.y;
 
-    switch (selectedTool) {
+      setAnnotations((prev) =>
+        prev.filter((ann) => {
+          const insideX = cx >= ann.x - radius && cx <= ann.x + ann.width + radius;
+          const insideY = cy >= ann.y - radius && cy <= ann.y + ann.height + radius;
+          return !(insideX && insideY);
+        })
+      );
+      return;
+    }
+
+    switch (selectedTool as AnnotationType) {
       case "highlight":
         // Start text selection for highlighting
         setSelectionStart({ x: coords.x, y: coords.y, page: pageNum });
@@ -234,6 +273,11 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
         setDrawStart(coords);
         setIsDrawing(true);
         setCurrentDraw([coords]);
+        break;
+      case "arrow":
+        setDrawStart(coords);
+        setIsDrawing(true);
+        setPreviewArrow({ start: coords, end: coords });
         break;
     }
   };
@@ -268,6 +312,11 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
       const width = Math.abs(coords.x - drawStart.x);
       const height = Math.abs(coords.y - drawStart.y);
       setPreviewShape({ x: minX, y: minY, width, height });
+    } else if (selectedTool === "arrow" && drawStart) {
+      setPreviewArrow({
+        start: drawStart,
+        end: coords,
+      });
     }
   };
 
@@ -340,6 +389,27 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
         points: [...currentDraw],
         createdAt: new Date().toISOString(),
       };
+    } else if (selectedTool === "arrow" && drawStart && previewArrow) {
+      const { start, end } = previewArrow;
+      if (Math.abs(end.x - start.x) > 5 || Math.abs(end.y - start.y) > 5) {
+        const minX = Math.min(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const width = Math.abs(end.x - start.x);
+        const height = Math.abs(end.y - start.y);
+
+        newAnnotation = {
+          id: `arrow-${Date.now()}`,
+          type: "arrow",
+          page: pageNum,
+          x: minX,
+          y: minY,
+          width,
+          height,
+          color: selectedColor,
+          points: [start, end],
+          createdAt: new Date().toISOString(),
+        };
+      }
     }
 
     if (newAnnotation) {
@@ -350,6 +420,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
     setDrawStart(null);
     setCurrentDraw([]);
     setPreviewShape(null);
+    setPreviewArrow(null);
   };
 
   const handleSaveComment = () => {
@@ -442,6 +513,8 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               e.stopPropagation();
               setSelectedAnnotation(annotation);
             }}
+            onMouseEnter={() => setSelectedAnnotation(annotation)}
+            onMouseLeave={() => setSelectedAnnotation(null)}
             className="cursor-pointer"
           >
             <div
@@ -526,6 +599,53 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               fill="none"
               stroke={annotation.color || COLORS.draw[0]}
               strokeWidth="2"
+            />
+          </svg>
+        );
+
+      case "arrow":
+        if (!annotation.points || annotation.points.length < 2) return null;
+
+        const [start, end] = annotation.points;
+        const arrowColor = annotation.color || COLORS.draw[0];
+
+        const relStartX = start.x - annotation.x;
+        const relStartY = start.y - annotation.y;
+        const relEndX = end.x - annotation.x;
+        const relEndY = end.y - annotation.y;
+
+        const headLength = 10;
+        const dx = relEndX - relStartX;
+        const dy = relEndY - relStartY;
+        const angle = Math.atan2(dy, dx);
+
+        const arrowPoint1X = relEndX - headLength * Math.cos(angle - Math.PI / 6);
+        const arrowPoint1Y = relEndX === relEndX ? relEndY - headLength * Math.sin(angle - Math.PI / 6) : relEndY;
+        const arrowPoint2X = relEndX - headLength * Math.cos(angle + Math.PI / 6);
+        const arrowPoint2Y = relEndY - headLength * Math.sin(angle + Math.PI / 6);
+
+        return (
+          <svg
+            key={annotation.id}
+            style={{
+              ...style,
+              width: `${annotation.width}px`,
+              height: `${annotation.height}px`,
+              pointerEvents: "none",
+            }}
+            className="absolute"
+          >
+            <line
+              x1={relStartX}
+              y1={relStartY}
+              x2={relEndX}
+              y2={relEndY}
+              stroke={arrowColor}
+              strokeWidth={2}
+            />
+            <polygon
+              points={`${relEndX},${relEndY} ${arrowPoint1X},${arrowPoint1Y} ${arrowPoint2X},${arrowPoint2Y}`}
+              fill={arrowColor}
             />
           </svg>
         );
@@ -655,6 +775,57 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                 });
               }
               break;
+
+            case "arrow":
+              if (ann.points && ann.points.length >= 2) {
+                const [start, end] = ann.points;
+                const startX = start.x * scaleX;
+                const startY = height - start.y * scaleY;
+                const endX = end.x * scaleX;
+                const endY = height - end.y * scaleY;
+
+                const color = rgb(
+                  parseInt(ann.color?.substring(1, 3) || "00", 16) / 255,
+                  parseInt(ann.color?.substring(3, 5) || "00", 16) / 255,
+                  parseInt(ann.color?.substring(5, 7) || "00", 16) / 255
+                );
+
+                // Main line
+                page.drawLine({
+                  start: { x: startX, y: startY },
+                  end: { x: endX, y: endY },
+                  color,
+                  thickness: 2,
+                });
+
+                // Arrow head (simple two lines)
+                const headLength = 10;
+                const angle = Math.atan2(endY - startY, endX - startX);
+
+                const arrow1 = {
+                  x: endX - headLength * Math.cos(angle - Math.PI / 6),
+                  y: endY - headLength * Math.sin(angle - Math.PI / 6),
+                };
+                const arrow2 = {
+                  x: endX - headLength * Math.cos(angle + Math.PI / 6),
+                  y: endY - headLength * Math.sin(angle + Math.PI / 6),
+                };
+
+                page.drawLine({
+                  start: { x: endX, y: endY },
+                  end: { x: arrow1.x, y: arrow1.y },
+                  color,
+                  thickness: 2,
+                });
+
+                page.drawLine({
+                  start: { x: endX, y: endY },
+                  end: { x: arrow2.x, y: arrow2.y },
+                  color,
+                  thickness: 2,
+                });
+              }
+              break;
           }
         }
       }
@@ -693,7 +864,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   const pageAnnotations = annotations.filter((ann) => ann.page === pageNumber);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gray-900">
+    <div className="fixed inset-0 z-40 flex flex-col bg-black/90">
       {/* Header */}
       <div className="flex items-center justify-between bg-white border-b px-4 py-3">
         <div className="flex items-center gap-4">
@@ -707,55 +878,131 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setScale((prev) => Math.max(0.5, prev - 0.25))}
-            title="Zoom Out"
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setScale((prev) => Math.min(3, prev + 0.25))}
-            title="Zoom In"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRotation((prev) => (prev + 90) % 360)}
-            title="Rotate"
-          >
-            <RotateCw className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!isFullscreen) {
-                containerRef.current?.requestFullscreen?.();
-                setIsFullscreen(true);
-              } else {
-                document.exitFullscreen?.();
-                setIsFullscreen(false);
-              }
-            }}
-            title="Fullscreen"
-          >
-            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-          </Button>
-          <Button variant="outline" size="sm" onClick={saveAnnotations} title="Save Annotations">
-            <Save className="h-4 w-4 mr-2" />
-            Save
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportAnnotatedPDF} disabled={saving} title="Export PDF">
-            <Download className="h-4 w-4 mr-2" />
-            {saving ? "Exporting..." : "Export"}
-          </Button>
+          {/* Primary controls - visible on wider screens */}
+          <div className="hidden sm:flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScale((prev) => Math.max(0.5, prev - 0.25))}
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScale((prev) => Math.min(3, prev + 0.25))}
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRotation((prev) => (prev + 90) % 360)}
+              title="Rotate"
+            >
+              <RotateCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!isFullscreen) {
+                  containerRef.current?.requestFullscreen?.();
+                  setIsFullscreen(true);
+                } else {
+                  document.exitFullscreen?.();
+                  setIsFullscreen(false);
+                }
+              }}
+              title="Fullscreen"
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={saveAnnotations} title="Save Annotations">
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportAnnotatedPDF}
+              disabled={saving}
+              title="Export PDF"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {saving ? "Exporting..." : "Export"}
+            </Button>
+          </div>
+
+          {/* Compact actions in a 3-dot menu (always available) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                title="More actions"
+                aria-label="More actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                onClick={() => setScale((prev) => Math.max(0.5, prev - 0.25))}
+              >
+                <ZoomOut className="h-4 w-4 mr-2" />
+                Zoom Out
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setScale((prev) => Math.min(3, prev + 0.25))}
+              >
+                <ZoomIn className="h-4 w-4 mr-2" />
+                Zoom In
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setRotation((prev) => (prev + 90) % 360)}
+              >
+                <RotateCw className="h-4 w-4 mr-2" />
+                Rotate
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!isFullscreen) {
+                    containerRef.current?.requestFullscreen?.();
+                    setIsFullscreen(true);
+                  } else {
+                    document.exitFullscreen?.();
+                    setIsFullscreen(false);
+                  }
+                }}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize className="h-4 w-4 mr-2" />
+                    Exit Fullscreen
+                  </>
+                ) : (
+                  <>
+                    <Maximize className="h-4 w-4 mr-2" />
+                    Fullscreen
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={saveAnnotations}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Annotations
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAnnotatedPDF} disabled={saving}>
+                <Download className="h-4 w-4 mr-2" />
+                {saving ? "Exporting..." : "Export PDF"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="outline" size="sm" onClick={onClose} title="Close">
             <X className="h-4 w-4" />
           </Button>
@@ -778,6 +1025,15 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               <div>
                 <label className="text-sm font-medium mb-2 block">Tools</label>
                 <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={!selectedTool || selectedTool === "cursor" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedTool("cursor")}
+                    className="flex flex-col h-auto py-3"
+                  >
+                    <MousePointer2 className="h-5 w-5 mb-1" />
+                    <span className="text-xs">Cursor</span>
+                  </Button>
                   <Button
                     variant={selectedTool === "highlight" ? "default" : "outline"}
                     size="sm"
@@ -832,27 +1088,96 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                     <Type className="h-5 w-5 mb-1" />
                     <span className="text-xs">Text</span>
                   </Button>
+                  <Button
+                    variant={selectedTool === "arrow" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedTool("arrow")}
+                    className="flex flex-col h-auto py-3"
+                  >
+                    <ArrowRight className="h-5 w-5 mb-1" />
+                    <span className="text-xs">Arrow</span>
+                  </Button>
+                  <Button
+                    variant={selectedTool === "eraser" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedTool("eraser")}
+                    className="flex flex-col h-auto py-3"
+                  >
+                    <Eraser className="h-5 w-5 mb-1" />
+                    <span className="text-xs">Eraser</span>
+                  </Button>
                 </div>
               </div>
 
-              {selectedTool && (
-                <div>
+              {selectedTool && selectedTool !== "eraser" && selectedTool !== "cursor" && (
+                <div className="space-y-3">
                   <label className="text-sm font-medium mb-2 block">Color</label>
                   <div className="flex flex-wrap gap-2">
-                    {COLORS[selectedTool === "highlight" || selectedTool === "comment" ? "highlight" : "draw"].map(
-                      (color) => (
-                        <button
-                          key={color}
-                          className={cn(
-                            "w-8 h-8 rounded border-2",
-                            selectedColor === color ? "border-gray-800" : "border-gray-300"
-                          )}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setSelectedColor(color)}
-                        />
-                      )
+                    {COLORS[
+                      selectedTool === "highlight" || selectedTool === "comment" ? "highlight" : "draw"
+                    ].map((color) => (
+                      <button
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded border-2",
+                          selectedColor === color ? "border-gray-800" : "border-gray-300"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => {
+                          setSelectedColor(color);
+                          setRecentColors((prev) => {
+                            const next = [color, ...prev.filter((c) => c !== color)];
+                            return next.slice(0, 5);
+                          });
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={selectedColor}
+                      onChange={(e) => {
+                        const color = e.target.value;
+                        setSelectedColor(color);
+                        setRecentColors((prev) => {
+                          const next = [color, ...prev.filter((c) => c !== color)];
+                          return next.slice(0, 5);
+                        });
+                      }}
+                      className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
+                    />
+                    {recentColors.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {recentColors.map((color) => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-6 h-6 rounded border-2",
+                              selectedColor === color ? "border-gray-800" : "border-gray-300"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setSelectedColor(color)}
+                            title={color}
+                          />
+                        ))}
+                      </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {selectedTool === "eraser" && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium mb-2 block">Eraser Size</label>
+                  <Slider
+                    min={8}
+                    max={72}
+                    step={4}
+                    value={[eraserSize]}
+                    onValueChange={([value]) => setEraserSize(value)}
+                  />
+                  <div className="text-xs text-gray-500">Current size: {eraserSize}px</div>
                 </div>
               )}
 
@@ -860,7 +1185,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => setSelectedTool(null)}
+                onClick={() => setSelectedTool("cursor")}
               >
                 Clear Selection
               </Button>
@@ -903,6 +1228,45 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Page navigation moved into sidebar for a simpler layout */}
+          <div className="mt-6 space-y-2 border-t pt-4">
+            <label className="text-sm font-medium block mb-1">Page Navigation</label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
+                disabled={pageNumber <= 1}
+                title="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Input
+                type="number"
+                min={1}
+                max={numPages || 1}
+                value={pageNumber}
+                onChange={(e) => {
+                  const page = parseInt(e.target.value);
+                  if (!Number.isNaN(page) && page >= 1 && page <= (numPages || 1)) {
+                    setPageNumber(page);
+                  }
+                }}
+                className="w-16 text-center"
+              />
+              <span className="text-xs text-gray-500">of {numPages || 0}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPageNumber((prev) => Math.min(numPages || 1, prev + 1))}
+                disabled={pageNumber >= (numPages || 1)}
+                title="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
           </div>
         )}
         
@@ -1056,47 +1420,37 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                 })}
             </Document>
           </div>
+
+          {/* Carousel-style navigation arrows beside the PDF page */}
+          {numPages && numPages > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPageNumber((prev) => Math.max(1, prev - 1));
+                }}
+                disabled={pageNumber <= 1}
+                className="hidden md:flex items-center justify-center absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 border border-gray-300 shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-5 w-5 text-gray-700" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPageNumber((prev) => Math.min(numPages || 1, prev + 1));
+                }}
+                disabled={pageNumber >= (numPages || 1)}
+                className="hidden md:flex items-center justify-center absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/90 border border-gray-300 shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-5 w-5 text-gray-700" />
+              </button>
+            </>
+          )}
         </div>
 
-        {/* Page Navigation - Floating - Aligned with Clear Selection button */}
-        <div className="absolute top-[430px] left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm border rounded-lg shadow-lg px-3 py-1.5 flex items-center gap-2 z-20">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
-            disabled={pageNumber <= 1}
-            className="flex items-center gap-1"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </Button>
-          <div className="flex items-center gap-2 px-3">
-            <Input
-              type="number"
-              min={1}
-              max={numPages || 1}
-              value={pageNumber}
-              onChange={(e) => {
-                const page = parseInt(e.target.value);
-                if (page >= 1 && page <= (numPages || 1)) {
-                  setPageNumber(page);
-                }
-              }}
-              className="w-16 text-center"
-            />
-            <span className="text-sm text-gray-600">of {numPages || 0}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPageNumber((prev) => Math.min(numPages || 1, prev + 1))}
-            disabled={pageNumber >= (numPages || 1)}
-            className="flex items-center gap-1"
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Removed floating page navigation in favor of sidebar navigation */}
       </div>
 
       {/* Comment Dialog */}

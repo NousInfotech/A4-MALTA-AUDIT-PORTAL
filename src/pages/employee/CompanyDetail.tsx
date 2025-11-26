@@ -385,8 +385,8 @@ export const CompanyDetail: React.FC = () => {
                 size="icon"
                 onClick={handleBackClick}
                 className="rounded-xl border-gray-200 hover:bg-gray-50"
-              >
-                <ArrowLeft className="h-4 w-4" />
+                >
+                  <ArrowLeft className="h-4 w-4 text-brand-body" />
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">

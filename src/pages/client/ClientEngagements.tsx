@@ -150,7 +150,7 @@ export const ClientEngagements = () => {
               className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl"
             >
               <Link to="/client">
-                <ArrowLeft className="h-5 w-5 mr-2" />
+                <ArrowLeft className="h-5 w-5 mr-2 text-brand-body" />
                 Back to Dashboard
               </Link>
             </Button>

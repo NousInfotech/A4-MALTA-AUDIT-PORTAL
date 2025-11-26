@@ -267,7 +267,7 @@ export const EngagementDetails = () => {
                 }
               }}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 text-brand-body" />
             </Button>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">

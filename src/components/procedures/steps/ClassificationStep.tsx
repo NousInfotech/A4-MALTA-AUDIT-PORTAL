@@ -331,7 +331,7 @@ export const ClassificationStep: React.FC<ClassificationStepProps> = ({
 
       <div className="flex items-end justify-end">
           {/* <Button variant="outline" onClick={onBack} className="flex items-center gap-2 bg-transparent">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 text-brand-body" />
             Back to Materiality
           </Button> */}
         <Button
