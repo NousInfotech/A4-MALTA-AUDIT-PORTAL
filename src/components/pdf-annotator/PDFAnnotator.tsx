@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument, rgb, PDFPage } from "pdf-lib";
 import {
@@ -161,6 +162,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   } | null>(null);
   const [eraserSize, setEraserSize] = useState<number>(24);
   const [recentColors, setRecentColors] = useState<string[]>([]);
+  const [isPortalReady, setIsPortalReady] = useState(false);
 
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
@@ -187,6 +189,11 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // Ensure document is available before creating portal
+  useEffect(() => {
+    setIsPortalReady(true);
   }, []);
 
   // Save annotations to localStorage
@@ -448,14 +455,21 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   const handleSaveText = () => {
     if (!drawStart || !textAnnotation.trim()) return;
 
+    // Calculate approximate width and height based on text content
+    // Estimate: ~10-12 characters per 100px width, ~20px per line
+    const lines = textAnnotation.split('\n');
+    const maxLineLength = Math.max(...lines.map(line => line.length));
+    const estimatedWidth = Math.min(Math.max(200, maxLineLength * 8), 400);
+    const estimatedHeight = Math.max(20, lines.length * 20);
+
     const textAnnotationObj: Annotation = {
       id: `text-${Date.now()}`,
       type: "text",
       page: pageNumber,
       x: drawStart.x,
       y: drawStart.y,
-      width: 100,
-      height: 20,
+      width: estimatedWidth,
+      height: estimatedHeight,
       color: selectedColor,
       content: textAnnotation,
       createdAt: new Date().toISOString(),
@@ -505,6 +519,46 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
         );
 
       case "comment":
+        const pageRefForComment = pageRefs.current.get(pageNum);
+        let commentStyle: React.CSSProperties = {
+          maxWidth: "400px",
+          minWidth: "200px",
+          wordWrap: "break-word",
+          overflowWrap: "break-word",
+          whiteSpace: "pre-wrap",
+        };
+
+        // Calculate available space to keep comment within PDF bounds
+        if (pageRefForComment) {
+          const pageWidth = pageRefForComment.offsetWidth;
+          const pageHeight = pageRefForComment.offsetHeight;
+          const availableRight = pageWidth - annotation.x;
+          const availableBottom = pageHeight - annotation.y;
+
+          // Adjust max width based on available space
+          if (availableRight < 400) {
+            commentStyle.maxWidth = `${Math.max(200, availableRight - 20)}px`;
+          }
+
+          // If not enough space below, show above the comment icon
+          if (availableBottom < 150 && annotation.y > 200) {
+            commentStyle.bottom = "28px";
+            commentStyle.top = "auto";
+          } else {
+            commentStyle.top = "28px";
+            commentStyle.bottom = "auto";
+          }
+
+          // If not enough space on right, align to left
+          if (availableRight < 250 && annotation.x > 250) {
+            commentStyle.right = "0";
+            commentStyle.left = "auto";
+          } else {
+            commentStyle.left = "0";
+            commentStyle.right = "auto";
+          }
+        }
+
         return (
           <div
             key={annotation.id}
@@ -528,15 +582,12 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
             </div>
             {selectedAnnotation?.id === annotation.id && (
               <div
-                className="absolute top-7 left-0 bg-white border rounded-lg p-3 shadow-lg max-w-sm z-20 overflow-hidden"
-                style={{
-                  // Keep the comment bubble within the visible PDF area
-                  maxWidth: "320px",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
+                className="absolute bg-white border rounded-lg p-3 shadow-lg z-20"
+                style={commentStyle}
               >
-                <p className="text-sm leading-snug">{annotation.content}</p>
+                <div className="text-xs leading-relaxed break-words whitespace-pre-wrap">
+                  {annotation.content}
+                </div>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -659,6 +710,8 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
         );
 
       case "text":
+        const pageRefForText = pageRefs.current.get(pageNum);
+        const maxWidth = pageRefForText ? pageRefForText.offsetWidth - annotation.x - 10 : 300;
         return (
           <div
             key={annotation.id}
@@ -666,6 +719,13 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
               ...style,
               color: annotation.color || COLORS.draw[0],
               cursor: "pointer",
+              maxWidth: `${Math.max(annotation.width || 200, Math.min(maxWidth, 400))}px`,
+              width: annotation.width ? `${annotation.width}px` : "auto",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+              whiteSpace: "pre-wrap",
+              lineHeight: "1.4",
+              fontSize: "11px",
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -871,7 +931,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
 
   const pageAnnotations = annotations.filter((ann) => ann.page === pageNumber);
 
-  return (
+  const annotatorContent = (
     <div className="fixed inset-0 z-40 flex flex-col bg-black/90">
       {/* Header */}
       <div className="flex items-center justify-between bg-white border-b px-4 py-3">
@@ -1468,10 +1528,10 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
             <DialogTitle>Add Comment</DialogTitle>
           </DialogHeader>
           <Textarea
-            placeholder="Enter your comment..."
+            placeholder="Enter your comment (supports multiple lines)..."
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            className="mt-4"
+            className="mt-4 min-h-[100px] resize-y"
             rows={4}
           />
           <div className="flex justify-end gap-2 mt-4">
@@ -1489,11 +1549,12 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
           <DialogHeader>
             <DialogTitle>Add Text</DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="Enter text..."
+          <Textarea
+            placeholder="Enter text (supports multiple lines)..."
             value={textAnnotation}
             onChange={(e) => setTextAnnotation(e.target.value)}
-            className="mt-4"
+            className="mt-4 min-h-[100px] resize-y"
+            rows={4}
           />
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setShowTextDialog(false)}>
@@ -1505,5 +1566,11 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
       </Dialog>
     </div>
   );
+
+  if (!isPortalReady) {
+    return null;
+  }
+
+  return createPortal(annotatorContent, document.body);
 };
 
