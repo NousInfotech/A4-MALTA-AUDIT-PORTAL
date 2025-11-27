@@ -26,6 +26,7 @@ export interface CreateCompanyPayload {
 }
 
 export interface UpdateCompanyPayload extends Partial<CreateCompanyPayload> {
+  clientId: string;
   representationalCompany?: Array<{
     companyId: string;
     role: string[];
@@ -126,6 +127,15 @@ export async function updateCompany(
 ) {
   const response = await axiosInstance.put(`${BASE_URL}/${clientId}/company/${companyId}`, payload);
   return response.data;
+}
+
+export async function updateCompanyClientId(clientId: string, companyId: string, payload: { clientId: string }) {
+  const response = await axiosInstance.put(`${BASE_URL}/${clientId}/company/${companyId}/primary`, payload);
+  
+  if (!response.data.success) {
+    throw new Error(response.data.message || "Failed to add company");
+  }
+  return response.data.data;
 }
 
 export async function deleteCompany(clientId: string, companyId: string) {

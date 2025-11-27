@@ -7,7 +7,7 @@ import { Building2, Plus, Edit, Trash2, Users, FileText, Search, Loader2 } from 
 import { useToast } from "@/hooks/use-toast";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { DeleteCompanyConfirmation } from "./DeleteCompanyConfirmation";
-import { fetchCompanies, deleteCompany } from "@/lib/api/company";
+import { fetchCompanies, deleteCompany, updateCompany, updateCompanyClientId } from "@/lib/api/company";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +78,8 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
   const [searchResults, setSearchResults] = useState<Array<{ _id: string; name: string; registrationNumber: string }>>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingCompany, setPendingCompany] = useState<{ _id: string; name: string; registrationNumber: string } | null>(null);
   const { toast } = useToast();
 
   const loadCompanies = async () => {
@@ -168,32 +180,22 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
     }
   };
 
-  const handleSelectCompany = async (company: { _id: string; name: string; registrationNumber: string }) => {
+  const handleCompanyClick = (company: { _id: string; name: string; registrationNumber: string }) => {
+    setPendingCompany(company);
+    setShowConfirmDialog(true);
+  };
+
+  const handleSelectCompany = async () => {
+    if (!pendingCompany) return;
+
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
 
       // Create a new company record linked to this client with the selected company's details
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${data.session?.access_token}`,
-          },
-          body: JSON.stringify({
-            name: company.name,
-            registrationNumber: company.registrationNumber,
-            // You can add more fields from the selected company if needed
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to add company");
-      }
+      const response = await updateCompanyClientId(clientId, pendingCompany._id, {
+        clientId: clientId,
+      });
 
       toast({
         title: "Success",
@@ -201,6 +203,8 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
       });
 
       setShowCompanyDialog(false);
+      setShowConfirmDialog(false);
+      setPendingCompany(null);
       setCompanySearch("");
       setSearchResults([]);
       setHasSearched(false);
@@ -447,7 +451,7 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
                     <button
                       key={company._id}
                       type="button"
-                      onClick={() => handleSelectCompany(company)}
+                      onClick={() => handleCompanyClick(company)}
                       className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
@@ -467,6 +471,34 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Company Selection Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Company Selection</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to add this company to the client?
+              {pendingCompany && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="font-medium text-gray-900">{pendingCompany.name}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Reg: {pendingCompany.registrationNumber}
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingCompany(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleSelectCompany}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

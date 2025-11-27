@@ -220,24 +220,35 @@ export const AddClient = () => {
     }
   };
 
-  // Handle company search with debounce
-  // useEffect(() => {
-  //   const timer = setTimeout(() => {
-  //     if (showCompanyDialog) {
-  //       searchCompanies(companySearch);
-  //     }
-  //   }, 300);
-
-  //   return () => clearTimeout(timer);
-  // }, [companySearch, showCompanyDialog]);
-
   const handleSelectCompany = (company: { _id: string; name: string; registrationNumber: string }) => {
     setFormData((prev) => ({
       ...prev,
       companyId: company._id,
       companyName: company.name,
       companyNumber: company.registrationNumber,
+      isCreateCompany: true,
       isNewCompany: false,
+    }));
+    setShowCompanyDialog(false);
+    setCompanySearch("");
+  };
+
+  const handleDeselectCompany = () => {
+    setFormData((prev) => ({
+      ...prev,
+      isCreateCompany: false,
+      isNewCompany: true,
+      companyId: "",
+      // Note: We don't clear companyName/companyNumber here as they are form fields
+      // that the user may have entered. They will use the values from the form above.
+      // Reset company creation specific fields
+      shareClassValues: getDefaultShareClassValues(),
+      useClassShares: false,
+      visibleShareClasses: [],
+      sharesData: [],
+      selectedRoles: [],
+      address: "",
+      nationality: "",
     }));
     setShowCompanyDialog(false);
     setCompanySearch("");
@@ -807,42 +818,78 @@ export const AddClient = () => {
                       Company Record
                     </Label>
                     <p className="text-sm text-gray-500">
-                      Choose to create a new company record or link to an existing one
+                      {formData.isCreateCompany 
+                        ? "One client can only be associated with one company. You can deselect to choose a different company."
+                        : "Choose to create a new company record or link to an existing one"}
                     </p>
                   </div>
-                  <div className="flex gap-4">
-                    <Button
-                      type="button"
-                      variant={formData.isCreateCompany && formData.isNewCompany ? "default" : "outline"}
-                      onClick={() => {
-                        handleChange("isCreateCompany", true);
-                        handleChange("isNewCompany", true);
-                        handleChange("companyId", "");
-                      }}
-                      className="flex-1"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create New Company
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={formData.isCreateCompany && !formData.isNewCompany ? "default" : "outline"}
-                      onClick={() => {
-                        handleChange("isCreateCompany", true);
-                        handleChange("isNewCompany", false);
-                        setShowCompanyDialog(true);
-                      }}
-                      className="flex-1"
-                    >
-                      <Search className="h-4 w-4 mr-2" />
-                      Add Existing Company
-                    </Button>
-                  </div>
+                  {!formData.isCreateCompany && (
+                    <div className="flex gap-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          handleChange("isCreateCompany", true);
+                          handleChange("isNewCompany", true);
+                          handleChange("companyId", "");
+                        }}
+                        className="flex-1"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Company
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowCompanyDialog(true);
+                        }}
+                        className="flex-1"
+                      >
+                        <Search className="h-4 w-4 mr-2" />
+                        Add Existing Company
+                      </Button>
+                    </div>
+                  )}
+                  {formData.isCreateCompany && formData.isNewCompany && (
+                    <div className="p-3 bg-white rounded-lg border border-gray-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-700">Creating New Company</p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            A new company record will be created using the company details entered above.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDeselectCompany}
+                          className="ml-2 text-gray-500 hover:text-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {formData.isCreateCompany && !formData.isNewCompany && formData.companyId && (
                     <div className="p-3 bg-white rounded-lg border border-gray-200">
-                      <p className="text-sm font-medium text-gray-700">Selected Company:</p>
-                      <p className="text-sm text-gray-600">{formData.companyName}</p>
-                      <p className="text-xs text-gray-500">Reg: {formData.companyNumber}</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-700">Selected Company:</p>
+                          <p className="text-sm text-gray-600">{formData.companyName}</p>
+                          <p className="text-xs text-gray-500">Reg: {formData.companyNumber}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDeselectCompany}
+                          className="ml-2 text-gray-500 hover:text-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
