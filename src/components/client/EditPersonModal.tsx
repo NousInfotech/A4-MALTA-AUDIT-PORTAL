@@ -860,36 +860,7 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
             )}
           </div>
 
-          {shouldShowRolesSection && (
-            <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Roles</Label>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                {availableRoles.map((role) => (
-                  <div key={role} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`role-${role}`}
-                      checked={formData.roles.includes(role)}
-                      onCheckedChange={(checked) =>
-                        handleRoleChange(role, checked === true)
-                      }
-                      className="rounded"
-                    />
-                    <Label
-                      htmlFor={`role-${role}`}
-                      className="text-sm font-normal cursor-pointer"
-                    >
-                      {role.replace(/([A-Z])/g, " $1").trim()}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              {fieldErrors.roles && (
-                <p className="text-sm text-red-500 mt-1">{fieldErrors.roles}</p>
-              )}
-            </div>
-          )}
-
-          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700 font-semibold">
                 Email
@@ -923,7 +894,40 @@ export const EditPersonModal: React.FC<EditPersonModalProps> = ({
                 className="rounded-xl border-gray-200"
               />
             </div>
-          </div> */}
+          </div>
+
+          {shouldShowRolesSection && (
+            <div className="space-y-2">
+              <Label className="text-gray-700 font-semibold">Roles</Label>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                {availableRoles.map((role) => (
+                  <div key={role} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`role-${role}`}
+                      checked={formData.roles.includes(role)}
+                      onCheckedChange={(checked) =>
+                        handleRoleChange(role, checked === true)
+                      }
+                      className="rounded"
+                    />
+                    <Label
+                      htmlFor={`role-${role}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {role.replace(/([A-Z])/g, " $1").trim()}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {fieldErrors.roles && (
+                <p className="text-sm text-red-500 mt-1">{fieldErrors.roles}</p>
+              )}
+            </div>
+          )}
+
+
+
+        
 
           {/* Shares - Show shares by class for shareholders */}
           {(!isShareholdingCompanyPerson && (isShareholderContext || hasShareholderRole)) && (

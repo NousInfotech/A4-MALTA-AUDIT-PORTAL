@@ -202,7 +202,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
   const totalSharesSum = calculateTotalSharesSum(shareClassValues, useClassShares);
 
   const { toast } = useToast();
-
+  const isShareholdersAvailable = company.shareHoldingCompanies.length > 0 || company.shareHolders.length > 0;
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -270,7 +270,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       }));
     } else {
       setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
-      
+
       // Reset the inactive mode when entering a value
       if (key === "ordinary") {
         // If entering Ordinary, reset A, B, C
@@ -335,9 +335,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       registrationNumber: formData.registrationNumber.trim() ? "" : "Registration number is required",
       address: formData.address.trim() ? "" : "Address is required",
     };
-    
+
     setErrors(newErrors);
-    
+
     // Validate total shares using the calculated sum
     const currentTotalSum = calculateTotalSharesSum(shareClassValues, useClassShares);
     let sharesError = "";
@@ -345,12 +345,12 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       sharesError = "Enter at least one share amount greater than 0";
     }
     setTotalSharesError(sharesError);
-    
+
     const nameValid = !!formData.name.trim();
     const registrationNumberValid = !!formData.registrationNumber.trim();
     const addressValid = !!formData.address.trim();
     const totalSharesValid = !sharesError && currentTotalSum > 0;
-    
+
     return nameValid && registrationNumberValid && addressValid && totalSharesValid;
   };
 
@@ -359,11 +359,11 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       const companyIndustry = company.industry || "";
       const isPresetIndustry =
         companyIndustry && industryOptions.includes(companyIndustry);
-      
+
       // Parse totalShares array from backend
-      const { values: parsedShareValues, useClassShares: parsedUseClassShares } = 
+      const { values: parsedShareValues, useClassShares: parsedUseClassShares } =
         parseTotalSharesArray(company.totalShares);
-      
+
       setFormData({
         name: company.name || "",
         registrationNumber: company.registrationNumber || "",
@@ -376,12 +376,12 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         industry: isPresetIndustry
           ? companyIndustry
           : companyIndustry
-          ? "Other"
-          : "",
+            ? "Other"
+            : "",
         customIndustry: isPresetIndustry ? "" : companyIndustry || "",
         description: company.description || "",
       });
-      
+
       // Set share class values and mode
       setShareClassValues(parsedShareValues);
       setUseClassShares(parsedUseClassShares);
@@ -390,7 +390,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       } else {
         setVisibleShareClasses([]);
       }
-      
+
       // Validate totalShares on load
       const totalSum = calculateTotalSharesSum(parsedShareValues, parsedUseClassShares);
       if (totalSum <= 0) {
@@ -398,10 +398,10 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       } else {
         setTotalSharesError("");
       }
-      
+
       setSupportingDocuments(company.supportingDocuments || []);
       setShareHoldingCompanies(company.shareHoldingCompanies || []);
-      
+
       // Reset errors when company data is loaded
       setErrors({
         name: "",
@@ -413,7 +413,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate all fields before submitting
     if (!validateAllFields()) {
       toast({
@@ -423,7 +423,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       });
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
@@ -447,8 +447,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       };
 
       const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${
-          company._id
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${company._id
         }`,
         {
           method: "PUT",
@@ -507,9 +506,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                   validateField("name", e.target.value);
                 }}
                 onBlur={(e) => validateField("name", e.target.value)}
-                className={`rounded-xl border-gray-200 ${
-                  errors.name ? "border-red-500" : ""
-                }`}
+                className={`rounded-xl border-gray-200 ${errors.name ? "border-red-500" : ""
+                  }`}
               />
               {errors.name && (
                 <p className="text-sm text-red-500 mt-1">{errors.name}</p>
@@ -535,9 +533,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                   validateField("registrationNumber", e.target.value);
                 }}
                 onBlur={(e) => validateField("registrationNumber", e.target.value)}
-                className={`rounded-xl border-gray-200 ${
-                  errors.registrationNumber ? "border-red-500" : ""
-                }`}
+                className={`rounded-xl border-gray-200 ${errors.registrationNumber ? "border-red-500" : ""
+                  }`}
               />
               {errors.registrationNumber && (
                 <p className="text-sm text-red-500 mt-1">{errors.registrationNumber}</p>
@@ -558,9 +555,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 validateField("address", e.target.value);
               }}
               onBlur={(e) => validateField("address", e.target.value)}
-              className={`rounded-xl border-gray-200 ${
-                errors.address ? "border-red-500" : ""
-              }`}
+              className={`rounded-xl border-gray-200 ${errors.address ? "border-red-500" : ""
+                }`}
               rows={3}
             />
             {errors.address && (
@@ -608,45 +604,45 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
             </div>
 
             <div className="space-y-3">
-            <Label htmlFor="industry" className="text-gray-700 font-semibold">
-              Industry
-            </Label>
-            <Select
-              value={formData.industry}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  industry: value,
-                  customIndustry: value === "Other" ? prev.customIndustry : "",
-                }))
-              }
-            >
-              <SelectTrigger
-                id="industry"
-                className="rounded-xl border-gray-200 text-left"
-              >
-                <SelectValue placeholder="Select an industry" />
-              </SelectTrigger>
-              <SelectContent>
-                {industryOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {formData.industry === "Other" && (
-              <Input
-                id="customIndustry"
-                placeholder="Enter custom industry"
-                value={formData.customIndustry}
-                onChange={(e) =>
-                  setFormData({ ...formData, customIndustry: e.target.value })
+              <Label htmlFor="industry" className="text-gray-700 font-semibold">
+                Industry
+              </Label>
+              <Select
+                value={formData.industry}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    industry: value,
+                    customIndustry: value === "Other" ? prev.customIndustry : "",
+                  }))
                 }
-                className="rounded-xl border-gray-200"
-              />
-            )}
-          </div>
+              >
+                <SelectTrigger
+                  id="industry"
+                  className="rounded-xl border-gray-200 text-left"
+                >
+                  <SelectValue placeholder="Select an industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {industryOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.industry === "Other" && (
+                <Input
+                  id="customIndustry"
+                  placeholder="Enter custom industry"
+                  value={formData.customIndustry}
+                  onChange={(e) =>
+                    setFormData({ ...formData, customIndustry: e.target.value })
+                  }
+                  className="rounded-xl border-gray-200"
+                />
+              )}
+            </div>
 
           </div>
           {/* 
@@ -664,50 +660,52 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               className="rounded-xl border-gray-200"
             />
           </div> */}
-         <div className="space-y-2">
-  <div className="flex items-center justify-between">
-    <Label className="text-gray-700 font-semibold">
-      Total Shares
-    </Label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-gray-700 font-semibold">
+                Total Shares
+              </Label>
 
-    <div className="flex items-center gap-4">
-      <span className="text-sm text-gray-600">
-        Total: {totalSharesSum.toLocaleString()}
-      </span>
-      {/* <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600">Share Classes</span>
-        <Switch
-          checked={useClassShares}
-          onCheckedChange={(checked) => {
-            setUseClassShares(checked);
-            setVisibleShareClasses([]);
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">
+                  Total: {totalSharesSum.toLocaleString()}
+                </span>
+                {!isShareholdersAvailable && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Share Classes</span>
+                    <Switch
+                      checked={useClassShares}
+                      onCheckedChange={(checked) => {
+                        setUseClassShares(checked);
+                        setVisibleShareClasses([]);
 
-            if (!checked) {
-              // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
-              setShareClassValues((prev) => ({
-                classA: 0,
-                classB: 0,
-                classC: 0,
-                ordinary: prev.ordinary || 100,
-              }));
-              setShareClassErrors(getDefaultShareClassErrors());
-            } else {
-              // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
-              setShareClassValues((prev) => ({
-                classA: prev.classA || 0,
-                classB: prev.classB || 0,
-                classC: prev.classC || 0,
-                ordinary: 0,
-              }));
-              setShareClassErrors(getDefaultShareClassErrors());
-              // Enable all share classes when turned ON
-              setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
-            }
-          }}
-        />
-      </div> */}
-    </div>
-  </div>
+                        if (!checked) {
+                          // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
+                          setShareClassValues((prev) => ({
+                            classA: 0,
+                            classB: 0,
+                            classC: 0,
+                            ordinary: prev.ordinary || 100,
+                          }));
+                          setShareClassErrors(getDefaultShareClassErrors());
+                        } else {
+                          // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
+                          setShareClassValues((prev) => ({
+                            classA: prev.classA || 0,
+                            classB: prev.classB || 0,
+                            classC: prev.classC || 0,
+                            ordinary: 0,
+                          }));
+                          setShareClassErrors(getDefaultShareClassErrors());
+                          // Enable all share classes when turned ON
+                          setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Dynamic Share Class Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SHARE_CLASS_CONFIG.map(({ key, label }) => {
@@ -748,9 +746,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                       onBlur={(e) =>
                         handleShareValueBlur(key, label, e.target.value)
                       }
-                      className={`rounded-xl border-gray-200 ${
-                        error ? "border-red-500" : ""
-                      }`}
+                      className={`rounded-xl border-gray-200 ${error ? "border-red-500" : ""
+                        }`}
                     />
                     {error && (
                       <p className="text-sm text-red-500 mt-1">{error}</p>
@@ -769,7 +766,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               htmlFor="description"
               className="text-gray-700 font-semibold"
             >
-             Company Summary
+              Company Summary
             </Label>
             <Textarea
               id="description"

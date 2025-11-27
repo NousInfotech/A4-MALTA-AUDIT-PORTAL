@@ -161,6 +161,36 @@ export const PersonList: React.FC<PersonListProps> = ({
 
   const apiCompany = null;
 
+  const openEditCompanyShare = (share: any) => {
+    setEditingCompanyShare(share);
+    setIsEditCompanyShareOpen(true);
+  
+    const values: ShareValues = {
+      sharesA: "",
+      sharesB: "",
+      sharesC: "",
+      sharesOrdinary: "",
+    };
+  
+    // Fill from existing sharesData
+    if (Array.isArray(share.sharesData)) {
+      share.sharesData.forEach((sd: any) => {
+        const shareClass = sd.shareClass || sd.class;
+        const totalShares = String(sd.totalShares || "");
+  
+        if (shareClass === "A") values.sharesA = totalShares;
+        if (shareClass === "B") values.sharesB = totalShares;
+        if (shareClass === "C") values.sharesC = totalShares;
+        if (shareClass === "Ordinary") values.sharesOrdinary = totalShares;
+      });
+    }
+  
+    setEditingShareValues(values);
+    setEditingShareError("");
+    setEditingShareValidationError(null);
+  };
+  
+
   const fetchPersons = async () => {
     try {
       setIsLoading(true);
@@ -771,35 +801,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   };
 
   // Handle edit company shareholder
-  const handleEditCompanyShare = async (share: any) => {
-    setEditingCompanyShare(share);
-    
-    // Initialize share values from sharesData - show current values
-    const sharesByClass: Record<string, number> = { A: 0, B: 0, C: 0, Ordinary: 0 };
-    
-    if (Array.isArray(share.sharesData)) {
-      share.sharesData.forEach((sd: any) => {
-        const shareClass = sd.shareClass || sd.class || "A";
-        const shareCount = Number(sd.totalShares) || 0;
-        if (shareClass in sharesByClass) {
-          sharesByClass[shareClass] += shareCount;
-        } else if (shareClass === "Ordinary") {
-          sharesByClass.Ordinary += shareCount;
-        }
-      });
-    }
-    
-    // Show current values - always convert to string for display
-    setEditingShareValues({
-      sharesA: sharesByClass.A.toString(),
-      sharesB: sharesByClass.B.toString(),
-      sharesC: sharesByClass.C.toString(),
-      sharesOrdinary: sharesByClass.Ordinary.toString(),
-    });
-    
-    setEditingShareError("");
-    setIsEditCompanyShareOpen(true);
-  };
+ 
 
   // Handle share change from EditShares component
   const handleCompanyShareChange = (shareClass: "A" | "B" | "C" | "Ordinary", value: string) => {
@@ -1047,6 +1049,15 @@ export const PersonList: React.FC<PersonListProps> = ({
         return shareCompanyId?.toString() !== deleteCompanyId?.toString();
       });
 
+      // Also remove from representatives if it exists there
+      const currentCompany = company || {};
+      const updatedRepresentationalCompany = (currentCompany.representationalCompany || []).filter(
+        (rc: any) => {
+          const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
+          return String(rcId) !== String(deleteCompanyId);
+        }
+      );
+
       const response = await fetch(
         `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
         {
@@ -1058,6 +1069,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           body: JSON.stringify({
             ...company,
             shareHoldingCompanies: updatedShareholdings,
+            representationalCompany: updatedRepresentationalCompany,
           }),
         }
       );
@@ -2925,7 +2937,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                           <div
                             className="flex-1 cursor-pointer"
                             onClick={() =>
-                              handleNavigateToCompany(entry.companyId, entry.clientId)
+                              handleNavigateToCompany(entry.companyId)
                             }
                           >
                             <div className="flex items-center gap-3 mb-3">
@@ -2977,11 +2989,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Find the company share object
-                                const companyShare = shareholdingCompanies.find(
-                                  (cs: any) => String(cs.companyId) === String(entry.companyId)
-                                );
-                                if (companyShare) handleEditCompanyShare(companyShare);
+                                openEditCompanyShare(entry);
                               }}
                               className="rounded-xl hover:bg-gray-100"
                             >

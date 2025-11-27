@@ -1573,7 +1573,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                 className="rounded-lg"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add More Entity
+                Add More {entityType === "person" ? "Person" : "Company"} Shareholders
               </Button>
             </div>
 
@@ -1803,7 +1803,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <Label className="text-sm font-semibold">
-                            Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
+                            Shares {getAvailableShareClasses().length > 1 && "(at least one required)" } <span className="text-red-500">*</span>
                           </Label>
                         </div>
                         {shareValidationErrors.global && (

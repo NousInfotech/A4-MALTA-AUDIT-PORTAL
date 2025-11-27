@@ -59,7 +59,7 @@ const getDefaultShareClassValues = (): ShareClassValues => ({
   classA: 0,
   classB: 0,
   classC: 0,
-  ordinary: 100,
+  ordinary: 0,
 });
 
 const getDefaultShareClassErrors = (): ShareClassErrors => ({
@@ -405,6 +405,9 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         const result = await response.json();
         const directPersons = result.data || [];
         
+        console.log(company);
+        
+        
         // Add source company info to direct persons (parent company)
         const directPersonsWithSource = directPersons.map((person: any) => ({
           ...person,
@@ -525,13 +528,33 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         });
         
         const allPersons = Array.from(personsMap.values());
-        
+        const shareHolders = company.data.shareHolders.map((shareholder: any) => 
+          shareholder.personId
+        );
         const filteredPersons = allPersons.filter((person: any) => {
           const personId = person._id || person.id;
           return !existingRepresentativeIds.has(String(personId));
         });
-        
-        setExistingEntities(filteredPersons);
+       // Add sourceCompany to shareholders
+const enrichedShareHolders = shareHolders.map((person: any) => ({
+  ...person,
+  sourceCompany: {
+    name: company.data.name,
+    id: company.data._id || company.data.id
+  }
+}));
+
+// Just merge both arrays (10 + 2 = 12)
+const mergedPersons = [
+  ...filteredPersons,
+  ...enrichedShareHolders
+];
+
+console.log(mergedPersons);
+
+         
+         
+        setExistingEntities(mergedPersons);
       } else {
         // Companies mode
         const shareHoldingCompanies = companyData.shareHoldingCompanies || [];
@@ -540,7 +563,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         const filteredCompanies = shareHoldingCompanies.filter((item: any) => {
           const comp = item.companyId;
           const cId = String(comp._id || comp.id);
-          return !existingRepresentativeIds.has(cId);
+          return existingRepresentativeIds.has(cId);
         });
         
         const availableCompanies = filteredCompanies.map((item: any) => {
@@ -878,9 +901,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             entity.shareClassValues,
             entity.useClassShares || false
           );
-          if (totalSum <= 0) {
-            return `Please enter at least one share amount greater than 0 for ${entity.name || `new company #${i + 1}`}`;
-          }
+        
         }
       }
       if (!entity.address.trim()) {
@@ -1793,7 +1814,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                 className="rounded-xl"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add More {entityType === "person" ? "Person" : "Company"}
+                Add More Representative {entityType === "person" ? "Person" : "Company"}
               </Button>
             </div>
 
