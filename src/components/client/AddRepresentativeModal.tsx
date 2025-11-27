@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Building2, Plus, X, ChevronDown, ChevronUp, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ import {
   searchPersonsGlobal,
 } from "@/lib/api/company";
 import { fetchCompanies } from "@/lib/api/company";
+import { fetchCompanyById } from "@/lib/api/company";
 
 const SHARE_CLASS_CONFIG = [
   { key: "classA", label: "Class A", backendValue: "A" },
@@ -113,6 +115,7 @@ interface AddRepresentativeModalProps {
   onSuccess: () => void;
   clientId: string;
   companyId: string;
+  company: any;
   entityType: "person" | "company";
   inline?: boolean; // When true, renders without Dialog wrapper
 }
@@ -158,6 +161,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   onSuccess,
   clientId,
   companyId,
+  company,
   entityType,
   inline = false,
 }) => {
@@ -270,28 +274,35 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       // First, fetch the company to get existing representatives
-      const companyResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (!companyResponse.ok) throw new Error("Failed to fetch company");
-      const companyResult = await companyResponse.json();
-      const company = companyResult.data || {};
+      const company = await fetchCompanyById(clientId, companyId);
+      if (!company) throw new Error("Failed to fetch company");
 
       // Get IDs of existing representatives
       let existingRepresentativeIds = new Set<string>();
       
       if (entityType === "person") {
         // Get person IDs from representationalSchema
+        // IMPORTANT: We ONLY exclude persons that have NON-shareholder roles.
+        // Persons who are ONLY "Shareholder" should still appear in the
+        // existing persons list so they can be given board roles.
         const representationalSchema = company.representationalSchema || [];
         representationalSchema.forEach((rep: any) => {
           const personId = rep?.personId?._id || rep?.personId?.id || rep?.personId;
-          if (personId) {
+          const roles: string[] = Array.isArray(rep?.role)
+            ? rep.role
+            : rep?.role
+            ? [rep.role]
+            : [];
+
+          // Check if this representative has at least one role
+          // other than "Shareholder"
+          const hasNonShareholderRole = roles.some(
+            (r) => r && r.toLowerCase() !== "shareholder"
+          );
+
+          // Only exclude from the "Existing Person" list if they already
+          // have a non-shareholder role (e.g. Director, Secretary, etc.)
+          if (personId && hasNonShareholderRole) {
             existingRepresentativeIds.add(String(personId));
           }
         });
@@ -307,6 +318,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       }
 
       if (entityType === "person") {
+        // Fetch direct persons from the current company
         const response = await fetch(
           `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person`,
           {
@@ -318,7 +330,92 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
 
         if (!response.ok) throw new Error("Failed to fetch persons");
         const result = await response.json();
-        const allPersons = result.data || [];
+        const directPersons = result.data || [];
+        
+        // Add source company info to direct persons (parent company)
+        const directPersonsWithSource = directPersons.map((person: any) => ({
+          ...person,
+          sourceCompany: {
+            id: companyId,
+            name: company.name || "Parent Company",
+          },
+        }));
+        
+        // Also fetch persons from shareholding companies
+        const shareHoldingCompanies = company.shareHoldingCompanies || [];
+        const allPersonsFromShareholdingCompanies: any[] = [];
+        
+        // Fetch persons from each shareholding company
+        for (const shareholdingCompany of shareHoldingCompanies) {
+          const shareholdingCompanyId = shareholdingCompany?.companyId?._id || 
+                                       shareholdingCompany?.companyId?.id || 
+                                       shareholdingCompany?.companyId;
+          const shareholdingCompanyName = shareholdingCompany?.companyId?.name || 
+                                         shareholdingCompany?.name || 
+                                         "Unknown Company";
+          
+          if (!shareholdingCompanyId) continue;
+          
+          try {
+            const shareholdingResponse = await fetch(
+              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareholdingCompanyId}/person`,
+              {
+                headers: {
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+              }
+            );
+            
+            if (shareholdingResponse.ok) {
+              const shareholdingResult = await shareholdingResponse.json();
+              const shareholdingPersons = shareholdingResult.data || [];
+              // Add source company info to each person from shareholding company
+              const shareholdingPersonsWithSource = shareholdingPersons.map((person: any) => ({
+                ...person,
+                sourceCompany: {
+                  id: shareholdingCompanyId,
+                  name: shareholdingCompanyName,
+                },
+              }));
+              allPersonsFromShareholdingCompanies.push(...shareholdingPersonsWithSource);
+            }
+          } catch (error) {
+            console.error(`Error fetching persons from shareholding company ${shareholdingCompanyId}:`, error);
+            // Continue with other companies even if one fails
+          }
+        }
+        
+        // Combine direct persons and persons from shareholding companies
+        // Use a Map to deduplicate by person ID
+        const personsMap = new Map<string, any>();
+        
+        // Add direct persons first
+        directPersonsWithSource.forEach((person: any) => {
+          const personId = String(person._id || person.id);
+          if (personId) {
+            personsMap.set(personId, person);
+          }
+        });
+        
+        // Add persons from shareholding companies (will overwrite if duplicate, which is fine)
+        allPersonsFromShareholdingCompanies.forEach((person: any) => {
+          const personId = String(person._id || person.id);
+          if (personId) {
+            // If person already exists, keep the one with more specific source (shareholding company)
+            // or merge source companies if needed
+            const existing = personsMap.get(personId);
+            if (existing) {
+              // If person exists in both, prefer the shareholding company source
+              // or we could track multiple sources, but for simplicity, keep shareholding company
+              personsMap.set(personId, person);
+            } else {
+              personsMap.set(personId, person);
+            }
+          }
+        });
+        
+        // Convert map back to array
+        const allPersons = Array.from(personsMap.values());
         
         // Filter out persons that are already representatives
         const filteredPersons = allPersons.filter((person: any) => {
@@ -327,18 +424,37 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         });
         
         setExistingEntities(filteredPersons);
-      } else {
-        const result = await fetchCompanies(clientId);
-        const allCompanies = result.data || [];
+      }else {
+        const shareHoldingCompanies = company.data.shareHoldingCompanies || [];
+        const representationalCompanies = company.data.representationalCompany || [];
         
-        // Filter out the current company and companies that are already representatives
-        const filteredCompanies = allCompanies.filter((c: any) => {
-          const cId = c._id || c.id;
-          return cId !== companyId && !existingRepresentativeIds.has(String(cId));
+        console.log(representationalCompanies);
+        console.log(shareHoldingCompanies);
+        // Create a Set of existing representative company IDs
+        const existingRepresentativeIds = new Set(
+          representationalCompanies.map((rep: any) => {
+            const comp = rep.companyId;
+            return String(comp._id || comp.id);
+          })
+        );
+        console.log(existingRepresentativeIds);
+        
+      
+        // Extract and filter companyIds that are not already representatives
+        const filteredCompanies = shareHoldingCompanies.filter((item: any) => {
+          const comp = item.companyId;
+          const cId = String(comp._id || comp.id);
+          
+          return existingRepresentativeIds.has(cId);
         });
-        
-        setExistingEntities(filteredCompanies);
+        const availableCompanies = filteredCompanies.map((item: any) => {
+          return item.companyId
+      })
+    
+      setExistingEntities(availableCompanies);
+      
       }
+      
     } catch (error) {
       console.error("Error fetching entities:", error);
       toast({
@@ -959,6 +1075,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                 <p className="text-xs text-gray-400">{entity.nationality}</p>
                               )}
                             </div>
+                            {entityType === "person" && entity.sourceCompany && (
+                              <Badge variant="outline" className="text-xs">
+                                {entity.sourceCompany.name}
+                              </Badge>
+                            )}
                             {isSelected && (
                               <Button
                                 variant="ghost"
@@ -1081,6 +1202,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                   </p>
                                 )}
                               </div>
+                              {entityType === "person" && entity.sourceCompany && (
+                                <Badge variant="outline" className="text-xs">
+                                  {entity.sourceCompany.name}
+                                </Badge>
+                              )}
                               {isSelected && (
                                 <Button
                                   variant="ghost"
@@ -1155,9 +1281,9 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               </Button>
             </div>
 
- 
+            <div className={`grid gap-4 ${newEntities.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {newEntities.map((entity, index) => (
-                <Card key={index} className="relative">
+                <Card key={index} className="relative min-w-[300px]">
                   <CardContent className="p-4 space-y-4">
                     {newEntities.length > 1 && (
                       <Button
@@ -1427,7 +1553,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                 </Card>
               ))}
             </div>
-        
+          </div>
           )}
         </div>
 

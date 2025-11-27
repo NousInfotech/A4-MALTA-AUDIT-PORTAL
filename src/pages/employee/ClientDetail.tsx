@@ -160,13 +160,13 @@ export const ClientDetail: React.FC = () => {
           <div className="flex items-end justify-between gap-4">
             <div className="flex items-center gap-4 mb-6">
               <Button
-                variant="outline"
+                variant="default"
                 size="icon"
                 asChild
-                className="rounded-xl border-gray-200 hover:bg-gray-50"
+                className="rounded-xl"
               >
                 <Link to="/employee/clients">
-                  <ArrowLeft className="h-4 w-4 text-brand-body" />
+                  <ArrowLeft className="h-4 w-4 text-brand-body" color="white"/>
                 </Link>
               </Button>
               <div className="flex items-center gap-3">
@@ -267,7 +267,7 @@ export const ClientDetail: React.FC = () => {
                     <img
                       src="/logo.png"
                       alt="Logo"
-                      className="h-10 w-10 object-cover rounded"
+                      className="h-10 w-10 object-cover rounded "
                     />
                   </div>
                   <div>

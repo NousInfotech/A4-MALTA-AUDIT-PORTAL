@@ -50,6 +50,8 @@ interface Company {
     class: string;
     type: string;
   }>;
+  description?: string;
+  companyStartedAt?: string;
   persons?: Person[];
   supportingDocuments?: string[];
   timelineStart?: string;
@@ -391,12 +393,12 @@ export const CompanyDetail: React.FC = () => {
           <div className="flex items-end justify-between gap-4">
             <div className="flex items-center gap-4 mb-6">
               <Button
-                variant="outline"
+                variant="default"
                 size="icon"
                 onClick={handleBackClick}
-                className="rounded-xl border-gray-200 hover:bg-gray-50"
-                >
-                  <ArrowLeft className="h-4 w-4 text-brand-body" />
+                className="rounded-xl"
+              >
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -492,6 +494,25 @@ export const CompanyDetail: React.FC = () => {
                   </div>
                 </div>
               )}
+              {company.companyStartedAt && (
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
+                  <Calendar className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Company Started At</p>
+                    <p className="text-gray-900">{new Date(company.companyStartedAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              )}
+
+              {company.description && (
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
+                  <FileText className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Description</p>
+                    <p className="text-gray-900">{company.description}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
               {highestShareholders.length > 0 && (
@@ -510,7 +531,7 @@ export const CompanyDetail: React.FC = () => {
                             <span className="text-xs text-blue-600 ml-1">
                               ({rep.type === "company" ? "Company" : "Person"})
                             </span>{" "}
-                            ({rep.percentage}%)
+                            ({rep.percentage.toFixed(2)}%)
                           </p>
                         ))}
                       </div>

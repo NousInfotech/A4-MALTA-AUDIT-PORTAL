@@ -21,7 +21,7 @@ import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
 import { ClassificationSection } from "./ClassificationSection";
 import { IncomeStatementSection } from "./IncomeStatementSection";
 import { BalanceSheetSection } from "./BalanceSheetSection";
-import { ExportDialog } from "./ExportDialog";
+import { ExportSection } from "./ExportSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
 
@@ -68,7 +68,6 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   const [selectedClassification, setSelectedClassification] =
     useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [showExportDialog, setShowExportDialog] = useState(false);
 
   // counts for special sections
   const [etbCount, setEtbCount] = useState(0);
@@ -532,9 +531,13 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     </Button>
 
                     <Button
-                      variant="outline"
+                      variant={
+                        selectedClassification === "Exports"
+                          ? "default"
+                          : "outline"
+                      }
                       className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setShowExportDialog(true)}
+                      onClick={() => setSelectedClassification("Exports")}
                     >
                       <span className="flex items-center gap-2">
                         <Download className="h-4 w-4" />
@@ -789,6 +792,11 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                     financialYearStart={engagement?.financialYearStart}
                     financialYearEnd={engagement?.financialYearEnd}
                   />
+                ) : selectedClassification === "Exports" ? (
+                  <ExportSection
+                    engagement={engagement}
+                    onClose={() => setSelectedClassification("")}
+                  />
                 ) : selectedClassification ? (
                   <ClassificationSection
                     engagement={engagement}
@@ -808,7 +816,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       <p className="text-gray-500">
                         Pick <strong>Extended Trial Balance</strong>,{" "}
                         <strong>Adjustments</strong>, <strong>Reclassifications</strong>,{" "}
-                        <strong>Income Statement</strong>, <strong>Balance Sheet</strong>, or any classification from
+                        <strong>Income Statement</strong>, <strong>Balance Sheet</strong>, <strong>Exports</strong>, or any classification from
                         the sidebar.
                       </p>
                     </div>
@@ -819,13 +827,6 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Export Dialog */}
-      <ExportDialog
-        open={showExportDialog}
-        onOpenChange={setShowExportDialog}
-        engagement={engagement}
-      />
     </div>
   );
 };
