@@ -3,11 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Plus, Edit, Trash2, Users, FileText } from "lucide-react";
+import { Building2, Plus, Edit, Trash2, Users, FileText, Search, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { DeleteCompanyConfirmation } from "./DeleteCompanyConfirmation";
 import { fetchCompanies, deleteCompany } from "@/lib/api/company";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Person {
   _id: string;
@@ -53,6 +63,11 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ _id: string; name: string; registrationNumber: string }>>([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const { toast } = useToast();
 
   const loadCompanies = async () => {
@@ -114,6 +129,92 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
     navigate(`/employee/clients/${clientId}/company/${company._id}`);
   };
 
+  // Search companies
+  const searchCompanies = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsLoadingCompanies(true);
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/company/search/global?search=${encodeURIComponent(searchTerm)}&isNonPrimary=true`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session?.access_token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to search companies");
+
+      const res = await response.json();
+      if (res.success) {
+        setSearchResults(res.data || []);
+      }
+    } catch (err) {
+      console.error("Error searching companies:", err);
+      toast({
+        title: "Error",
+        description: "Failed to search companies",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingCompanies(false);
+    }
+  };
+
+  const handleSelectCompany = async (company: { _id: string; name: string; registrationNumber: string }) => {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+
+      // Create a new company record linked to this client with the selected company's details
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            name: company.name,
+            registrationNumber: company.registrationNumber,
+            // You can add more fields from the selected company if needed
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to add company");
+      }
+
+      toast({
+        title: "Success",
+        description: "Company added successfully",
+      });
+
+      setShowCompanyDialog(false);
+      setCompanySearch("");
+      setSearchResults([]);
+      setHasSearched(false);
+      loadCompanies();
+    } catch (err: any) {
+      console.error("Error adding company:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add company",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -138,13 +239,13 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
               </p>
             </div>
           </div>
-          <Button
+          {/* <Button
             onClick={() => setIsCreateModalOpen(true)}
             className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Company
-          </Button>
+          </Button> */}
         </div>
 
         {/* Companies Grid */}
@@ -246,13 +347,22 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
               <p className="text-gray-600 text-lg max-w-md mx-auto mb-6">
                 Get started by adding the first company for this client.
               </p>
-              <Button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Company
-              </Button>
+              <div className="flex items-center justify-center gap-4">
+                <Button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Company
+                </Button>
+                <Button
+                  onClick={() => setShowCompanyDialog(true)}
+                  className="bg-brand-hover hover:bg-brand-sidebar text-white border-0 shadow-lg hover:shadow-xl rounded-xl"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Add Existing Company
+                </Button>
+              </div>
             </div>
           </Card>
         )}
@@ -282,6 +392,81 @@ export const CompanyList: React.FC<CompanyListProps> = ({ clientId }) => {
         personCount={Array.isArray(companyToDelete?.shareHolders) ? companyToDelete.shareHolders.length : 0}
         isLoading={isDeleting}
       />
+
+      {/* Company Selection Dialog */}
+      <Dialog open={showCompanyDialog} onOpenChange={setShowCompanyDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Existing Company</DialogTitle>
+            <DialogDescription>
+              Search and select an existing company to link with this client
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="company-search">Search Companies</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="company-search"
+                  value={companySearch}
+                  onChange={(e) => {
+                    setCompanySearch(e.target.value);
+                    setHasSearched(false); // reset when typing
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setHasSearched(true);
+                      searchCompanies(companySearch);
+                    }
+                  }}
+                  placeholder="Type company name and press Enter..."
+                  className="pl-10 h-12"
+                />
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+              {isLoadingCompanies ? (
+                <div className="p-8 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                  <p className="text-sm text-gray-500 mt-2">Searching companies...</p>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm text-gray-500">
+                    {hasSearched
+                      ? "No companies found. Try a different search term."
+                      : "Start typing to search for companies"}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {searchResults.map((company) => (
+                    <button
+                      key={company._id}
+                      type="button"
+                      onClick={() => handleSelectCompany(company)}
+                      className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{company.name}</p>
+                          <p className="text-sm text-gray-500">
+                            Reg: {company.registrationNumber}
+                          </p>
+                        </div>
+                        <Building2 className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
