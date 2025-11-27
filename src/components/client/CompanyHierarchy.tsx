@@ -825,7 +825,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
         y += pageH - (margin * 2);
       }
 
-      pdf.save("company-hierarchy.pdf");
+      pdf.save(`${rootData?.name}-hierarchy.pdf`);
 
       
     } finally {
