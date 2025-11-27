@@ -125,6 +125,7 @@ export const AddClient = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { logCreateClient } = useActivityLogger();
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Fetch nationality options
   useEffect(() => {
@@ -220,15 +221,15 @@ export const AddClient = () => {
   };
 
   // Handle company search with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (showCompanyDialog) {
-        searchCompanies(companySearch);
-      }
-    }, 300);
+  // useEffect(() => {
+  //   const timer = setTimeout(() => {
+  //     if (showCompanyDialog) {
+  //       searchCompanies(companySearch);
+  //     }
+  //   }, 300);
 
-    return () => clearTimeout(timer);
-  }, [companySearch, showCompanyDialog]);
+  //   return () => clearTimeout(timer);
+  // }, [companySearch, showCompanyDialog]);
 
   const handleSelectCompany = (company: { _id: string; name: string; registrationNumber: string }) => {
     setFormData((prev) => ({
@@ -447,6 +448,21 @@ export const AddClient = () => {
       };
     });
   }, [formData.useClassShares, formData.shareClassValues.classA, formData.shareClassValues.classB, formData.shareClassValues.classC, formData.shareClassValues.ordinary]);
+
+  const isShareholderSelected = formData.selectedRoles.includes("Shareholder");
+
+  useEffect(() => {
+    if (!formData.selectedRoles.includes("Shareholder")) {
+      setFormData((prev) => ({
+        ...prev,
+        sharesData: [],
+        shareClassValues: getDefaultShareClassValues(),
+        useClassShares: false,
+        visibleShareClasses: [],
+      }));
+    }
+  }, [formData.selectedRoles]);
+  
 
   return (
     <div className="w-full bg-brand-body p-4 sm:p-6 box-border">
@@ -932,6 +948,7 @@ export const AddClient = () => {
                   </div>
 
                   {/* Share Data */}
+                  {isShareholderSelected && (
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
@@ -1107,6 +1124,7 @@ export const AddClient = () => {
                       </div>
                     </div>
                   </div>
+                )}
                 </>
               )}
 
@@ -1151,12 +1169,23 @@ export const AddClient = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  id="company-search"
-                  value={companySearch}
-                  onChange={(e) => setCompanySearch(e.target.value)}
-                  placeholder="Type company name to search..."
-                  className="pl-10 h-12"
+                id="company-search"
+                value={companySearch}
+                onChange={(e) => {
+                setCompanySearch(e.target.value);
+                setHasSearched(false); // reset when typing
+                }}
+                onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                e.preventDefault();
+                setHasSearched(true);
+                searchCompanies(companySearch);
+                }
+                }}
+                placeholder="Type company name and press Enter..."
+                className="pl-10 h-12"
                 />
+
               </div>
             </div>
 
@@ -1166,15 +1195,16 @@ export const AddClient = () => {
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
                   <p className="text-sm text-gray-500 mt-2">Searching companies...</p>
                 </div>
-              ) : companies.length === 0 ? (
-                <div className="p-8 text-center">
-                  <p className="text-sm text-gray-500">
-                    {companySearch.trim()
-                      ? "No companies found. Try a different search term."
-                      : "Start typing to search for companies"}
-                  </p>
-                </div>
-              ) : (
+           ) : companies.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-gray-500">
+                {hasSearched
+                  ? "No companies found. Try a different search term."
+                  : "Start typing to search for companies"}
+              </p>
+            </div>
+          )
+           : (
                 <div className="divide-y divide-gray-200">
                   {companies.map((company) => (
                     <button

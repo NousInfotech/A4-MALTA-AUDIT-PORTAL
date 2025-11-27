@@ -35,6 +35,23 @@ import {
   OPTIONAL_SHARE_CLASS_LABELS,
   DEFAULT_SHARE_TYPE,
 } from "./ShareClassInput";
+
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
+
 import {
   addShareHolderPersonNew,
   updateShareHolderPersonExisting,
@@ -79,6 +96,7 @@ interface NewEntityForm {
   // Company fields
   registrationNumber?: string;
   industry?: string;
+  customIndustry?: string;
   description?: string;
   companyStartedAt?: string;
   // Company's own totalShares (for new companies only) - uses share class logic
@@ -120,6 +138,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         shareClassValues: getDefaultShareClassValues(),
         useClassShares: false,
         visibleShareClasses: [],
+        industry: "",
+        customIndustry: "",
       }),
     },
   ]);
@@ -631,14 +651,15 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     setTimeout(() => validateShares(), 0);
   };
 
-  const handleNewEntityChange = (index: number, field: keyof NewEntityForm, value: any) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i === index) {
-          return { ...entity, [field]: value };
-        }
-        return entity;
-      })
+  const handleNewEntityChange = (
+    index: number,
+    field: keyof NewEntityForm,
+    value: any
+  ) => {
+    setNewEntities((prev) =>
+      prev.map((entity, i) =>
+        i === index ? { ...entity, [field]: value } : entity
+      )
     );
   };
 
@@ -688,6 +709,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           shareClassValues: getDefaultShareClassValues(),
           useClassShares: false,
           visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
         }),
       },
     ]);
@@ -918,7 +941,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
                   totalShares: totalSharesPayload,
-                  industry: entity.industry,
+                  industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry)?.trim() || undefined,
                   description: entity.description,
                   timelineStart: entity.companyStartedAt,
                 }),
@@ -1036,6 +1059,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           shareClassValues: getDefaultShareClassValues(),
           useClassShares: false,
           visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
         }),
       },
     ]);
@@ -1700,14 +1725,39 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           </div>
                           <div>
                             <Label>Industry (Optional)</Label>
-                            <Input
-                              placeholder="Enter industry"
+                            <Select
                               value={entity.industry || ""}
-                              onChange={(e) =>
-                                handleNewEntityChange(entityIndex, "industry", e.target.value)
+                              onValueChange={(value) => {
+                              
+                              handleNewEntityChange(entityIndex, "industry", value);
+
+                              if (value !== "Other") {
+                              handleNewEntityChange(entityIndex, "customIndustry", "");
                               }
-                              className="rounded-lg"
-                            />
+                              }}
+
+                            >
+                              <SelectTrigger className="rounded-xl border-gray-200 text-left">
+                                <SelectValue placeholder="Select an industry" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {industryOptions.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {entity.industry === "Other" && (
+                              <Input
+                                placeholder="Enter custom industry"
+                                value={entity.customIndustry || ""}
+                                onChange={(e) =>
+                                  handleNewEntityChange(entityIndex, "customIndustry", e.target.value)
+                                }
+                                className="rounded-xl border-gray-200 mt-2"
+                              />
+                            )}
                           </div>
                           <div>
                             <Label>Company Summary (Optional)</Label>
