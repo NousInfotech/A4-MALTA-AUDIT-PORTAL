@@ -393,10 +393,10 @@ export const CompanyDetail: React.FC = () => {
           <div className="flex items-end justify-between gap-4">
             <div className="flex items-center gap-4 mb-6">
               <Button
-                variant="default"
+                variant="outline"
                 size="icon"
                 onClick={handleBackClick}
-                className="rounded-xl"
+                className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
