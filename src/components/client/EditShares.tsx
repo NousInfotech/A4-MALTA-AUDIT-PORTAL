@@ -254,7 +254,7 @@ export const EditShares: React.FC<EditSharesProps> = ({
                 min="0"
                 step="1"
                 placeholder="0"
-                value={value || ""}
+                value={String(value)}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || /^\d+$/.test(val)) {

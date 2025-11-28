@@ -257,7 +257,7 @@ export const EngagementDetails = () => {
             <Button
               variant="outline"
               size="icon"
-              className="rounded-xl border-gray-200 hover:bg-gray-50"
+              className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
               aria-label="Back to engagements"
               onClick={() => {
                 if (window.history.length > 1) {
@@ -267,7 +267,7 @@ export const EngagementDetails = () => {
                 }
               }}
             >
-              <ArrowLeft className="h-4 w-4 text-brand-body" />
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">

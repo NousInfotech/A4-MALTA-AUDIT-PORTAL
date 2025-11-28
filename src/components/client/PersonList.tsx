@@ -23,6 +23,7 @@ import {
   Loader2,
   View,
   Eye,
+  MapPin,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -135,7 +136,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [companyShareToDelete, setCompanyShareToDelete] = useState<any | null>(null);
   const [isDeletingCompanyShare, setIsDeletingCompanyShare] = useState(false);
   const [isAddPersonFromShareholdingModalOpen, setIsAddPersonFromShareholdingModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"representatives" | "shareholders">("representatives");
+  const [activeTab, setActiveTab] = useState<"representatives" | "shareholders">("shareholders");
   const [isAddShareholderModalOpen, setIsAddShareholderModalOpen] = useState(false);
   const [isAddRepresentativeModalOpen, setIsAddRepresentativeModalOpen] = useState(false);
   const [isAddPersonRepresentativeModalOpen, setIsAddPersonRepresentativeModalOpen] = useState(false);
@@ -159,6 +160,36 @@ export const PersonList: React.FC<PersonListProps> = ({
   const { toast } = useToast();
 
   const apiCompany = null;
+
+  const openEditCompanyShare = (share: any) => {
+    setEditingCompanyShare(share);
+    setIsEditCompanyShareOpen(true);
+  
+    const values: ShareValues = {
+      sharesA: "",
+      sharesB: "",
+      sharesC: "",
+      sharesOrdinary: "",
+    };
+  
+    // Fill from existing sharesData
+    if (Array.isArray(share.sharesData)) {
+      share.sharesData.forEach((sd: any) => {
+        const shareClass = sd.shareClass || sd.class;
+        const totalShares = String(sd.totalShares || "");
+  
+        if (shareClass === "A") values.sharesA = totalShares;
+        if (shareClass === "B") values.sharesB = totalShares;
+        if (shareClass === "C") values.sharesC = totalShares;
+        if (shareClass === "Ordinary") values.sharesOrdinary = totalShares;
+      });
+    }
+  
+    setEditingShareValues(values);
+    setEditingShareError("");
+    setEditingShareValidationError(null);
+  };
+  
 
   const fetchPersons = async () => {
     try {
@@ -770,35 +801,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   };
 
   // Handle edit company shareholder
-  const handleEditCompanyShare = async (share: any) => {
-    setEditingCompanyShare(share);
-    
-    // Initialize share values from sharesData - show current values
-    const sharesByClass: Record<string, number> = { A: 0, B: 0, C: 0, Ordinary: 0 };
-    
-    if (Array.isArray(share.sharesData)) {
-      share.sharesData.forEach((sd: any) => {
-        const shareClass = sd.shareClass || sd.class || "A";
-        const shareCount = Number(sd.totalShares) || 0;
-        if (shareClass in sharesByClass) {
-          sharesByClass[shareClass] += shareCount;
-        } else if (shareClass === "Ordinary") {
-          sharesByClass.Ordinary += shareCount;
-        }
-      });
-    }
-    
-    // Show current values - always convert to string for display
-    setEditingShareValues({
-      sharesA: sharesByClass.A.toString(),
-      sharesB: sharesByClass.B.toString(),
-      sharesC: sharesByClass.C.toString(),
-      sharesOrdinary: sharesByClass.Ordinary.toString(),
-    });
-    
-    setEditingShareError("");
-    setIsEditCompanyShareOpen(true);
-  };
+ 
 
   // Handle share change from EditShares component
   const handleCompanyShareChange = (shareClass: "A" | "B" | "C" | "Ordinary", value: string) => {
@@ -1046,6 +1049,15 @@ export const PersonList: React.FC<PersonListProps> = ({
         return shareCompanyId?.toString() !== deleteCompanyId?.toString();
       });
 
+      // Also remove from representatives if it exists there
+      const currentCompany = company || {};
+      const updatedRepresentationalCompany = (currentCompany.representationalCompany || []).filter(
+        (rc: any) => {
+          const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
+          return String(rcId) !== String(deleteCompanyId);
+        }
+      );
+
       const response = await fetch(
         `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
         {
@@ -1057,6 +1069,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           body: JSON.stringify({
             ...company,
             shareHoldingCompanies: updatedShareholdings,
+            representationalCompany: updatedRepresentationalCompany,
           }),
         }
       );
@@ -2050,7 +2063,7 @@ export const PersonList: React.FC<PersonListProps> = ({
               <Users className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Representatives & Shareholders</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Shareholders & Representatives</h3>
               <p className="text-sm text-gray-600">
                 Manage individuals and companies associated with this company
               </p>
@@ -2265,138 +2278,145 @@ export const PersonList: React.FC<PersonListProps> = ({
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
-            setActiveTab(value as "representatives" | "shareholders");
+            setActiveTab(value as "shareholders" | "representatives");
             setActiveInlineForm(null); // Reset inline form when switching tabs
           }}
           className="w-full"
         >
           <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="representatives" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Representatives
-            </TabsTrigger>
             <TabsTrigger value="shareholders" className="flex items-center gap-2">
               <Percent className="h-4 w-4" />
               Shareholders
             </TabsTrigger>
+
+            <TabsTrigger value="representatives" className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Representatives
+            </TabsTrigger>
+
+
           </TabsList>
-          <div className="flex gap-5 mt-4">
-            {activeTab === "representatives" ? (
-              <>
-                <Button
-                  variant={activeInlineForm === "person-representative" ? "default" : "default"}
-                  className={`flex-1 rounded-xl ${
-                    activeInlineForm === "person-representative"
-                      ? "bg-green-600 hover:bg-green-700 text-white"
-                      : "border-gray-300"
-                  }`}
-                  onClick={() => {
-                    if (activeInlineForm === "person-representative") {
-                      setActiveInlineForm(null);
-                    } else {
-                      setActiveInlineForm("person-representative");
-                    }
-                  }}
-                >
-                  {activeInlineForm === "person-representative" ? (
-                    <>
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <User className="h-4 w-4 mr-2" />
-                      Add Person
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant={activeInlineForm === "company-representative" ? "default" : "default"}
-                  className={`flex-1 rounded-xl ${
-                    activeInlineForm === "company-representative"
-                      ? "bg-green-600 hover:bg-green-700 text-white"
-                      : "border-gray-300"
-                  }`}
-                  onClick={() => {
-                    if (activeInlineForm === "company-representative") {
-                      setActiveInlineForm(null);
-                    } else {
-                      setActiveInlineForm("company-representative");
-                    }
-                  }}
-                >
-                  {activeInlineForm === "company-representative" ? (
-                    <>
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <Building2 className="h-4 w-4 mr-2" />
-                      Add Company
-                    </>
-                  )}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant={activeInlineForm === "person-shareholder" ? "default" : "default"}
-                  className={`flex-1 rounded-xl ${
-                    activeInlineForm === "person-shareholder"
-                      ? "bg-green-600 hover:bg-green-700 text-white"
-                      : "border-gray-300"
-                  }`}
-                  onClick={() => {
-                    if (activeInlineForm === "person-shareholder") {
-                      setActiveInlineForm(null);
-                    } else {
-                      setActiveInlineForm("person-shareholder");
-                    }
-                  }}
-                >
-                  {activeInlineForm === "person-shareholder" ? (
-                    <>
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <User className="h-4 w-4 mr-2" />
-                      Add Person
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant={activeInlineForm === "company-shareholder" ? "default" : "default"}
-                  className={`flex-1 rounded-xl ${
-                    activeInlineForm === "company-shareholder"
-                      ? "bg-green-600 hover:bg-green-700 text-white"
-                      : "border-gray-300"
-                  }`}
-                  onClick={() => {
-                    if (activeInlineForm === "company-shareholder") {
-                      setActiveInlineForm(null);
-                    } else {
-                      setActiveInlineForm("company-shareholder");
-                    }
-                  }}
-                >
-                  {activeInlineForm === "company-shareholder" ? (
-                    <>
-                      <X className="h-4 w-4 mr-2" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <Building2 className="h-4 w-4 mr-2" />
-                      Add Company
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
-          </div>
+          {/* Show buttons at top only when there are items */}
+          {((activeTab === "representatives" && (sortedRepresentatives.length > 0 || validCompanyRepresentatives.length > 0)) ||
+            (activeTab === "shareholders" && combinedShareholders.length > 0)) && (
+            <div className="flex gap-5 mt-4">
+              {activeTab === "representatives" ? (
+                <>
+                  <Button
+                    variant={activeInlineForm === "person-representative" ? "default" : "default"}
+                    className={`flex-1 rounded-xl ${
+                      activeInlineForm === "person-representative"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => {
+                      if (activeInlineForm === "person-representative") {
+                        setActiveInlineForm(null);
+                      } else {
+                        setActiveInlineForm("person-representative");
+                      }
+                    }}
+                  >
+                    {activeInlineForm === "person-representative" ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <User className="h-4 w-4 mr-2" />
+                        Add Person
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant={activeInlineForm === "company-representative" ? "default" : "default"}
+                    className={`flex-1 rounded-xl ${
+                      activeInlineForm === "company-representative"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => {
+                      if (activeInlineForm === "company-representative") {
+                        setActiveInlineForm(null);
+                      } else {
+                        setActiveInlineForm("company-representative");
+                      }
+                    }}
+                  >
+                    {activeInlineForm === "company-representative" ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        Add Company
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant={activeInlineForm === "person-shareholder" ? "default" : "default"}
+                    className={`flex-1 rounded-xl ${
+                      activeInlineForm === "person-shareholder"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => {
+                      if (activeInlineForm === "person-shareholder") {
+                        setActiveInlineForm(null);
+                      } else {
+                        setActiveInlineForm("person-shareholder");
+                      }
+                    }}
+                  >
+                    {activeInlineForm === "person-shareholder" ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <User className="h-4 w-4 mr-2" />
+                        Add Person
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant={activeInlineForm === "company-shareholder" ? "default" : "default"}
+                    className={`flex-1 rounded-xl ${
+                      activeInlineForm === "company-shareholder"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "border-gray-300"
+                    }`}
+                    onClick={() => {
+                      if (activeInlineForm === "company-shareholder") {
+                        setActiveInlineForm(null);
+                      } else {
+                        setActiveInlineForm("company-shareholder");
+                      }
+                    }}
+                  >
+                    {activeInlineForm === "company-shareholder" ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        Add Company
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           {/* Representatives Tab */}
           <TabsContent value="representatives" className="space-y-4 mt-6">
             {/* Inline Form View */}
@@ -2414,6 +2434,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                     }}
                     clientId={clientId}
                     companyId={companyId}
+                    company={company}
                     entityType="person"
                   />
                 )}
@@ -2425,11 +2446,12 @@ export const PersonList: React.FC<PersonListProps> = ({
                     onSuccess={() => {
                       setActiveInlineForm(null);
                       fetchPersons();
-                      onUpdate();
+                      onUpdate(); 
                     }}
                     clientId={clientId}
                     companyId={companyId}
                     entityType="company"
+                    company={company}
                   />
                 )}
               </div>
@@ -2548,6 +2570,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                             <div className="space-y-2">
                               {person.address && (
                                 <div className="flex items-start gap-2 text-sm text-gray-600">
+                                  <MapPin className="h-4 w-4" />
                                   <span className="text-xs">{person.address}</span>
                                 </div>
                               )}
@@ -2588,13 +2611,23 @@ export const PersonList: React.FC<PersonListProps> = ({
               <div className="text-center py-12 bg-gray-50 rounded-xl">
                 <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 mb-4">No representatives yet</p>
-                <Button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Person
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => setActiveInlineForm("person-representative")}
+                    className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Person
+                  </Button>
+                  <Button
+                    onClick={() => setActiveInlineForm("company-representative")}
+                    variant="outline"
+                    className="rounded-xl"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Company
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -2738,6 +2771,8 @@ export const PersonList: React.FC<PersonListProps> = ({
             )}
            </TabsContent>
 
+
+
           {/* Shareholders Tab */}
           <TabsContent value="shareholders" className="space-y-4 mt-6">
             {/* Inline Form View */}
@@ -2788,7 +2823,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                 </div>
                   
                 {combinedShareholders.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-4"> 
                 {combinedShareholders.map((entry, index) => {
                   if (entry.type === "person") {
                     const totalShares = entry.totalShares;
@@ -2839,6 +2874,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                               <div className="space-y-2">
                                 {entry.address && (
                                   <div className="flex items-start gap-2 text-sm text-gray-600">
+                                    <MapPin className="h-4 w-4" />
                                     <span className="text-xs">{entry.address}</span>
                                   </div>
                                 )}
@@ -2901,7 +2937,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                           <div
                             className="flex-1 cursor-pointer"
                             onClick={() =>
-                              handleNavigateToCompany(entry.companyId, entry.clientId)
+                              handleNavigateToCompany(entry.companyId)
                             }
                           >
                             <div className="flex items-center gap-3 mb-3">
@@ -2953,11 +2989,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Find the company share object
-                                const companyShare = shareholdingCompanies.find(
-                                  (cs: any) => String(cs.companyId) === String(entry.companyId)
-                                );
-                                if (companyShare) handleEditCompanyShare(companyShare);
+                                openEditCompanyShare(entry);
                               }}
                               className="rounded-xl hover:bg-gray-100"
                             >
@@ -2991,14 +3023,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                 <p className="text-gray-600 mb-4">No shareholders yet</p>
                 <div className="flex gap-2 justify-center">
                   <Button
-                    onClick={() => setIsCreateModalOpen(true)}
+                    onClick={() => setActiveInlineForm("person-shareholder")}
                     className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Person
                   </Button>
                   <Button
-                    onClick={() => setIsAddCompanyDropdownOpen(true)}
+                    onClick={() => setActiveInlineForm("company-shareholder")}
                     variant="outline"
                     className="rounded-xl"
                   >
@@ -3259,6 +3291,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         clientId={clientId}
         companyId={companyId}
         entityType="person"
+        company={company}
       />
 
       {/* Add Company Representative Modal */}
@@ -3272,6 +3305,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         clientId={clientId}
         companyId={companyId}
         entityType="company"
+        company={company}
       />
 
       {/* Edit Company Representative Roles Dialog */}

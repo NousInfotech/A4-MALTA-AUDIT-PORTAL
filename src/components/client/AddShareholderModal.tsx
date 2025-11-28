@@ -35,6 +35,23 @@ import {
   OPTIONAL_SHARE_CLASS_LABELS,
   DEFAULT_SHARE_TYPE,
 } from "./ShareClassInput";
+
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
+
 import {
   addShareHolderPersonNew,
   updateShareHolderPersonExisting,
@@ -79,6 +96,7 @@ interface NewEntityForm {
   // Company fields
   registrationNumber?: string;
   industry?: string;
+  customIndustry?: string;
   description?: string;
   companyStartedAt?: string;
   // Company's own totalShares (for new companies only) - uses share class logic
@@ -120,6 +138,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         shareClassValues: getDefaultShareClassValues(),
         useClassShares: false,
         visibleShareClasses: [],
+        industry: "",
+        customIndustry: "",
       }),
     },
   ]);
@@ -147,6 +167,21 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   });
   
   const { toast } = useToast();
+
+  // Reset global search mode when switching to person mode
+  useEffect(() => {
+    if (entityType === "person" && isGlobalSearchMode) {
+      setIsGlobalSearchMode(false);
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchPagination({
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+      });
+    }
+  }, [entityType, isGlobalSearchMode]);
 
   // Get available share classes from parent company
   const getAvailableShareClasses = useCallback((): Array<"A" | "B" | "C" | "Ordinary"> => {
@@ -616,14 +651,15 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     setTimeout(() => validateShares(), 0);
   };
 
-  const handleNewEntityChange = (index: number, field: keyof NewEntityForm, value: any) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i === index) {
-          return { ...entity, [field]: value };
-        }
-        return entity;
-      })
+  const handleNewEntityChange = (
+    index: number,
+    field: keyof NewEntityForm,
+    value: any
+  ) => {
+    setNewEntities((prev) =>
+      prev.map((entity, i) =>
+        i === index ? { ...entity, [field]: value } : entity
+      )
     );
   };
 
@@ -673,6 +709,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           shareClassValues: getDefaultShareClassValues(),
           useClassShares: false,
           visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
         }),
       },
     ]);
@@ -891,7 +929,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               : undefined;
 
             const companyResponse = await fetch(
-              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
+              `${import.meta.env.VITE_APIURL}/api/client/${"non-primary"}/company`,
               {
                 method: "POST",
                 headers: {
@@ -903,7 +941,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
                   totalShares: totalSharesPayload,
-                  industry: entity.industry,
+                  industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry)?.trim() || undefined,
                   description: entity.description,
                   timelineStart: entity.companyStartedAt,
                 }),
@@ -1021,6 +1059,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           shareClassValues: getDefaultShareClassValues(),
           useClassShares: false,
           visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
         }),
       },
     ]);
@@ -1087,7 +1127,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">
                 Select Existing {entityType === "person" ? "Person" : "Company"}
               </h3>
-              {!isGlobalSearchMode && (
+              {!isGlobalSearchMode && entityType === "company" && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1100,7 +1140,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               )}
             </div>
 
-            {isGlobalSearchMode ? (
+            {isGlobalSearchMode && entityType === "company" ? (
               <>
                 <div className="flex items-center gap-2 mb-4">
                   <Button
@@ -1114,7 +1154,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                   </Button>
                   <div className="flex-1 flex gap-2">
                     <Input
-                      placeholder={`Search ${entityType === "person" ? "persons" : "companies"} globally...`}
+                      placeholder="Search companies globally..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
@@ -1155,16 +1195,10 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                             />
                             <div className="flex-1">
                               <p className="font-medium">{entity.name}</p>
-                              {entityType === "company" && entity.registrationNumber && (
+                              {entity.registrationNumber && (
                                 <p className="text-sm text-gray-500">
                                   {entity.registrationNumber}
                                 </p>
-                              )}
-                              {entityType === "person" && entity.email && (
-                                <p className="text-sm text-gray-500">{entity.email}</p>
-                              )}
-                              {entityType === "person" && entity.nationality && (
-                                <p className="text-xs text-gray-400">{entity.nationality}</p>
                               )}
                             </div>
                             {isSelected && (
@@ -1354,7 +1388,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
+                  <div className="space-y-2 border rounded-lg p-4">
                     {existingEntities.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-4">
                         No {entityType === "person" ? "persons" : "companies"} found
@@ -1539,13 +1573,13 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                 className="rounded-lg"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add More Entity
+                Add More {entityType === "person" ? "Person" : "Company"} Shareholders
               </Button>
             </div>
 
-            <div className="space-y-6">
+            <div className={`grid gap-4 ${newEntities.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {newEntities.map((entity, entityIndex) => (
-                <Card key={entityIndex} className="border-2">
+                <Card key={entityIndex} className="border-2 min-w-[300px]">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="font-semibold text-gray-900">
@@ -1691,14 +1725,39 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           </div>
                           <div>
                             <Label>Industry (Optional)</Label>
-                            <Input
-                              placeholder="Enter industry"
+                            <Select
                               value={entity.industry || ""}
-                              onChange={(e) =>
-                                handleNewEntityChange(entityIndex, "industry", e.target.value)
+                              onValueChange={(value) => {
+                              
+                              handleNewEntityChange(entityIndex, "industry", value);
+
+                              if (value !== "Other") {
+                              handleNewEntityChange(entityIndex, "customIndustry", "");
                               }
-                              className="rounded-lg"
-                            />
+                              }}
+
+                            >
+                              <SelectTrigger className="rounded-xl border-gray-200 text-left">
+                                <SelectValue placeholder="Select an industry" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {industryOptions.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {entity.industry === "Other" && (
+                              <Input
+                                placeholder="Enter custom industry"
+                                value={entity.customIndustry || ""}
+                                onChange={(e) =>
+                                  handleNewEntityChange(entityIndex, "customIndustry", e.target.value)
+                                }
+                                className="rounded-xl border-gray-200 mt-2"
+                              />
+                            )}
                           </div>
                           <div>
                             <Label>Company Summary (Optional)</Label>
@@ -1744,7 +1803,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <Label className="text-sm font-semibold">
-                            Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
+                            Shares {getAvailableShareClasses().length > 1 && "(at least one required)" } <span className="text-red-500">*</span>
                           </Label>
                         </div>
                         {shareValidationErrors.global && (
@@ -1853,6 +1912,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           )}
                         </div>
                       </div>
+                      
                     </div>
                   </CardContent>
                 </Card>

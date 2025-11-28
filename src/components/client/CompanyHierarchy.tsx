@@ -34,6 +34,12 @@ const HORIZONTAL_SPACING = NODE_WIDTH + 1;
 const NODE_GAP = 130; // Gap between nodes (horizontal spacing)
 const HEADER_WIDTH = 400; // Width for group headers
 
+interface ShareDataItem {
+  totalShares: number;
+  class: string; // "A" | "B" | "C" | "Ordinary"
+  type?: string;
+}
+
 interface HierarchyTreeNode {
   id: string;
   type?: string;
@@ -43,7 +49,8 @@ interface HierarchyTreeNode {
   class?: string;
   address?: string;
   nationality?: string;
-  totalShares?: number;
+  totalShares?: number | ShareDataItem[]; // Can be number (for shareholders) or array (for parent company)
+  sharesData?: ShareDataItem[];
   roles?: string[];
   children?: HierarchyTreeNode[];
   shareholders?: HierarchyTreeNode[];
@@ -77,6 +84,36 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
     const generatedEdges: Edge[] = [];
     const NODES_PER_ROW = 3;
 
+    // Helper to determine share class priority for ordering:
+    // Any Class A shareholder comes first, then Class B, then Class C, then others/Ordinary-only
+    const getShareClassPriority = (node: HierarchyTreeNode): number => {
+      const shareItems: ShareDataItem[] =
+        (node.sharesData && Array.isArray(node.sharesData) && node.sharesData) ||
+        (Array.isArray(node.totalShares) ? (node.totalShares as ShareDataItem[]) : []);
+
+      let hasA = false;
+      let hasB = false;
+      let hasC = false;
+
+      shareItems.forEach((sd) => {
+        const cls = sd.class;
+        const amount = Number(sd.totalShares) || 0;
+        if (amount <= 0) return;
+        if (cls === "A") {
+          hasA = true;
+        } else if (cls === "B") {
+          hasB = true;
+        } else if (cls === "C") {
+          hasC = true;
+        }
+      });
+
+      if (hasA) return 0;
+      if (hasB) return 1;
+      if (hasC) return 2;
+      return 3; // Ordinary only or no class info
+    };
+
     // Helper to restructure data into side-by-side layout: Parent -> Left (Shareholders) | Right (Only Representatives)
     const restructureHierarchy = (root: HierarchyTreeNode): { 
       root: HierarchyTreeNode; 
@@ -94,9 +131,15 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
       allDescendants.forEach(descendant => {
         // Check if this is a shareholder (person or company with shares > 0)
+        const hasSharesFromData = descendant.sharesData && Array.isArray(descendant.sharesData) &&
+          descendant.sharesData.some((sd: ShareDataItem) => Number(sd.totalShares) > 0);
+        const hasSharesFromTotalSharesArray = Array.isArray(descendant.totalShares) &&
+          descendant.totalShares.some((sd: ShareDataItem) => Number(sd.totalShares) > 0);
         const hasShares = (descendant.sharePercentage && descendant.sharePercentage > 0) || 
                          (descendant.percentage && descendant.percentage > 0) ||
-                         (descendant.totalShares && descendant.totalShares > 0);
+                         (typeof descendant.totalShares === 'number' && descendant.totalShares > 0) ||
+                         hasSharesFromData ||
+                         hasSharesFromTotalSharesArray;
         
         // Check if this is a representative (has representative/director/secretary role)
         const hasRepRole = descendant.roles?.some(role => 
@@ -111,7 +154,44 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           onlyRepresentatives.push(descendant);
         }
       });
-      
+
+      // Sort shareholders so that:
+      // - Nodes with Class A shares appear first
+      // - Then nodes with Class B shares
+      // - Then nodes with Class C shares
+      // - Then Ordinary-only / others
+      shareholders.sort((a, b) => {
+        const prioA = getShareClassPriority(a);
+        const prioB = getShareClassPriority(b);
+        if (prioA !== prioB) return prioA - prioB;
+
+        // Tie-breaker: higher total shares first (if available)
+        const totalSharesA =
+          (Array.isArray(a.sharesData)
+            ? a.sharesData.reduce((sum, sd) => sum + (Number(sd.totalShares) || 0), 0)
+            : 0) ||
+          (Array.isArray(a.totalShares)
+            ? (a.totalShares as ShareDataItem[]).reduce((sum, sd) => sum + (Number(sd.totalShares) || 0), 0)
+            : typeof a.totalShares === "number"
+            ? a.totalShares
+            : 0);
+
+        const totalSharesB =
+          (Array.isArray(b.sharesData)
+            ? b.sharesData.reduce((sum, sd) => sum + (Number(sd.totalShares) || 0), 0)
+            : 0) ||
+          (Array.isArray(b.totalShares)
+            ? (b.totalShares as ShareDataItem[]).reduce((sum, sd) => sum + (Number(sd.totalShares) || 0), 0)
+            : typeof b.totalShares === "number"
+            ? b.totalShares
+            : 0);
+
+        if (totalSharesA !== totalSharesB) return totalSharesB - totalSharesA;
+
+        // Final tie-breaker: alphabetical by name
+        return (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase());
+      });
+
       return { root, shareholders, onlyRepresentatives };
     };
 
@@ -134,9 +214,15 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
       // Add "Shareholder" role if node has shares but not explicitly in roles
       // BUT NOT for the root/parent company
       if (!isRoot) {
+        const hasSharesFromData = node.sharesData && Array.isArray(node.sharesData) &&
+          node.sharesData.some((sd: ShareDataItem) => Number(sd.totalShares) > 0);
+        const hasSharesFromTotalSharesArray = Array.isArray(node.totalShares) &&
+          node.totalShares.some((sd: ShareDataItem) => Number(sd.totalShares) > 0);
         const isShareholder = (node.sharePercentage !== undefined && node.sharePercentage > 0) || 
                              (node.percentage !== undefined && node.percentage > 0) ||
-                             (node.totalShares !== undefined && node.totalShares > 0);
+                             (typeof node.totalShares === 'number' && node.totalShares > 0) ||
+                             hasSharesFromData ||
+                             hasSharesFromTotalSharesArray;
         
         if (isShareholder && !displayRoles.some(role => role.toLowerCase() === 'shareholder')) {
           displayRoles.unshift('Shareholder'); // Add at beginning
@@ -257,18 +343,79 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
               </div>
             )}
             
-            {node.totalShares !== undefined && node.totalShares > 0 && (
-              <div
-                style={{
-                  fontSize: isRoot ? 30 : 11,
-                  color: "black",
-                  marginBottom: 4,
-                }}
-              >
-                <span style={{ fontWeight: 600 }}>Shares: </span> {node.totalShares.toLocaleString()}
-                {node.class && ` (${node.class})`}
-              </div>
-            )}
+            {/* Display shares by class */}
+            {(() => {
+              // Check if totalShares is an array (parent company case) or if sharesData exists (shareholder case)
+              const parentCompanyShares = Array.isArray(node.totalShares) ? node.totalShares.filter((sd: ShareDataItem) => Number(sd.totalShares) > 0) : [];
+              const shareholderShares = node.sharesData && Array.isArray(node.sharesData) && node.sharesData.length > 0 ? node.sharesData : [];
+              const sharesToDisplay = parentCompanyShares.length > 0 ? parentCompanyShares : shareholderShares;
+
+              if (sharesToDisplay.length > 0) {
+                // Group shares by class
+                const sharesByClass: Record<string, number> = {};
+                sharesToDisplay.forEach((sd: ShareDataItem) => {
+                  const shareClass = sd.class || "Ordinary";
+                  sharesByClass[shareClass] = (sharesByClass[shareClass] || 0) + (Number(sd.totalShares) || 0);
+                });
+
+                // Separate Ordinary from other classes
+                const ordinaryShares = sharesByClass["Ordinary"] || 0;
+                const classShares = Object.entries(sharesByClass)
+                  .filter(([cls]) => cls !== "Ordinary")
+                  .sort(([a], [b]) => a.localeCompare(b));
+
+                return (
+                  <div style={{ 
+                    marginBottom: 4,
+                    display: "flex",
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    placeItems: "center",
+                    placeContent: "center",
+                    gap: isRoot ? "12px" : "8px",
+                  }}>
+                    {ordinaryShares > 0 && (
+                      <div
+                        style={{
+                          fontSize: isRoot ? 30 : 11,
+                          color: "black",
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>Ordinary: </span>
+                        {ordinaryShares.toLocaleString()}
+                      </div>
+                    )}
+                    {classShares.map(([shareClass, totalShares]) => (
+                      <div
+                        key={shareClass}
+                        style={{
+                          fontSize: isRoot ? 30 : 11,
+                          color: "black",
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>Class {shareClass}: </span>
+                        {totalShares.toLocaleString()}
+                      </div>
+                    ))}
+                  </div>
+                );
+              } else if (typeof node.totalShares === 'number' && node.totalShares > 0) {
+                // Fallback to number totalShares if neither array nor sharesData is available
+                return (
+                  <div
+                    style={{
+                      fontSize: isRoot ? 30 : 11,
+                      color: "black",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>Shares: </span> {node.totalShares.toLocaleString()}
+                    {node.class && ` (${node.class})`}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Person/Company Indicator */}
             <div
@@ -438,7 +585,11 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
       // HEADER 2: "Representatives" grouping header
       const representativesHeaderId = "representatives-header";
-      const representativesHeaderY = maxShareholdersY + LEVEL_GAP_Y;
+      // If no shareholders, move this up to where the shareholders header would have been
+      const representativesHeaderY = shareholders.length > 0 
+        ? maxShareholdersY + LEVEL_GAP_Y 
+        : LEVEL_GAP_Y;
+
       const representativesHeaderX = (totalWidth - HEADER_WIDTH) / 2;
       
       if (onlyRepresentatives.length > 0) {
@@ -453,10 +604,12 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
           targetPosition: Position.Top,
         });
 
-        // Connect header to shareholders header (not parent directly)
+        // Connect header to shareholders header OR parent if no shareholders
+        const sourceId = shareholders.length > 0 ? shareholdersHeaderId : rootId;
+
         generatedEdges.push({
-          id: `${shareholdersHeaderId}-${representativesHeaderId}`,
-          source: shareholdersHeaderId,
+          id: `${sourceId}-${representativesHeaderId}`,
+          source: sourceId,
           target: representativesHeaderId,
           type: "smoothstep",
           style: { stroke: "#111827", strokeWidth: 1.2 },
@@ -672,7 +825,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
         y += pageH - (margin * 2);
       }
 
-      pdf.save("company-hierarchy.pdf");
+      pdf.save(`${rootData?.name}-hierarchy.pdf`);
 
       
     } finally {

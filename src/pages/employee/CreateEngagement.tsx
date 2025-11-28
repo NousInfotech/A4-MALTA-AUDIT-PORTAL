@@ -394,9 +394,9 @@ const [companyError, setCompanyError] = useState<string>('')
               variant="outline" 
               size="icon" 
               onClick={() => navigate(-1)}
-              className="rounded-xl border-gray-200 hover:bg-gray-50"
+              className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
             >
-              <ArrowLeft className="h-4 w-4 text-brand-body" />
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Globe,
   PieChart,
+  Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCompanyById, getCompanyHierarchy } from "@/lib/api/company";
@@ -50,6 +51,8 @@ interface Company {
     class: string;
     type: string;
   }>;
+  description?: string;
+  companyStartedAt?: string;
   persons?: Person[];
   supportingDocuments?: string[];
   timelineStart?: string;
@@ -394,9 +397,9 @@ export const CompanyDetail: React.FC = () => {
                 variant="outline"
                 size="icon"
                 onClick={handleBackClick}
-                className="rounded-xl border-gray-200 hover:bg-gray-50"
-                >
-                  <ArrowLeft className="h-4 w-4 text-brand-body" />
+                className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
+              >
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -470,15 +473,25 @@ export const CompanyDetail: React.FC = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Total Shares</p>
                     <p className="text-gray-900">{calculateTotalSharesSum(company.totalShares).toLocaleString()}</p>
-                    <div className="mt-2 space-y-1">
-                      {company.totalShares.map((share, idx) => (
-                        share.totalShares > 0 && (
-                          <p key={idx} className="text-xs text-gray-600">
-                            {share.class}: {share.totalShares.toLocaleString()} shares
-                          </p>
-                        )
-                      ))}
-                    </div>
+                    <div className="mt-2 flex flex-col gap-2">
+                        {company.totalShares
+                        .filter((share) => share.totalShares > 0)
+                        .map((share, idx) => {
+                        const className = share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
+                        return (
+                        <Badge
+                        key={idx}
+                        variant="outline"
+                        className="text-xs text-gray-600 flex items-center justify-between px-2 py-1"
+                        >
+                        <span>
+                        Class {className}: {share.totalShares.toLocaleString()} Shares
+                        </span>
+                        </Badge>
+                        );
+                        })}
+                   </div>
+
                   </div>
                 </div>
               )}
@@ -489,6 +502,25 @@ export const CompanyDetail: React.FC = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Industry</p>
                     <p className="text-gray-900">{company.industry}</p>
+                  </div>
+                </div>
+              )}
+              {company.companyStartedAt && (
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
+                  <Calendar className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Company Started At</p>
+                    <p className="text-gray-900">{new Date(company.companyStartedAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              )}
+
+              {company.description && (
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
+                  <FileText className="h-5 w-5 text-gray-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Description</p>
+                    <p className="text-gray-900">{company.description}</p>
                   </div>
                 </div>
               )}
@@ -510,7 +542,7 @@ export const CompanyDetail: React.FC = () => {
                             <span className="text-xs text-blue-600 ml-1">
                               ({rep.type === "company" ? "Company" : "Person"})
                             </span>{" "}
-                            ({rep.percentage}%)
+                            ({rep.percentage.toFixed(2)}%)
                           </p>
                         ))}
                       </div>
@@ -576,33 +608,53 @@ export const CompanyDetail: React.FC = () => {
                     <div className="space-y-2">
                       {company.shareHoldingCompanies.map((share: any, index: number) => {
                         let companyName = "Unknown";
+                        let shareCompanyId: string | null = null;
                         const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0) || 0;
                         const companyTotalSharesSum = calculateTotalSharesSum(company.totalShares);
                         const totalSharePercentage = companyTotalSharesSum > 0 ? (totalShares / companyTotalSharesSum) * 100 : 0;
                         if (share.companyId) {
                           if (typeof share.companyId === 'object' && share.companyId.name) {
                             companyName = share.companyId.name;
+                            shareCompanyId = share.companyId._id;
                           } else if (typeof share.companyId === 'string') {
                             companyName = "Unknown Company";
+                            shareCompanyId = share.companyId;
                           }
                         }
+
+                        const handleViewCompany = () => {
+                          if (shareCompanyId && clientId) {
+                            navigate(`/employee/clients/${clientId}/company/${shareCompanyId}`);
+                          }
+                        };
 
                         return (
                           <div
                             key={index}
-                            className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm"
+                            className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm flex items-start justify-between"
                           >
-                            <p className="text-sm font-semibold text-gray-900">
-                              {companyName}
-                            </p>
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {companyName}
+                              </p>
 
-                            <p className="text-xs text-gray-600 mt-1">
-                              {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
-                            </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
+                              </p>
 
-                            <p className="text-xs text-gray-600">
-                              {totalSharePercentage.toFixed(2)}% owned
-                            </p>
+                              <p className="text-xs text-gray-600">
+                                {totalSharePercentage.toFixed(2)}% owned
+                              </p>
+                            </div>
+                            {shareCompanyId && (
+                              <button
+                                onClick={handleViewCompany}
+                                className="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="View Company Details"
+                              >
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              </button>
+                            )}
                           </div>
 
                         );

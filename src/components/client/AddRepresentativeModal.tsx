@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Building2, Plus, X, ChevronDown, ChevronUp, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,8 +35,12 @@ import {
   addRepresentationCompanyNewBulk,
   searchCompaniesGlobal,
   searchPersonsGlobal,
+  ShareDataItem,
+  addShareHolderCompanyNew,
+  updateShareHolderCompanyExisting,
 } from "@/lib/api/company";
 import { fetchCompanies } from "@/lib/api/company";
+import { fetchCompanyById } from "@/lib/api/company";
 
 const SHARE_CLASS_CONFIG = [
   { key: "classA", label: "Class A", backendValue: "A" },
@@ -54,7 +59,7 @@ const getDefaultShareClassValues = (): ShareClassValues => ({
   classA: 0,
   classB: 0,
   classC: 0,
-  ordinary: 100,
+  ordinary: 0,
 });
 
 const getDefaultShareClassErrors = (): ShareClassErrors => ({
@@ -107,12 +112,29 @@ const OPTIONAL_SHARE_CLASS_LABELS = SHARE_CLASS_CONFIG.filter(
   ({ key }) => key !== "ordinary"
 ).map(({ label }) => label);
 
+const industryOptions = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Energy",
+  "Construction",
+  "Education",
+  "Transportation",
+  "Real Estate",
+  "Consulting",
+  "Hospitality",
+  "Other",
+];
+
 interface AddRepresentativeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   clientId: string;
   companyId: string;
+  company: any;
   entityType: "person" | "company";
   inline?: boolean; // When true, renders without Dialog wrapper
 }
@@ -122,6 +144,10 @@ interface ExistingEntity {
   name: string;
   type: "person" | "company";
   roles: string[];
+  sharesData: ShareDataItem[];
+  classAShares?: number;
+  classBShares?: number;
+  classCShares?: number;
   expanded?: boolean;
 }
 
@@ -135,15 +161,21 @@ interface NewEntityForm {
   // Company fields
   registrationNumber?: string;
   industry?: string;
+  customIndustry?: string;
   description?: string;
   companyStartedAt?: string;
-  // Common
-  roles: string[];
-  // Share class fields (for companies)
+  // Company's own totalShares (for new companies only) - uses share class logic
   shareClassValues?: ShareClassValues;
   useClassShares?: boolean;
   visibleShareClasses?: string[];
+  // Shareholder shares (for the shares this entity holds in the parent company)
+  classAShares: number;
+  classBShares: number;
+  classCShares: number;
+  sharesData: ShareDataItem[];
+  roles: string[];
 }
+
 
 const REPRESENTATIVE_ROLES = [
   "Director",
@@ -158,6 +190,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   onSuccess,
   clientId,
   companyId,
+  company,
   entityType,
   inline = false,
 }) => {
@@ -170,11 +203,17 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       nationality: "",
       address: "",
       roles: [],
+      classAShares: 0,
+      classBShares: 0,
+      classCShares: 0,
+      sharesData: [],
       // Initialize share class values for companies
       ...(entityType === "company" && {
         shareClassValues: getDefaultShareClassValues(),
         useClassShares: false,
         visibleShareClasses: [],
+        industry: "",
+        customIndustry: "",
       }),
     },
   ]);
@@ -182,10 +221,12 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   const [nationalityOptions, setNationalityOptions] = useState<
     { value: string; label: string; isEuropean: boolean }[]
   >([]);
+  const [expandedEntities, setExpandedEntities] = useState<Set<string>>(new Set());
   
   // View mode: "existing" or "new"
   const [viewMode, setViewMode] = useState<"existing" | "new">("existing");
-  
+  const [currentCompany, setCurrentCompany] = useState<any>(null);
+  const [shareValidationErrors, setShareValidationErrors] = useState<Record<string, string>>({});
   // Global search state
   const [isGlobalSearchMode, setIsGlobalSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -199,6 +240,21 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   });
   
   const { toast } = useToast();
+
+  // Reset global search mode when switching to person mode
+  useEffect(() => {
+    if (entityType === "person" && isGlobalSearchMode) {
+      setIsGlobalSearchMode(false);
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchPagination({
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+      });
+    }
+  }, [entityType, isGlobalSearchMode]);
 
   // Fetch nationality options
   useEffect(() => {
@@ -261,8 +317,43 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     if (isOpen) {
       fetchExistingEntities();
     }
-  }, [isOpen, entityType]);
+  }, [isOpen, entityType, clientId, companyId]);
 
+  // Fetch current company data
+  useEffect(() => {
+    if (isOpen && companyId) {
+      const fetchCompany = async () => {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) return;
+
+          const companyResponse = await fetch(
+            `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionData.session.access_token}`,
+              },
+            }
+          );
+
+          if (companyResponse.ok) {
+            const companyResult = await companyResponse.json();
+            setCurrentCompany(companyResult.data || {});
+          }
+        } catch (error) {
+          console.error("Error fetching company:", error);
+        }
+      };
+      fetchCompany();
+    }
+  }, [isOpen, companyId, clientId]);
+
+  // Validate shares when entities or currentCompany changes
+  useEffect(() => {
+    if (isOpen && currentCompany) {
+      validateShares();
+    }
+  }, [isOpen, currentCompany, selectedExistingEntities, newEntities]);
   const fetchExistingEntities = async () => {
     try {
       setIsLoading(true);
@@ -270,25 +361,18 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       if (!sessionData.session) throw new Error("Not authenticated");
 
       // First, fetch the company to get existing representatives
-      const companyResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
+      const company = await fetchCompanyById(clientId, companyId);
+      if (!company) throw new Error("Failed to fetch company");
 
-      if (!companyResponse.ok) throw new Error("Failed to fetch company");
-      const companyResult = await companyResponse.json();
-      const company = companyResult.data || {};
+      // Use company.data if available, otherwise fallback to company
+      const companyData = company.data || company;
 
       // Get IDs of existing representatives
       let existingRepresentativeIds = new Set<string>();
       
       if (entityType === "person") {
         // Get person IDs from representationalSchema
-        const representationalSchema = company.representationalSchema || [];
+        const representationalSchema = companyData.representationalSchema || [];
         representationalSchema.forEach((rep: any) => {
           const personId = rep?.personId?._id || rep?.personId?.id || rep?.personId;
           if (personId) {
@@ -297,7 +381,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         });
       } else {
         // Get company IDs from representationalCompany
-        const representationalCompany = company.representationalCompany || [];
+        const representationalCompany = companyData.representationalCompany || [];
         representationalCompany.forEach((rep: any) => {
           const repCompanyId = rep?.companyId?._id || rep?.companyId?.id || rep?.companyId;
           if (repCompanyId) {
@@ -307,6 +391,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       }
 
       if (entityType === "person") {
+        // Fetch direct persons from the current company
         const response = await fetch(
           `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/person`,
           {
@@ -318,26 +403,174 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
 
         if (!response.ok) throw new Error("Failed to fetch persons");
         const result = await response.json();
-        const allPersons = result.data || [];
+        const directPersons = result.data || [];
         
-        // Filter out persons that are already representatives
+        console.log(company);
+        
+        
+        // Add source company info to direct persons (parent company)
+        const directPersonsWithSource = directPersons.map((person: any) => ({
+          ...person,
+          sourceCompany: {
+            id: companyId,
+            name: companyData.name || "Parent Company",
+          },
+        }));
+        
+        // Also fetch persons from shareholding companies (Level 1)
+        const shareHoldingCompanies = companyData.shareHoldingCompanies || [];
+        const allPersonsFromShareholdingCompanies: any[] = [];
+        
+        // Process Level 1 shareholding companies
+        for (const shareholdingCompany of shareHoldingCompanies) {
+          const shareholdingCompanyId = shareholdingCompany?.companyId?._id || 
+                                       shareholdingCompany?.companyId?.id || 
+                                       shareholdingCompany?.companyId;
+          const shareholdingCompanyName = shareholdingCompany?.companyId?.name || 
+                                         shareholdingCompany?.name || 
+                                         "Unknown Company";
+          
+          if (!shareholdingCompanyId) continue;
+          
+          // 1. Fetch persons from Level 1 company
+          try {
+            const shareholdingResponse = await fetch(
+              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareholdingCompanyId}/person`,
+              {
+                headers: {
+                  Authorization: `Bearer ${sessionData.session.access_token}`,
+                },
+              }
+            );
+            
+            if (shareholdingResponse.ok) {
+              const shareholdingResult = await shareholdingResponse.json();
+              const shareholdingPersons = shareholdingResult.data || [];
+              const shareholdingPersonsWithSource = shareholdingPersons.map((person: any) => ({
+                ...person,
+                sourceCompany: {
+                  id: shareholdingCompanyId,
+                  name: shareholdingCompanyName,
+                },
+              }));
+              allPersonsFromShareholdingCompanies.push(...shareholdingPersonsWithSource);
+            }
+          } catch (error) {
+            console.error(`Error fetching persons from shareholding company ${shareholdingCompanyId}:`, error);
+          }
+
+          // 2. Fetch Level 1 company details to find Level 2 shareholding companies
+          try {
+             const level1Company = await fetchCompanyById(clientId, shareholdingCompanyId);
+             const level1CompanyData = level1Company.data || level1Company;
+             
+             if (level1CompanyData && level1CompanyData.shareHoldingCompanies) {
+                for (const level2Shareholding of level1CompanyData.shareHoldingCompanies) {
+                   const level2CompanyId = level2Shareholding?.companyId?._id || 
+                                           level2Shareholding?.companyId?.id || 
+                                           level2Shareholding?.companyId;
+                   const level2CompanyName = level2Shareholding?.companyId?.name || 
+                                             level2Shareholding?.name || 
+                                             "Unknown Company";
+
+                   if (!level2CompanyId) continue;
+
+                   // Fetch persons from Level 2 company
+                   try {
+                      const level2Response = await fetch(
+                        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${level2CompanyId}/person`,
+                        {
+                          headers: {
+                            Authorization: `Bearer ${sessionData.session.access_token}`,
+                          },
+                        }
+                      );
+
+                      if (level2Response.ok) {
+                        const level2Result = await level2Response.json();
+                        const level2Persons = level2Result.data || [];
+                        const level2PersonsWithSource = level2Persons.map((person: any) => ({
+                          ...person,
+                          sourceCompany: {
+                            id: level2CompanyId,
+                            name: `${level2CompanyName} (via ${shareholdingCompanyName})`,
+                          },
+                        }));
+                        allPersonsFromShareholdingCompanies.push(...level2PersonsWithSource);
+                      }
+                   } catch (error) {
+                      console.error(`Error fetching persons from level 2 shareholding company ${level2CompanyId}:`, error);
+                   }
+                }
+             }
+          } catch (error) {
+             console.error(`Error fetching details for shareholding company ${shareholdingCompanyId}:`, error);
+          }
+        }
+        
+        // Combine direct persons and persons from shareholding companies
+        const personsMap = new Map<string, any>();
+        
+        directPersonsWithSource.forEach((person: any) => {
+          const personId = String(person._id || person.id);
+          if (personId) {
+            personsMap.set(personId, person);
+          }
+        });
+        
+        allPersonsFromShareholdingCompanies.forEach((person: any) => {
+          const personId = String(person._id || person.id);
+          if (personId) {
+             if (!personsMap.has(personId)) {
+                personsMap.set(personId, person);
+             }
+          }
+        });
+        
+        const allPersons = Array.from(personsMap.values());
+        const shareHolders = company.data.shareHolders.map((shareholder: any) => 
+          shareholder.personId
+        );
         const filteredPersons = allPersons.filter((person: any) => {
           const personId = person._id || person.id;
           return !existingRepresentativeIds.has(String(personId));
         });
-        
-        setExistingEntities(filteredPersons);
+       // Add sourceCompany to shareholders
+const enrichedShareHolders = shareHolders.map((person: any) => ({
+  ...person,
+  sourceCompany: {
+    name: company.data.name,
+    id: company.data._id || company.data.id
+  }
+}));
+
+// Just merge both arrays (10 + 2 = 12)
+const mergedPersons = [
+  ...filteredPersons,
+  ...enrichedShareHolders
+];
+
+console.log(mergedPersons);
+
+         
+         
+        setExistingEntities(mergedPersons);
       } else {
-        const result = await fetchCompanies(clientId);
-        const allCompanies = result.data || [];
+        // Companies mode
+        const shareHoldingCompanies = companyData.shareHoldingCompanies || [];
         
-        // Filter out the current company and companies that are already representatives
-        const filteredCompanies = allCompanies.filter((c: any) => {
-          const cId = c._id || c.id;
-          return cId !== companyId && !existingRepresentativeIds.has(String(cId));
+        // Extract and filter companyIds that are not already representatives
+        const filteredCompanies = shareHoldingCompanies.filter((item: any) => {
+          const comp = item.companyId;
+          const cId = String(comp._id || comp.id);
+          return existingRepresentativeIds.has(cId);
         });
         
-        setExistingEntities(filteredCompanies);
+        const availableCompanies = filteredCompanies.map((item: any) => {
+          return item.companyId;
+        });
+    
+        setExistingEntities(availableCompanies);
       }
     } catch (error) {
       console.error("Error fetching entities:", error);
@@ -358,6 +591,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     if (existingIndex >= 0) {
       // Remove if already selected
       setSelectedExistingEntities(selectedExistingEntities.filter((_, i) => i !== existingIndex));
+      setExpandedEntities((prev) => {
+        const next = new Set(prev);
+        next.delete(entityId);
+        return next;
+      });
     } else {
       // Add new selection
       setSelectedExistingEntities([
@@ -367,9 +605,14 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           name: entity.name,
           type: entityType,
           roles: [],
+          sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
+          classAShares: 0,
+          classBShares: 0,
+          classCShares: 0,
           expanded: true,
         },
       ]);
+      setExpandedEntities((prev) => new Set(prev).add(entityId));
     }
   };
 
@@ -388,14 +631,35 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   };
 
   const toggleExistingEntityExpanded = (entityId: string) => {
-    setSelectedExistingEntities(
-      selectedExistingEntities.map((entity) => {
-        if (entity.id === entityId) {
-          return { ...entity, expanded: !entity.expanded };
-        }
-        return entity;
-      })
-    );
+    setExpandedEntities((prev) => {
+      const next = new Set(prev);
+      if (next.has(entityId)) {
+        next.delete(entityId);
+      } else {
+        next.add(entityId);
+      }
+      return next;
+    });
+  };
+
+  // Helper function to convert class fields to sharesData array (for shareholder shares)
+  const classFieldsToSharesData = (classA: number, classB: number, classC: number): ShareDataItem[] => {
+    const sharesData: ShareDataItem[] = [];
+    if (classA > 0) sharesData.push({ totalShares: classA, shareClass: "A", shareType: "Ordinary" });
+    if (classB > 0) sharesData.push({ totalShares: classB, shareClass: "B", shareType: "Ordinary" });
+    if (classC > 0) sharesData.push({ totalShares: classC, shareClass: "C", shareType: "Ordinary" });
+    return sharesData;
+  };
+
+  // Helper function to convert sharesData array to class fields (for shareholder shares)
+  const sharesDataToClassFields = (sharesData: ShareDataItem[]) => {
+    let classA = 0, classB = 0, classC = 0;
+    sharesData.forEach(sd => {
+      if (sd.shareClass === "A") classA += Number(sd.totalShares) || 0;
+      if (sd.shareClass === "B") classB += Number(sd.totalShares) || 0;
+      if (sd.shareClass === "C") classC += Number(sd.totalShares) || 0;
+    });
+    return { classA, classB, classC };
   };
 
   const handleAddNewEntity = () => {
@@ -406,11 +670,17 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         nationality: "",
         address: "",
         roles: [],
+        classAShares: 0,
+        classBShares: 0,
+        classCShares: 0,
+        sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
         // Initialize share class values for companies
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
           useClassShares: false,
           visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
         }),
       },
     ]);
@@ -425,13 +695,10 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     field: keyof NewEntityForm,
     value: any
   ) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i === index) {
-          return { ...entity, [field]: value };
-        }
-        return entity;
-      })
+    setNewEntities((prev) =>
+      prev.map((entity, i) =>
+        i === index ? { ...entity, [field]: value } : entity
+      )
     );
   };
 
@@ -447,6 +714,66 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         return entity;
       })
     );
+  };
+
+  const handleExistingEntityClassSharesChange = (
+    entityId: string,
+    shareClass: "A" | "B" | "C",
+    value: number
+  ) => {
+    setSelectedExistingEntities(
+      selectedExistingEntities.map((entity) => {
+        if (entity.id === entityId) {
+          const updated = { ...entity };
+          if (shareClass === "A") updated.classAShares = value;
+          if (shareClass === "B") updated.classBShares = value;
+          if (shareClass === "C") updated.classCShares = value;
+          
+          // Sync with sharesData
+          updated.sharesData = classFieldsToSharesData(
+            updated.classAShares || 0,
+            updated.classBShares || 0,
+            updated.classCShares || 0
+          );
+          
+          return updated;
+        }
+        return entity;
+      })
+    );
+    
+    // Validate after change
+    setTimeout(() => validateShares(), 0);
+  };
+
+  const handleNewEntityClassSharesChange = (
+    entityIndex: number,
+    shareClass: "A" | "B" | "C",
+    value: number
+  ) => {
+    setNewEntities(
+      newEntities.map((entity, i) => {
+        if (i === entityIndex) {
+          const updated = { ...entity };
+          if (shareClass === "A") updated.classAShares = value;
+          if (shareClass === "B") updated.classBShares = value;
+          if (shareClass === "C") updated.classCShares = value;
+          
+          // Sync with sharesData
+          updated.sharesData = classFieldsToSharesData(
+            updated.classAShares || 0,
+            updated.classBShares || 0,
+            updated.classCShares || 0
+          );
+          
+          return updated;
+        }
+        return entity;
+      })
+    );
+    
+    // Validate after change
+    setTimeout(() => validateShares(), 0);
   };
 
   const handleShareValueChange = (
@@ -529,6 +856,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   };
 
   const validateForm = (): string | null => {
+    // Validate shares don't exceed remaining
+    if (!validateShares()) {
+      return shareValidationErrors.global || "Total shares exceed available shares";
+    }
+    
     // Validate existing entities have at least one role
     for (const entity of selectedExistingEntities) {
       if (entity.roles.length === 0) {
@@ -569,9 +901,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             entity.shareClassValues,
             entity.useClassShares || false
           );
-          if (totalSum <= 0) {
-            return `Please enter at least one share amount greater than 0 for ${entity.name || `new company #${i + 1}`}`;
-          }
+        
         }
       }
       if (!entity.address.trim()) {
@@ -627,20 +957,78 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             }
           }
         } else {
+          // Get current company to check if entities are already shareholders
+          const companyResponse = await fetch(
+            `${import.meta.env.VITE_APIURL}/api/client/non-primary/company/${companyId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionData.session.access_token}`,
+              },
+            }
+          );
+
+          let currentCompany = null;
+          if (companyResponse.ok) {
+            const companyResult = await companyResponse.json();
+            currentCompany = companyResult.data || {};
+          }
+
+          const existingShareholderIds = new Set(
+            (currentCompany?.shareHoldingCompanies || []).map((sh: any) => {
+              const compId = sh?.companyId?._id || sh?.companyId?.id || sh?.companyId;
+              return String(compId);
+            })
+          );
+
           if (selectedExistingEntities.length === 1) {
             // Single update
+            const entity = selectedExistingEntities[0];
             await updateRepresentationCompanyExisting(
-              clientId,
+              "non-primary",
               companyId,
-              selectedExistingEntities[0].id,
-              { role: selectedExistingEntities[0].roles }
+              entity.id,
+              { role: entity.roles }
             );
+
+            // If shares are provided, also add/update as shareholder
+            const validSharesData = entity.sharesData?.filter((sd) => Number(sd.totalShares) > 0) || [];
+            if (validSharesData.length > 0) {
+              if (existingShareholderIds.has(String(entity.id))) {
+                // Update existing shareholder
+                await updateShareHolderCompanyExisting("non-primary", companyId, entity.id, {
+                  sharesData: validSharesData,
+                });
+              } else {
+                // Add new shareholder
+                await addShareHolderCompanyNew("non-primary", companyId, {
+                  companyId: entity.id,
+                  sharesData: validSharesData,
+                });
+              }
+            }
           } else {
             // Bulk update - need to process individually
             for (const entity of selectedExistingEntities) {
-              await updateRepresentationCompanyExisting(clientId, companyId, entity.id, {
+              await updateRepresentationCompanyExisting("non-primary", companyId, entity.id, {
                 role: entity.roles,
               });
+
+              // If shares are provided, also add/update as shareholder
+              const validSharesData = entity.sharesData?.filter((sd) => Number(sd.totalShares) > 0) || [];
+              if (validSharesData.length > 0) {
+                if (existingShareholderIds.has(String(entity.id))) {
+                  // Update existing shareholder
+                  await updateShareHolderCompanyExisting("non-primary", companyId, entity.id, {
+                    sharesData: validSharesData,
+                  });
+                } else {
+                  // Add new shareholder
+                  await addShareHolderCompanyNew("non-primary", companyId, {
+                    companyId: entity.id,
+                    sharesData: validSharesData,
+                  });
+                }
+              }
             }
           }
         }
@@ -699,7 +1087,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               : undefined;
 
             const companyResponse = await fetch(
-              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company`,
+              `${import.meta.env.VITE_APIURL}/api/client/non-primary/company`,
               {
                 method: "POST",
                 headers: {
@@ -711,7 +1099,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
                   totalShares: totalSharesPayload,
-                  industry: entity.industry || undefined,
+                  industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry)?.trim() || undefined,
                   description: entity.description || undefined,
                   companyStartedAt: entity.companyStartedAt || undefined,
                 }),
@@ -731,6 +1119,15 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               companyId: companyId_new,
               role: entity.roles,
             });
+
+            // If shares are provided, also add as shareholder
+            const validSharesData = entity.sharesData?.filter((sd) => Number(sd.totalShares) > 0) || [];
+            if (validSharesData.length > 0) {
+              await addShareHolderCompanyNew("non-primary", companyId, {
+                companyId: companyId_new,
+                sharesData: validSharesData,
+              });
+            }
           }
         }
       }
@@ -818,8 +1215,22 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         nationality: "",
         address: "",
         roles: [],
+        classAShares: 0,
+        classBShares: 0,
+        classCShares: 0,
+        sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
+        ...(entityType === "company" && {
+          shareClassValues: getDefaultShareClassValues(),
+          useClassShares: false,
+          visibleShareClasses: [],
+          industry: "",
+          customIndustry: "",
+        }),
       },
     ]);
+    setExpandedEntities(new Set());
+    setShareValidationErrors({});
+    setCurrentCompany(null);
     setIsGlobalSearchMode(false);
     setSearchQuery("");
     setSearchResults([]);
@@ -833,6 +1244,132 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  
+  // Get available share classes from parent company
+  const getAvailableShareClasses = useCallback((): Array<"A" | "B" | "C" | "Ordinary"> => {
+    if (!currentCompany?.totalShares || !Array.isArray(currentCompany.totalShares)) {
+      return ["A", "B", "C"]; // Default fallback
+    }
+    
+    const classes = currentCompany.totalShares
+      .filter((share: any) => Number(share.totalShares) > 0)
+      .map((share: any) => share.class)
+      .filter((cls: string) => cls && cls !== "") as Array<"A" | "B" | "C" | "Ordinary">;
+    
+    // If no classes found, return default
+    return classes.length > 0 ? classes : ["A", "B", "C"];
+  }, [currentCompany]);
+
+
+    // Calculate allocated shares per class from existing shareholders
+    const getAllocatedSharesPerClass = useCallback((): Record<string, number> => {
+      const allocated: Record<string, number> = {};
+      
+      if (!currentCompany) return allocated;
+      
+      // Initialize all possible classes
+      const allClasses = ["A", "B", "C", "Ordinary"];
+      allClasses.forEach(cls => allocated[cls] = 0);
+      
+      // Sum from shareHolders (persons)
+      if (Array.isArray(currentCompany.shareHolders)) {
+        currentCompany.shareHolders.forEach((sh: any) => {
+          if (Array.isArray(sh.sharesData)) {
+            sh.sharesData.forEach((sd: any) => {
+              const shareClass = sd.shareClass || sd.class || "A";
+              allocated[shareClass] = (allocated[shareClass] || 0) + (Number(sd.totalShares) || 0);
+            });
+          }
+        });
+      }
+      
+      // Sum from shareHoldingCompanies
+      if (Array.isArray(currentCompany.shareHoldingCompanies)) {
+        currentCompany.shareHoldingCompanies.forEach((sh: any) => {
+          if (Array.isArray(sh.sharesData)) {
+            sh.sharesData.forEach((sd: any) => {
+              const shareClass = sd.shareClass || sd.class || "A";
+              allocated[shareClass] = (allocated[shareClass] || 0) + (Number(sd.totalShares) || 0);
+            });
+          }
+        });
+      }
+      
+      return allocated;
+    }, [currentCompany]);
+  
+    // Calculate available shares per class
+    const getAvailableSharesPerClass = useCallback((): Record<string, number> => {
+      const available: Record<string, number> = {};
+      const allocated = getAllocatedSharesPerClass();
+      
+      if (!currentCompany?.totalShares || !Array.isArray(currentCompany.totalShares)) {
+        return available;
+      }
+      
+      // Get total shares per class from company
+      currentCompany.totalShares.forEach((share: any) => {
+        const shareClass = share.class || "A";
+        const total = Number(share.totalShares) || 0;
+        const allocatedForClass = allocated[shareClass] || 0;
+        available[shareClass] = Math.max(0, total - allocatedForClass);
+      });
+      
+      return available;
+    }, [currentCompany, getAllocatedSharesPerClass]);
+    
+
+    const getFormAllocatedSharesPerClass = useCallback((): Record<string, number> => {
+      const formAllocated: Record<string, number> = {};
+      const allClasses = ["A", "B", "C", "Ordinary"];
+      allClasses.forEach(cls => formAllocated[cls] = 0);
+      
+      // Sum from selected existing entities
+      selectedExistingEntities.forEach((entity) => {
+        if (entity.sharesData && Array.isArray(entity.sharesData)) {
+          entity.sharesData.forEach((sd: ShareDataItem) => {
+            const shareClass = sd.shareClass || "A";
+            formAllocated[shareClass] = (formAllocated[shareClass] || 0) + (Number(sd.totalShares) || 0);
+          });
+        }
+      });
+      
+      // Sum from new entities
+      newEntities.forEach((entity) => {
+        if (entity.sharesData && Array.isArray(entity.sharesData)) {
+          entity.sharesData.forEach((sd: ShareDataItem) => {
+            const shareClass = sd.shareClass || "A";
+            formAllocated[shareClass] = (formAllocated[shareClass] || 0) + (Number(sd.totalShares) || 0);
+          });
+        }
+      });
+      
+      return formAllocated;
+    }, [selectedExistingEntities, newEntities]);
+
+  // Validate shares and update error state
+  const validateShares = useCallback(() => {
+    const errors: Record<string, string> = {};
+    const availableSharesPerClass = getAvailableSharesPerClass();
+    const formAllocatedPerClass = getFormAllocatedSharesPerClass();
+    
+    // Validate per-class limits
+    Object.keys(formAllocatedPerClass).forEach((shareClass) => {
+      const formAllocated = formAllocatedPerClass[shareClass] || 0;
+      const available = availableSharesPerClass[shareClass] || 0;
+      
+      if (formAllocated > available) {
+        const exceeded = formAllocated - available;
+        errors[`class_${shareClass}`] = `Exceeds available ${shareClass} shares by ${exceeded.toLocaleString()}. Available: ${available.toLocaleString()}`;
+      }
+    });
+    
+    setShareValidationErrors(errors);
+    
+    return Object.keys(errors).length === 0;
+  }, [selectedExistingEntities, newEntities, currentCompany, getAvailableSharesPerClass, getFormAllocatedSharesPerClass]);
+  
 
   const formContent = (
     <div className={`${inline ? '' : 'max-w-5xl max-h-[90vh]'} overflow-y-auto`}>
@@ -959,13 +1496,18 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                 <p className="text-xs text-gray-400">{entity.nationality}</p>
                               )}
                             </div>
+                            {entityType === "person" && entity.sourceCompany && entity.sourceCompany.id !== companyId && (
+                              <Badge variant="outline" className="text-xs">
+                                {entity.sourceCompany.name}
+                              </Badge>
+                            )}
                             {isSelected && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => toggleExistingEntityExpanded(entityId)}
                               >
-                                {selectedEntity?.expanded ? (
+                                {expandedEntities.has(entityId) ? (
                                   <ChevronUp className="h-4 w-4" />
                                 ) : (
                                   <ChevronDown className="h-4 w-4" />
@@ -974,7 +1516,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                             )}
                           </div>
 
-                          {isSelected && selectedEntity?.expanded && (
+                          {isSelected && expandedEntities.has(entityId) && selectedEntity && (
                             <Card className="ml-8 mb-2">
                               <CardContent className="p-4">
                                 <Label className="text-sm font-semibold mb-3 block">
@@ -1000,6 +1542,121 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                     Please select at least one role
                                   </p>
                                 )}
+                                
+                                {/* Shares Input Section */}
+                                <div className="border-t pt-4 mt-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <Label className="text-sm font-semibold">
+                                      Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
+                                    </Label>
+                                  </div>
+                                  {shareValidationErrors.global && (
+                                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                      <p className="text-sm text-red-600">{shareValidationErrors.global}</p>
+                                    </div>
+                                  )}
+                                  <div className="space-y-3">
+                                    <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                                      {getAvailableShareClasses().map((shareClass) => {
+                                        const availableShares = getAvailableSharesPerClass();
+                                        const formAllocatedPerClass = getFormAllocatedSharesPerClass();
+                                        const available = availableShares[shareClass] || 0;
+                                        const allocated = formAllocatedPerClass[shareClass] || 0;
+                                        const remaining = Math.max(0, available - allocated);
+                                        
+                                        // Get value from sharesData or class fields
+                                        let value = 0;
+                                        if (shareClass === "Ordinary") {
+                                          const ordinaryShare = selectedEntity.sharesData?.find((sd: ShareDataItem) => 
+                                            sd.shareClass === "Ordinary"
+                                          );
+                                          value = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
+                                        } else if (shareClass === "A") {
+                                          value = selectedEntity.classAShares || 0;
+                                        } else if (shareClass === "B") {
+                                          value = selectedEntity.classBShares || 0;
+                                        } else if (shareClass === "C") {
+                                          value = selectedEntity.classCShares || 0;
+                                        }
+                                        
+                                        const errorKey = `class_${shareClass}`;
+                                        const hasError = shareValidationErrors[errorKey];
+                                        
+                                        const handleChange = (newValue: number) => {
+                                          if (shareClass === "Ordinary") {
+                                            const updatedSharesData = [...(selectedEntity.sharesData || [])];
+                                            const existingIndex = updatedSharesData.findIndex((sd: ShareDataItem) => 
+                                              sd.shareClass === "Ordinary"
+                                            );
+                                            
+                                            if (newValue > 0) {
+                                              const newShareItem: ShareDataItem = {
+                                                totalShares: newValue,
+                                                shareClass: "Ordinary",
+                                                shareType: "Ordinary"
+                                              };
+                                              if (existingIndex >= 0) {
+                                                updatedSharesData[existingIndex] = newShareItem;
+                                              } else {
+                                                updatedSharesData.push(newShareItem);
+                                              }
+                                            } else {
+                                              if (existingIndex >= 0) {
+                                                updatedSharesData.splice(existingIndex, 1);
+                                              }
+                                            }
+                                            
+                                            setSelectedExistingEntities(
+                                              selectedExistingEntities.map((e) =>
+                                                e.id === entityId ? { ...e, sharesData: updatedSharesData } : e
+                                              )
+                                            );
+                                          } else if (shareClass === "A" || shareClass === "B" || shareClass === "C") {
+                                            handleExistingEntityClassSharesChange(
+                                              entityId,
+                                              shareClass,
+                                              newValue
+                                            );
+                                          }
+                                        };
+                                        
+                                        return (
+                                          <div key={shareClass}>
+                                            <Label className="text-xs text-gray-600">
+                                              {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
+                                            </Label>
+                                            <Input
+                                              type="number"
+                                              min="0"
+                                              step="1"
+                                              placeholder="0"
+                                              value={value || ""}
+                                              onChange={(e) => handleChange(Number(e.target.value) || 0)}
+                                              className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">
+                                              {allocated > 0 ? (
+                                                <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
+                                              ) : (
+                                                <>Available: {available.toLocaleString()} shares</>
+                                              )}
+                                            </p>
+                                            {hasError && (
+                                              <p className="text-xs text-red-600 mt-1">
+                                                {shareValidationErrors[errorKey]}
+                                              </p>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    {shareValidationErrors.global && (
+                                      <p className="text-xs text-red-600">
+                                        {shareValidationErrors.global}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               </CardContent>
                             </Card>
                           )}
@@ -1081,13 +1738,18 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                   </p>
                                 )}
                               </div>
+                              {entityType === "person" && entity.sourceCompany && entity.sourceCompany.id !== companyId && (
+                                <Badge variant="outline" className="text-xs">
+                                  {entity.sourceCompany.name}
+                                </Badge>
+                              )}
                               {isSelected && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => toggleExistingEntityExpanded(entityId)}
                                 >
-                                  {selectedEntity?.expanded ? (
+                                  {expandedEntities.has(entityId) ? (
                                     <ChevronUp className="h-4 w-4" />
                                   ) : (
                                     <ChevronDown className="h-4 w-4" />
@@ -1096,11 +1758,11 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                               )}
                             </div>
 
-                            {isSelected && selectedEntity?.expanded && (
+                            {isSelected && expandedEntities.has(entityId) && selectedEntity && (
                               <Card className="ml-8 mb-2">
                                 <CardContent className="p-4">
                                   <Label className="text-sm font-semibold mb-3 block">
-                                    Select Roles (at least one required)
+                                    Select Roles 
                                   </Label>
                                   <div className="grid grid-cols-2 gap-3">
                                     {REPRESENTATIVE_ROLES.map((role) => (
@@ -1125,6 +1787,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                 </CardContent>
                               </Card>
                             )}
+                            
                           </div>
                         );
                       })
@@ -1151,13 +1814,13 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                 className="rounded-xl"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add More {entityType === "person" ? "Person" : "Company"}
+                Add More Representative {entityType === "person" ? "Person" : "Company"}
               </Button>
             </div>
 
- 
+            <div className={`grid gap-4 ${newEntities.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {newEntities.map((entity, index) => (
-                <Card key={index} className="relative">
+                <Card key={index} className="relative min-w-[300px]">
                   <CardContent className="p-4 space-y-4">
                     {newEntities.length > 1 && (
                       <Button
@@ -1276,18 +1939,38 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
 
                     {entityType === "company" && (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Industry</Label>
-                            <Input
-                              placeholder="Enter industry"
-                              value={entity.industry || ""}
-                              onChange={(e) =>
-                                handleNewEntityChange(index, "industry", e.target.value)
+                        <div className="space-y-2">
+                          <Label>Industry</Label>
+                          <Select
+                            value={entity.industry || ""}
+                            onValueChange={(value) => {
+                              handleNewEntityChange(index, "industry", value);
+                              if (value !== "Other") {
+                                handleNewEntityChange(index, "customIndustry", "");
                               }
-                              className="rounded-xl"
+                            }}
+                          >
+                            <SelectTrigger className="rounded-xl border-gray-200 text-left">
+                              <SelectValue placeholder="Select an industry" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {industryOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {entity.industry === "Other" && (
+                            <Input
+                              placeholder="Enter custom industry"
+                              value={entity.customIndustry || ""}
+                              onChange={(e) =>
+                                handleNewEntityChange(index, "customIndustry", e.target.value)
+                              }
+                              className="rounded-xl border-gray-200"
                             />
-                          </div>
+                          )}
                         </div>
 
                         {/* Total Shares Section */}
@@ -1423,11 +2106,128 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                         </p>
                       )}
                     </div>
+               
+                    {/* Shares Data - Only show for companies */}
+                    {entityType === "company" && (
+                      <div className="border-t pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-sm font-semibold">
+                            Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
+                          </Label>
+                        </div>
+                        {shareValidationErrors.global && (
+                          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-600">{shareValidationErrors.global}</p>
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                            {getAvailableShareClasses().map((shareClass) => {
+                              const availableShares = getAvailableSharesPerClass();
+                              const formAllocatedPerClass = getFormAllocatedSharesPerClass();
+                              const available = availableShares[shareClass] || 0;
+                              const allocated = formAllocatedPerClass[shareClass] || 0;
+                              const remaining = Math.max(0, available - allocated);
+                              
+                              // Get value from sharesData or class fields
+                              let value = 0;
+                              if (shareClass === "Ordinary") {
+                                // For Ordinary, check sharesData
+                                const ordinaryShare = entity.sharesData?.find((sd: ShareDataItem) => 
+                                  sd.shareClass === "Ordinary"
+                                );
+                                value = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
+                              } else if (shareClass === "A") {
+                                value = entity.classAShares || 0;
+                              } else if (shareClass === "B") {
+                                value = entity.classBShares || 0;
+                              } else if (shareClass === "C") {
+                                value = entity.classCShares || 0;
+                              }
+                              
+                              const errorKey = `class_${shareClass}`;
+                              const hasError = shareValidationErrors[errorKey];
+                              
+                              const handleChange = (newValue: number) => {
+                                if (shareClass === "Ordinary") {
+                                  // For Ordinary, update sharesData directly
+                                  const updatedSharesData = [...(entity.sharesData || [])];
+                                  const existingIndex = updatedSharesData.findIndex((sd: ShareDataItem) => 
+                                    sd.shareClass === "Ordinary"
+                                  );
+                                  
+                                  if (newValue > 0) {
+                                    const newShareItem: ShareDataItem = {
+                                      totalShares: newValue,
+                                      shareClass: "Ordinary",
+                                      shareType: "Ordinary"
+                                    };
+                                    if (existingIndex >= 0) {
+                                      updatedSharesData[existingIndex] = newShareItem;
+                                    } else {
+                                      updatedSharesData.push(newShareItem);
+                                    }
+                                  } else {
+                                    if (existingIndex >= 0) {
+                                      updatedSharesData.splice(existingIndex, 1);
+                                    }
+                                  }
+                                  
+                                  handleNewEntityChange(index, "sharesData", updatedSharesData);
+                                } else if (shareClass === "A" || shareClass === "B" || shareClass === "C") {
+                                  // For A, B, C, use existing handler
+                                  handleNewEntityClassSharesChange(
+                                    index,
+                                    shareClass,
+                                    newValue
+                                  );
+                                }
+                              };
+                              
+                              return (
+                                <div key={shareClass}>
+                                  <Label className="text-xs text-gray-600">
+                                    {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="0"
+                                    value={value || ""}
+                                    onChange={(e) => handleChange(Number(e.target.value) || 0)}
+                                    className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {allocated > 0 ? (
+                                      <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
+                                    ) : (
+                                      <>Available: {available.toLocaleString()} shares</>
+                                    )}
+                                  </p>
+                                  {hasError && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      {shareValidationErrors[errorKey]}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {shareValidationErrors.global && (
+                            <p className="text-xs text-red-600">
+                              {shareValidationErrors.global}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                   </CardContent>
                 </Card>
               ))}
             </div>
-        
+          </div>
           )}
         </div>
 
@@ -1443,7 +2243,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || Object.keys(shareValidationErrors).length > 0}
             className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
           >
             {isSubmitting ? (

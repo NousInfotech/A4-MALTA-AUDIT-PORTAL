@@ -163,10 +163,10 @@ export const ClientDetail: React.FC = () => {
                 variant="outline"
                 size="icon"
                 asChild
-                className="rounded-xl border-gray-200 hover:bg-gray-50"
+                className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
               >
                 <Link to="/employee/clients">
-                  <ArrowLeft className="h-4 w-4 text-brand-body" />
+                  <ArrowLeft className="h-4 w-4" />
                 </Link>
               </Button>
               <div className="flex items-center gap-3">
@@ -267,7 +267,7 @@ export const ClientDetail: React.FC = () => {
                     <img
                       src="/logo.png"
                       alt="Logo"
-                      className="h-10 w-10 object-cover rounded"
+                      className="h-10 w-10 object-cover rounded "
                     />
                   </div>
                   <div>
