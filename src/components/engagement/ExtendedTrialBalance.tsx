@@ -23,6 +23,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -619,6 +620,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // State for prior year population
   const [isPopulatingPriorYear, setIsPopulatingPriorYear] = useState(false);
 
+  // State for delete row warning dialog
+  const [showDeleteRowWarning, setShowDeleteRowWarning] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState<ETBRow | null>(null);
+  const [adjustmentsForDeleteRow, setAdjustmentsForDeleteRow] = useState<any[]>([]);
+  const [reclassificationsForDeleteRow, setReclassificationsForDeleteRow] = useState<any[]>([]);
+  const [loadingDeleteRowData, setLoadingDeleteRowData] = useState(false);
+  const [deletingAdjustments, setDeletingAdjustments] = useState<Set<string>>(new Set());
+  const [deletingReclassifications, setDeletingReclassifications] = useState<Set<string>>(new Set());
+
   const isPushingRef = useRef(false);
   const isPushingToCloudRef = useRef(false);
   const pushingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -1054,14 +1064,6 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     });
   }, [refreshClassificationSummary]);
 
-  const deleteRow = useCallback((id: string) => {
-    setEtbRows(prevRows => {
-      const newRows = prevRows.filter((row) => row.id !== id);
-      refreshClassificationSummary(newRows);
-      return newRows;
-    });
-  }, [refreshClassificationSummary]);
-
   // Save ETB (optionally mute toast, optionally pass custom rows)
   const saveETB = useCallback(async (showToast = true, customRows?: ETBRow[], skipLoadExistingData = false) => {
     const rowsToSave = customRows || etbRows;
@@ -1118,6 +1120,81 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
   }, [etbRows, isPushingToCloud, refreshClassificationSummary, engagement._id, toast, loadExistingData]);
 
+  // Actually delete the row after all checks
+  const proceedWithRowDeletion = useCallback((id: string) => {
+    // Calculate new rows first
+    const newRows = etbRows.filter((row) => row.id !== id);
+    
+    // Update state immediately for UI responsiveness
+    setEtbRows(newRows);
+    refreshClassificationSummary(newRows);
+    
+    // Save the updated ETB with the filtered rows, skip reloading existing data to avoid restoring deleted row
+    saveETB(true, newRows, true); // skipLoadExistingData = true
+  }, [etbRows, refreshClassificationSummary, saveETB]);
+
+  // Check for adjustments and reclassifications before deleting a row
+  const checkRowBeforeDelete = useCallback(async (row: ETBRow) => {
+    setRowToDelete(row);
+    setLoadingDeleteRowData(true);
+    setAdjustmentsForDeleteRow([]);
+    setReclassificationsForDeleteRow([]);
+
+    try {
+      const rowId = row._id || row.id || row.code;
+      
+      // Fetch all adjustments and reclassifications for this engagement
+      const [adjustmentsResponse, reclassificationsResponse] = await Promise.all([
+        adjustmentApi.getByEngagement(engagement._id),
+        reclassificationApi.getByEngagement(engagement._id),
+      ]);
+
+      // Filter to find adjustments/reclassifications affecting this row
+      const relevantAdjustments = adjustmentsResponse.success
+        ? adjustmentsResponse.data.filter((adj: any) =>
+            adj.entries.some((entry: any) =>
+              entry.etbRowId === rowId || entry.code === row.code
+            )
+          )
+        : [];
+
+      const relevantReclassifications = reclassificationsResponse.success
+        ? reclassificationsResponse.data.filter((rc: any) =>
+            rc.entries.some((entry: any) =>
+              entry.etbRowId === rowId || entry.code === row.code
+            )
+          )
+        : [];
+
+      setAdjustmentsForDeleteRow(relevantAdjustments);
+      setReclassificationsForDeleteRow(relevantReclassifications);
+
+      // If there are adjustments or reclassifications, show warning dialog
+      if (relevantAdjustments.length > 0 || relevantReclassifications.length > 0) {
+        setShowDeleteRowWarning(true);
+      } else {
+        // No adjustments/reclassifications, proceed with deletion
+        proceedWithRowDeletion(row.id);
+      }
+    } catch (error: any) {
+      console.error("Error checking row before delete:", error);
+      toast({
+        title: "Error",
+        description: "Failed to check for adjustments/reclassifications. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingDeleteRowData(false);
+    }
+  }, [engagement._id, toast, proceedWithRowDeletion]);
+
+  const deleteRow = useCallback((id: string) => {
+    const row = etbRows.find((r) => r.id === id);
+    if (!row) return;
+    
+    // Check for adjustments/reclassifications before deleting
+    checkRowBeforeDelete(row);
+  }, [etbRows, checkRowBeforeDelete]);
 
   /* ---------------------------------------------
    Helper function for the core push logic
@@ -1594,6 +1671,94 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
   }, [engagement._id, toast]);
 
+  // Delete & reverse adjustment
+  const handleDeleteAndReverseAdjustment = useCallback(async (adjustmentId: string) => {
+    setDeletingAdjustments(prev => new Set(prev).add(adjustmentId));
+    try {
+      const response = await adjustmentApi.delete(adjustmentId);
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.data?.wasPosted 
+            ? "Adjustment deleted and ETB impact reversed"
+            : "Adjustment deleted successfully",
+        });
+        
+        // Remove from list
+        setAdjustmentsForDeleteRow(prev => prev.filter(adj => adj._id !== adjustmentId));
+        
+        // Reload ETB data to reflect changes
+        await initializeETB();
+      }
+    } catch (error: any) {
+      console.error("Error deleting adjustment:", error);
+      toast({
+        title: "Failed to delete adjustment",
+        description: error.message || "Could not delete adjustment",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingAdjustments(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(adjustmentId);
+        return newSet;
+      });
+    }
+  }, [toast, initializeETB]);
+
+  // Delete & reverse reclassification
+  const handleDeleteAndReverseReclassification = useCallback(async (reclassificationId: string) => {
+    setDeletingReclassifications(prev => new Set(prev).add(reclassificationId));
+    try {
+      const response = await reclassificationApi.delete(reclassificationId);
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: response.data?.wasPosted 
+            ? "Reclassification deleted and ETB impact reversed"
+            : "Reclassification deleted successfully",
+        });
+        
+        // Remove from list
+        setReclassificationsForDeleteRow(prev => prev.filter(rc => rc._id !== reclassificationId));
+        
+        // Reload ETB data to reflect changes
+        await initializeETB();
+      }
+    } catch (error: any) {
+      console.error("Error deleting reclassification:", error);
+      toast({
+        title: "Failed to delete reclassification",
+        description: error.message || "Could not delete reclassification",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingReclassifications(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reclassificationId);
+        return newSet;
+      });
+    }
+  }, [toast, initializeETB]);
+
+  // Close delete warning dialog and reset state
+  const handleCloseDeleteWarning = useCallback(() => {
+    setShowDeleteRowWarning(false);
+    setRowToDelete(null);
+    setAdjustmentsForDeleteRow([]);
+    setReclassificationsForDeleteRow([]);
+    setDeletingAdjustments(new Set());
+    setDeletingReclassifications(new Set());
+  }, []);
+
+  // Proceed with row deletion after all adjustments/reclassifications are handled
+  const handleConfirmDeleteRow = useCallback(() => {
+    if (rowToDelete) {
+      proceedWithRowDeletion(rowToDelete.id);
+      handleCloseDeleteWarning();
+    }
+  }, [rowToDelete, proceedWithRowDeletion, handleCloseDeleteWarning]);
+
   // Manually trigger prior year population
   const populatePriorYearManually = useCallback(async () => {
     setIsPopulatingPriorYear(true);
@@ -2014,9 +2179,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                         </TableCell>
                         <TableCell className="w-20 border border-b-secondary align-middle">
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => deleteRow(row.id)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              deleteRow(row.id);
+                            }}
                             className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
                             aria-label="Delete row"
                           >
@@ -2249,6 +2419,193 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Row Warning Dialog */}
+      <Dialog open={showDeleteRowWarning} onOpenChange={(open) => {
+        if (!open) {
+          handleCloseDeleteWarning();
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              Warning: Row Has Adjustments or Reclassifications
+            </DialogTitle>
+            <DialogDescription>
+              The row <span className="font-semibold">
+                {rowToDelete?.code} - {rowToDelete?.accountName}
+              </span> has associated adjustments or reclassifications that must be deleted & reversed before the row can be deleted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Warning Message */}
+            <Alert className="border-amber-300 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <strong>Important:</strong> Before deleting this ETB row, you must delete & reverse all adjustments and reclassifications that affect it. 
+                This will remove their impact from the ETB. Once all adjustments and reclassifications are handled, you can proceed with deleting the row.
+              </AlertDescription>
+            </Alert>
+
+            {loadingDeleteRowData ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-sm text-gray-600">Loading adjustments and reclassifications...</span>
+              </div>
+            ) : (
+              <>
+                {/* Adjustments Section */}
+                {adjustmentsForDeleteRow.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Adjustments ({adjustmentsForDeleteRow.length})
+                    </h3>
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="space-y-2 p-3">
+                        {adjustmentsForDeleteRow.map((adj: any) => (
+                          <Card key={adj._id} className="border-blue-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="font-mono">
+                                      {adj.adjustmentNo}
+                                    </Badge>
+                                    <Badge variant={adj.status === "posted" ? "default" : "secondary"}>
+                                      {adj.status.toUpperCase()}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-2">
+                                    {adj.description || "No description"}
+                                  </p>
+                                  <div className="text-xs text-gray-500">
+                                    DR: {adj.totalDr.toLocaleString()} | CR: {adj.totalCr.toLocaleString()}
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteAndReverseAdjustment(adj._id)}
+                                  disabled={deletingAdjustments.has(adj._id)}
+                                >
+                                  {deletingAdjustments.has(adj._id) ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-3 w-3 mr-1" />
+                                      Delete & Reverse
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reclassifications Section */}
+                {reclassificationsForDeleteRow.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Reclassifications ({reclassificationsForDeleteRow.length})
+                    </h3>
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="space-y-2 p-3">
+                        {reclassificationsForDeleteRow.map((rc: any) => (
+                          <Card key={rc._id} className="border-purple-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="font-mono">
+                                      {rc.reclassificationNo}
+                                    </Badge>
+                                    <Badge variant={rc.status === "posted" ? "default" : "secondary"}>
+                                      {rc.status.toUpperCase()}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-2">
+                                    {rc.description || "No description"}
+                                  </p>
+                                  <div className="text-xs text-gray-500">
+                                    DR: {rc.totalDr.toLocaleString()} | CR: {rc.totalCr.toLocaleString()}
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteAndReverseReclassification(rc._id)}
+                                  disabled={deletingReclassifications.has(rc._id)}
+                                >
+                                  {deletingReclassifications.has(rc._id) ? (
+                                    <>
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-3 w-3 mr-1" />
+                                      Delete & Reverse
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* No adjustments/reclassifications message */}
+                {adjustmentsForDeleteRow.length === 0 && reclassificationsForDeleteRow.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Info className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>No adjustments or reclassifications found for this row.</p>
+                    <p className="text-xs mt-1">You can proceed with deletion.</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseDeleteWarning}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteRow}
+              disabled={
+                loadingDeleteRowData ||
+                adjustmentsForDeleteRow.length > 0 ||
+                reclassificationsForDeleteRow.length > 0
+              }
+            >
+              {adjustmentsForDeleteRow.length > 0 || reclassificationsForDeleteRow.length > 0 ? (
+                <>
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Delete Row (Handle adjustments/reclassifications first)
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Row
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
