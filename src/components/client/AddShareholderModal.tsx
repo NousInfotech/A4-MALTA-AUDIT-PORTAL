@@ -152,10 +152,11 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   const [currentCompany, setCurrentCompany] = useState<any>(null);
   
   // View mode: "existing" or "new"
-  const [viewMode, setViewMode] = useState<"existing" | "new">("existing");
+  // Default to "new" for persons, "existing" for companies (since companies use global search)
+  const [viewMode, setViewMode] = useState<"existing" | "new">(entityType === "person" ? "new" : "existing");
   
   // Global search state
-  const [isGlobalSearchMode, setIsGlobalSearchMode] = useState(false);
+  const [isGlobalSearchMode, setIsGlobalSearchMode] = useState(entityType === "company");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -168,7 +169,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   
   const { toast } = useToast();
 
-  // Reset global search mode when switching to person mode
+  // Reset global search mode when switching to person mode, enable for companies
   useEffect(() => {
     if (entityType === "person" && isGlobalSearchMode) {
       setIsGlobalSearchMode(false);
@@ -180,6 +181,9 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         total: 0,
         totalPages: 0,
       });
+    } else if (entityType === "company" && !isGlobalSearchMode) {
+      // Automatically enable global search mode for companies
+      setIsGlobalSearchMode(true);
     }
   }, [entityType, isGlobalSearchMode]);
 
@@ -1017,7 +1021,34 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           page: currentPage,
           limit: searchPagination.limit,
         });
-        setSearchResults(result.data || []);
+        
+        // Filter out companies that are already shareholders in the current company
+        let filteredResults = result.data || [];
+        
+        if (currentCompany) {
+          const existingShareholderIds = new Set(
+            (currentCompany.shareHoldingCompanies || []).map((sh: any) => {
+              const compId = sh?.companyId?._id || sh?.companyId?.id || sh?.companyId;
+              return String(compId);
+            })
+          );
+          
+          // Also exclude the current company itself
+          existingShareholderIds.add(String(companyId));
+          
+          filteredResults = filteredResults.filter((company: any) => {
+            const compId = company._id || company.id;
+            return !existingShareholderIds.has(String(compId));
+          });
+        } else {
+          // Even if currentCompany is not loaded, still exclude the current company
+          filteredResults = filteredResults.filter((company: any) => {
+            const compId = company._id || company.id;
+            return String(compId) !== String(companyId);
+          });
+        }
+        
+        setSearchResults(filteredResults);
         setSearchPagination(result.pagination || searchPagination);
       }
     } catch (error: any) {
@@ -1090,19 +1121,37 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           </h2>
           {/* View Mode Toggle */}
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-            <Button
-              type="button"
-              variant={viewMode === "existing" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("existing")}
-              className={`rounded-md ${
-                viewMode === "existing"
-                  ? "bg-white shadow-sm text-gray-900"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Existing
-            </Button>
+            {/* Commented out Existing button for persons - only show for companies */}
+            {entityType === "company" && (
+              <Button
+                type="button"
+                variant={viewMode === "existing" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("existing")}
+                className={`rounded-md ${
+                  viewMode === "existing"
+                    ? "bg-white shadow-sm text-gray-900"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Existing
+              </Button>
+            )}
+            {/* {entityType === "person" && (
+              <Button
+                type="button"
+                variant={viewMode === "existing" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("existing")}
+                className={`rounded-md ${
+                  viewMode === "existing"
+                    ? "bg-white shadow-sm text-gray-900"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Existing
+              </Button>
+            )} */}
             <Button
               type="button"
               variant={viewMode === "new" ? "default" : "ghost"}
@@ -1116,42 +1165,35 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
             >
               Create New
             </Button>
+
+            
           </div>
         </div>
 
         <div className="space-y-6 mt-4">
           {/* Select Existing Entity Section */}
+          {/* Commented out existing section for persons - only show for companies */}
           {viewMode === "existing" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Select Existing {entityType === "person" ? "Person" : "Company"}
-              </h3>
-              {!isGlobalSearchMode && entityType === "company" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsGlobalSearchMode(true)}
-                  className="rounded-xl"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Search Globally
-                </Button>
-              )}
-            </div>
+            {entityType === "company" ? (
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Search Companies Globally
+                </h3>
+              </div>
+            ) : (
+              // Commented out for persons - existing person selection is hidden
+              // <div className="flex items-center justify-between">
+              //   <h3 className="text-lg font-semibold text-gray-900">
+              //     Select Existing Person
+              //   </h3>
+              // </div>
+              null
+            )}
 
             {isGlobalSearchMode && entityType === "company" ? (
               <>
                 <div className="flex items-center gap-2 mb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleExitGlobalSearch}
-                    className="rounded-xl"
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
-                  </Button>
                   <div className="flex-1 flex gap-2">
                     <Input
                       placeholder="Search companies globally..."
@@ -1223,9 +1265,6 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                                   <Label className="text-sm font-semibold">
                                     Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
                                   </Label>
-                                  <div className="text-xs text-gray-500">
-                                    Remaining: {getRemainingShares().toLocaleString()} shares
-                                  </div>
                                 </div>
                                 {shareValidationErrors.global && (
                                   <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
@@ -1382,19 +1421,22 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                 )}
               </>
             ) : (
-              <>
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-2 border rounded-lg p-4">
-                    {existingEntities.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">
-                        No {entityType === "person" ? "persons" : "companies"} found
-                      </p>
-                    ) : (
-                      existingEntities.map((entity) => {
+              // Commented out existing person selection section - only show for companies
+              // For persons, this section is hidden
+              entityType === "company" ? (
+                <>
+                  {isLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-2 border rounded-lg p-4">
+                      {existingEntities.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">
+                          No companies found
+                        </p>
+                      ) : (
+                        existingEntities.map((entity) => {
                         const entityId = entity._id || entity.id;
                         const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
                         const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
@@ -1549,11 +1591,72 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                             )}
                           </div>
                         );
-                      })
-                    )}
-                  </div>
-                )}
-              </>
+                        })
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Commented out existing person selection UI
+                // <>
+                //   {isLoading ? (
+                //     <div className="flex justify-center py-8">
+                //       <Loader2 className="h-6 w-6 animate-spin" />
+                //     </div>
+                //   ) : (
+                //     <div className="space-y-2 border rounded-lg p-4">
+                //       {existingEntities.length === 0 ? (
+                //         <p className="text-sm text-gray-500 text-center py-4">
+                //           No persons found
+                //         </p>
+                //       ) : (
+                //         existingEntities.map((entity) => {
+                //           const entityId = entity._id || entity.id;
+                //           const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
+                //           const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
+                //           const isExpanded = expandedEntities.has(entityId);
+                //
+                //           return (
+                //             <div key={entityId} className="space-y-2">
+                //               <div className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                //                 <Checkbox
+                //                   checked={isSelected}
+                //                   onCheckedChange={() => handleExistingEntityToggle(entity)}
+                //                 />
+                //                 <div className="flex-1">
+                //                   <p className="font-medium">{entity.name}</p>
+                //                 </div>
+                //                 {isSelected && (
+                //                   <Button
+                //                     variant="ghost"
+                //                     size="sm"
+                //                     onClick={() => toggleExistingEntityExpanded(entityId)}
+                //                   >
+                //                     {isExpanded ? (
+                //                       <ChevronUp className="h-4 w-4" />
+                //                     ) : (
+                //                       <ChevronDown className="h-4 w-4" />
+                //                     )}
+                //                   </Button>
+                //                 )}
+                //               </div>
+                //
+                //               {isSelected && isExpanded && selectedEntity && (
+                //                 <Card className="ml-8 mb-2">
+                //                   <CardContent className="p-4">
+                //                     {/* Share input fields */}
+                //                   </CardContent>
+                //                 </Card>
+                //               )}
+                //             </div>
+                //           );
+                //         })
+                //       )}
+                //     </div>
+                //   )}
+                // </>
+                null
+              )
             )}
           </div>
           )}
