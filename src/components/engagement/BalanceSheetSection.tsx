@@ -574,10 +574,54 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     }).format(value);
   };
 
+  // PDF-specific formatting function that returns "-" for zero values
+  const formatCurrencyForPDF = (value: number): string => {
+    // Round to whole number first
+    const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
+    
+    // Format with commas, no decimal places (like reference PDF)
+    return new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(roundedValue);
+  };
+
+  // Format values for PDF with parentheses for negative values
+  const formatValueForPDF = (value: number): string => {
+    // Round to whole number
+    const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
+    
+    // Format with commas, no decimal places
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(roundedValue));
+    
+    // Show negative values in parentheses
+    return roundedValue < 0 ? `(${formatted})` : formatted;
+  };
+
   // Format table row values: rounded to whole numbers, with parentheses for negative values
   const formatTableRowValue = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
     
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
@@ -594,6 +638,11 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   const formatTotalValue = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
     
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
@@ -651,7 +700,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
 
         // Add section header
         tableData.push([
-          { content: group1.toUpperCase(), styles: { fontStyle: "bold", fontSize: 11 } },
+          { content: group1.toUpperCase(), styles: { fontStyle: "bold", fontSize: 11, textColor: [0, 0, 0] } },
           "",
           "",
           "",
@@ -675,15 +724,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             const priorTotal = calculations.getGroup2Total(group1, group2, "prior");
 
             tableData.push([
-              { content: group2, styles: { fontStyle: "bold" } },
+              { content: group2, styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
               "",
               {
-                content: formatCurrency(currentTotal),
-                styles: { fontStyle: "bold" },
+                content: formatValueForPDF(currentTotal),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
               {
-                content: formatCurrency(priorTotal),
-                styles: { fontStyle: "bold" },
+                content: formatValueForPDF(priorTotal),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
 
@@ -697,15 +746,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                 const group3PriorTotal = calculations.getGroup3Total(group1, group2, group3, "prior");
                 
                 tableData.push([
-                  { content: `  ${group3}`, styles: { fontStyle: "italic" } },
+                  { content: `  ${group3}`, styles: { fontStyle: "italic", textColor: [0, 0, 0] } },
                   "",
                   {
-                    content: formatCurrency(group3CurrentTotal),
-                    styles: { fontStyle: "italic" },
+                    content: formatValueForPDF(group3CurrentTotal),
+                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
                   },
                   {
-                    content: formatCurrency(group3PriorTotal),
-                    styles: { fontStyle: "italic" },
+                    content: formatValueForPDF(group3PriorTotal),
+                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
                   },
                 ]);
               }
@@ -720,15 +769,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                   const group4PriorTotal = calculations.getGroup4Total(group1, group2, group3, group4, "prior");
                   
                   tableData.push([
-                    { content: `    ${group4}`, styles: { fontSize: 8 } },
+                    { content: `    ${group4}`, styles: { fontSize: 8, textColor: [0, 0, 0] } },
                     "",
                     {
-                      content: formatCurrency(group4CurrentTotal),
-                      styles: { fontSize: 8 },
+                      content: formatValueForPDF(group4CurrentTotal),
+                      styles: { fontSize: 8, halign: "right", textColor: [0, 0, 0] },
                     },
                     {
-                      content: formatCurrency(group4PriorTotal),
-                      styles: { fontSize: 8 },
+                      content: formatValueForPDF(group4PriorTotal),
+                      styles: { fontSize: 8, halign: "right", textColor: [0, 0, 0] },
                     },
                   ]);
                 }
@@ -739,15 +788,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                   rows.forEach((row) => {
                     // Use calculated value for Retained Earnings current year
                     const currentYearValue = isRetainedEarningsRow(row) 
-                      ? calculatedRetainedEarningsCurrent 
+                      ? calculations.calculatedRetainedEarningsCurrent 
                       : formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
                     const priorYearValue = formatBalanceSheetValue(row.priorYear || 0, row.accountName);
                     
                     tableData.push([
-                      `${indent}${row.accountName}`,
-                      row.code || "",
-                      formatCurrency(currentYearValue),
-                      formatCurrency(priorYearValue),
+                      { content: `${indent}${row.accountName}`, styles: { textColor: [0, 0, 0] } },
+                      { content: row.code || "", styles: { halign: "center", textColor: [0, 0, 0] } },
+                      { content: formatValueForPDF(currentYearValue), styles: { halign: "right", textColor: [0, 0, 0] } },
+                      { content: formatValueForPDF(priorYearValue), styles: { halign: "right", textColor: [0, 0, 0] } },
                     ]);
                   });
                 }
@@ -762,16 +811,16 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         tableData.push([
           {
             content: `Total ${group1}`,
-            styles: { fontStyle: "bold", fillColor: [251, 191, 36] },
+            styles: { fontStyle: "bold", textColor: [0, 0, 0] },
           },
           "",
           {
-            content: formatCurrency(currentTotal),
-            styles: { fontStyle: "bold", fillColor: [251, 191, 36] },
+            content: formatValueForPDF(currentTotal),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
           },
           {
-            content: formatCurrency(priorTotal),
-            styles: { fontStyle: "bold", fillColor: [251, 191, 36] },
+            content: formatValueForPDF(priorTotal),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
           },
         ]);
 
@@ -779,30 +828,64 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         tableData.push(["", "", "", ""]);
       });
 
+      // Add Total Liabilities + Equity after Equity section
+      tableData.push([
+        {
+          content: "Total Liabilities + Equity",
+          styles: { fontStyle: "bold", textColor: [0, 0, 0] },
+        },
+        "",
+        {
+          content: formatValueForPDF(
+            calculations.liabilitiesCurrent + calculations.equityCurrent
+          ),
+          styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+        },
+        {
+          content: formatValueForPDF(
+            calculations.liabilitiesPrior + calculations.equityPrior
+          ),
+          styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+        },
+      ]);
+
       // Add balance check
       tableData.push([
         {
           content: "Balance Check (Assets = Liabilities + Equity)",
-          styles: { fontStyle: "bold", fillColor: calculations.balanceCurrent === 0 ? [187, 247, 208] : [254, 202, 202] },
+          styles: { fontStyle: "bold", textColor: [0, 0, 0] },
         },
         "",
         {
-          content: formatCurrency(calculations.balanceCurrent),
-          styles: { fontStyle: "bold", fillColor: calculations.balanceCurrent === 0 ? [187, 247, 208] : [254, 202, 202] },
+          content: formatValueForPDF(calculations.balanceCurrent),
+          styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
         },
         {
-          content: formatCurrency(calculations.balancePrior),
-          styles: { fontStyle: "bold", fillColor: calculations.balancePrior === 0 ? [187, 247, 208] : [254, 202, 202] },
+          content: formatValueForPDF(calculations.balancePrior),
+          styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
         },
       ]);
 
       autoTable(doc, {
         startY: 45,
-        head: [["Description", "Notes", currentYearLabel, priorYearLabel]],
+        head: [
+          [
+            { content: "Description", styles: { halign: 'left' } },
+            { content: "Notes", styles: { halign: 'center' } },
+            { content: currentYearLabel, styles: { halign: 'right' } },
+            { content: priorYearLabel, styles: { halign: 'right' } },
+          ]
+        ],
         body: tableData,
-        theme: "striped",
-        headStyles: { fillColor: [251, 191, 36], textColor: [0, 0, 0] },
-        styles: { fontSize: 9 },
+        theme: "plain",
+        headStyles: { fillColor: false, textColor: [0, 0, 0], fontStyle: "bold", lineWidth: { bottom: 0 }, lineColor: [0, 0, 0] },
+        styles: { fontSize: 9, textColor: [0, 0, 0], lineColor: [0, 0, 0] },
+        columnStyles: {
+          0: { cellWidth: 'auto', textColor: [0, 0, 0] },
+          1: { cellWidth: 20, halign: 'center', textColor: [0, 0, 0] },
+          2: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+          3: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+        },
       });
 
       const fileName = includeDetailRows

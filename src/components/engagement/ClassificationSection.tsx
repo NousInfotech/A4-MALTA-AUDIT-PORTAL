@@ -8109,7 +8109,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
 
-          <div className="overflow-x-auto max-h-96">
+          <div className="overflow-x-auto">
 
             <table className="w-full text-sm">
 
@@ -8260,7 +8260,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       return (
 
-        <div className="overflow-auto max-h-96 space-y-6">
+        <div className="overflow-x-auto space-y-6">
 
           {Object.entries(groupedForAdjustments).map(([cls, items]) => {
 
@@ -8651,7 +8651,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   </Button>
                 )}
               </div>
-              <div className="overflow-x-auto max-h-96">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
@@ -8888,7 +8888,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 </div>
               )}
 
-              <div className="overflow-x-auto max-h-96 -mr-1">
+              <div className="overflow-x-auto -mr-1">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
