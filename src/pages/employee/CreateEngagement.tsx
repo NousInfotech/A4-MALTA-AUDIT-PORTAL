@@ -440,8 +440,31 @@ const [companyError, setCompanyError] = useState<string>('')
                 <div className="space-y-3">
                   <Label htmlFor="clientId" className="text-sm font-medium text-gray-700">Select Client *</Label>
                 <Select value={formData.clientId} onValueChange={(value) => handleChange('clientId', value)}>
-                    <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
-                    <SelectValue placeholder="Choose a client for this engagement" />
+                    <SelectTrigger className="h-auto min-h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg py-3">
+                    {formData.clientId ? (
+                      <div className="flex flex-col items-start text-left w-full pr-8">
+                        <div className="font-semibold text-gray-900">
+                          {clients.find(c => c.id === formData.clientId)?.name || ''}
+                        </div>
+                        {isCompanyLoading ? (
+                          <div className="text-xs text-gray-500 mt-1">Loading company...</div>
+                        ) : clientCompanies.length > 0 ? (
+                          <div className="text-xs text-gray-600 mt-1">
+                            <div>{clientCompanies[0].name}</div>
+                            {clientCompanies[0].registrationNumber && (
+                              <div className="mt-0.5">Reg No: {clientCompanies[0].registrationNumber}</div>
+                            )}
+                          </div>
+                        ) : !companyError ? (
+                          <div className="text-xs text-gray-500 mt-1">No company found</div>
+                        ) : null}
+                        {companyError && (
+                          <div className="text-xs text-red-600 mt-1">{companyError}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="Choose a client for this engagement" />
+                    )}
                   </SelectTrigger>
                     <SelectContent className="bg-white border border-gray-200 rounded-xl">
                     {clients.map((client) => (
@@ -461,55 +484,6 @@ const [companyError, setCompanyError] = useState<string>('')
                     </div>
                 )}
                 </div>
-
-                {formData.clientId && (
-                  <div className="space-y-3">
-                    <Label htmlFor="companyId" className="text-sm font-medium text-gray-700">Select Company</Label>
-                    {isCompanyLoading ? (
-                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-600">
-                        Loading companies...
-                      </div>
-                    ) : clientCompanies.length > 1 ? (
-                      <Select
-                        value={formData.companyId}
-                        onValueChange={(value) => handleChange('companyId', value)}
-                      >
-                        <SelectTrigger className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg">
-                          <SelectValue placeholder="Choose a company associated with this client" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 rounded-xl">
-                          {clientCompanies.map((company) => (
-                            <SelectItem key={company._id} value={company._id} className="rounded-lg">
-                              <div className="py-1">
-                                <div className="font-semibold text-gray-900">{company.name}</div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : clientCompanies.length === 1 ? (
-                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                        <p className="text-sm font-semibold text-gray-900">{clientCompanies[0].name}</p>
-                        {clientCompanies[0].registrationNumber && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            Reg No: {clientCompanies[0].registrationNumber}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      !companyError && (
-                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                          <p className="text-sm text-gray-700 font-medium">
-                            No companies found for this client.
-                          </p>
-                        </div>
-                      )
-                    )}
-                    {companyError && (
-                      <p className="text-sm text-red-600">{companyError}</p>
-                    )}
-                  </div>
-                )}
               </div>
               
               {/* Engagement Details */}
