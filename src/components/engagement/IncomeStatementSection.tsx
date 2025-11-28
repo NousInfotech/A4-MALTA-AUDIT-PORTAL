@@ -317,6 +317,70 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
     }).format(value);
   };
 
+  // PDF-specific formatting function that returns "-" for zero values
+  const formatCurrencyForPDF = (value: number): string => {
+    // Round to whole number first
+    const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
+    
+    // Format with commas, no decimal places (like reference PDF)
+    return new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(roundedValue);
+  };
+
+  // Format values for PDF with parentheses for negative values
+  const formatValueForPDF = (value: number, grouping3: string, isNegative: boolean = false): string => {
+    // Round to whole number
+    const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
+    
+    const sign = GROUPING_SIGNS[grouping3] || "+";
+    let displayValue = value;
+    let shouldShowInParentheses = false;
+    
+    // Apply sign conversion logic
+    if (sign === "+") {
+      // Revenue/Income: ensure positive for display
+      displayValue = value < 0 ? -value : value;
+      shouldShowInParentheses = false;
+    } else {
+      // For Income tax expense, preserve original signs
+      if (grouping3 === "Income tax expense") {
+        displayValue = value;
+        // Show in parentheses only if negative (expense)
+        shouldShowInParentheses = value < 0;
+      } else {
+        // Other expenses: convert to positive (absolute value) and show in parentheses
+        displayValue = value < 0 ? -value : value;
+        shouldShowInParentheses = true;
+      }
+    }
+    
+    // Round to whole number
+    const finalRoundedValue = Math.round(displayValue);
+    
+    // Format with commas, no decimal places
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "decimal",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.abs(finalRoundedValue));
+    
+    // Show in parentheses if needed
+    return shouldShowInParentheses ? `(${formatted})` : formatted;
+  };
+
   // Helper function to format individual row values with correct sign for Income Statement display
   const formatRowValue = (value: number, grouping3: string): number => {
     const sign = GROUPING_SIGNS[grouping3] || "+";
@@ -366,6 +430,11 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
     // Round to whole number
     const roundedValue = Math.round(displayValue);
     
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
+    
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
       style: "decimal",
@@ -381,6 +450,11 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   const formatTotalValue = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
+    
+    // Return "-" if value is zero
+    if (roundedValue === 0) {
+      return "-";
+    }
     
     // Format with commas, no decimal places
     return new Intl.NumberFormat("en-US", {
@@ -432,10 +506,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
 
           // Add grouping3 header
           tableData.push([
-            grouping3,
+            { content: grouping3, styles: { textColor: [0, 0, 0] } },
             "",
-            formatCurrency(currentValue),
-            formatCurrency(priorValue),
+            { content: formatValueForPDF(currentValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+            { content: formatValueForPDF(priorValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
           ]);
 
           // Iterate through group4
@@ -449,15 +523,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                 const group4Prior = calculations.getGroup4Total(grouping3, group4, "prior");
                 
                 tableData.push([
-                  { content: `  ${group4}`, styles: { fontStyle: "italic" } },
+                  { content: `  ${group4}`, styles: { fontStyle: "italic", textColor: [0, 0, 0] } },
                   "",
                   {
-                    content: formatCurrency(group4Current),
-                    styles: { fontStyle: "italic" },
+                    content: formatValueForPDF(group4Current, grouping3),
+                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
                   },
                   {
-                    content: formatCurrency(group4Prior),
-                    styles: { fontStyle: "italic" },
+                    content: formatValueForPDF(group4Prior, grouping3),
+                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
                   },
                 ]);
               }
@@ -466,10 +540,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
               const indent = hasGroup4 ? "    " : "  ";
               rows.forEach((row) => {
                 tableData.push([
-                  `${indent}${row.accountName}`,
-                  row.code || "",
-                  formatCurrency(formatRowValue(row.finalBalance || 0, grouping3)),
-                  formatCurrency(formatRowValue(row.priorYear || 0, grouping3)),
+                  { content: `${indent}${row.accountName}`, styles: { textColor: [0, 0, 0] } },
+                  { content: row.code || "", styles: { halign: "center", textColor: [0, 0, 0] } },
+                  { content: formatValueForPDF(row.finalBalance || 0, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+                  { content: formatValueForPDF(row.priorYear || 0, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
                 ]);
               });
             });
@@ -482,15 +556,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
               groupedData["Cost of sales"] && 
               Object.keys(groupedData["Cost of sales"]).length > 0) {
             tableData.push([
-              { content: "Gross Profit", styles: { fontStyle: "bold", fillColor: [251, 236, 211] } },
+              { content: "Gross Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
               "",
               {
-                content: formatCurrency(calculations.grossProfitCurrent),
-                styles: { fontStyle: "bold", fillColor: [251, 236, 211] },
+                content: formatCurrencyForPDF(calculations.grossProfitCurrent),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
               {
-                content: formatCurrency(calculations.grossProfitPrior),
-                styles: { fontStyle: "bold", fillColor: [251, 236, 211] },
+                content: formatCurrencyForPDF(calculations.grossProfitPrior),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
           }
@@ -498,15 +572,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
           // Add Operating Profit after last operating section
           if (grouping3 === lastOperatingSection) {
             tableData.push([
-              { content: "Operating Profit", styles: { fontStyle: "bold", fillColor: [219, 234, 254] } },
+              { content: "Operating Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
               "",
               {
-                content: formatCurrency(calculations.operatingProfitCurrent),
-                styles: { fontStyle: "bold", fillColor: [219, 234, 254] },
+                content: formatCurrencyForPDF(calculations.operatingProfitCurrent),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
               {
-                content: formatCurrency(calculations.operatingProfitPrior),
-                styles: { fontStyle: "bold", fillColor: [219, 234, 254] },
+                content: formatCurrencyForPDF(calculations.operatingProfitPrior),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
           }
@@ -514,15 +588,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
           // Add Net Profit Before Tax after last net profit section
           if (grouping3 === lastNetProfitSection) {
             tableData.push([
-              { content: "Net Profit Before Tax", styles: { fontStyle: "bold", fillColor: [243, 232, 255] } },
+              { content: "Net Profit Before Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
               "",
               {
-                content: formatCurrency(calculations.netProfitBeforeTaxCurrent),
-                styles: { fontStyle: "bold", fillColor: [243, 232, 255] },
+                content: formatCurrencyForPDF(calculations.netProfitBeforeTaxCurrent),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
               {
-                content: formatCurrency(calculations.netProfitBeforeTaxPrior),
-                styles: { fontStyle: "bold", fillColor: [243, 232, 255] },
+                content: formatCurrencyForPDF(calculations.netProfitBeforeTaxPrior),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
           }
@@ -530,15 +604,15 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
           // Add Net Profit After Tax after Income tax expense
           if (grouping3 === "Income tax expense") {
             tableData.push([
-              { content: "Net Profit After Tax", styles: { fontStyle: "bold", fillColor: [187, 247, 208] } },
+              { content: "Net Profit After Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
               "",
               {
-                content: formatCurrency(calculations.netProfitAfterTaxCurrent),
-                styles: { fontStyle: "bold", fillColor: [187, 247, 208] },
+                content: formatCurrencyForPDF(calculations.netProfitAfterTaxCurrent),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
               {
-                content: formatCurrency(calculations.netProfitAfterTaxPrior),
-                styles: { fontStyle: "bold", fillColor: [187, 247, 208] },
+                content: formatCurrencyForPDF(calculations.netProfitAfterTaxPrior),
+                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
           }
@@ -547,11 +621,24 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
 
       autoTable(doc, {
         startY: 45,
-        head: [["Description", "Notes", currentYearLabel, priorYearLabel]],
+        head: [
+          [
+            { content: "Description", styles: { halign: 'left' } },
+            { content: "Notes", styles: { halign: 'center' } },
+            { content: currentYearLabel, styles: { halign: 'right' } },
+            { content: priorYearLabel, styles: { halign: 'right' } },
+          ]
+        ],
         body: tableData,
-        theme: "striped",
-        headStyles: { fillColor: [251, 191, 36], textColor: [0, 0, 0] },
-        styles: { fontSize: 9 },
+        theme: "plain",
+        headStyles: { fillColor: false, textColor: [0, 0, 0], fontStyle: "bold", lineWidth: { bottom: 0 }, lineColor: [0, 0, 0] },
+        styles: { fontSize: 9, textColor: [0, 0, 0], lineColor: [0, 0, 0] },
+        columnStyles: {
+          0: { cellWidth: 'auto', textColor: [0, 0, 0] },
+          1: { cellWidth: 20, halign: 'center', textColor: [0, 0, 0] },
+          2: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+          3: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+        },
       });
 
       const fileName = includeDetailRows
