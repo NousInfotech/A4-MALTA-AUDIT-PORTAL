@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { fetchCompanyById, updateCompany, removeRepresentative } from "@/lib/api/company";
+import { fetchCompanyById, updateCompany, removeRepresentative, updateRepresentationCompanyExisting } from "@/lib/api/company";
 import { CreatePersonModal } from "./CreatePersonModal";
 import { CreateCompanyModal } from "./CreateCompanyModal";
 import { EditPersonModal } from "./EditPersonModal";
@@ -1130,39 +1130,18 @@ export const PersonList: React.FC<PersonListProps> = ({
         throw new Error("Invalid company ID");
       }
 
-      // Remove company from representationalCompany
-      const currentCompany = company || {};
-      const updatedRepresentationalCompany =
-        (currentCompany.representationalCompany || []).filter(
-          (rc: any) => {
-            const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
-            return String(rcId) !== String(companyIdStr);
-          }
-        );
-
-      const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-          body: JSON.stringify({
-            ...currentCompany,
-            representationalCompany: updatedRepresentationalCompany,
-          }),
-        }
+      // Use updateRepresentationCompanyExisting API which preserves "Shareholder" role
+      // Sending empty array will remove all representative roles but keep "Shareholder" if company is a shareholder
+      await updateRepresentationCompanyExisting(
+        clientId,
+        companyId,
+        companyIdStr,
+        { role: [] }
       );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to remove company representative");
-      }
 
       toast({
         title: "Success",
-        description: "Company representative removed successfully",
+        description: "Company representative roles removed successfully",
       });
 
       setIsDeleteCompanyRepDialogOpen(false);
@@ -1360,6 +1339,54 @@ export const PersonList: React.FC<PersonListProps> = ({
 
     const origin = (person as any)?.origin;
     if (origin === "ShareholdingCompany") return;
+
+    // Safety check: Check if person is a shareholder in any of the shareholding companies
+    // This handles cases where the person was added as a representative from a shareholding company
+    // but the link wasn't correctly established (legacy data) or if they are just a shareholder there
+    if (company?.shareHoldingCompanies && Array.isArray(company.shareHoldingCompanies)) {
+      for (const shareHolding of company.shareHoldingCompanies) {
+        const shareHoldingCompanyId = 
+          typeof shareHolding.companyId === 'object' && shareHolding.companyId !== null
+            ? shareHolding.companyId._id
+            : shareHolding.companyId;
+            
+        if (shareHoldingCompanyId) {
+          try {
+            // We need to fetch the shareholding company to check its shareholders
+            // We can't rely on local data as we might not have full details of shareholding companies
+            const response = await fetch(
+              `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${shareHoldingCompanyId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            );
+            
+            if (response.ok) {
+              const result = await response.json();
+              const shareHoldingCompanyData = result.data;
+              
+              if (shareHoldingCompanyData?.shareHolders && Array.isArray(shareHoldingCompanyData.shareHolders)) {
+                const isShareholderInLinkedCompany = shareHoldingCompanyData.shareHolders.some((sh: any) => {
+                  const shPersonId = getEntityId(sh?.personId);
+                  return String(shPersonId) === String(personId);
+                });
+                
+                if (isShareholderInLinkedCompany) {
+                  console.log(`Person ${personId} is a shareholder in linked company ${shareHoldingCompanyId}, skipping deletion`);
+                  return;
+                }
+              }
+            }
+          } catch (err) {
+            console.error(`Error checking shareholding company ${shareHoldingCompanyId} for person ${personId}`, err);
+            // If we fail to check, err on the side of caution and don't delete? 
+            // Or proceed? Let's proceed but log it.
+          }
+        }
+      }
+    }
 
     try {
       // Check if person has relationships in ANY company (not just current one)

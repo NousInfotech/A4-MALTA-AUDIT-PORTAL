@@ -367,16 +367,32 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       // Use company.data if available, otherwise fallback to company
       const companyData = company.data || company;
 
-      // Get IDs of existing representatives
+      // Get IDs of existing representatives and their roles
       let existingRepresentativeIds = new Set<string>();
+      // Map of person ID to their roles (for persons with multiple roles)
+      const personRolesMap = new Map<string, string[]>();
       
       if (entityType === "person") {
-        // Get person IDs from representationalSchema
+        // Get person IDs and roles from representationalSchema
         const representationalSchema = companyData.representationalSchema || [];
         representationalSchema.forEach((rep: any) => {
           const personId = rep?.personId?._id || rep?.personId?.id || rep?.personId;
           if (personId) {
-            existingRepresentativeIds.add(String(personId));
+            const personIdStr = String(personId);
+            // Get roles array - handle both array and single value
+            const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+            personRolesMap.set(personIdStr, roles);
+            
+            // Show persons with ONLY "Shareholder" role (they can be made representatives)
+            // Exclude persons with multiple roles (Shareholder + other representative roles)
+            const hasOnlyShareholderRole = roles.length === 1 && roles[0] === "Shareholder";
+            if (hasOnlyShareholderRole) {
+              // Person has only "Shareholder" role - show them (don't add to existingRepresentativeIds)
+              // They can be selected to add other representative roles
+            } else if (roles.length > 0) {
+              // Person has multiple roles (including other representative roles) - exclude them
+              existingRepresentativeIds.add(personIdStr);
+            }
           }
         });
       } else {
@@ -458,112 +474,119 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           } catch (error) {
             console.error(`Error fetching persons from shareholding company ${shareholdingCompanyId}:`, error);
           }
-
-          // 2. Fetch Level 1 company details to find Level 2 shareholding companies
-          try {
-             const level1Company = await fetchCompanyById(clientId, shareholdingCompanyId);
-             const level1CompanyData = level1Company.data || level1Company;
-             
-             if (level1CompanyData && level1CompanyData.shareHoldingCompanies) {
-                for (const level2Shareholding of level1CompanyData.shareHoldingCompanies) {
-                   const level2CompanyId = level2Shareholding?.companyId?._id || 
-                                           level2Shareholding?.companyId?.id || 
-                                           level2Shareholding?.companyId;
-                   const level2CompanyName = level2Shareholding?.companyId?.name || 
-                                             level2Shareholding?.name || 
-                                             "Unknown Company";
-
-                   if (!level2CompanyId) continue;
-
-                   // Fetch persons from Level 2 company
-                   try {
-                      const level2Response = await fetch(
-                        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${level2CompanyId}/person`,
-                        {
-                          headers: {
-                            Authorization: `Bearer ${sessionData.session.access_token}`,
-                          },
-                        }
-                      );
-
-                      if (level2Response.ok) {
-                        const level2Result = await level2Response.json();
-                        const level2Persons = level2Result.data || [];
-                        const level2PersonsWithSource = level2Persons.map((person: any) => ({
-                          ...person,
-                          sourceCompany: {
-                            id: level2CompanyId,
-                            name: `${level2CompanyName} (via ${shareholdingCompanyName})`,
-                          },
-                        }));
-                        allPersonsFromShareholdingCompanies.push(...level2PersonsWithSource);
-                      }
-                   } catch (error) {
-                      console.error(`Error fetching persons from level 2 shareholding company ${level2CompanyId}:`, error);
-                   }
-                }
-             }
-          } catch (error) {
-             console.error(`Error fetching details for shareholding company ${shareholdingCompanyId}:`, error);
-          }
         }
         
-        // Combine direct persons and persons from shareholding companies
+        // Get shareholders separately
+        const shareHolders = (companyData.shareHolders || []).map((shareholder: any) => 
+          shareholder.personId
+        );
+        
+        // Enrich shareholders with sourceCompany info if they don't have it
+        const enrichedShareHolders = shareHolders.map((person: any) => ({
+          ...person,
+          sourceCompany: person.sourceCompany || {
+            name: companyData.name || "Parent Company",
+            id: companyId
+          }
+        }));
+        
+        // Combine all persons (direct, from shareholding companies, and shareholders) using a Map to avoid duplicates
         const personsMap = new Map<string, any>();
         
-        directPersonsWithSource.forEach((person: any) => {
-          const personId = String(person._id || person.id);
-          if (personId) {
+        // Helper function to get person ID consistently
+        const getPersonId = (person: any): string | null => {
+          const id = person._id || person.id;
+          return id ? String(id) : null;
+        };
+        
+        // First, deduplicate persons from shareholding companies (they might appear in multiple companies)
+        // Also filter out null/undefined persons
+        const shareholdingPersonsMap = new Map<string, any>();
+        allPersonsFromShareholdingCompanies
+          .filter((person: any) => person && (person._id || person.id)) // Filter out null/undefined
+          .forEach((person: any) => {
+            const personId = getPersonId(person);
+            if (personId && !shareholdingPersonsMap.has(personId)) {
+              shareholdingPersonsMap.set(personId, person);
+            }
+          });
+        const deduplicatedShareholdingPersons = Array.from(shareholdingPersonsMap.values());
+        
+        // Add direct persons first (filter out null/undefined)
+        directPersonsWithSource
+          .filter((person: any) => person && (person._id || person.id))
+          .forEach((person: any) => {
+            const personId = getPersonId(person);
+            if (personId) {
+              personsMap.set(personId, person);
+            }
+          });
+        
+        // Add persons from shareholding companies (only if not already in map)
+        deduplicatedShareholdingPersons.forEach((person: any) => {
+          const personId = getPersonId(person);
+          if (personId && !personsMap.has(personId)) {
             personsMap.set(personId, person);
           }
         });
         
-        allPersonsFromShareholdingCompanies.forEach((person: any) => {
-          const personId = String(person._id || person.id);
-          if (personId) {
-             if (!personsMap.has(personId)) {
-                personsMap.set(personId, person);
-             }
-          }
+        // Add shareholders (only if not already in map - they might already be in directPersons)
+        // Filter out null/undefined shareholders
+        enrichedShareHolders
+          .filter((person: any) => person && (person._id || person.id))
+          .forEach((person: any) => {
+            const personId = getPersonId(person);
+            if (personId && !personsMap.has(personId)) {
+              personsMap.set(personId, person);
+            }
+          });
+        
+        // Filter out existing representatives
+        const filteredPersons = Array.from(personsMap.values()).filter((person: any) => {
+          const personId = getPersonId(person);
+          return personId && !existingRepresentativeIds.has(personId);
         });
         
-        const allPersons = Array.from(personsMap.values());
-        const shareHolders = company.data.shareHolders.map((shareholder: any) => 
-          shareholder.personId
-        );
-        const filteredPersons = allPersons.filter((person: any) => {
-          const personId = person._id || person.id;
-          return !existingRepresentativeIds.has(String(personId));
-        });
-       // Add sourceCompany to shareholders
-const enrichedShareHolders = shareHolders.map((person: any) => ({
-  ...person,
-  sourceCompany: {
-    name: company.data.name,
-    id: company.data._id || company.data.id
-  }
-}));
-
-// Just merge both arrays (10 + 2 = 12)
-const mergedPersons = [
-  ...filteredPersons,
-  ...enrichedShareHolders
-];
-
-console.log(mergedPersons);
-
-         
-         
-        setExistingEntities(mergedPersons);
+        setExistingEntities(filteredPersons);
       } else {
         // Companies mode
         const shareHoldingCompanies = companyData.shareHoldingCompanies || [];
+        const representationalCompany = companyData.representationalCompany || [];
         
-        // Extract and filter companyIds that are not already representatives
+        // Create a map of company ID to their roles in representationalCompany
+        const companyRolesMap = new Map<string, string[]>();
+        representationalCompany.forEach((rep: any) => {
+          const repCompanyId = rep?.companyId?._id || rep?.companyId?.id || rep?.companyId;
+          if (repCompanyId) {
+            const companyIdStr = String(repCompanyId);
+            // Get roles array - handle both array and single value
+            const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+            companyRolesMap.set(companyIdStr, roles);
+          }
+        });
+        
+        // Filter companies:
+        // - Show if they have ONLY "Shareholder" role in representationalCompany
+        // - Show if they are not in representationalCompany at all (just shareholders)
+        // - Don't show if they have multiple roles (Shareholder + other representative roles)
         const filteredCompanies = shareHoldingCompanies.filter((item: any) => {
           const comp = item.companyId;
           const cId = String(comp._id || comp.id);
-          return existingRepresentativeIds.has(cId);
+          
+          // Check if company exists in representationalCompany
+          const roles = companyRolesMap.get(cId);
+          
+          // If not in representationalCompany, show it (it's just a shareholder, no representative roles)
+          if (!roles || roles.length === 0) {
+            return true;
+          }
+          
+          // If in representationalCompany, check if it has ONLY "Shareholder" role
+          // Must have exactly 1 role and that role must be "Shareholder"
+          const hasOnlyShareholderRole = roles.length === 1 && roles[0] === "Shareholder";
+          
+          // Show only if it has ONLY "Shareholder" role (no other representative roles)
+          return hasOnlyShareholderRole;
         });
         
         const availableCompanies = filteredCompanies.map((item: any) => {
@@ -946,13 +969,21 @@ console.log(mergedPersons);
               clientId,
               companyId,
               selectedExistingEntities[0].id,
-              { role: selectedExistingEntities[0].roles }
+              { 
+                role: selectedExistingEntities[0].roles,
+                companyId: (selectedExistingEntities[0] as any).sourceCompany?.id !== companyId 
+                  ? (selectedExistingEntities[0] as any).sourceCompany?.id 
+                  : undefined
+              }
             );
           } else {
             // Bulk update - need to process individually since API might not support per-entity roles in bulk
             for (const entity of selectedExistingEntities) {
               await updateRepresentationPersonExisting(clientId, companyId, entity.id, {
                 role: entity.roles,
+                companyId: (entity as any).sourceCompany?.id !== companyId 
+                  ? (entity as any).sourceCompany?.id 
+                  : undefined
               });
             }
           }
@@ -1078,6 +1109,7 @@ console.log(mergedPersons);
             await addRepresentationPersonNew(clientId, companyId, {
               personId,
               role: entity.roles,
+              // For new persons, they are created directly under this company, so no external companyId needed
             });
           } else {
             // First create the company

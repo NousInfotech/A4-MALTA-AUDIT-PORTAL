@@ -56,6 +56,7 @@ export interface UpdateShareHolderPayload {
 export interface AddRepresentationPersonPayload {
   personId: string;
   role: string[];
+  companyId?: string;
 }
 
 export interface AddRepresentationCompanyPayload {
@@ -65,6 +66,7 @@ export interface AddRepresentationCompanyPayload {
 
 export interface UpdateRepresentationPayload {
   role: string[];
+  companyId?: string;
 }
 
 export interface BulkShareHolderPersonPayload {

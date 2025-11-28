@@ -694,6 +694,7 @@ export const CompanyDetail: React.FC = () => {
                   sharesData: share.sharesData || [],
                 }))}
                 companyTotalShares={calculateTotalSharesSum(company?.totalShares)}
+                companyTotalSharesArray={company?.totalShares || []}
                 title="Distribution"
               />
             </TabsContent>

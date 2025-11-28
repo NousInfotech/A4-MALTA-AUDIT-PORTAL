@@ -198,11 +198,65 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     () => getDefaultShareClassErrors()
   );
 
+  // Store original share class values when company is loaded (for validation)
+  const [originalShareClassValues, setOriginalShareClassValues] = useState<ShareClassValues>(
+    () => getDefaultShareClassValues()
+  );
+
   const totalSharesPayload = buildTotalSharesPayload(shareClassValues, useClassShares);
   const totalSharesSum = calculateTotalSharesSum(shareClassValues, useClassShares);
 
   const { toast } = useToast();
   const isShareholdersAvailable = company.shareHoldingCompanies.length > 0 || company.shareHolders.length > 0;
+
+  // Calculate purchased shares per share class
+  const calculatePurchasedShares = (): ShareClassValues => {
+    const purchased: ShareClassValues = {
+      classA: 0,
+      classB: 0,
+      classC: 0,
+      ordinary: 0,
+    };
+
+    // Sum shares from persons (shareHolders)
+    if (company.shareHolders && Array.isArray(company.shareHolders)) {
+      company.shareHolders.forEach((shareHolder: any) => {
+        if (shareHolder.sharesData && Array.isArray(shareHolder.sharesData)) {
+          shareHolder.sharesData.forEach((shareData: any) => {
+            const shareClass = shareData.class;
+            const totalShares = Number(shareData.totalShares) || 0;
+            
+            if (shareClass === "A") purchased.classA += totalShares;
+            else if (shareClass === "B") purchased.classB += totalShares;
+            else if (shareClass === "C") purchased.classC += totalShares;
+            else if (shareClass === "Ordinary") purchased.ordinary += totalShares;
+          });
+        }
+      });
+    }
+
+    // Sum shares from companies (shareHoldingCompanies)
+    if (company.shareHoldingCompanies && Array.isArray(company.shareHoldingCompanies)) {
+      company.shareHoldingCompanies.forEach((shareHoldingCompany: any) => {
+        if (shareHoldingCompany.sharesData && Array.isArray(shareHoldingCompany.sharesData)) {
+          shareHoldingCompany.sharesData.forEach((shareData: any) => {
+            const shareClass = shareData.class;
+            const totalShares = Number(shareData.totalShares) || 0;
+            
+            if (shareClass === "A") purchased.classA += totalShares;
+            else if (shareClass === "B") purchased.classB += totalShares;
+            else if (shareClass === "C") purchased.classC += totalShares;
+            else if (shareClass === "Ordinary") purchased.ordinary += totalShares;
+          });
+        }
+      });
+    }
+
+    return purchased;
+  };
+
+  const purchasedShares = calculatePurchasedShares();
+  const hasPurchasedShares = Object.values(purchasedShares).some((val) => val > 0);
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -256,6 +310,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     label: string,
     rawValue: string
   ) => {
+    // Always allow typing - update the value immediately
     if (rawValue === "") {
       setShareClassValues((prev) => ({ ...prev, [key]: 0 }));
       setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
@@ -263,32 +318,61 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     }
 
     const parsedValue = parseInt(rawValue, 10);
-    if (Number.isNaN(parsedValue) || parsedValue < 0) {
+    
+    // Allow typing even if it's not a valid number yet (user might be in the middle of typing)
+    // But still update the value so the input reflects what they're typing
+    if (Number.isNaN(parsedValue)) {
+      // If it's not a valid number, don't update the numeric value but allow the input to show what they typed
+      // The input will handle this with value={value === 0 ? "" : value}
+      setShareClassErrors((prev) => ({
+        ...prev,
+        [key]: `${label} shares must be a valid number`,
+      }));
+      return;
+    }
+
+    if (parsedValue < 0) {
       setShareClassErrors((prev) => ({
         ...prev,
         [key]: `${label} shares must be 0 or greater`,
       }));
-    } else {
-      setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
+      // Still update the value to allow typing
+      setShareClassValues((prev) => ({ ...prev, [key]: parsedValue }));
+      return;
+    }
 
-      // Reset the inactive mode when entering a value
-      if (key === "ordinary") {
-        // If entering Ordinary, reset A, B, C
-        setShareClassValues((prev) => ({
-          ...prev,
-          [key]: parsedValue,
-          classA: 0,
-          classB: 0,
-          classC: 0,
-        }));
-      } else {
-        // If entering A, B, or C, reset Ordinary
-        setShareClassValues((prev) => ({
-          ...prev,
-          [key]: parsedValue,
-          ordinary: 0,
-        }));
+    const purchasedForClass = purchasedShares[key];
+    let error = "";
+
+    // Validation when shares have been purchased
+    if (hasPurchasedShares && purchasedForClass > 0) {
+      // Cannot decrease below purchased shares
+      if (parsedValue < purchasedForClass) {
+        error = `Cannot decrease below ${purchasedForClass.toLocaleString()} purchased shares`;
       }
+      // Allow increasing above purchased shares - no restriction on increases
+    }
+
+    // Always update the value to allow free typing, even if there's an error
+    setShareClassErrors((prev) => ({ ...prev, [key]: error }));
+
+    // Reset the inactive mode when entering a value
+    if (key === "ordinary") {
+      // If entering Ordinary, reset A, B, C
+      setShareClassValues((prev) => ({
+        ...prev,
+        [key]: parsedValue,
+        classA: 0,
+        classB: 0,
+        classC: 0,
+      }));
+    } else {
+      // If entering A, B, or C, reset Ordinary
+      setShareClassValues((prev) => ({
+        ...prev,
+        [key]: parsedValue,
+        ordinary: 0,
+      }));
     }
   };
 
@@ -298,8 +382,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     rawValue: string
   ) => {
     if (rawValue === "") {
-      setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
-      setShareClassValues((prev) => ({ ...prev, [key]: 0 }));
+      // On blur, if empty and shares are purchased, set to minimum (purchased shares)
+      if (hasPurchasedShares && purchasedShares[key] > 0) {
+        setShareClassValues((prev) => ({ ...prev, [key]: purchasedShares[key] }));
+        setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
+      } else {
+        setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
+        setShareClassValues((prev) => ({ ...prev, [key]: 0 }));
+      }
       return;
     }
 
@@ -309,7 +399,22 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         ...prev,
         [key]: `${label} shares must be 0 or greater`,
       }));
+      return;
     }
+
+    const purchasedForClass = purchasedShares[key];
+    let error = "";
+
+    // Validation when shares have been purchased
+    if (hasPurchasedShares && purchasedForClass > 0) {
+      // Cannot decrease below purchased shares
+      if (parsedValue < purchasedForClass) {
+        error = `Cannot decrease below ${purchasedForClass.toLocaleString()} purchased shares`;
+      }
+      // Allow increasing above purchased shares - no restriction on increases
+    }
+
+    setShareClassErrors((prev) => ({ ...prev, [key]: error }));
   };
 
   const validateField = (fieldName: string, value: string) => {
@@ -344,12 +449,19 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     if (currentTotalSum <= 0) {
       sharesError = "Enter at least one share amount greater than 0";
     }
+
+    // Check for share class errors
+    const hasShareClassErrors = Object.values(shareClassErrors).some((err) => err !== "");
+    if (hasShareClassErrors) {
+      sharesError = "Please fix share class validation errors";
+    }
+
     setTotalSharesError(sharesError);
 
     const nameValid = !!formData.name.trim();
     const registrationNumberValid = !!formData.registrationNumber.trim();
     const addressValid = !!formData.address.trim();
-    const totalSharesValid = !sharesError && currentTotalSum > 0;
+    const totalSharesValid = !sharesError && currentTotalSum > 0 && !hasShareClassErrors;
 
     return nameValid && registrationNumberValid && addressValid && totalSharesValid;
   };
@@ -384,6 +496,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
       // Set share class values and mode
       setShareClassValues(parsedShareValues);
+      // Store original values for validation
+      setOriginalShareClassValues(parsedShareValues);
       setUseClassShares(parsedUseClassShares);
       if (parsedUseClassShares) {
         setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
@@ -670,6 +784,11 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 <span className="text-sm text-gray-600">
                   Total: {totalSharesSum.toLocaleString()}
                 </span>
+                {hasPurchasedShares && (
+                  <span className="text-sm text-amber-600 font-medium">
+                    Purchased: {Object.values(purchasedShares).reduce((sum, val) => sum + val, 0).toLocaleString()}
+                  </span>
+                )}
                 {!isShareholdersAvailable && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">Share Classes</span>
@@ -706,6 +825,11 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 )}
               </div>
             </div>
+            {hasPurchasedShares && (
+              <p className="text-xs text-gray-500 italic">
+                Note: Shares have been purchased. You can increase or decrease total shares, but cannot decrease below the purchased amount.
+              </p>
+            )}
             {/* Dynamic Share Class Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SHARE_CLASS_CONFIG.map(({ key, label }) => {
@@ -723,6 +847,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 const value = shareClassValues[key];
                 const error = shareClassErrors[key];
 
+                const purchasedForClass = purchasedShares[key];
+                const showPurchasedInfo = hasPurchasedShares && purchasedForClass > 0;
+
                 return (
                   <div className="space-y-2" key={key}>
                     <div className="flex items-center justify-between">
@@ -732,10 +859,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                       >
                         {label}
                       </Label>
+                      {showPurchasedInfo && (
+                        <span className="text-xs text-amber-600">
+                          Purchased: {purchasedForClass.toLocaleString()}
+                        </span>
+                      )}
                     </div>
                     <Input
                       id={key}
-                      min={0}
                       type="number"
                       step={1}
                       placeholder={`Enter ${label} shares`}
@@ -748,6 +879,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                       }
                       className={`rounded-xl border-gray-200 ${error ? "border-red-500" : ""
                         }`}
+                      inputMode="numeric"
                     />
                     {error && (
                       <p className="text-sm text-red-500 mt-1">{error}</p>
