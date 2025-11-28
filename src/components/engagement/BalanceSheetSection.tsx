@@ -692,39 +692,76 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Table data
       const tableData: any[] = [];
 
-      // Define section order
-      const sectionOrder = ["Assets", "Liabilities", "Equity"];
+      // Helper function to check if group2 is "Non-current" or "Current" (for Assets section only)
+      const isAssetsSubsection = (group2: string): boolean => {
+        const lower = group2.toLowerCase().trim();
+        return lower === "non-current" || lower === "current";
+      };
 
-      sectionOrder.forEach((group1) => {
-        if (!groupedData[group1]) return;
+      // Helper function to render group3 items
+      const renderGroup3Items = (group1: string, group2: string, group3Map: any) => {
+        Object.entries(group3Map).forEach(([group3, group4Map]) => {
+          const hasGroup3 = group3 !== "_direct_";
 
-        // Add section header
+          if (hasGroup3 && includeDetailRows) {
+            const group3CurrentTotal = calculations.getGroup3Total(group1, group2, group3, "current");
+            const group3PriorTotal = calculations.getGroup3Total(group1, group2, group3, "prior");
+            
+            // Find the note number from the first row in this group3
+            let noteNumber = "";
+            for (const rows of Object.values(group4Map)) {
+              if (rows.length > 0 && rows[0]?.code) {
+                noteNumber = rows[0].code;
+                break;
+              }
+            }
+            
+            tableData.push([
+              { content: `  ${group3}`, styles: { textColor: [0, 0, 0] } },
+              { content: noteNumber || "", styles: { halign: "center", textColor: [0, 0, 0] } },
+              {
+                content: formatValueForPDF(group3CurrentTotal),
+                styles: { halign: "right", textColor: [0, 0, 0] },
+              },
+              {
+                content: formatValueForPDF(group3PriorTotal),
+                styles: { halign: "right", textColor: [0, 0, 0] },
+              },
+            ]);
+          }
+        });
+      };
+
+      // ========== ASSETS SECTION ==========
+      if (groupedData["Assets"]) {
+        // Add ASSETS header (no values on this row)
         tableData.push([
-          { content: group1.toUpperCase(), styles: { fontStyle: "bold", fontSize: 11, textColor: [0, 0, 0] } },
+          { content: "ASSETS", styles: { fontStyle: "bold", fontSize: 11, textColor: [0, 0, 0] } },
           "",
           "",
           "",
         ]);
 
-        // Add group2 sections (exclude Current Year Profits & Losses from Equity)
-        Object.entries(groupedData[group1])
-          .filter(([group2]) => {
-            // Exclude "Current Year Profits & Losses" from Equity
-            if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
-              return false;
-            }
-            return true;
-          })
-          .forEach(([group2, group3Map]) => {
-            const currentTotal = calculations.getGroup2Total(
-              group1,
-              group2,
-              "current"
-            );
-            const priorTotal = calculations.getGroup2Total(group1, group2, "prior");
+        // Process Assets group2 sections
+        Object.entries(groupedData["Assets"]).forEach(([group2, group3Map]) => {
+          const currentTotal = calculations.getGroup2Total("Assets", group2, "current");
+          const priorTotal = calculations.getGroup2Total("Assets", group2, "prior");
 
+          // Add group2 header (no values on this row)
+          tableData.push([
+            { content: group2, styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+            "",
+            "",
+            "",
+          ]);
+
+          // Render all group3 items
+          renderGroup3Items("Assets", group2, group3Map);
+
+          // Add empty row with totals ONLY for "Non-current assets" and "Current assets"
+          if (isAssetsSubsection(group2)) {
             tableData.push([
-              { content: group2, styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+              "",
               "",
               {
                 content: formatValueForPDF(currentTotal),
@@ -735,103 +772,141 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                 styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
               },
             ]);
+          }
+        });
 
-            // Iterate through group3
-            Object.entries(group3Map).forEach(([group3, group4Map]) => {
-              const hasGroup3 = group3 !== "_direct_";
-
-              // Add group3 header
-              if (hasGroup3 && includeDetailRows) {
-                const group3CurrentTotal = calculations.getGroup3Total(group1, group2, group3, "current");
-                const group3PriorTotal = calculations.getGroup3Total(group1, group2, group3, "prior");
-                
-                tableData.push([
-                  { content: `  ${group3}`, styles: { fontStyle: "italic", textColor: [0, 0, 0] } },
-                  "",
-                  {
-                    content: formatValueForPDF(group3CurrentTotal),
-                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
-                  },
-                  {
-                    content: formatValueForPDF(group3PriorTotal),
-                    styles: { fontStyle: "italic", halign: "right", textColor: [0, 0, 0] },
-                  },
-                ]);
-              }
-
-              // Iterate through group4
-              Object.entries(group4Map).forEach(([group4, rows]) => {
-                const hasGroup4 = group4 !== "_direct_";
-
-                // Add group4 header
-                if (hasGroup4 && includeDetailRows) {
-                  const group4CurrentTotal = calculations.getGroup4Total(group1, group2, group3, group4, "current");
-                  const group4PriorTotal = calculations.getGroup4Total(group1, group2, group3, group4, "prior");
-                  
-                  tableData.push([
-                    { content: `    ${group4}`, styles: { fontSize: 8, textColor: [0, 0, 0] } },
-                    "",
-                    {
-                      content: formatValueForPDF(group4CurrentTotal),
-                      styles: { fontSize: 8, halign: "right", textColor: [0, 0, 0] },
-                    },
-                    {
-                      content: formatValueForPDF(group4PriorTotal),
-                      styles: { fontSize: 8, halign: "right", textColor: [0, 0, 0] },
-                    },
-                  ]);
-                }
-
-                // Add detail rows (only if includeDetailRows is true)
-                if (includeDetailRows) {
-                  const indent = hasGroup3 && hasGroup4 ? "      " : hasGroup3 || hasGroup4 ? "    " : "  ";
-                  rows.forEach((row) => {
-                    // Use calculated value for Retained Earnings current year
-                    const currentYearValue = isRetainedEarningsRow(row) 
-                      ? calculations.calculatedRetainedEarningsCurrent 
-                      : formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
-                    const priorYearValue = formatBalanceSheetValue(row.priorYear || 0, row.accountName);
-                    
-                    tableData.push([
-                      { content: `${indent}${row.accountName}`, styles: { textColor: [0, 0, 0] } },
-                      { content: row.code || "", styles: { halign: "center", textColor: [0, 0, 0] } },
-                      { content: formatValueForPDF(currentYearValue), styles: { halign: "right", textColor: [0, 0, 0] } },
-                      { content: formatValueForPDF(priorYearValue), styles: { halign: "right", textColor: [0, 0, 0] } },
-                    ]);
-                  });
-                }
-              });
-            });
-          });
-
-        // Add section total
-        const currentTotal = calculations.getGroup1Total(group1, "current");
-        const priorTotal = calculations.getGroup1Total(group1, "prior");
-
+        // Add Total Assets
+        const assetsCurrent = calculations.getGroup1Total("Assets", "current");
+        const assetsPrior = calculations.getGroup1Total("Assets", "prior");
         tableData.push([
           {
-            content: `Total ${group1}`,
+            content: "Total Assets",
             styles: { fontStyle: "bold", textColor: [0, 0, 0] },
           },
           "",
           {
-            content: formatValueForPDF(currentTotal),
+            content: formatValueForPDF(assetsCurrent),
             styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
           },
           {
-            content: formatValueForPDF(priorTotal),
+            content: formatValueForPDF(assetsPrior),
             styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
           },
         ]);
 
         // Add spacing
         tableData.push(["", "", "", ""]);
-      });
+      }
 
-      // Add Total Liabilities + Equity after Equity section
+      // ========== EQUITY AND LIABILITIES SECTION ==========
+      tableData.push([
+        { content: "EQUITY AND LIABILITIES", styles: { fontStyle: "bold", fontSize: 11, textColor: [0, 0, 0] } },
+        "",
+        "",
+        "",
+      ]);
+
+      // ========== EQUITY SUBSECTION ==========
+      if (groupedData["Equity"]) {
+        // Add EQUITY header (no values on this row)
+        tableData.push([
+          { content: "EQUITY", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+          "",
+          "",
+          "",
+        ]);
+
+        // Process Equity group2 sections (exclude Current Year Profits & Losses)
+        Object.entries(groupedData["Equity"])
+          .filter(([group2]) => group2 !== "Current Year Profits & Losses")
+          .forEach(([group2, group3Map]) => {
+            // Add group2 header (no values on this row)
+            tableData.push([
+              { content: group2, styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+              "",
+              "",
+              "",
+            ]);
+
+            // Render all group3 items
+            renderGroup3Items("Equity", group2, group3Map);
+
+            // NO empty row with totals for Equity sections
+          });
+
+        // Add Total Equity
+        const equityCurrent = calculations.getGroup1Total("Equity", "current");
+        const equityPrior = calculations.getGroup1Total("Equity", "prior");
+        tableData.push([
+          {
+            content: "Total Equity",
+            styles: { fontStyle: "bold", textColor: [0, 0, 0] },
+          },
+          "",
+          {
+            content: formatValueForPDF(equityCurrent),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+          },
+          {
+            content: formatValueForPDF(equityPrior),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+          },
+        ]);
+
+        // Add spacing
+        tableData.push(["", "", "", ""]);
+      }
+
+      // ========== LIABILITIES SUBSECTION ==========
+      if (groupedData["Liabilities"]) {
+        // Add LIABILITIES header (no values on this row)
+        tableData.push([
+          { content: "LIABILITIES", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+          "",
+          "",
+          "",
+        ]);
+
+        // Process Liabilities group2 sections
+        Object.entries(groupedData["Liabilities"]).forEach(([group2, group3Map]) => {
+          // Add group2 header (no values on this row)
+          tableData.push([
+            { content: group2, styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+            "",
+            "",
+            "",
+          ]);
+
+          // Render all group3 items
+          renderGroup3Items("Liabilities", group2, group3Map);
+
+          // NO empty row with totals for Liabilities sections
+        });
+
+        // Add Total Liabilities
+        const liabilitiesCurrent = calculations.getGroup1Total("Liabilities", "current");
+        const liabilitiesPrior = calculations.getGroup1Total("Liabilities", "prior");
+        tableData.push([
+          {
+            content: "Total Liabilities",
+            styles: { fontStyle: "bold", textColor: [0, 0, 0] },
+          },
+          "",
+          {
+            content: formatValueForPDF(liabilitiesCurrent),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+          },
+          {
+            content: formatValueForPDF(liabilitiesPrior),
+            styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+          },
+        ]);
+      }
+
+      // ========== TOTAL EQUITY AND LIABILITIES ==========
       tableData.push([
         {
-          content: "Total Liabilities + Equity",
+          content: "TOTAL EQUITY AND LIABILITIES",
           styles: { fontStyle: "bold", textColor: [0, 0, 0] },
         },
         "",
@@ -976,12 +1051,12 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => downloadPDF(true)}>
                   <FileText className="h-4 w-4 mr-2" />
-                  With TB Data (Detailed)
+                  Download Balance Sheet
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => downloadPDF(false)}>
+                {/* <DropdownMenuItem onClick={() => downloadPDF(false)}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Without TB Data (Summary)
-                </DropdownMenuItem>
+                  Download Balance Sheet (Summary)
+                </DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

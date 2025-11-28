@@ -470,7 +470,11 @@ const [companyError, setCompanyError] = useState<string>('')
                     {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id} className="rounded-lg">
                           <div className="py-1">
-                            <div className="font-semibold text-gray-900">{client.name}</div>
+                            <div className="font-semibold text-gray-900">
+                              {client.name}
+                              {client.companyName && ` ( ${client.companyName} `}
+                              {client.companyNumber && ` - ${client.companyNumber} ) `}
+                            </div>
                         </div>
                       </SelectItem>
                     ))}

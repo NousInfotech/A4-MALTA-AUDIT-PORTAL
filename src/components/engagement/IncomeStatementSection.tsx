@@ -727,13 +727,13 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => downloadPDF(true)}>
+                {/* <DropdownMenuItem onClick={() => downloadPDF(true)}>
                   <FileText className="h-4 w-4 mr-2" />
-                  With TB Data (Detailed)
-                </DropdownMenuItem>
+                  Download Income Statement (Detailed)
+                </DropdownMenuItem> */}
                 <DropdownMenuItem onClick={() => downloadPDF(false)}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Without TB Data (Summary)
+                  Download Income Statement
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

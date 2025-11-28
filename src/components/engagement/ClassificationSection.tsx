@@ -8123,15 +8123,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[8rem] text-xs sm:text-sm">Re-Classification</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Adjustments</th>
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Final Balance</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[8rem] text-xs sm:text-sm">Re-Classification</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold w-[4rem] text-xs sm:text-sm">Classification</th>
+                  <th className="px-4 py-2 border-b border-secondary font-bold w-[8rem] text-xs sm:text-sm">Linked Files</th>
 
                 </tr>
 
@@ -8154,9 +8154,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r text-right">
-
-                      {row.priorYear.toLocaleString()}
-
+                      {(Number(row.reclassification) || 0).toLocaleString()}
                     </td>
 
                     <td className="px-4 py-2 border-b border-secondary border-r text-right">
@@ -8171,32 +8169,104 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     </td>
 
-                    <td className="px-4 py-2 border-b border-secondary border-r">
-                      {(Number(row.reclassification) || 0).toLocaleString()}
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
+
+                      {row.priorYear.toLocaleString()}
+
                     </td>
 
-                    <td className="border-b border-secondary">
-
-                      <button
-
-                        onClick={() =>
-
-                          onClassificationJump?.(row.classification)
-
-                        }
-
-                        className="flex items-center gap-2"
-
-                      >
-
-                        <Badge variant="outline">
-
-                          {formatClassificationForDisplay(row.classification)}
-
-                        </Badge>
-
-                      </button>
-
+                    <td className="px-4 py-2 border-b border-secondary text-left">
+                      <Drawer>
+                        <DrawerTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3"
+                            disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                          </Button>
+                        </DrawerTrigger>
+                        <DrawerContent>
+                          <DrawerHeader>
+                            <DrawerTitle>Linked Excel Files</DrawerTitle>
+                            <DrawerDescription>
+                              Manage linked files for {row.accountName} ({row.code})
+                            </DrawerDescription>
+                          </DrawerHeader>
+                          <div className="px-4 pb-4">
+                            {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                              <div className="text-center py-8 text-muted-foreground">
+                                No linked files for this row.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {row.linkedExcelFiles.map((workbook: any) => (
+                                  <div
+                                    key={workbook._id}
+                                    className="flex items-center justify-between p-3 border rounded-lg"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                      <div>
+                                        <p className="font-medium">{workbook.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleViewWorkbook(workbook)}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Remove
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                              This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <DrawerFooter>
+                            <DrawerClose asChild>
+                              <Button variant="outline">Close</Button>
+                            </DrawerClose>
+                          </DrawerFooter>
+                        </DrawerContent>
+                      </Drawer>
                     </td>
 
                   </tr>
@@ -8212,7 +8282,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       {currentTotals.currentYear.toLocaleString()}
                     </td>
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {currentTotals.priorYear.toLocaleString()}
+                      {(currentTotals.reclassification || 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                       {currentTotals.adjustments.toLocaleString()}
@@ -8220,7 +8290,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                       {currentTotals.finalBalance.toLocaleString()}
                     </td>
-                    <td colSpan={2}></td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {currentTotals.priorYear.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border"></td>
                   </tr>
                 )}
 
@@ -8308,12 +8381,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
 
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
+                        <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
 
-                        <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
+
+                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Linked Files</th>
 
 
 
@@ -8341,10 +8417,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
-                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                            {row.priorYear.toLocaleString()}
-
+                          <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                            {(Number(row.reclassification) || 0).toLocaleString()}
                           </td>
 
                           <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
@@ -8353,14 +8427,110 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                           </td>
 
-                          <td className="px-4 py-2 border-secondary border-b border-r">
-                            {(Number(row.reclassification) || 0).toLocaleString()}
-                          </td>
-
                           <td className="px-4 py-2 border-r border-secondary border-b text-right">
 
                             {row.finalBalance.toLocaleString()}
 
+                          </td>
+
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
+
+                            {row.priorYear.toLocaleString()}
+
+                          </td>
+
+                          <td className="px-4 py-2 border-secondary border-b text-left">
+                            <Drawer>
+                              <DrawerTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-3"
+                                  disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                                </Button>
+                              </DrawerTrigger>
+                              <DrawerContent>
+                                <DrawerHeader>
+                                  <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                  <DrawerDescription>
+                                    Manage linked files for {row.accountName} ({row.code})
+                                  </DrawerDescription>
+                                </DrawerHeader>
+                                <div className="px-4 pb-4">
+                                  {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                      No linked files for this row.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {row.linkedExcelFiles.map((workbook: any) => (
+                                        <div
+                                          key={workbook._id}
+                                          className="flex items-center justify-between p-3 border rounded-lg"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                            <div>
+                                              <p className="font-medium">{workbook.name}</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleViewWorkbook(workbook)}
+                                            >
+                                              <ExternalLink className="h-4 w-4 mr-2" />
+                                              View
+                                            </Button>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button
+                                                  variant="destructive"
+                                                  size="sm"
+                                                >
+                                                  <Trash2 className="h-4 w-4 mr-2" />
+                                                  Remove
+                                                </Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                    This action cannot be undone.
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction
+                                                    onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                  >
+                                                    Remove
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <DrawerFooter>
+                                  <DrawerClose asChild>
+                                    <Button variant="outline">Close</Button>
+                                  </DrawerClose>
+                                </DrawerFooter>
+                              </DrawerContent>
+                            </Drawer>
                           </td>
 
 
@@ -8382,10 +8552,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           {subtotal.currentYear.toLocaleString()}
 
                         </td>
-
                         <td className="px-4 py-2 border-r border-secondary text-right">
 
-                          {subtotal.priorYear.toLocaleString()}
+                          {(Number(subtotal.reclassification) || 0).toLocaleString()}
 
                         </td>
 
@@ -8394,19 +8563,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           {subtotal.adjustments.toLocaleString()}
 
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary text-left">
-
-                          {(Number(subtotal.reclassification) || 0).toLocaleString()}
-
-                        </td>
-
                         <td className="px-4 py-2 border-r border-secondary text-right">
 
                           {subtotal.finalBalance.toLocaleString()}
 
                         </td>
 
-                        <td className="px-4 py-2 border-secondary"></td>
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+
+                          {subtotal.priorYear.toLocaleString()}
+
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary"></td>
 
                       </tr>
 
@@ -8682,10 +8850,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
                     </tr>
                   </thead>
@@ -8718,31 +8886,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.priorYear.toLocaleString()}
+                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b border-r">
-                          {/* <Input
-                            value={row.reclassification || ""}
-                            onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                saveSectionDataToETB();
-                              }
-                            }}
-                            placeholder="Enter re-classification"
-                            className="h-7 text-xs"
-                            disabled={isSignedOff}
-                            readOnly={isSignedOff}
-                          /> */}
-                          {(Number(row.reclassification) || 0).toLocaleString()}
-                        </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.priorYear.toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-secondary border-b text-left">
                           <Drawer>
@@ -8851,16 +9005,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           {groupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {groupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-left">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
-                        </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {groupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {groupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
                         </td>
                         <td></td>
                       </tr>
@@ -8917,10 +9071,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
                       <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
                     </tr>
                   </thead>
@@ -8951,31 +9105,17 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.currentYear.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.priorYear.toLocaleString()}
+                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                          {(Number(row.reclassification) || 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {row.adjustments.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b border-r">
-                          {/* <Input
-                            value={row.reclassification || ""}
-                            onChange={(e) => updateRowField(getRowId(row), "reclassification", e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                saveSectionDataToETB();
-                              }
-                            }}
-                            placeholder="Enter re-classification"
-                            className="h-7 text-xs"
-                            disabled={isSignedOff}
-                            readOnly={isSignedOff}
-                          /> */}
-                          {(Number(row.reclassification) || 0).toLocaleString()}
-                        </td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
                           {row.finalBalance.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {row.priorYear.toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-secondary border-b text-left">
                           <Drawer>
@@ -9093,16 +9233,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
                         </td>
                         <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-left">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border font-bold text-right">
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                           {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
                         </td>
                         <td></td>
                       </tr>
