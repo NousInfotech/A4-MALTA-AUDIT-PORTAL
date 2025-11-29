@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Search, Save, Edit, FileText, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { promptApi } from "@/services/api";
 
 interface Prompt {
     _id: string;
@@ -52,10 +53,8 @@ export const PromptManagement = () => {
     const fetchPrompts = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`${import.meta.env.VITE_APIURL}/api/admin/prompts`);
-            if (!response.ok) throw new Error("Failed to fetch prompts");
-            const data = await response.json();
-            setPrompts(data.prompts);
+            const response = await promptApi.get();
+            setPrompts(response.prompts);
         } catch (error) {
             console.error("Error fetching prompts:", error);
             toast({

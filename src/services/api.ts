@@ -1633,3 +1633,9 @@ export const reclassificationApi = {
     });
   },
 };
+// Prompts api 
+export const promptApi = { 
+  get: async () => {
+    return apiCall('/api/admin/prompts');
+  },
+}
