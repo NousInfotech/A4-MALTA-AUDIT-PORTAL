@@ -116,8 +116,10 @@ export const PlanningClassificationStep: React.FC<PlanningClassificationStepProp
     if (!classification) return ""
     const parts = classification.split(" > ")
     const topLevel = parts[0]
+    // For Assets and Liabilities, return up to grouping3 (first 3 levels)
     if (topLevel === "Assets" || topLevel === "Liabilities") {
-      return classification
+      // Return only first 3 parts (Level 1, Level 2, Level 3/grouping3)
+      return parts.slice(0, 3).join(" > ")
     }
     return topLevel
   }
