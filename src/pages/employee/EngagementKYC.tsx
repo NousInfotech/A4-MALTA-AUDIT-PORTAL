@@ -269,7 +269,10 @@ export function EngagementKYC() {
 
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    // Ensure status is a string
+    const statusStr = typeof status === 'string' ? status : String(status || 'pending');
+    
+    switch (statusStr) {
       case 'active':
         return (
           <Badge variant="outline" className="text-gray-600 border-gray-600 bg-gray-50">
@@ -313,7 +316,7 @@ export function EngagementKYC() {
           </Badge>
         );
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{statusStr}</Badge>;
     }
   };
 
@@ -509,7 +512,7 @@ export function EngagementKYC() {
               <Button
                 variant="outline"
                 onClick={() => fetchKYCWorkflows()}
-                className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
@@ -535,7 +538,7 @@ export function EngagementKYC() {
                   engagementName={engagement?.title}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First KYC Workflow
                     </Button>
@@ -555,7 +558,11 @@ export function EngagementKYC() {
                       <div>
                         <h3 className="font-semibold text-gray-900">KYC Workflow</h3>
                         <p className="text-sm text-gray-600">
-                          Client: {workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
+                          Client: {workflow.clientId} • Created: {(() => {
+                            if (!workflow.createdAt) return 'N/A';
+                            const date = new Date(workflow.createdAt);
+                            return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy");
+                          })()}
                         </p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                           <span>{workflow.documentRequests?.length || 0} Document Requests</span>
@@ -594,7 +601,7 @@ export function EngagementKYC() {
                 <Button
                   variant="outline"
                   onClick={() => fetchKYCWorkflows()}
-                  className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                  className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
@@ -606,7 +613,7 @@ export function EngagementKYC() {
                     clientId={kycWorkflows[0].clientId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
-                      <Button variant="outline" className="border-blue-300 hover:bg-blue-50 text-blue-700">
+                      <Button variant="outline" className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700">
                         <Upload className="h-4 w-4 mr-2" />
                         Manual Upload
                       </Button>
@@ -621,7 +628,7 @@ export function EngagementKYC() {
                     company={engagement?.companyId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
-                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Document Request
                       </Button>
@@ -647,7 +654,7 @@ export function EngagementKYC() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleStatusUpdate(workflow._id, 'active')}
-                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
                       >
                         <Play className="h-4 w-4 mr-1" />
                         Set Active
@@ -658,7 +665,7 @@ export function EngagementKYC() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleStatusUpdate(workflow._id, 'in-review')}
-                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         Set In Review
@@ -667,7 +674,7 @@ export function EngagementKYC() {
                     {workflow.status !== 'completed' && (
                       <Button
                         size="sm"
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
                         onClick={() => handleStatusUpdate(workflow._id, 'completed')}
                       >
                         <CheckCircle className="h-4 w-4 mr-1" />
@@ -679,7 +686,7 @@ export function EngagementKYC() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleReopenKYC(workflow._id)}
-                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
                       >
                         <RotateCcw className="h-4 w-4 mr-1" />
                         Reopen KYC
@@ -799,11 +806,14 @@ export function EngagementKYC() {
                                           </Badge>
                                         )}
                                         <Badge variant="outline" className="text-gray-600 border-gray-300">
-                                          {doc.status}
+                                          {typeof doc.status === 'string' ? doc.status : String(doc.status || 'pending')}
                                         </Badge>
                                         {doc.uploadedAt && (
                                           <span className="text-xs text-gray-500">
-                                            Uploaded: {format(new Date(doc.uploadedAt), "MMM dd, yyyy HH:mm")}
+                                            Uploaded: {(() => {
+                                              const date = new Date(doc.uploadedAt);
+                                              return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy HH:mm");
+                                            })()}
                                           </span>
                                         )}
                                       </div>
@@ -829,7 +839,7 @@ export function EngagementKYC() {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 px-3"
+                                          className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 px-3"
                                           title="Upload Document"
                                           disabled={uploadingDocument?.documentRequestId === docRequest._id && 
                                                    uploadingDocument?.documentIndex === docIndex}
@@ -854,7 +864,7 @@ export function EngagementKYC() {
                                           size="sm"
                                           variant="outline"
                                           onClick={() => window.open(doc.url, '_blank')}
-                                          className="border-blue-300 hover:bg-blue-50 text-blue-700 h-8 w-8 p-0"
+                                          className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 w-8 p-0"
                                           title="View Document"
                                         >
                                           <Eye className="h-4 w-4" />
@@ -883,7 +893,7 @@ export function EngagementKYC() {
                                               });
                                             }
                                           }}
-                                          className="border-green-300 hover:bg-green-50 text-green-700 h-8 w-8 p-0"
+                                          className="border-green-300 hover:bg-green-50 hover:text-green-800 text-green-700 h-8 w-8 p-0"
                                           title="Download Document"
                                         >
                                           <Download className="h-4 w-4" />
@@ -901,7 +911,7 @@ export function EngagementKYC() {
                                           documentName: doc.name,
                                         });
                                       }}
-                                      className="border-red-300 hover:bg-red-50 text-red-700 h-8 w-8 p-0"
+                                      className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 h-8 w-8 p-0"
                                       title="Delete Document"
                                     >
                                       <Trash2 className="h-4 w-4" />
@@ -951,7 +961,7 @@ export function EngagementKYC() {
                   company={engagement?.companyId}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First KYC Workflow
                     </Button>
@@ -979,7 +989,7 @@ export function EngagementKYC() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteDocument}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white hover:text-white"
             >
               Delete
             </AlertDialogAction>

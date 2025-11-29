@@ -180,7 +180,8 @@ export function AddDocumentRequestModal({
       const totalShares = sharesDataArray.reduce((sum: number, item: any) => {
         return sum + (Number(item?.totalShares) || 0);
       }, 0);
-      const shareClass = sharesDataArray.length > 0 ? sharesDataArray[0]?.class : undefined;
+      const shareClassRaw = sharesDataArray.length > 0 ? sharesDataArray[0]?.class : undefined;
+      const shareClass = typeof shareClassRaw === 'string' ? shareClassRaw : (shareClassRaw ? String(shareClassRaw) : undefined);
       
       // Calculate percentage: (totalShares / company.totalShares) * 100
       const companyTotalShares = company?.totalShares || 0;
@@ -245,13 +246,18 @@ export function AddDocumentRequestModal({
       console.log('📤 Processing documents and uploading templates...');
       const processedDocuments = await Promise.all(
         documents.map(async (doc) => {
-          if (doc.type === 'template' && doc.templateFile) {
+          // Ensure type is always a string - handle both string and object cases
+          const docType: string = typeof doc.type === 'string' 
+            ? doc.type 
+            : (typeof (doc.type as any)?.type === 'string' ? (doc.type as any).type : 'direct');
+          if (docType === 'template' && doc.templateFile) {
             try {
               console.log(`  → Uploading template for "${doc.name}"`);
               const templateUrl = await handleTemplateUpload(doc.templateFile);
               console.log(`  ✅ Template uploaded: ${templateUrl}`);
               return {
                 ...doc,
+                type: docType,
                 template: {
                   ...doc.template,
                   url: templateUrl
@@ -268,19 +274,22 @@ export function AddDocumentRequestModal({
               throw error;
             }
           }
-          return doc;
+          return { ...doc, type: docType };
         })
       );
       console.log('✅ All templates uploaded successfully');
 
       // Format document requests for each selected person
       const processedDocumentRequests = selectedPersonIds.map((personId: string) => ({
-        documentRequest: processedDocuments.map((doc: any) => ({
-          name: doc.name,
-          type: (doc.type === "template" || doc.type === "required" ? "required" : "optional") as "required" | "optional",
-          description: doc.description || "",
-          templateUrl: doc.type === "template" ? doc.template?.url : undefined,
-        })),
+        documentRequest: processedDocuments.map((doc: any) => {
+          const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+          return {
+            name: doc.name,
+            type: (docType === "template" || docType === "required" ? "required" : "optional") as "required" | "optional",
+            description: doc.description || "",
+            templateUrl: docType === "template" ? doc.template?.url : undefined,
+          };
+        }),
         person: personId
       }));
 
@@ -322,16 +331,20 @@ export function AddDocumentRequestModal({
     }
   };
 
-  const getDocumentTypeIcon = (type: string) => {
-    return type === 'template' ? (
+  const getDocumentTypeIcon = (type: string | any) => {
+    // Ensure type is a string, handle object case
+    const typeStr = typeof type === 'string' ? type : (type?.type || 'direct');
+    return typeStr === 'template' ? (
       <FileEdit className="h-4 w-4 text-blue-600" />
     ) : (
       <FileUp className="h-4 w-4 text-green-600" />
     );
   };
 
-  const getDocumentTypeBadge = (type: string) => {
-    return type === 'template' ? (
+  const getDocumentTypeBadge = (type: string | any) => {
+    // Ensure type is a string, handle object case
+    const typeStr = typeof type === 'string' ? type : (type?.type || 'direct');
+    return typeStr === 'template' ? (
       <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
         <FileEdit className="h-3 w-3 mr-1" />
         Template
@@ -422,14 +435,27 @@ export function AddDocumentRequestModal({
                               <p className="text-sm text-gray-600">Address: {p.address}</p>
                             )}
                             <div className="flex flex-wrap gap-2 mt-2">
-                              {p.shareholder?.class && (
-                                <Badge variant="outline">Shares: {p.shareholder.totalShares}/{company?.totalShares}</Badge>
+                              {p.shareholder?.totalShares != null && (
+                                <Badge variant="outline">
+                                  Shares: {String(Number(p.shareholder.totalShares) || 0)}/{String(Number(company?.totalShares) || 0)}
+                                </Badge>
                               )}
-                              {p.shareholder?.class && (
-                                <Badge variant="outline">Class: {p.shareholder.class}</Badge>
+                              {p.shareholder?.class != null && (
+                                <Badge variant="outline">
+                                  Class: {(() => {
+                                    const classValue = p.shareholder.class;
+                                    if (typeof classValue === 'string') return classValue;
+                                    if (typeof classValue === 'number') return String(classValue);
+                                    if (classValue && typeof classValue === 'object') {
+                                      // If it's an object, try to extract a meaningful string
+                                      return classValue.type ? String(classValue.type) : JSON.stringify(classValue);
+                                    }
+                                    return String(classValue || '');
+                                  })()}
+                                </Badge>
                               )}
-                              {typeof p.shareholder?.percentage === "number" && (
-                                <Badge variant="outline">{p.shareholder.percentage}%</Badge>
+                              {typeof p.shareholder?.percentage === "number" && !isNaN(p.shareholder.percentage) && (
+                                <Badge variant="outline">{String(Math.round(p.shareholder.percentage * 100) / 100)}%</Badge>
                               )}
                             </div>
                           </div>
@@ -471,7 +497,9 @@ export function AddDocumentRequestModal({
                             )}
                             <div className="flex flex-wrap gap-2 mt-2">
                               {roles.map((role: string, i: number) => (
-                                <Badge key={i} variant="outline">{role}</Badge>
+                                <Badge key={i} variant="outline">
+                                  {typeof role === 'string' ? role : String(role || '')}
+                                </Badge>
                               ))}
                             </div>
                           </div>
@@ -495,15 +523,21 @@ export function AddDocumentRequestModal({
           )}
           <DefaultDocumentRequestPreview
             onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
-              const newDocs: Document[] = selectedDocuments.map(doc => ({
-                name: doc.name,
-                type: doc.type,
-                description: doc.description,
-                template: doc.type === 'template'
-                  ? { url: doc.template?.url, instruction: doc.template?.instructions }
-                  : undefined,
-                status: 'pending' as const
-              }));
+              const newDocs: Document[] = selectedDocuments.map(doc => {
+                // Ensure type is always a string - handle both string and object cases
+                const docType: string = typeof doc.type === 'string' 
+                  ? doc.type 
+                  : (typeof (doc.type as any)?.type === 'string' ? (doc.type as any).type : 'direct');
+                return {
+                  name: doc.name,
+                  type: docType as 'direct' | 'template',
+                  description: doc.description,
+                  template: docType === 'template'
+                    ? { url: doc.template?.url, instruction: doc.template?.instructions }
+                    : undefined,
+                  status: 'pending' as const
+                };
+              });
 
               setDocuments(prev => [...prev, ...newDocs]);
 
@@ -656,7 +690,12 @@ export function AddDocumentRequestModal({
                           {doc.description && (
                             <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
                           )}
-                          {doc.type === 'template' && doc.template?.instruction && (
+                          {(() => {
+                            const docType: string = typeof (doc as any).type === 'string' 
+                              ? (doc as any).type 
+                              : (typeof ((doc as any).type as any)?.type === 'string' ? ((doc as any).type as any).type : 'direct');
+                            return docType === 'template' && doc.template?.instruction;
+                          })() && (
                             <p className="text-xs text-blue-600 mt-1">
                               Instructions: {doc.template.instruction}
                             </p>
