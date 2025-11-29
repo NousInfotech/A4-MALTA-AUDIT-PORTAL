@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Search, Eye, Loader2, Users, Calendar, TrendingUp } from 'lucide-react';
+import { Building2, Plus, Search, Eye, Loader2, Users, Calendar, TrendingUp, Briefcase } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from '@/hooks/use-toast';
 import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
+import { fetchCompanies } from '@/lib/api/company';
 
 interface User {
   summary: string;
@@ -23,6 +24,7 @@ interface User {
   companyName?: string;
   companyNumber?: string;
   industry?: string;
+  companyId?: string;
 }
 
 export const ClientManagement = () => {
@@ -64,6 +66,21 @@ export const ClientManagement = () => {
         profiles.map(async (profile) => {
           try {
             const email = await getClientEmail(profile.user_id);
+            
+            // Fetch companies for this client
+            let companyId: string | undefined;
+            try {
+              const companiesResult = await fetchCompanies(profile.user_id);
+              const companies = Array.isArray(companiesResult?.data) ? companiesResult.data : [];
+              // Get the first company's ID if available
+              if (companies.length > 0 && companies[0]?._id) {
+                companyId = companies[0]._id;
+              }
+            } catch (companyError) {
+              console.error(`Failed to fetch companies for client ${profile.user_id}:`, companyError);
+              // Continue without companyId if fetch fails
+            }
+            
             return {
               id: profile.user_id,
               name: profile.name || "Unknown User",
@@ -75,6 +92,7 @@ export const ClientManagement = () => {
               companyNumber: profile.company_number || undefined,
               industry: profile.industry || undefined,
               summary: profile.company_summary || undefined,
+              companyId,
             };
           } catch (err) {
             console.error(`Failed to get email for client ${profile.user_id}:`, err);
@@ -238,20 +256,37 @@ export const ClientManagement = () => {
                     </span>
                   </div>
                   
+                  <div className="flex gap-2 iteme">
                   <Button 
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
-                    size="sm" 
-                    variant="default" 
-                    asChild
-                  >
-                    <Link 
-                      to={`/employee/clients/${client.id}`}
-                      onClick={() => logViewClient(client.companyName || 'Unknown Client', `Employee viewed client details for ${client.companyName}`)}
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
+                      size="sm" 
+                      variant="default" 
+                      asChild
                     >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Link>
-                  </Button>
+                      <Link 
+                        to={`/employee/clients/${client.id}`}
+                        onClick={() => logViewClient(client.companyName || 'Unknown Client', `Employee viewed client details for ${client.companyName}`)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Link>
+                    </Button>
+                    {client.companyId && (
+                      <Button 
+                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
+                        size="sm" 
+                        variant="default" 
+                        asChild
+                      >
+                        <Link 
+                          to={`/employee/clients/${client.id}/company/${client.companyId}`}
+                        >
+                          <Briefcase className="h-4 w-4 mr-2" />
+                          View Company
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

@@ -1015,7 +1015,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             // Single update
             const entity = selectedExistingEntities[0];
             await updateRepresentationCompanyExisting(
-              "non-primary",
+              clientId,
               companyId,
               entity.id,
               { role: entity.roles }
@@ -1040,7 +1040,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           } else {
             // Bulk update - need to process individually
             for (const entity of selectedExistingEntities) {
-              await updateRepresentationCompanyExisting("non-primary", companyId, entity.id, {
+              await updateRepresentationCompanyExisting(clientId, companyId, entity.id, {
                 role: entity.roles,
               });
 
