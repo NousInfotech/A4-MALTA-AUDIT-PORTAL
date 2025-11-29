@@ -455,6 +455,32 @@ export const CompanyDetail: React.FC = () => {
 
               </div>
 
+
+              {highestShareholders.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-900 font-medium">
+                        Representative{highestShareholders.length > 1 ? "s" : ""} (Highest
+                        Shareholder{highestShareholders.length > 1 ? "s" : ""})
+                      </p>
+                      <div className="space-y-1 mt-2">
+                        {highestShareholders.map((rep) => (
+                          <p key={rep.key} className="text-blue-700 capitalize">
+                            {rep.name}
+                            <span className="text-xs text-blue-600 ml-1">
+                              ({rep.type === "company" ? "Company" : "Person"})
+                            </span>{" "}
+                            ({rep.percentage.toFixed(2)}%)
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Address */}
               {company.address && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
@@ -466,6 +492,7 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )}
 
+              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
               {company.totalShares && company.totalShares.length > 0 && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <PieChart
@@ -517,39 +544,14 @@ export const CompanyDetail: React.FC = () => {
 
               {company.description && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                  <FileText className="h-5 w-5 text-gray-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Description</p>
+                   <div>
+                    <p className="text-sm text-gray-500 font-medium">Description</p> <br />
                     <p className="text-gray-900">{company.description}</p>
                   </div>
                 </div>
               )}
 
-              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
-              {highestShareholders.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                    <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm text-blue-900 font-medium">
-                        Representative{highestShareholders.length > 1 ? "s" : ""} (Highest
-                        Shareholder{highestShareholders.length > 1 ? "s" : ""})
-                      </p>
-                      <div className="space-y-1 mt-2">
-                        {highestShareholders.map((rep) => (
-                          <p key={rep.key} className="text-blue-700 capitalize">
-                            {rep.name}
-                            <span className="text-xs text-blue-600 ml-1">
-                              ({rep.type === "company" ? "Company" : "Person"})
-                            </span>{" "}
-                            ({rep.percentage.toFixed(2)}%)
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+        
 
               {/* Supporting Documents */}
               {company.supportingDocuments && company.supportingDocuments.length > 0 && (
@@ -612,6 +614,23 @@ export const CompanyDetail: React.FC = () => {
                         const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0) || 0;
                         const companyTotalSharesSum = calculateTotalSharesSum(company.totalShares);
                         const totalSharePercentage = companyTotalSharesSum > 0 ? (totalShares / companyTotalSharesSum) * 100 : 0;
+                        
+                        // Get sharesData with only non-zero values
+                        const nonZeroSharesData = (share.sharesData || []).filter((item: any) => (item.totalShares || 0) > 0);
+                        
+                        // Check if there are share classes (not just Ordinary)
+                        const hasShareClasses = nonZeroSharesData.some((item: any) => 
+                          item.class && item.class !== "Ordinary"
+                        );
+                        
+                        // Helper to get total shares for a specific class from company
+                        const getCompanyTotalForClass = (classValue: string): number => {
+                          const classShare = company.totalShares?.find(
+                            (ts: any) => ts.class === classValue
+                          );
+                          return classShare?.totalShares || 0;
+                        };
+                        
                         if (share.companyId) {
                           if (typeof share.companyId === 'object' && share.companyId.name) {
                             companyName = share.companyId.name;
@@ -624,7 +643,7 @@ export const CompanyDetail: React.FC = () => {
 
                         const handleViewCompany = () => {
                           if (shareCompanyId && clientId) {
-                            navigate(`/employee/clients/${clientId}/company/${shareCompanyId}`);
+                            navigate(`/employee/clients/${"non-primary"}/company/${shareCompanyId}`);
                           }
                         };
 
@@ -638,22 +657,53 @@ export const CompanyDetail: React.FC = () => {
                                 {companyName}
                               </p>
 
-                              <p className="text-xs text-gray-600 mt-1">
-                                {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
-                              </p>
+                              {hasShareClasses ? (
+                                // Display share classes separately (Class A, B, C, etc.)
+                                <div className="mt-1 space-y-1">
+                                  {nonZeroSharesData
+                                    .sort((a: any, b: any) => {
+                                      // Sort: A, B, C first, then Ordinary
+                                      if (a.class === "Ordinary") return 1;
+                                      if (b.class === "Ordinary") return -1;
+                                      return a.class.localeCompare(b.class);
+                                    })
+                                    .map((item: any, idx: number) => {
+                                      const classTotal = getCompanyTotalForClass(item.class);
+                                      const className = item.class.charAt(0).toUpperCase() + item.class.slice(1).toLowerCase();
+                                      const displayClassName = item.class === "Ordinary" ? "Ordinary" : `Class ${className}`;
+                                      return (
+                                        <p key={idx} className="text-xs text-gray-600">
+                                          {displayClassName}: {item.totalShares.toLocaleString()} / {classTotal.toLocaleString()} shares
+                                        </p>
+                                      );
+                                    })}
+                                  {/* Show total at the end */}
+                                  <p className="text-xs text-gray-600 font-medium mt-1">
+                                    Total: {totalShares.toLocaleString()} / {companyTotalSharesSum.toLocaleString()} shares
+                                  </p>
+                                </div>
+                              ) : (
+                                // Display ordinary shares only (current logic)
+                                <>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
+                                  </p>
+                                </>
+                              )}
 
                               <p className="text-xs text-gray-600">
                                 {totalSharePercentage.toFixed(2)}% owned
                               </p>
                             </div>
                             {shareCompanyId && (
-                              <button
+                              <Button
+                                variant="outline"
                                 onClick={handleViewCompany}
-                                className="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="ml-4 p-2 rounded-lg transition-colors"
                                 title="View Company Details"
                               >
-                                <Eye className="h-4 w-4 text-gray-600" />
-                              </button>
+                                <Eye className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
 
