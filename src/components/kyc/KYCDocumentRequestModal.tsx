@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { kycApi } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
 import { DefaultDocumentRequestPreview } from "./DefaultDocumentRequestPreview";
-import { DefaultDocument } from "@/data/defaultDocumentRequests";
+// import { DefaultDocument } from "@/data/defaultDocumentRequests";
 import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
 
 /* ✅ personsData with address */
@@ -473,9 +473,9 @@ export function KYCDocumentRequestModal({
             )}
 
             <div className="flex flex-wrap gap-2 mt-2">
-              {/* {p.shareholder?.class && (
+              {p.shareholder?.class && (
                 <Badge variant="outline">Class: {p.shareholder.class}</Badge>
-              )} */}
+              )}
               {typeof p.shareholder?.percentage === "number" && (
                 <Badge variant="outline">
                   {p.shareholder.percentage}%
@@ -483,7 +483,7 @@ export function KYCDocumentRequestModal({
               )}
               {typeof p.shareholder?.percentage === "number" && (
                 <Badge variant="outline">
-                  {p.shareholder.totalShares}/{company.totalShares} shares
+                   {p.shareholder.totalShares} shares
                 </Badge>
               )}
             </div>

@@ -37,6 +37,7 @@ import { AddShareholderRepresentativeModal } from "./AddShareholderRepresentativ
 import { AddRepresentativeModal } from "./AddRepresentativeModal";
 import { AddShareholderModal } from "./AddShareholderModal";
 import { EditShares, type ShareValues } from "./EditShares";
+import { EditCompanyShares } from "./EditCompanyShares";
 import {
   Select,
   SelectContent,
@@ -482,76 +483,111 @@ export const PersonList: React.FC<PersonListProps> = ({
         getEntityId((personToDelete as any)?.id) ||
         getEntityId(personToDelete);
 
-      // Check if person is a representative (has companyName or is only in representationalSchema)
-      const isRepresentative = isDeletingRepresentative || 
-        (personToDelete as any).companyName || 
-        (sortedRepresentatives.some((rep: any) => rep._id === personToDelete._id) && 
-         !personShareholders.some((sh: any) => sh._id === personToDelete._id));
+      if (!resolvedPersonId) {
+        throw new Error("Unable to determine person identifier");
+      }
 
-      let response;
-      if (isRepresentative) {
-        // Remove only from representationalSchema (not delete person)
-        response = await fetch(
-          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}/representative/${personToDelete._id}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
+      const currentCompany = company || {};
+      const currentShareholders = currentCompany.shareHolders || [];
+      const currentRepresentationalSchema = currentCompany.representationalSchema || [];
+
+      // Check if person is currently a shareholder
+      const isCurrentlyShareholder = currentShareholders.some((share: any) => {
+        const sharePersonId = getEntityId(share?.personId);
+        return sharePersonId === resolvedPersonId;
+      });
+
+      // Find the representationalSchema entry for this person
+      const repSchemaEntry = currentRepresentationalSchema.find((rs: any) => {
+        const rsPersonId = getEntityId(rs?.personId);
+        return rsPersonId === resolvedPersonId;
+      });
+
+      let updatedShareholders = [...currentShareholders];
+      let updatedRepresentationalSchema = [...currentRepresentationalSchema];
+
+      if (isDeletingRepresentative) {
+        // Deleting from Representatives tab: Remove all non-shareholder roles
+        // Keep "Shareholder" role if person is still a shareholder
+        
+        if (repSchemaEntry) {
+          const currentRoles = Array.isArray(repSchemaEntry.role) 
+            ? repSchemaEntry.role 
+            : (repSchemaEntry.role ? [repSchemaEntry.role] : []);
+          
+          // Remove all non-shareholder roles (Director, Legal Representative, etc.)
+          const remainingRoles = currentRoles.filter((role: string) => role === "Shareholder");
+          
+          // Only keep "Shareholder" role if person is still a shareholder
+          if (remainingRoles.length > 0 && isCurrentlyShareholder) {
+            // Update entry to keep only "Shareholder" role
+            updatedRepresentationalSchema = updatedRepresentationalSchema.map((rs: any) => {
+              const rsPersonId = getEntityId(rs?.personId);
+              if (rsPersonId === resolvedPersonId) {
+                return {
+                  ...rs,
+                  role: ["Shareholder"],
+                };
+              }
+              return rs;
+            });
+          } else {
+            // Remove entry entirely if no roles remain or person is not a shareholder
+            updatedRepresentationalSchema = updatedRepresentationalSchema.filter((rs: any) => {
+              const rsPersonId = getEntityId(rs?.personId);
+              return rsPersonId !== resolvedPersonId;
+            });
           }
-        );
-
-        if (!response.ok) throw new Error("Failed to remove representative");
+        }
 
         toast({
           title: "Success",
-          description: "Representative removed successfully",
+          description: "Representative roles removed successfully",
         });
+      } else {
+        // Deleting from Shareholders tab: Remove from shareHolders AND remove "Shareholder" role only
+        
+        // Remove from shareHolders
+        updatedShareholders = updatedShareholders.filter((share: any) => {
+          const sharePersonId = getEntityId(share?.personId);
+          return sharePersonId !== resolvedPersonId;
+        });
+
+        // Update representationalSchema to remove only "Shareholder" role
+        if (repSchemaEntry) {
+          const currentRoles = Array.isArray(repSchemaEntry.role) 
+            ? repSchemaEntry.role 
+            : (repSchemaEntry.role ? [repSchemaEntry.role] : []);
+          
+          // Remove only "Shareholder" role, keep all other roles
+          const remainingRoles = currentRoles.filter((role: string) => role !== "Shareholder");
+          
+          if (remainingRoles.length > 0) {
+            // Update entry to keep other roles
+            updatedRepresentationalSchema = updatedRepresentationalSchema.map((rs: any) => {
+              const rsPersonId = getEntityId(rs?.personId);
+              if (rsPersonId === resolvedPersonId) {
+                return {
+                  ...rs,
+                  role: remainingRoles,
+                };
+              }
+              return rs;
+            });
+          } else {
+            // Remove entry entirely if no roles remain
+            updatedRepresentationalSchema = updatedRepresentationalSchema.filter((rs: any) => {
+              const rsPersonId = getEntityId(rs?.personId);
+              return rsPersonId !== resolvedPersonId;
+            });
+          }
+        }
+
+        await removePersonFromOtherRepresentatives(resolvedPersonId, sessionData.session.access_token);
 
         await maybeDeletePersonRecord(
           personToDelete,
           resolvedPersonId,
-          sessionData.session.access_token
-        );
-      } else {
-        // Remove shareholder relationship only (keep person record)
-        const currentShareholders = company?.shareHolders || [];
-        const targetId = resolvedPersonId;
-
-        if (!targetId) {
-          throw new Error("Unable to determine person identifier for shareholder removal");
-        }
-
-        const updatedShareholders = currentShareholders.filter((share: any) => {
-          const sharePersonId = getEntityId(share?.personId);
-          return sharePersonId !== targetId;
-        });
-
-        response = await fetch(
-          `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            body: JSON.stringify({
-              ...company,
-              shareHolders: updatedShareholders,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || "Failed to remove shareholder");
-        }
-
-        await removePersonFromOtherRepresentatives(targetId, sessionData.session.access_token);
-
-        await maybeDeletePersonRecord(
-          personToDelete,
-          targetId,
           sessionData.session.access_token
         );
 
@@ -559,6 +595,44 @@ export const PersonList: React.FC<PersonListProps> = ({
           title: "Success",
           description: "Shareholder removed successfully",
         });
+      }
+
+      // Update company with modified arrays
+      const response = await fetch(
+        `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+          },
+          body: JSON.stringify({
+            ...currentCompany,
+            shareHolders: updatedShareholders,
+            representationalSchema: updatedRepresentationalSchema,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update company");
+      }
+
+      // Only call maybeDeletePersonRecord for representative deletion if person is no longer in schema
+      if (isDeletingRepresentative) {
+        const stillInSchema = updatedRepresentationalSchema.some((rs: any) => {
+          const rsPersonId = getEntityId(rs?.personId);
+          return rsPersonId === resolvedPersonId;
+        });
+        
+        if (!stillInSchema) {
+          await maybeDeletePersonRecord(
+            personToDelete,
+            resolvedPersonId,
+            sessionData.session.access_token
+          );
+        }
       }
 
       setIsDeleteDialogOpen(false);
@@ -2635,27 +2709,29 @@ export const PersonList: React.FC<PersonListProps> = ({
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 bg-gray-50 rounded-xl">
-                <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">No representatives yet</p>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={() => setActiveInlineForm("person-representative")}
-                    className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Person
-                  </Button>
-                  <Button
-                    onClick={() => setActiveInlineForm("company-representative")}
-                    variant="outline"
-                    className="rounded-xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Company
-                  </Button>
+              (sortedRepresentatives.length === 0 && validCompanyRepresentatives.length === 0) && (
+                <div className="text-center py-12 bg-gray-50 rounded-xl">
+                  <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No representatives yet</p>
+                  <div className="flex gap-2 justify-center">
+                    <Button
+                      onClick={() => setActiveInlineForm("person-representative")}
+                      className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Person
+                    </Button>
+                    <Button
+                      onClick={() => setActiveInlineForm("company-representative")}
+                      variant="outline"
+                      className="rounded-xl"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Company
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {/* Company Representatives Section */}
@@ -3174,7 +3250,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           </DialogHeader>
 
           <div className="py-4">
-            <EditShares
+            <EditCompanyShares
               company={company}
               companyShare={editingCompanyShare}
               shareValues={editingShareValues}
