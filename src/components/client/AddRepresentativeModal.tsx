@@ -1414,27 +1414,31 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
             <Button
               type="button"
-              variant={viewMode === "existing" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setViewMode("existing")}
-              className={`rounded-md ${
-                viewMode === "existing"
-                  ? "bg-white shadow-sm text-gray-900"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
+              className={`
+                rounded-md px-3
+                ${viewMode === "existing"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-600 "
+                }
+              `}
             >
               Existing
             </Button>
             <Button
               type="button"
-              variant={viewMode === "new" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setViewMode("new")}
-              className={`rounded-md ${
-                viewMode === "new"
-                  ? "bg-white shadow-sm text-gray-900"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
+              className={`
+                rounded-md px-3
+                ${viewMode === "new"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-600"
+                }
+              `}
             >
               Create New
             </Button>

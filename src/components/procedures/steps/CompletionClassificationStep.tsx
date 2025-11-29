@@ -143,6 +143,21 @@ export const CompletionClassificationStep: React.FC<CompletionClassificationStep
 }
 
 
+  const handleSelectAll = () => {
+    const allSelected = validitySelections.every((s) => s.isValid)
+    const newIsValid = !allSelected
+
+    setValiditySelections((prev) => {
+      const next = prev.map((selection) => ({ ...selection, isValid: newIsValid }))
+      const validRows = next.filter((s) => s.isValid && s.classification)
+      const uniqueClassifications = [
+        ...new Set(validRows.map((r) => getDeepestClassification(r.classification))),
+      ]
+      setSelectedClassifications(uniqueClassifications)
+      return next
+    })
+  }
+
   const handleClassificationToggle = (classification: string) => {
     setSelectedClassifications((prev) =>
       prev.includes(classification) ? prev.filter((c) => c !== classification) : [...prev, classification],
@@ -239,7 +254,16 @@ export const CompletionClassificationStep: React.FC<CompletionClassificationStep
       {/* ETB Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-heading text-lg text-foreground">Extended Trial Balance</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-heading text-lg text-foreground">Extended Trial Balance</CardTitle>
+            <Button
+              size="sm"
+              onClick={handleSelectAll}
+              className="font-body"
+            >
+              {validitySelections.every((s) => s.isValid) ? "Deselect All" : "Select All"}
+            </Button>
+          </div>
           <p className="text-sm text-muted-foreground font-body">
             Accounts with final balance ≥ {formatCurrency(stepData.materiality)} are pre-selected. You can adjust
             selections manually.

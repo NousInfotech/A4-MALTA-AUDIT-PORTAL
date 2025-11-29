@@ -238,10 +238,12 @@ export const EditShares: React.FC<EditSharesProps> = ({
             value = parseInt(shareValues.sharesC || "0", 10) || 0;
           }
           
-          // Calculate remaining (available + current person's shares - new value)
-          const remaining = Math.max(0, available + currentAllocated - value);
-          const allocated = value;
+          // Calculate total available (available + current entity's shares that are being replaced)
           const totalAvailableForClass = available + currentAllocated;
+          // Calculate remaining using the same logic as available share showing
+          // Remaining = total available - new value entered
+          const remaining = Math.max(0, totalAvailableForClass - value);
+          const allocated = value;
           const hasError = perClassErrors[shareClass] || false;
           
           return (
@@ -265,7 +267,7 @@ export const EditShares: React.FC<EditSharesProps> = ({
               />
               <p className="text-xs text-gray-500 mt-1">
                 {allocated > 0 ? (
-                  <>Remaining: {remaining.toLocaleString()} shares (Total: {totalAvailableForClass.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
+                  <>Remaining: {remaining.toLocaleString()} shares</>
                 ) : (
                   <>Available: {totalAvailableForClass.toLocaleString()} shares</>
                 )}

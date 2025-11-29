@@ -1123,20 +1123,22 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
             {/* Commented out Existing button for persons - only show for companies */}
             {entityType === "company" && (
-              <Button
-                type="button"
-                variant={viewMode === "existing" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("existing")}
-                className={`rounded-md ${
-                  viewMode === "existing"
-                    ? "bg-white shadow-sm text-gray-900"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Existing
-              </Button>
-            )}
+           <Button
+           type="button"
+           size="sm"
+           variant="ghost"
+           onClick={() => setViewMode("existing")}
+           className={`
+             rounded-md px-3
+             ${viewMode === "existing"
+               ? "bg-white text-gray-900 shadow-sm"
+               : "text-gray-600 "
+             }
+           `}
+         >
+           Existing
+         </Button>
+       )}
             {/* {entityType === "person" && (
               <Button
                 type="button"
@@ -1152,25 +1154,28 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                 Existing
               </Button>
             )} */}
-            <Button
-              type="button"
-              variant={viewMode === "new" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("new")}
-              className={`rounded-md ${
-                viewMode === "new"
-                  ? "bg-white shadow-sm text-gray-900"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Create New
-            </Button>
-
+            {entityType === "company" && (
+           <Button
+           type="button"
+           size="sm"
+           variant="ghost"
+           onClick={() => setViewMode("new")}
+           className={`
+             rounded-md px-3
+             ${viewMode === "new"
+               ? "bg-white text-gray-900 shadow-sm"
+               : "text-gray-600"
+             }
+           `}
+         >
+           Create New
+         </Button>
+       )}
             
           </div>
         </div>
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6 mt-4 px-2">
           {/* Select Existing Entity Section */}
           {/* Commented out existing section for persons - only show for companies */}
           {viewMode === "existing" && (

@@ -2615,7 +2615,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEditPerson(person)}
-                              className="rounded-xl hover:bg-gray-100"
+                              className="rounded-xl"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -2754,7 +2754,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                                     });
                                   }
                                 }}
-                                className="rounded-xl hover:bg-gray-100"
+                                className="rounded-xl"
                                 title="View Company"
                               >
                                 <Eye className="h-4 w-4" />
@@ -2767,7 +2767,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                                   e.stopPropagation();
                                   handleEditCompanyRep(repCompany);
                                 }}
-                                className="rounded-xl hover:bg-gray-100"
+                                className="rounded-xl"
                                 title="Edit Company"
                               >
                                 <Edit className="h-4 w-4" />
@@ -2924,7 +2924,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                                   );
                                   if (person) handleEditPerson(person);
                                 }}
-                                className="rounded-xl hover:bg-gray-100"
+                                className="rounded-xl"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -3008,7 +3008,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                             )}
                           </div>
                           <div className="flex gap-2 items-center">
-                            <Button variant="ghost" size="sm" onClick={() => handleNavigateToCompany(entry.companyId, entry.clientId)} className="rounded-xl bg-gray-100 hover:bg-gray-200">
+                            <Button variant="ghost" size="sm" onClick={() => handleNavigateToCompany(entry.companyId, entry.clientId)} className="rounded-xl">
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button
@@ -3018,7 +3018,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                                 e.stopPropagation();
                                 openEditCompanyShare(entry);
                               }}
-                              className="rounded-xl hover:bg-gray-100"
+                              className="rounded-xl"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
