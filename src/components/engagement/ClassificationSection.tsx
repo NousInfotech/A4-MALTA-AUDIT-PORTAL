@@ -4,7 +4,7 @@
 
 import type React from "react";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 // Removed unused shadcn/ui toast imports (using Sonner toast instead)
 // import { Toaster } from "@/components/ui/toaster"
@@ -105,6 +105,8 @@ import {
   TableOfContents, // ⬅️ NEW: icon for Fetch Tabs
 
   FileText,
+  Link,
+  Trash2,
 
   Image,
 
@@ -115,8 +117,6 @@ import {
   X,
 
   Edit2,
-
-  Trash2,
 
   Check,
 
@@ -208,19 +208,25 @@ import { format } from "date-fns";
 import ClassificationReviewPanel from "../classification-review/ClassificationReviewPanel";
 
 import axiosInstance from "@/lib/axiosInstance";
-import { getExtendedTBWithLinkedFiles, deleteWorkbookFromLinkedFilesInExtendedTB } from "@/lib/api/extendedTrialBalanceApi";
-import { getWorkingPaperWithLinkedFiles } from "@/lib/api/workingPaperApi";
+
+
 import { 
   getEvidenceWithMappings, 
   linkWorkbookToEvidence, 
   unlinkWorkbookFromEvidence,
   type ClassificationEvidence as EvidenceWithMappings
 } from "@/lib/api/classificationEvidenceApi";
+import { msDriveworkbookApi, db_WorkbookApi } from "@/lib/api/workbookApi";
+import { getExtendedTBWithLinkedFiles, deleteWorkbookFromLinkedFilesInExtendedTB, updateLinkedExcelFilesInExtendedTB } from "@/lib/api/extendedTrialBalanceApi";
+import { getWorkingPaperWithLinkedFiles, updateLinkedExcelFilesInWP } from "@/lib/api/workingPaperApi";
+
 
 import ProcedureView from "../procedures/ProcedureView";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
+import { ExcelViewerWithFullscreen } from "../audit-workbooks/ExcelViewer";
 import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
 import { AdjustmentManager } from "../adjustments/AdjustmentManager";
+
 import { ReclassificationManager } from "../reclassification/ReclassificationManager";
 
 
@@ -870,6 +876,85 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Evidence-related state
 
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
+  
+  // ✅ NEW: State to store all classifications from the entire ETB (for global workbook fetching)
+  // Initialize with current classification to ensure we always have at least one
+  const [allClassificationsFromETB, setAllClassificationsFromETB] = useState<string[]>([classification]);
+  
+  // ✅ NEW: Fetch all classifications from the entire ETB (similar to how evidence files work)
+  useEffect(() => {
+    const fetchAllClassifications = async () => {
+      if (!engagement.id) {
+        // Ensure we have at least current classification
+        setAllClassificationsFromETB([classification]);
+        return;
+      }
+      
+      try {
+        const base = import.meta.env.VITE_APIURL;
+        if (!base) {
+          console.warn("VITE_APIURL is not set");
+          // Ensure we have at least current classification
+          setAllClassificationsFromETB([classification]);
+          return;
+        }
+        
+        // Fetch all ETB rows to get all classifications
+        const { data: session } = await supabase.auth.getSession();
+        const token = session?.session?.access_token;
+        
+        const response = await fetch(`${base}/api/engagements/${engagement.id}/etb`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        
+        if (response.ok) {
+          const etbData = await response.json();
+          const rows = etbData.rows || [];
+          
+          // Extract all unique classifications
+          const classifications = new Set<string>();
+          classifications.add(classification); // Always include current classification
+          rows.forEach((row: any) => {
+            if (row.classification) {
+              classifications.add(row.classification);
+            }
+          });
+          
+          const allClassKeys = Array.from(classifications);
+          setAllClassificationsFromETB(allClassKeys);
+          console.log('📚 Fetched all classifications from ETB:', {
+            count: allClassKeys.length,
+            classifications: allClassKeys.slice(0, 10), // Log first 10
+            totalRows: rows.length,
+            currentClassification: classification
+          });
+        } else {
+          console.warn('Failed to fetch ETB data, using current classification only');
+          setAllClassificationsFromETB([classification]);
+        }
+      } catch (error) {
+        console.error('Error fetching all classifications from ETB:', error);
+        // Fallback to current classification
+        setAllClassificationsFromETB([classification]);
+      }
+    };
+    
+    fetchAllClassifications();
+  }, [engagement.id, classification]); // Re-fetch when engagement or classification changes
+  
+  // ✅ NEW: Use allClassificationsFromETB (always has at least current classification)
+  const allClassifications = useMemo(() => {
+    // allClassificationsFromETB always has at least the current classification
+    // If it has more, use all of them; otherwise use current classification
+    if (allClassificationsFromETB.length > 0) {
+      return allClassificationsFromETB;
+    }
+    
+    // Final fallback (shouldn't happen, but just in case)
+    return [classification];
+  }, [allClassificationsFromETB, classification]);
 
   const handleEvidenceMappingUpdated = (updatedEvidence: any) => {
     if (!updatedEvidence) return;
@@ -887,6 +972,85 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       )
     );
   };
+
+  // ✅ MODIFIED: Load ALL evidence files for the engagement (not filtered by classification)
+  // Extract loadEvidenceFiles as a reusable function using useCallback
+  const loadEvidenceFiles = useCallback(async () => {
+    if (!engagement.id) {
+      setEvidenceFiles([]);
+      return;
+    }
+
+    try {
+      console.log('Starting to load ALL evidence files for engagement...');
+      // ✅ Load all evidence files for the engagement, not just the current classification
+      const response = await getAllClassificationEvidence(engagement.id);
+
+      // Convert API response to EvidenceFile format and fetch linked workbooks
+      const evidenceFilesPromises = response.evidence.map(async (evidence) => {
+        try {
+          // Fetch detailed evidence with linked workbooks and mappings
+          const detailedEvidence = await getEvidenceWithMappings(evidence._id);
+          
+          return {
+            id: evidence._id,
+            fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
+            fileUrl: evidence.evidenceUrl,
+            fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
+            fileSize: 0, // Not provided by API
+            uploadedAt: evidence.createdAt,
+            uploadedBy: evidence.uploadedBy.name,
+            comments: evidence.evidenceComments.map(comment => ({
+              commentor: {
+                userId: comment.commentor.userId,
+                name: comment.commentor.name,
+                email: comment.commentor.email
+              },
+              comment: comment.comment,
+              timestamp: comment.timestamp
+            })),
+            linkedWorkbooks: detailedEvidence.linkedWorkbooks || [], // Add linked workbooks
+            mappings: detailedEvidence.mappings || [] // ✅ CRITICAL FIX: Add mappings!
+          };
+        } catch (err) {
+          console.warn(`Failed to fetch linked workbooks for evidence ${evidence._id}:`, err);
+          // Return evidence without linked workbooks if fetch fails
+          return {
+            id: evidence._id,
+            fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
+            fileUrl: evidence.evidenceUrl,
+            fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
+            fileSize: 0,
+            uploadedAt: evidence.createdAt,
+            uploadedBy: evidence.uploadedBy.name,
+            comments: evidence.evidenceComments.map(comment => ({
+              commentor: {
+                userId: comment.commentor.userId,
+                name: comment.commentor.name,
+                email: comment.commentor.email
+              },
+              comment: comment.comment,
+              timestamp: comment.timestamp
+            })),
+            linkedWorkbooks: [],
+            mappings: [] // ✅ Add mappings to error fallback
+          };
+        }
+      });
+
+      const evidenceFiles: EvidenceFile[] = await Promise.all(evidenceFilesPromises);
+
+      setEvidenceFiles(evidenceFiles);
+
+      console.log(`Loaded ${evidenceFiles.length} evidence files (ALL classifications) with linked workbooks:`, {
+        filesWithLinkedWorkbooks: evidenceFiles.filter(f => f.linkedWorkbooks && f.linkedWorkbooks.length > 0).length
+      });
+    } catch (error: any) {
+      console.error('Error loading evidence files:', error);
+      toast(error.message || 'Failed to load evidence files', { variant: 'destructive' });
+      setEvidenceFiles([]);
+    }
+  }, [engagement.id]);
 
   // Helper function to format date for linked files
   const formatDateForLinkedFiles = (dateString: string) => {
@@ -1031,13 +1195,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       const currentEngagementId = engagement.id || (engagement as any)?._id;
 
-      if (
-        eventEngagementId === currentEngagementId &&
-        (eventClassification === classification ||
-          eventClassification?.startsWith(`${classification} >`))
-      ) {
-        setWorkbookRefreshTrigger((prev) => prev + 1);
-        await refreshLeadSheetData();
+      if (eventEngagementId === currentEngagementId) {
+        // ✅ Refresh lead sheet if it's for the current classification
+        // WorkBookApp will automatically refresh its workbooks list via refreshTrigger
+        if (eventClassification === classification ||
+            eventClassification?.startsWith(`${classification} >`)) {
+          setWorkbookRefreshTrigger((prev) => prev + 1);
+          await refreshLeadSheetData();
+        }
       }
     };
 
@@ -1127,6 +1292,35 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engagement._id, engagement.id, classification]); // Removed loadEvidenceFiles - it's not accessible here
+
+  // ✅ NEW: Listen for evidence-uploaded events from ExcelViewer (when evidence files are uploaded to workbooks)
+  useEffect(() => {
+    const handleEvidenceUploaded = async (event: CustomEvent) => {
+      console.log('📣 ClassificationSection: Received evidence-uploaded event:', event.detail);
+      
+      const { engagementId: eventEngagementId } = event.detail;
+      const currentEngagementId = engagement.id || (engagement as any)?._id;
+
+      // Only refresh if the event is for the current engagement
+      if (eventEngagementId === currentEngagementId) {
+        console.log('📣 ClassificationSection: Refreshing evidence files list in background');
+        // Refresh evidence files list without switching tabs
+        await loadEvidenceFiles();
+        console.log('✅ ClassificationSection: Evidence files list refreshed in background');
+      } else {
+        console.log('📣 ClassificationSection: Event is for different engagement - ignoring');
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('evidence-uploaded', handleEvidenceUploaded as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('evidence-uploaded', handleEvidenceUploaded as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engagement.id, (engagement as any)?._id, loadEvidenceFiles]);
 
 
   const groupBySubCategory = (data) => {
@@ -2999,134 +3193,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  // Load evidence files when classification changes
 
+  // Load evidence files when engagement changes
   useEffect(() => {
-
-    if (!engagement.id || !classification) {
-
-      setEvidenceFiles([]);
-
-      return;
-
-    }
-
-
-
-    let isMounted = true;
-
-
-
-    const loadEvidenceFiles = async () => {
-
-      try {
-
-        console.log('Starting to load evidence files...');
-
-        const classificationId = await getClassificationId(classification, engagement.id);
-
-        console.log(`Loading evidence for classification: ${classification} -> ${classificationId}`);
-
-
-
-        const response = await getAllClassificationEvidence(engagement.id, classificationId);
-
-
-
-        if (!isMounted) return; // Component unmounted, don't update state
-
-
-
-        // Convert API response to EvidenceFile format and fetch linked workbooks
-        const evidenceFilesPromises = response.evidence.map(async (evidence) => {
-          try {
-            // Fetch detailed evidence with linked workbooks and mappings
-            const detailedEvidence = await getEvidenceWithMappings(evidence._id);
-            
-            return {
-              id: evidence._id,
-              fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
-              fileUrl: evidence.evidenceUrl,
-              fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
-              fileSize: 0, // Not provided by API
-              uploadedAt: evidence.createdAt,
-              uploadedBy: evidence.uploadedBy.name,
-              comments: evidence.evidenceComments.map(comment => ({
-                commentor: {
-                  userId: comment.commentor.userId,
-                  name: comment.commentor.name,
-                  email: comment.commentor.email
-                },
-                comment: comment.comment,
-                timestamp: comment.timestamp
-              })),
-              linkedWorkbooks: detailedEvidence.linkedWorkbooks || [], // Add linked workbooks
-              mappings: detailedEvidence.mappings || [] // ✅ CRITICAL FIX: Add mappings!
-            };
-          } catch (err) {
-            console.warn(`Failed to fetch linked workbooks for evidence ${evidence._id}:`, err);
-            // Return evidence without linked workbooks if fetch fails
-            return {
-              id: evidence._id,
-              fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
-              fileUrl: evidence.evidenceUrl,
-              fileType: evidence.evidenceUrl.split('.').pop() || 'unknown',
-              fileSize: 0,
-              uploadedAt: evidence.createdAt,
-              uploadedBy: evidence.uploadedBy.name,
-              comments: evidence.evidenceComments.map(comment => ({
-                commentor: {
-                  userId: comment.commentor.userId,
-                  name: comment.commentor.name,
-                  email: comment.commentor.email
-                },
-                comment: comment.comment,
-                timestamp: comment.timestamp
-              })),
-              linkedWorkbooks: [],
-              mappings: [] // ✅ Add mappings to error fallback
-            };
-          }
-        });
-
-        const evidenceFiles: EvidenceFile[] = await Promise.all(evidenceFilesPromises);
-
-        setEvidenceFiles(evidenceFiles);
-
-        console.log(`Loaded ${evidenceFiles.length} evidence files with linked workbooks:`, {
-          filesWithLinkedWorkbooks: evidenceFiles.filter(f => f.linkedWorkbooks && f.linkedWorkbooks.length > 0).length
-        });
-
-      } catch (error: any) {
-
-        console.error('Error loading evidence files:', error);
-
-        if (isMounted) {
-
-          toast(error.message || 'Failed to load evidence files', { variant: 'destructive' });
-
-          setEvidenceFiles([]);
-
-        }
-
-      }
-
-    };
-
-
-
     loadEvidenceFiles();
+  }, [loadEvidenceFiles]); // ✅ Use loadEvidenceFiles as dependency since it's memoized with useCallback
 
-
-
-    return () => {
-
-      isMounted = false;
-
-    };
-
-  }, [engagement.id, classification]);
-
+  // ✅ NEW: Load ALL workbooks for the engagement (not filtered by classification)
 
 
   // Load review workflow when classification changes
@@ -3957,29 +4030,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             {/* work book */}
             <TabsContent value="work-book" className="flex-1 flex flex-col">
-
               {loading ? (
-
                 <div className="flex items-center justify-center h-64">
-
                   <EnhancedLoader
-
                     variant="pulse"
-
                     size="lg"
-
                     text="Loading Lead Sheet..."
-
                   />
-
                 </div>
-
               ) : (
-
-                renderLeadSheetContentWithWorkbook()
-
+                <>
+                  {/* Previous UI: Lead Sheet Content with Sections and WorkBookApp */}
+                  {renderLeadSheetContentWithWorkbook()}
+                </>
               )}
-
             </TabsContent>
 
           </Tabs>
@@ -5527,7 +5591,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       <>
         {/* Summary Cards - Keep the global totals here */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        {/* <div className="grid grid-cols-4 gap-4 mb-6">
           <Card className="p-3">
             <div className="text-xs text-gray-500">Current Year</div>
             <div className="text-lg font-semibold">
@@ -5552,7 +5616,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               {totals.finalBalance.toLocaleString()}
             </div>
           </Card>
-        </div>
+        </div> */}
 
         {/* Render each subcategory with its own totals */}
         {/* Sort: sections without subCategoryName first, then sections with subCategoryName */}
@@ -5602,6 +5666,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             onRefreshData={refreshLeadSheetData}
             rowType="etb"
             refreshTrigger={workbookRefreshTrigger}
+            allClassifications={allClassifications}
           />
         </div>
       </>
@@ -5609,7 +5674,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
 
   }
-
 
 
   function renderWorkingPapersContent() {
@@ -5689,6 +5753,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             onRefreshData={refreshLeadSheetData}
             rowType="working-paper"
             refreshTrigger={workbookRefreshTrigger}
+            allClassifications={allClassifications}
           />
         </div>
 
@@ -6759,6 +6824,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             rowType="evidence"
             refreshTrigger={workbookRefreshTrigger}
             onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
+            allClassifications={allClassifications}
           />
         </div>
 
@@ -9871,6 +9937,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             rowType="evidence"
             refreshTrigger={workbookRefreshTrigger}
             onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
+            allClassifications={allClassifications}
           />
         </div>
 
@@ -10310,6 +10377,131 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     </FullscreenOverlay>
 
+  );
+
+  // ✅ NEW: ExcelViewer for All Workbooks
+  const allWorkbookViewer = isAllWorkbookViewerOpen && selectedAllWorkbook ? (
+    <ExcelViewerWithFullscreen
+      workbook={selectedAllWorkbook}
+      mappingsRefreshKey={allWorkbookMappingsRefreshKey}
+      setSelectedWorkbook={setSelectedAllWorkbook}
+      mappings={allWorkbookMappings}
+      namedRanges={allWorkbookNamedRanges}
+      onBack={() => {
+        setIsAllWorkbookViewerOpen(false);
+        setSelectedAllWorkbook(null);
+        setAllWorkbookMappings([]);
+        setAllWorkbookNamedRanges([]);
+      }}
+      onLinkField={(selection) => {
+        // Open link dialog
+        handleLinkAllWorkbookToField(selectedAllWorkbook);
+      }}
+      onLinkSheet={() => {
+        toast.info("Link sheet functionality not available from All Workbooks view");
+      }}
+      onLinkWorkbook={() => {
+        toast.info("Link workbook functionality not available from All Workbooks view");
+      }}
+      onReupload={handleAllWorkbookReupload}
+      onViewAuditLog={() => {
+        toast.info("Audit log functionality not available from All Workbooks view");
+      }}
+      onCreateMapping={handleAllWorkbookCreateMapping}
+      onUpdateMapping={handleAllWorkbookUpdateMapping}
+      onDeleteMapping={handleAllWorkbookDeleteMapping}
+      onCreateNamedRange={handleAllWorkbookCreateNamedRange}
+      onUpdateNamedRange={handleAllWorkbookUpdateNamedRange}
+      onDeleteNamedRange={handleAllWorkbookDeleteNamedRange}
+      isLoadingWorkbookData={isLoadingAllWorkbookData}
+      workingPaperCloudInfo={null}
+      updateSheetsInWorkbook={handleAllWorkbookUpdateSheets}
+      engagementId={engagement.id || engagement._id}
+      classification={selectedAllWorkbook.classification || classification}
+      rowType="etb"
+      parentEtbData={sectionData ? { rows: sectionData } as any : null}
+      onRefreshETBData={refreshLeadSheetData}
+      onRefreshMappings={refreshAllWorkbookMappings}
+      onRefreshParentData={refreshLeadSheetData}
+      onEvidenceMappingUpdated={handleEvidenceMappingUpdated}
+    />
+  ) : null;
+
+  // ✅ NEW: Link Dialog for All Workbooks (similar to MainDashboard)
+  const allWorkbookLinkDialog = isAllWorkbookLinkDialogOpen && selectedAllWorkbookForLink ? (
+    <Dialog open={isAllWorkbookLinkDialogOpen} onOpenChange={setIsAllWorkbookLinkDialogOpen}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Link Workbook to Field</DialogTitle>
+          <DialogDescription>
+            Select a field to link the workbook "{selectedAllWorkbookForLink.name}" to.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="field-select" className="text-right">Field</Label>
+            <div className="col-span-3">
+              {!sectionData || sectionData.length === 0 ? (
+                <div className="text-sm text-muted-foreground p-2 border rounded-md">
+                  Loading fields for "{classification}"...
+                </div>
+              ) : (
+                <select
+                  id="field-select"
+                  value={selectedRowIdForLink}
+                  onChange={(e) => setSelectedRowIdForLink(e.target.value)}
+                  className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="" disabled>Select a field</option>
+                  {sectionData.map((row) => (
+                    <option key={row.code} value={row.code}>
+                      {row.code} - {row.accountName}
+                      {row.classification && ` (${row.classification})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {sectionData && sectionData.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {sectionData.length} field{sectionData.length !== 1 ? 's' : ''} available in this classification
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setIsAllWorkbookLinkDialogOpen(false);
+              setSelectedAllWorkbookForLink(null);
+              setSelectedRowIdForLink("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmitAllWorkbookLink}
+            disabled={!selectedRowIdForLink || isLinkingAllWorkbook}
+          >
+            {isLinkingAllWorkbook ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Linking...
+              </>
+            ) : (
+              "Link Workbook"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
+  return (
+    <>
+      {content}
+    </>
   );
 
 };

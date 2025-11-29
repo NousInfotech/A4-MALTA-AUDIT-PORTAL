@@ -25,7 +25,7 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
 
   const baseUrl = import.meta.env.VITE_APIURL;
 
-  const handleExport = async (type: "etb" | "adjustments" | "reclassifications" | "evidence" | "combined", format: "xlsx" | "pdf" = "xlsx") => {
+  const handleExport = async (type: "etb" | "adjustments" | "reclassifications" | "evidence" | "all-evidence" | "all-workbooks" | "combined", format: "xlsx" | "pdf" = "xlsx") => {
     if (!engagement?._id) {
       toast({
         title: "Error",
@@ -42,6 +42,12 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
       if (type === "evidence") {
         setExporting("evidence");
         url = `${baseUrl}/api/engagements/${engagement._id}/export/evidence`;
+      } else if (type === "all-evidence") {
+        setExporting("all-evidence");
+        url = `${baseUrl}/api/engagements/${engagement._id}/export/all-evidence`;
+      } else if (type === "all-workbooks") {
+        setExporting("all-workbooks");
+        url = `${baseUrl}/api/engagements/${engagement._id}/export/all-workbooks`;
       } else if (type === "combined") {
         setExporting(format === "pdf" ? "combined_pdf" : "combined");
         url = `${baseUrl}/api/engagements/${engagement._id}/export/combined${format === "pdf" ? "?format=pdf" : ""}`;
@@ -82,9 +88,11 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
           adjustments: "Adjustments",
           reclassifications: "Reclassifications",
           evidence: "EvidenceFiles",
+          "all-evidence": "AllEvidenceFiles",
+          "all-workbooks": "AllWorkbooks",
           combined: "",
         };
-        const extension = type === "evidence" ? "zip" : type === "combined" && format === "pdf" ? "pdf.zip" : type === "combined" ? "xlsx" : format;
+        const extension = (type === "evidence" || type === "all-evidence" || type === "all-workbooks") ? "zip" : type === "combined" && format === "pdf" ? "pdf.zip" : type === "combined" ? "xlsx" : format;
         filename = type === "combined" && format === "pdf" 
           ? `${sanitized}_Combined_Reports.pdf.zip`
           : type === "combined" 
@@ -109,7 +117,7 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
           ? "Combined PDF files exported successfully as ZIP"
           : type === "combined"
             ? "Combined Excel file exported successfully"
-            : `${type === "evidence" ? "Evidence files" : type.charAt(0).toUpperCase() + type.slice(1)} exported successfully as ${format.toUpperCase()}`,
+            : `${type === "evidence" ? "Evidence files" : type === "all-evidence" ? "All evidence files" : type === "all-workbooks" ? "All workbooks" : type.charAt(0).toUpperCase() + type.slice(1)} exported successfully${type === "all-evidence" || type === "all-workbooks" ? " as ZIP" : ` as ${format.toUpperCase()}`}`,
       });
     } catch (error: any) {
       console.error(`Error exporting ${type}:`, error);
@@ -350,14 +358,14 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
             </div>
           </div>
 
-          {/* Export Evidence Files (ZIP) */}
+          {/* Export Linked Evidence Files (ZIP) */}
           <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
                 <FolderOpen className="h-5 w-5 text-green-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">Linked Evidence Files</h3>
+                <h3 className="font-semibold text-sm mb-1">Linked Evidence Files For the Adjustments and Reclassifications</h3>
                 <p className="text-xs text-gray-600 mb-3">
                   Export all evidence files linked to Adjustments and Reclassifications as a ZIP archive
                 </p>
@@ -376,7 +384,75 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
                   ) : (
                     <>
                       <Download className="h-4 w-4 mr-2" />
-                      Export Evidence Files
+                      Export Linked Evidence Files
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Export All Evidence Files (ZIP) - Globalized */}
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <FolderOpen className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm mb-1">All Evidence Files</h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  Export all evidence files for this engagement across all classifications as a ZIP archive
+                </p>
+                <Button
+                  onClick={() => handleExport("all-evidence")}
+                  disabled={exporting !== null}
+                  className="px-4"
+                  size="sm"
+                  variant="outline"
+                >
+                  {exporting === "all-evidence" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export All Evidence Files
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Export All Workbooks (ZIP) - Globalized */}
+          <div className="border rounded-lg p-4 space-y-3 bg-white/80 backdrop-blur-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <FileSpreadsheet className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm mb-1">All Workbooks</h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  Export all workbooks for this engagement across all classifications as a ZIP archive
+                </p>
+                <Button
+                  onClick={() => handleExport("all-workbooks")}
+                  disabled={exporting !== null}
+                  className="px-4"
+                  size="sm"
+                  variant="outline"
+                >
+                  {exporting === "all-workbooks" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export All Workbooks
                     </>
                   )}
                 </Button>

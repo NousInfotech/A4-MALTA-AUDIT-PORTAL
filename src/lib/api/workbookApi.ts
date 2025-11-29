@@ -451,6 +451,37 @@ export const db_WorkbookApi = {
     }
   },
 
+  // ✅ NEW: List ALL workbooks for an engagement (no classification filter) - similar to getAllClassificationEvidence
+  listAllWorkbooksForEngagement: async (
+    engagementId: string,
+    category?: string // Optional category filter
+  ) => {
+    try {
+      let url = `${BASE_PATH}/engagement/${engagementId}/all`;
+      if (category) {
+        url += `?category=${encodeURIComponent(category)}`;
+      }
+      
+      console.log('WorkbookAPI (db_WorkbookApi): Fetching ALL workbooks for engagement from:', url);
+      const response = await axiosInstance.get(url);
+      console.log('WorkbookAPI (db_WorkbookApi): Response (all workbooks):', {
+        success: response.data.success,
+        count: response.data.data?.length || 0
+      });
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error listing all workbooks for engagement ${engagementId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error || "Failed to list all workbooks.",
+      };
+    }
+  },
+
   // **NEW**: List all workbooks for a given engagement and optional classification
   listWorkbooks: async (
     engagementId: string, 

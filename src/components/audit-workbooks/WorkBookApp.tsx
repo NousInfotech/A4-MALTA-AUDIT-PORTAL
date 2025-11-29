@@ -241,6 +241,7 @@ export default function WorkBookApp({
   rowType = 'etb', // Default to ETB for backward compatibility
   refreshTrigger = 0,
   onEvidenceMappingUpdated,
+  allClassifications, // ✅ NEW: All classifications to fetch workbooks from
 }: {
   engagementId: string;
   classification: string;
@@ -249,6 +250,7 @@ export default function WorkBookApp({
   rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
   refreshTrigger?: number;
   onEvidenceMappingUpdated?: (evidence: any) => void;
+  allClassifications?: string[]; // ✅ NEW: All classifications to fetch workbooks from
 }) {
   console.log('WorkBookApp: Component mounted/updated with:', {
     engagementId,
@@ -654,69 +656,85 @@ export default function WorkBookApp({
   };
 
   // NEW: Memoize the fetchWorkbooks function using useCallback
+  // ✅ UPDATED: Now fetches ALL workbooks for engagement (like evidence files) - no classification filter
+  // Uses new API endpoint that queries database directly by engagementId only
+  // This is exactly like getAllClassificationEvidence(engagement.id) - no classification filtering
   const fetchWorkbooks = useCallback(async () => {
     setIsLoadingWorkbooks(true);
     try {
-      // ✅ CRITICAL FIX: Pass category to filter workbooks by tab
-      const category = rowType === 'etb' ? 'lead-sheet' : rowType; // 'lead-sheet', 'working-paper', or 'evidence'
-      console.log('WorkBookApp: Fetching workbooks with category filter:', { category, classification, rowType });
-
-      const response = await db_WorkbookApi.listWorkbooks(
-        engagementId,
-        classification,
-        category // ✅ Pass category to filter by tab
-      );
-
-      if (response.success && response.data) {
-        const fetchedWorkbooks: Workbook[] = response.data.map((item: any) => {
-          // ✅ CRITICAL: Normalize referenceFiles structure
-          let normalizedReferenceFiles: any[] = [];
-          if (item.referenceFiles && Array.isArray(item.referenceFiles)) {
-            normalizedReferenceFiles = item.referenceFiles.map((ref: any) => {
-              if (!ref || typeof ref !== 'object' || !ref.details) return null;
+      console.log('📚 WorkBookApp: Fetching ALL workbooks for engagement (like evidence files, no classification filter):', engagementId);
+      
+      const allWorkbooksMap = new Map<string, any>();
+      
+      // ✅ NEW: Use the new API endpoint that fetches ALL workbooks for engagement (no classification filter)
+      // This is exactly like getAllClassificationEvidence - fetches all items for the engagement
+      try {
+        console.log(`📚 WorkBookApp: Fetching ALL workbooks for engagement (no classification filter, like evidence files)`);
+        
+        // Use the new listAllWorkbooksForEngagement API - fetches all workbooks by engagementId only
+        const result = await db_WorkbookApi.listAllWorkbooksForEngagement(engagementId);
+        
+        if (result.success && result.data && Array.isArray(result.data)) {
+          console.log(`📚 WorkBookApp: Got ${result.data.length} workbooks (ALL classifications, ALL categories)`);
+          result.data.forEach((workbook: any) => {
+            const workbookId = workbook._id || workbook.id;
+            if (workbookId && !allWorkbooksMap.has(workbookId)) {
+              // ✅ CRITICAL: Normalize referenceFiles structure
+              let normalizedReferenceFiles: any[] = [];
+              if (workbook.referenceFiles && Array.isArray(workbook.referenceFiles)) {
+                normalizedReferenceFiles = workbook.referenceFiles.map((ref: any) => {
+                  if (!ref || typeof ref !== 'object' || !ref.details) return null;
+                  
+                  // Normalize evidence IDs (might be populated objects or just IDs)
+                  const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
+                    if (typeof ev === 'string') return ev;
+                    if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
+                    return ev;
+                  }).filter((ev: any) => ev !== null && ev !== undefined);
+                  
+                  return {
+                    ...ref,
+                    evidence: normalizedEvidence
+                  };
+                }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
+              }
               
-              // Normalize evidence IDs (might be populated objects or just IDs)
-              const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
-                if (typeof ev === 'string') return ev;
-                if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
-                return ev;
-              }).filter((ev: any) => ev !== null && ev !== undefined);
-              
-              return {
-                ...ref,
-                evidence: normalizedEvidence
+              const normalizedWorkbook = {
+                id: workbookId,
+                cloudFileId: workbook.cloudFileId,
+                name: workbook.name,
+                webUrl: workbook.webUrl,
+                uploadedDate: workbook.uploadedDate
+                  ? new Date(workbook.uploadedDate).toISOString().split("T")[0]
+                  : new Date().toISOString().split("T")[0],
+                version: workbook.version || "v1",
+                lastModified: workbook.lastModifiedDate,
+                lastModifiedBy: workbook.lastModifiedBy,
+                classification: workbook.classification,
+                category: workbook.category,
+                engagementId: workbook.engagementId,
+                fileData: {},
+                referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles
               };
-            }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
-          }
-          
-          return {
-            id: item._id || item.id,
-            cloudFileId: item.cloudFileId,
-            name: item.name,
-            webUrl: item.webUrl,
-            uploadedDate: item.uploadedDate
-              ? new Date(item.uploadedDate).toISOString().split("T")[0]
-              : new Date().toISOString().split("T")[0],
-            version: item.version || "v1",
-            lastModified: item.lastModifiedDate,
-            lastModifiedBy: item.lastModifiedBy,
-            classification: item.classification,
-            engagementId: item.engagementId,
-            fileData: {},
-            referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles
-          };
-        });
-        setWorkbooks(fetchedWorkbooks);
-        return fetchedWorkbooks; // Return the fetched workbooks for the next step
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error fetching workbooks",
-          description:
-            response.error || "Failed to load workbooks from the server.",
-        });
-        return [];
+              
+              allWorkbooksMap.set(workbookId, normalizedWorkbook);
+            }
+          });
+        } else {
+          console.log(`📚 WorkBookApp: No workbooks found (success: ${result.success}, error: ${result.error || 'none'})`);
+        }
+      } catch (error: any) {
+        console.error(`❌ WorkBookApp: Error fetching all workbooks:`, error);
+        throw error; // Re-throw to be caught by outer catch
       }
+      
+      const uniqueWorkbooks = Array.from(allWorkbooksMap.values());
+      setWorkbooks(uniqueWorkbooks);
+      console.log(`✅ WorkBookApp: Loaded ${uniqueWorkbooks.length} unique workbooks (ALL classifications & categories, NO classification filter) for engagement`, {
+        totalFetched: uniqueWorkbooks.length,
+        workbooks: uniqueWorkbooks.map(wb => ({ id: wb.id, name: wb.name, classification: wb.classification, category: wb.category }))
+      });
+      return uniqueWorkbooks;
     } catch (error: any) {
       console.error("Failed to fetch workbooks:", error);
       toast({
@@ -728,7 +746,7 @@ export default function WorkBookApp({
     } finally {
       setIsLoadingWorkbooks(false);
     }
-  }, [engagementId, classification, rowType, toast]); // ✅ Add rowType to dependencies
+  }, [engagementId, toast]); // ✅ Removed classification and allClassifications - we fetch ALL workbooks like evidence files
 
   // to upload working papaer to db
 
@@ -2098,6 +2116,24 @@ export default function WorkBookApp({
 
     setCurrentView("viewer");
     setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger refresh after upload
+
+    // ✅ NEW: Dispatch event to notify ClassificationSection to refresh workbook list
+    // This allows the Workbook tab to refresh in the background without switching tabs
+    if (engagementId) {
+      // Handle both id and _id (backend might return _id)
+      const workbookId = newWorkbookFromUploadModal.id || (newWorkbookFromUploadModal as any)._id;
+      const eventDetail = {
+        workbookId: workbookId,
+        workbookName: newWorkbookFromUploadModal.name,
+        classification: classification,
+        engagementId: engagementId,
+        rowType: rowType,
+        isUpload: true // Flag to indicate this is an upload, not a link
+      };
+      console.log('📣 WorkBookApp: Dispatching workbook-linked event for upload:', eventDetail);
+      const event = new CustomEvent('workbook-linked', { detail: eventDetail });
+      window.dispatchEvent(event);
+    }
   };
 
   const handleUploadError = (message: string) => {

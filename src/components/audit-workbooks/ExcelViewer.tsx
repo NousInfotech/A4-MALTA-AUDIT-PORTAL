@@ -4586,6 +4586,20 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       
       setIsReferenceFilesDialogOpen(true);
 
+      // ✅ NEW: Dispatch event to notify ClassificationSection to refresh evidence files
+      // This allows the Evidence tab to refresh in the background without switching tabs
+      if (engagementId) {
+        const eventDetail = {
+          engagementId: engagementId,
+          classification: classification,
+          evidenceCount: uploadedFiles.length,
+          evidenceIds: uploadedFiles.map((file: any) => file.evidenceId)
+        };
+        console.log('📣 ExcelViewer: Dispatching evidence-uploaded event:', eventDetail);
+        const event = new CustomEvent('evidence-uploaded', { detail: eventDetail });
+        window.dispatchEvent(event);
+      }
+
       // ✅ Refresh from backend in the background after dialog opens to ensure data consistency
       // This runs asynchronously and won't cause flickering since dialog is already open
       (async () => {
