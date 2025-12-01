@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
-import { Download } from "lucide-react"
+import { Download, Save, X } from "lucide-react"
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 const withUids = (procedures: any[]) =>
@@ -272,6 +272,8 @@ export const CompletionProcedureView: React.FC<{
     initialWithUids.procedures = withUids(initialWithUids.procedures || [])
     return initialWithUids
   })
+  // Track which questions are in "pending" state (newly added, not yet confirmed)
+  const [pendingQuestions, setPendingQuestions] = useState<Set<string>>(new Set())
 
   const [isNotesOpen, setIsNotesOpen] = useState(false)
   const [recommendations, setRecommendations] = useState<any[]>(() => {
@@ -428,6 +430,11 @@ export const CompletionProcedureView: React.FC<{
   }
 
   const addQuestion = (sIdx: number) => {
+    // Automatically enable edit mode if not already enabled
+    if (!editMode) {
+      setEditMode(true)
+    }
+    const newUid = uid()
     setProc((prev: any) => {
       const next = { ...prev }
       const sections = [...(next.procedures || [])]
@@ -438,10 +445,40 @@ export const CompletionProcedureView: React.FC<{
       let k = baseKey,
         i = 1
       while (existing.has(k)) k = `${baseKey}_${i++}`
-      fields.push({ __uid: uid(), key: k, type: "text", label: "New Question", required: false, help: "" })
+      fields.push({ __uid: newUid, key: k, type: "text", label: "New Question", required: false, help: "" })
       sec.fields = fields
       sections[sIdx] = sec
       next.procedures = sections
+      return next
+    })
+    // Mark this question as pending (needs save/cancel)
+    setPendingQuestions(prev => new Set(prev).add(newUid))
+  }
+
+  const confirmQuestion = (sIdx: number, fieldUid: string) => {
+    // Remove from pending - question is now confirmed
+    setPendingQuestions(prev => {
+      const next = new Set(prev)
+      next.delete(fieldUid)
+      return next
+    })
+  }
+
+  const cancelQuestion = (sIdx: number, fieldUid: string) => {
+    // Remove the question entirely
+    setProc((prev: any) => {
+      const next = { ...prev }
+      const sections = [...(next.procedures || [])]
+      const sec = { ...sections[sIdx] }
+      sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== fieldUid)
+      sections[sIdx] = sec
+      next.procedures = sections
+      return next
+    })
+    // Remove from pending
+    setPendingQuestions(prev => {
+      const next = new Set(prev)
+      next.delete(fieldUid)
       return next
     })
   }
@@ -494,6 +531,8 @@ export const CompletionProcedureView: React.FC<{
       }
       setProc(savedWithUids)
       setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+      // Clear pending questions after successful save
+      setPendingQuestions(new Set())
       toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
       setEditMode(false)
     } catch (e: any) {
@@ -659,7 +698,23 @@ export const CompletionProcedureView: React.FC<{
                 <Button variant="outline" onClick={() => save(true)}>
                   Save & Complete
                 </Button>
-                <Button variant="ghost" onClick={() => setEditMode(false)}>
+                <Button variant="ghost" onClick={() => {
+                  // Remove all pending questions when cancelling edit mode
+                  pendingQuestions.forEach((uid) => {
+                    // Find and remove the question
+                    setProc((prev: any) => {
+                      const next = { ...prev }
+                      const sections = [...(next.procedures || [])]
+                      sections.forEach((sec: any) => {
+                        sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
+                      })
+                      next.procedures = sections
+                      return next
+                    })
+                  })
+                  setPendingQuestions(new Set())
+                  setEditMode(false)
+                }}>
                   Cancel
                 </Button>
               </>
@@ -706,11 +761,9 @@ export const CompletionProcedureView: React.FC<{
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{sec.currency || "EUR"}</Badge>
-                      {editMode && (
-                        <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>
-                          + Add Question
-                        </Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>
+                        + Add Question
+                      </Button>
                     </div>
                   </div>
 
@@ -719,19 +772,31 @@ export const CompletionProcedureView: React.FC<{
                       const t = normalizeType(f.type)
                       const isTable = t === "table"
                       if (!isFieldVisible(f, answers)) return null
-                      if (f.key !== "documentation_reminder")
+                      if (f.key !== "documentation_reminder") {
+                        const isPending = pendingQuestions.has(f.__uid)
                         return (
                           <div key={f.__uid} className="border rounded p-3 space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-medium">{f.label || f.key}</div>
-                              {editMode && (
+                              {isPending ? (
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => confirmQuestion(sIdx, f.__uid)}>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => cancelQuestion(sIdx, f.__uid)}>
+                                    <X className="h-4 w-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : editMode && (
                                 <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>
                                   Remove
                                 </Button>
                               )}
                             </div>
 
-                            {editMode && (
+                            {(editMode || isPending) && (
                               <div className="grid md:grid-cols-2 gap-3">
                                 <div className="space-y-2">
                                   <SmallLabel>Key</SmallLabel>
@@ -805,7 +870,7 @@ export const CompletionProcedureView: React.FC<{
                               </div>
                             )}
 
-                            {!editMode ? (
+                            {!editMode && !isPending ? (
                               <>
                                 {t === "multiselect" && (
                                   <div className="mt-1 text-sm">
@@ -836,7 +901,7 @@ export const CompletionProcedureView: React.FC<{
                                   <div className="mt-1 text-sm">{String(f.answer ?? "—")}</div>
                                 )}
                               </>
-                            ) : (
+                            ) : (editMode || isPending) ? (
                               <>
                                   <SmallLabel>Answer</SmallLabel>
 
@@ -891,9 +956,11 @@ export const CompletionProcedureView: React.FC<{
                                   <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
                                 )}
                               </>
-                            )}
+                            ) : null}
                           </div>
                         )
+                      }
+                      return null
                     })}
                   </div>
 

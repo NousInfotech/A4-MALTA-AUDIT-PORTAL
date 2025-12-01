@@ -1,6 +1,7 @@
 // @ts-nocheck
 import type React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +16,9 @@ import {
   FileText,
   Scale,
   Download,
+  Search,
+  CheckCircle,
+  X,
 } from "lucide-react";
 import { TrialBalanceUpload } from "./TrialBalanceUpload";
 import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
@@ -24,6 +28,15 @@ import { BalanceSheetSection } from "./BalanceSheetSection";
 import { ExportSection } from "./ExportSection";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "../../integrations/supabase/client";
+import ProcedureView from "../procedures/ProcedureView";
+import { PlanningProcedureView } from "../procedures/PlanningProcedureView";
+import { CompletionProcedureView } from "../procedures/CompletionProcedureView";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 
 interface TrialBalanceTabProps {
@@ -62,6 +75,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
   console.log(engagement);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("upload");
   const [trialBalanceData, setTrialBalanceData] = useState<any>(null);
   const [classifications, setClassifications] = useState<string[]>([]);
@@ -82,6 +96,16 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     classificationNotificationCounts,
     setClassificationNotificationCounts,
   ] = useState<{ [key: string]: number }>({});
+
+  // Procedure states
+  const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>(null);
+  const [planningProcedure, setPlanningProcedure] = useState<any>(null);
+  const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null);
+  const [completionProcedure, setCompletionProcedure] = useState<any>(null);
+  const [procedureLoading, setProcedureLoading] = useState(false);
+  const [generatingAnswers, setGeneratingAnswers] = useState(false);
+  const [generatingPlanningSections, setGeneratingPlanningSections] = useState<Set<string>>(new Set());
+  const [generatingCompletionSections, setGeneratingCompletionSections] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
 
@@ -391,6 +415,306 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     setActiveTab("sections");
   };
 
+  // Load procedure data when procedure type is selected
+  const loadProcedure = useCallback(async (procedureType: "planning" | "fieldwork" | "completion") => {
+    if (!engagement?._id) return;
+    
+    setProcedureLoading(true);
+    setSelectedProcedureType(procedureType);
+    
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      
+      if (procedureType === "planning") {
+        const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPlanningProcedure(data);
+        }
+      } else if (procedureType === "fieldwork") {
+        const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFieldworkProcedure(data?.procedure || data);
+        }
+      } else if (procedureType === "completion") {
+        const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCompletionProcedure(data);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading procedure:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load procedure data",
+        variant: "destructive",
+      });
+    } finally {
+      setProcedureLoading(false);
+    }
+  }, [engagement?._id, toast]);
+
+  // Generate Answers for Field Work Procedures (all classifications)
+  const generateAnswersForAllClassifications = async () => {
+    if (!fieldworkProcedure || !engagement?._id) return;
+
+    setGeneratingAnswers(true);
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      
+      // Get all questions without answers
+      const questionsWithoutAnswers = (fieldworkProcedure.questions || [])
+        .filter((q: any) => !q.answer || q.answer.trim() === "")
+        .map(({ answer, ...rest }: any) => rest);
+
+      if (questionsWithoutAnswers.length === 0) {
+        toast({
+          title: "Info",
+          description: "All questions already have answers.",
+        });
+        return;
+      }
+
+      const res = await authFetch(
+        `${base}/api/procedures/ai/classification-answers/separate`,
+        {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            engagementId: engagement._id,
+            questions: questionsWithoutAnswers,
+            classification: null, // Generate for all classifications
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to generate answers");
+
+      const data = await res.json();
+
+      let updatedProcedure = { ...fieldworkProcedure };
+
+      if (Array.isArray(data?.aiAnswers)) {
+        // Merge answers with existing questions
+        const answerMap = new Map();
+        data.aiAnswers.forEach((a: any) => {
+          const key = String(a?.key || "").trim().toLowerCase();
+          if (key) answerMap.set(key, a?.answer || "");
+        });
+
+        updatedProcedure.questions = (fieldworkProcedure.questions || []).map((q: any) => {
+          const qKey = String(q.key || "").trim().toLowerCase();
+          if (answerMap.has(qKey) && (!q.answer || q.answer.trim() === "")) {
+            return { ...q, answer: answerMap.get(qKey) };
+          }
+          return q;
+        });
+      } else if (Array.isArray(data?.questions)) {
+        updatedProcedure.questions = data.questions;
+      }
+
+      if (data.recommendations) {
+        updatedProcedure.recommendations = data.recommendations;
+      }
+
+      setFieldworkProcedure(updatedProcedure);
+      toast({
+        title: "Success",
+        description: "Answers generated successfully for all classifications.",
+      });
+    } catch (error: any) {
+      console.error("Generate answers error:", error);
+      toast({
+        title: "Error",
+        description: `Generation failed: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingAnswers(false);
+    }
+  };
+
+  // Generate Answers for Planning Procedures (for a specific section)
+  const generateAnswersForPlanningSection = async (sectionId: string) => {
+    if (!planningProcedure || !engagement?._id) return;
+
+    setGeneratingPlanningSections(prev => {
+      const newSet = new Set(prev);
+      newSet.add(sectionId);
+      return newSet;
+    });
+
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      const res = await authFetch(
+        `${base}/api/planning-procedures/${engagement._id}/generate/section-answers`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sectionId }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to generate answers for section");
+      const data = await res.json();
+
+      const extractAnswers = (responseData: any) => {
+        const answers: Record<string, any> = {};
+        if (responseData.fields && Array.isArray(responseData.fields)) {
+          responseData.fields.forEach((fieldItem: any) => {
+            const fieldData = fieldItem._doc || fieldItem;
+            const key = fieldData.key;
+            if (!key) return;
+            const answer =
+              fieldItem.answer !== undefined ? fieldItem.answer :
+              fieldData.answer !== undefined ? fieldData.answer :
+              fieldData.content !== undefined ? fieldData.content : null;
+            answers[key] = answer;
+          });
+        }
+        return answers;
+      };
+
+      const answers = extractAnswers(data);
+
+      setPlanningProcedure((prev: any) => {
+        const updated = { ...prev };
+        updated.procedures = (prev.procedures || []).map((sec: any) =>
+          sec.sectionId === data.sectionId
+            ? {
+                ...sec,
+                fields: (sec.fields || []).map((existingField: any) => {
+                  const key = existingField?.key;
+                  if (!key) return existingField;
+                  const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
+                  return {
+                    ...existingField,
+                    answer: answerFromResponse
+                  };
+                })
+              }
+            : sec
+        );
+        return updated;
+      });
+
+      toast({
+        title: "Success",
+        description: `Answers generated successfully for section.`,
+      });
+    } catch (error: any) {
+      console.error("Generate planning answers error:", error);
+      toast({
+        title: "Error",
+        description: `Generation failed: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingPlanningSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+      });
+    }
+  };
+
+  // Generate Answers for Completion Procedures (for a specific section)
+  const generateAnswersForCompletionSection = async (sectionId: string) => {
+    if (!completionProcedure || !engagement?._id) return;
+
+    setGeneratingCompletionSections(prev => {
+      const newSet = new Set(prev);
+      newSet.add(sectionId);
+      return newSet;
+    });
+
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      const res = await authFetch(
+        `${base}/api/completion-procedures/${engagement._id}/generate/section-answers`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sectionId }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to generate answers for section");
+      const data = await res.json();
+
+      const extractAnswers = (responseData: any) => {
+        const answers: Record<string, any> = {};
+        if (responseData.fields && Array.isArray(responseData.fields)) {
+          responseData.fields.forEach((fieldItem: any) => {
+            const fieldData = fieldItem._doc || fieldItem;
+            const key = fieldData.key;
+            if (!key) return;
+            const answer =
+              fieldItem.answer !== undefined ? fieldItem.answer :
+              fieldData.answer !== undefined ? fieldData.answer :
+              fieldData.content !== undefined ? fieldData.content : null;
+            answers[key] = answer;
+          });
+        }
+        return answers;
+      };
+
+      const answers = extractAnswers(data);
+
+      setCompletionProcedure((prev: any) => {
+        const updated = { ...prev };
+        updated.procedures = (prev.procedures || []).map((sec: any) =>
+          sec.sectionId === data.sectionId
+            ? {
+                ...sec,
+                fields: (sec.fields || []).map((existingField: any) => {
+                  const key = existingField?.key;
+                  if (!key) return existingField;
+                  const answerFromResponse = answers[key] !== undefined ? answers[key] : existingField.answer;
+                  return {
+                    ...existingField,
+                    answer: answerFromResponse
+                  };
+                })
+              }
+            : sec
+        );
+        return updated;
+      });
+
+      toast({
+        title: "Success",
+        description: `Answers generated successfully for section.`,
+      });
+    } catch (error: any) {
+      console.error("Generate completion answers error:", error);
+      toast({
+        title: "Error",
+        description: `Generation failed: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingCompletionSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleProcedureButtonClick = (procedureType: "planning" | "fieldwork" | "completion") => {
+    setSelectedClassification(""); // Clear classification selection
+    loadProcedure(procedureType);
+  };
+
+  const handleCloseProcedure = () => {
+    setSelectedProcedureType(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -477,6 +801,49 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                 </div>
                 <ScrollArea className="flex-1">
                   <div className="p-2 space-y-2">
+                    {/* Procedure Type Buttons */}
+                    <Button
+                      variant={selectedProcedureType === "planning" ? "default" : "outline"}
+                      className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => handleProcedureButtonClick("planning")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Search className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          Planning Procedures
+                        </span>
+                        <span className="sm:hidden">Planning</span>
+                      </span>
+                    </Button>
+
+                    {/* <Button
+                      variant={selectedProcedureType === "fieldwork" ? "default" : "outline"}
+                      className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => handleProcedureButtonClick("fieldwork")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          Field Work Procedures
+                        </span>
+                        <span className="sm:hidden">Field Work</span>
+                      </span>
+                    </Button> */}
+
+                    <Button
+                      variant={selectedProcedureType === "completion" ? "default" : "outline"}
+                      className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => handleProcedureButtonClick("completion")}
+                    >
+                      <span className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          Completion Procedures
+                        </span>
+                        <span className="sm:hidden">Completion</span>
+                      </span>
+                    </Button>
+
                     {etbCount > 0 && (
                       <Button
                         variant={
@@ -485,7 +852,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                             : "outline"
                         }
                         className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                        onClick={() => setSelectedClassification("ETB")}
+                        onClick={() => {
+                          setSelectedProcedureType(null);
+                          setSelectedClassification("ETB");
+                        }}
                       >
                         <span className="flex items-center gap-2">
                           <Calculator className="h-4 w-4" />
@@ -505,7 +875,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           : "outline"
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setSelectedClassification("Adjustments")}
+                      onClick={() => {
+                        setSelectedProcedureType(null);
+                        setSelectedClassification("Adjustments");
+                      }}
                     >
                       <span className="flex items-center gap-2">
                         <Wrench className="h-4 w-4" />
@@ -521,7 +894,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           : "outline"
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setSelectedClassification("Reclassifications")}
+                      onClick={() => {
+                        setSelectedProcedureType(null);
+                        setSelectedClassification("Reclassifications");
+                      }}
                     >
                       <span className="flex items-center gap-2">
                         <ArrowLeftRight className="h-4 w-4" />
@@ -537,7 +913,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           : "outline"
                       }
                       className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setSelectedClassification("Exports")}
+                      onClick={() => {
+                        setSelectedProcedureType(null);
+                        setSelectedClassification("Exports");
+                      }}
                     >
                       <span className="flex items-center gap-2">
                         <Download className="h-4 w-4" />
@@ -552,7 +931,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           : "outline"
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setSelectedClassification("IncomeStatement")}
+                      onClick={() => {
+                        setSelectedProcedureType(null);
+                        setSelectedClassification("IncomeStatement");
+                      }}
                     >
                       <span className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />
@@ -567,7 +949,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           : "outline"
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => setSelectedClassification("BalanceSheet")}
+                      onClick={() => {
+                        setSelectedProcedureType(null);
+                        setSelectedClassification("BalanceSheet");
+                      }}
                     >
                       <span className="flex items-center gap-2">
                         <Scale className="h-4 w-4" />
@@ -701,9 +1086,10 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                                 : "outline"
                                             }
                                             className="w-full justify-between text-left h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
-                                            onClick={() =>
-                                              setSelectedClassification(key)
-                                            }
+                                            onClick={() => {
+                                              setSelectedProcedureType(null);
+                                              setSelectedClassification(key);
+                                            }}
                                           >
                                             <div className="flex flex-col items-start flex-1 min-w-0">
                                               <div className="font-medium whitespace-normal break-words">
@@ -778,7 +1164,258 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
               {/* Content Panel */}
               <div className="flex-1 min-w-0">
-                {selectedClassification === "IncomeStatement" ? (
+                {selectedProcedureType ? (
+                  // Procedure View Content
+                  <div className="h-full flex flex-col">
+                    <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
+                      <h3 className="font-semibold text-lg">
+                        {selectedProcedureType === "planning" && "Planning Procedures"}
+                        {selectedProcedureType === "fieldwork" && "Field Work Procedures"}
+                        {selectedProcedureType === "completion" && "Completion Procedures"}
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleCloseProcedure}
+                        className="h-8 w-8"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {procedureLoading ? (
+                      <div className="flex items-center justify-center h-64">
+                        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                        <span>Loading Procedures...</span>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-auto p-4">
+                        {selectedProcedureType === "planning" && planningProcedure ? (
+                          <>
+                            {/* Generate Answers Section for Planning */}
+                            {planningProcedure && planningProcedure.procedures && planningProcedure.procedures.length > 0 && (
+                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="font-semibold">Generate Answers for Planning Sections</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  {planningProcedure.procedures.map((section: any) => {
+                                    const sectionId = section.sectionId || section.id;
+                                    // Check if section has fields (questions) - fields might be empty array or undefined
+                                    const fields = section?.fields || [];
+                                    const hasFields = Array.isArray(fields) && fields.length > 0;
+                                    const isGenerating = generatingPlanningSections.has(sectionId);
+                                    const isDisabled = isGenerating || !hasFields;
+                                    
+                                    return (
+                                      <div key={sectionId} className="flex items-center justify-between p-3 bg-white rounded border">
+                                        <div className="flex-1">
+                                          <div className="font-medium">{section.title || sectionId}</div>
+                                          {section.standards?.length && (
+                                            <div className="text-xs text-muted-foreground">
+                                              Standards: {section.standards.join(", ")}
+                                            </div>
+                                          )}
+                                          {!hasFields && !isGenerating && (
+                                            <div className="text-xs text-amber-600 mt-1">
+                                              No questions available. Generate questions first.
+                                            </div>
+                                          )}
+                                        </div>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span>
+                                                <Button
+                                                  onClick={() => generateAnswersForPlanningSection(sectionId)}
+                                                  disabled={isDisabled}
+                                                  size="sm"
+                                                  className="flex items-center gap-2"
+                                                >
+                                                  {isGenerating ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <FileText className="h-4 w-4" />
+                                                  )}
+                                                  {isGenerating ? "Generating..." : "Generate Answers"}
+                                                </Button>
+                                              </span>
+                                            </TooltipTrigger>
+                                            {!hasFields && !isGenerating && (
+                                              <TooltipContent>
+                                                <p>This section has no questions yet. Please generate questions first in the Procedures tab.</p>
+                                              </TooltipContent>
+                                            )}
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <PlanningProcedureView 
+                              procedure={planningProcedure} 
+                              engagement={engagement} 
+                            />
+                          </>
+                        ) : selectedProcedureType === "fieldwork" && fieldworkProcedure ? (
+                          <>
+                            {/* Field Work Procedures Section Cards */}
+                            {fieldworkProcedure && fieldworkProcedure.questions && fieldworkProcedure.questions.length > 0 && (
+                              <div className="mb-6 space-y-4">
+                                {/* Group questions by classification */}
+                                {(() => {
+                                  const questionsByClassification: { [key: string]: any[] } = {};
+                                  (fieldworkProcedure.questions || []).forEach((q: any) => {
+                                    const classification = q.classification || "General";
+                                    if (!questionsByClassification[classification]) {
+                                      questionsByClassification[classification] = [];
+                                    }
+                                    questionsByClassification[classification].push(q);
+                                  });
+                                  
+                                  return Object.entries(questionsByClassification).map(([classification, questions]) => {
+                                    const questionsWithAnswers = questions.filter((q: any) => q.answer && q.answer.trim() !== "");
+                                    
+                                    return (
+                                      <div key={classification} className="p-4 bg-white rounded-lg border shadow-sm">
+                                        {/* Classification Header with Buttons */}
+                                        <div className="flex items-center justify-between mb-4 pb-3 border-b">
+                                          <div className="flex-1">
+                                            <div className="font-semibold text-lg">
+                                              {formatClassificationForDisplay(classification)}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                              {questions.length} question{questions.length !== 1 ? 's' : ''}
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Button
+                                              onClick={generateAnswersForAllClassifications}
+                                              disabled={generatingAnswers}
+                                              size="sm"
+                                              className="flex items-center gap-2"
+                                            >
+                                              {generatingAnswers ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <FileText className="h-4 w-4" />
+                                              )}
+                                              {generatingAnswers ? "Generating..." : "Generate Answers"}
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Answers Section */}
+                                        {questionsWithAnswers.length > 0 && (
+                                          <div className="mt-4 space-y-3">
+                                            <h5 className="font-medium text-sm text-gray-700">Answers:</h5>
+                                            <div className="space-y-2">
+                                              {questionsWithAnswers.map((q: any, idx: number) => (
+                                                <div key={q.id || idx} className="p-3 bg-gray-50 rounded border">
+                                                  <div className="text-sm font-medium text-gray-900 mb-1">
+                                                    {q.question || "—"}
+                                                  </div>
+                                                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                                                    {String(q.answer || "—")}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            )}
+                            <ProcedureView
+                              procedure={fieldworkProcedure}
+                              engagement={engagement}
+                              onProcedureUpdate={setFieldworkProcedure}
+                              currentClassification={undefined} // Show all procedures, but allow adding questions
+                            />
+                          </>
+                        ) : selectedProcedureType === "completion" && completionProcedure ? (
+                          <>
+                            {/* Generate Answers Section for Completion */}
+                            {completionProcedure && completionProcedure.procedures && completionProcedure.procedures.length > 0 && (
+                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h4 className="font-semibold">Generate Answers for Completion Sections</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  {completionProcedure.procedures.map((section: any) => {
+                                    const sectionId = section.sectionId || section.id;
+                                    // Check if section has fields (questions) - fields might be empty array or undefined
+                                    const fields = section?.fields || [];
+                                    const hasFields = Array.isArray(fields) && fields.length > 0;
+                                    const isGenerating = generatingCompletionSections.has(sectionId);
+                                    const isDisabled = isGenerating || !hasFields;
+                                    
+                                    return (
+                                      <div key={sectionId} className="flex items-center justify-between p-3 bg-white rounded border">
+                                        <div className="flex-1">
+                                          <div className="font-medium">{section.title || sectionId}</div>
+                                          {section.standards?.length && (
+                                            <div className="text-xs text-muted-foreground">
+                                              Standards: {section.standards.join(", ")}
+                                            </div>
+                                          )}
+                                          {!hasFields && !isGenerating && (
+                                            <div className="text-xs text-amber-600 mt-1">
+                                              No questions available. Generate questions first.
+                                            </div>
+                                          )}
+                                        </div>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span>
+                                                <Button
+                                                  onClick={() => generateAnswersForCompletionSection(sectionId)}
+                                                  disabled={isDisabled}
+                                                  size="sm"
+                                                  className="flex items-center gap-2"
+                                                >
+                                                  {isGenerating ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <FileText className="h-4 w-4" />
+                                                  )}
+                                                  {isGenerating ? "Generating..." : "Generate Answers"}
+                                                </Button>
+                                              </span>
+                                            </TooltipTrigger>
+                                            {!hasFields && !isGenerating && (
+                                              <TooltipContent>
+                                                <p>This section has no questions yet. Please generate questions first in the Procedures tab.</p>
+                                              </TooltipContent>
+                                            )}
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <CompletionProcedureView 
+                              procedure={completionProcedure} 
+                              engagement={engagement} 
+                            />
+                          </>
+                        ) : (
+                          <div className="text-center text-muted-foreground py-8">
+                            No {selectedProcedureType} procedures found.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : selectedClassification === "IncomeStatement" ? (
                   <IncomeStatementSection
                     engagement={engagement}
                     etbRows={etbRows}
@@ -814,7 +1451,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         Select a Section
                       </h3>
                       <p className="text-gray-500">
-                        Pick <strong>Extended Trial Balance</strong>,{" "}
+                        Pick <strong>Planning Procedures</strong>, <strong>Field Work Procedures</strong>, <strong>Completion Procedures</strong>,{" "}
+                        <strong>Extended Trial Balance</strong>,{" "}
                         <strong>Adjustments</strong>, <strong>Reclassifications</strong>,{" "}
                         <strong>Income Statement</strong>, <strong>Balance Sheet</strong>, <strong>Exports</strong>, or any classification from
                         the sidebar.
