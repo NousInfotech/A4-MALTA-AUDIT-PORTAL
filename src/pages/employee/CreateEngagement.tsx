@@ -50,12 +50,19 @@ export const CreateEngagement = () => {
   companyNumber?: string
   industry?: string
 }
+
+interface ClientWithCompaniesApiResponse {
+  clientId: string;
+  clientName: string;
+  companies: Company;
+}
   interface Company {
     _id: string;
     name: string;
     registrationNumber?: string;
     address?: string;
   }
+  
   const [loading, setLoading] = useState(true)
 
 const [clients, setClients] = useState<User[]>([])
@@ -81,7 +88,7 @@ const [companyError, setCompanyError] = useState<string>('')
   }
     
     useEffect(() => {
-      fetchClients();
+      fetchClientsFast();
       fetchExistingEngagements();
     }, [])
     
@@ -95,108 +102,59 @@ const [companyError, setCompanyError] = useState<string>('')
       }
     };
   
-    const fetchClients = async () => {
+    const fetchClientsFast = async () => {
       try {
-        setLoading(true)
-
-        const user = await supabase.auth.getUser();
-  
-        // Simple query - only profiles table, no joins
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(`
-            user_id,
-            name,
-            role,
-            status,
-            created_at,
-            updated_at,
-            company_name,
-            company_number,
-            industry,
-            company_summary
-          `)
-          .order("created_at", { ascending: false })
-  
-        if (error) {
-          console.error("Supabase error:", error)
-          throw error
-        }
-  
-  
-        // Transform profiles to User format
-        const transformedClients: User[] =
-          data?.map((profile) => ({
-            id: profile.user_id,
-            name: profile.name || "Unknown User",
-            email: user.data.user.email,// We'll handle email separately
-            role: profile.role as "admin" | "employee" | "client",
-            status: profile.status as "pending" | "approved" | "rejected",
-            createdAt: profile.created_at,
-            companyName: profile.company_name || undefined,
-            companyNumber: profile.company_number || undefined,
-            name: profile.name || undefined,
-            industry: profile.industry || undefined,
-            summary: profile.company_summary || undefined,
-          })) || []
-  
-        setClients(transformedClients.filter(client=>client.role==='client'))
-      } catch (error) {
-        console.error("Error fetching clients:", error)
+        setLoading(true);
+    
+        const data: ClientWithCompaniesApiResponse[] = await engagementApi.getClientsWithCompanies();
+    
+        // Transform API response to match existing UI expectations:
+        // - `id` instead of `clientId`
+        // - `name` instead of `clientName`
+        // - `companyName` / `companyNumber` for display
+        // - `companies` as a single object (only one company per client)
+        const transformedClients = data
+          .filter((c) => !!c.companies)
+          .map((c) => ({
+            id: c.clientId,
+            name: c.clientName,
+            companyName: c.companies.name,
+            companyNumber: c.companies.registrationNumber,
+            companies: c.companies,
+          }));
+    
+        setClients(transformedClients as any);
+      } catch (error: any) {
+        console.error("Fast fetch error:", error);
         toast({
           title: "Error",
-          description: `Failed to fetch clients: ${error.message || "Unknown error"}`,
+          description: error.message || "Unable to load clients. Please try again.",
           variant: "destructive",
-        })
+        });
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
+    
 
-  const loadCompaniesForClient = async (clientId: string) => {
-    if (!clientId) {
-      setClientCompanies([])
-      setCompanyError('')
-      setIsCompanyLoading(false)
-      setFormData(prev => ({ ...prev, companyId: '' }))
-      return
-    }
+    const loadCompaniesForClient = (clientId: string) => {
+      const client = clients.find((c) => c.id === clientId);
+    
+      if (!client) {
+        setClientCompanies([]);
+        return;
+      }
+    
+      // Single company is already loaded in the client object, wrap in array for UI helpers
+      const company = (client as any).companies as Company | undefined;
+      if (!company) {
+        setClientCompanies([]);
+        return;
+      }
 
-    setIsCompanyLoading(true)
-    setCompanyError('')
-    setClientCompanies([])
-
-    try {
-      const response = await fetchCompanies(clientId)
-      const companiesData = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : []
-      const normalizedCompanies = companiesData || []
-
-      setClientCompanies(normalizedCompanies)
-
-      setFormData(prev => {
-        if (normalizedCompanies.length === 1) {
-          const singleCompany = normalizedCompanies[0]
-          const companyId = singleCompany?._id ?? ''
-          const companyName = singleCompany?.name || ''
-          const newTitle = buildTitleFromCompany(companyName, prev.yearEndDate)
-          return { ...prev, companyId, title: newTitle }
-        }
-        const validId = normalizedCompanies.some(company => company._id === prev.companyId)
-          ? prev.companyId
-          : ''
-        const companyName = normalizedCompanies.find((company) => company._id === validId)?.name || ''
-        const newTitle = buildTitleFromCompany(companyName, prev.yearEndDate)
-        return { ...prev, companyId: validId, title: newTitle }
-      })
-    } catch (error: any) {
-      console.error("Error fetching companies for client:", error)
-      setCompanyError(error?.message || "Failed to load companies for this client.")
-      setClientCompanies([])
-      setFormData(prev => ({ ...prev, companyId: '' }))
-    } finally {
-      setIsCompanyLoading(false)
-    }
-  }
+      setClientCompanies([company]);
+    };
+    
 
   // Validation function to check for duplicate year
   const validateYear = (yearEndDate: string, clientId: string): { isValid: boolean; errorMessage: string; duplicateYear?: number } => {
@@ -300,18 +258,42 @@ const [companyError, setCompanyError] = useState<string>('')
       // When client is selected, update the title with company name
       setYearError(''); // Clear year error when client changes
       setTitleError(''); // Clear title error when client changes
-      const selectedClient = clients.find(client => client.id === value);
-      if (selectedClient && selectedClient.name) {
-        setFormData(prev => ({ 
-          ...prev, 
-          clientId: value,
-          companyId: '',
-          title: '' 
-        }));
-      } else {
-        setFormData(prev => ({ ...prev, clientId: value, companyId: '', title: '' }));
-      }
+      const selectedClient = clients.find(client => client.id === value) as any;
+
+      // Load the single company for this client into local state
       loadCompaniesForClient(value);
+
+      // Default updates when client changes
+      let updatedCompanyId = '';
+      let updatedTitle = '';
+
+      // If this client has a company, auto-select it and optionally build a title
+      const company: Company | undefined = selectedClient?.companies;
+      if (company) {
+        updatedCompanyId = company._id;
+
+        // If year is already selected, auto-generate the title from company + year
+        if (formData.yearEndDate) {
+          const autoTitle = buildTitleFromCompany(company.name, formData.yearEndDate);
+          updatedTitle = autoTitle;
+
+          // Validate the auto-generated title
+          const titleValidation = validateTitle(autoTitle, value);
+          if (!titleValidation.isValid) {
+            setTitleError(titleValidation.errorMessage);
+          } else {
+            setTitleError('');
+          }
+        }
+      }
+
+      setFormData(prev => ({ 
+        ...prev, 
+        clientId: value,
+        companyId: updatedCompanyId,
+        // If we computed an auto title, use it, otherwise clear title so user can type
+        title: updatedTitle,
+      }));
     } else if (field === 'companyId') {
       const companyName = getCompanyNameById(value);
       const newTitle = buildTitleFromCompany(companyName, formData.yearEndDate);
@@ -439,16 +421,23 @@ const [companyError, setCompanyError] = useState<string>('')
                 
                 <div className="space-y-3">
                   <Label htmlFor="clientId" className="text-sm font-medium text-gray-700">Select Client *</Label>
-                <Select value={formData.clientId} onValueChange={(value) => handleChange('clientId', value)}>
+                <Select 
+                  value={formData.clientId} 
+                  onValueChange={(value) => handleChange('clientId', value)}
+                  disabled={loading || clients.length === 0}
+                >
                     <SelectTrigger className="h-auto min-h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg py-3">
-                    {formData.clientId ? (
+                    {loading && !formData.clientId ? (
+                      <div className="flex items-center gap-2 text-gray-500 text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading clients...</span>
+                      </div>
+                    ) : formData.clientId ? (
                       <div className="flex flex-col items-start text-left w-full pr-8">
                         <div className="font-semibold text-gray-900">
                           {clients.find(c => c.id === formData.clientId)?.name || ''}
                         </div>
-                        {isCompanyLoading ? (
-                          <div className="text-xs text-gray-500 mt-1">Loading company...</div>
-                        ) : clientCompanies.length > 0 ? (
+                        {clientCompanies.length > 0 ? (
                           <div className="text-xs text-gray-600 mt-1">
                             <div>{clientCompanies[0].name}</div>
                             {clientCompanies[0].registrationNumber && (
@@ -466,27 +455,29 @@ const [companyError, setCompanyError] = useState<string>('')
                       <SelectValue placeholder="Choose a client for this engagement" />
                     )}
                   </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-200 rounded-xl">
+                    <SelectContent className="border border-gray-200 rounded-xl">
                     {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id} className="rounded-lg">
                           <div className="py-1">
-                            <div className="font-semibold text-gray-900">
-                              {client.name}
-                              {client.companyName && ` ( ${client.companyName} `}
-                              {client.companyNumber && ` - ${client.companyNumber} ) `}
-                            </div>
+                            
+                              {/* {client.name} */}
+                              <div className="text-sm flex flex-col">
+                               <div>{client.companyName && `${client.companyName} `}</div>
+                              <div>{client.companyNumber && `Reg No: ${client.companyNumber} `}</div>  
+                              </div>
+                          
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {clients.length === 0 && (
+                {/* {clients.length === 0 && (
                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                       <p className="text-sm text-gray-700 font-medium">
                     No clients available. Please add a client first.
                   </p>
                     </div>
-                )}
+                )} */}
                 </div>
               </div>
               
