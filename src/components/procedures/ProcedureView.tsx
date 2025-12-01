@@ -594,12 +594,10 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
               <Badge variant="outline">{filteredQuestions.length} procedures</Badge>{" "}
             </div>
           </div>
-          {currentClassification && (
-            <Button variant="outline" size="sm" onClick={handleAddQuestion}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Question
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={handleAddQuestion}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Question
+          </Button>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-96">

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { Download, Save, X } from "lucide-react"
 
 // NEW: floating notes + notebook
 import FloatingNotesButton from "./FloatingNotesButton"
@@ -268,6 +269,8 @@ export const PlanningProcedureView: React.FC<{
     initialWithUids.procedures = withUids(initialWithUids.procedures || [])
     return initialWithUids
   })
+  // Track which questions are in "pending" state (newly added, not yet confirmed)
+  const [pendingQuestions, setPendingQuestions] = useState<Set<string>>(new Set())
 
   // NEW: notes state + modal flag
   const [isNotesOpen, setIsNotesOpen] = useState(false)
@@ -436,6 +439,11 @@ const handleSaveRecommendations = async (content: string | any[]) => {
   }
 
   const addQuestion = (sIdx: number) => {
+    // Automatically enable edit mode if not already enabled
+    if (!editMode) {
+      setEditMode(true)
+    }
+    const newUid = uid()
     setProc((prev: any) => {
       const next = { ...prev }
       const sections = [...(next.procedures || [])]
@@ -446,10 +454,40 @@ const handleSaveRecommendations = async (content: string | any[]) => {
       let k = baseKey,
         i = 1
       while (existing.has(k)) k = `${baseKey}_${i++}`
-      fields.push({ __uid: uid(), key: k, type: "text", label: "New Question", required: false, help: "" })
+      fields.push({ __uid: newUid, key: k, type: "text", label: "New Question", required: false, help: "" })
       sec.fields = fields
       sections[sIdx] = sec
       next.procedures = sections
+      return next
+    })
+    // Mark this question as pending (needs save/cancel)
+    setPendingQuestions(prev => new Set(prev).add(newUid))
+  }
+
+  const confirmQuestion = (sIdx: number, fieldUid: string) => {
+    // Remove from pending - question is now confirmed
+    setPendingQuestions(prev => {
+      const next = new Set(prev)
+      next.delete(fieldUid)
+      return next
+    })
+  }
+
+  const cancelQuestion = (sIdx: number, fieldUid: string) => {
+    // Remove the question entirely
+    setProc((prev: any) => {
+      const next = { ...prev }
+      const sections = [...(next.procedures || [])]
+      const sec = { ...sections[sIdx] }
+      sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== fieldUid)
+      sections[sIdx] = sec
+      next.procedures = sections
+      return next
+    })
+    // Remove from pending
+    setPendingQuestions(prev => {
+      const next = new Set(prev)
+      next.delete(fieldUid)
       return next
     })
   }
@@ -508,6 +546,8 @@ const save = async (asCompleted = false) => {
     setProc(savedWithUids)
     // keep local recs aligned with server - ensure it's an array
     setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+    // Clear pending questions after successful save
+    setPendingQuestions(new Set())
     toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
     setEditMode(false)
   } catch (e: any) {
@@ -521,6 +561,123 @@ const save = async (asCompleted = false) => {
       return acc
     }, {})
 
+  // Export planning procedures to PDF (summary of all sections)
+  const handleExportPlanningPDF = async () => {
+    try {
+      const [{ default: jsPDF }] = await Promise.all([import("jspdf")])
+      const autoTable = (await import("jspdf-autotable")).default
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 14
+
+      const addFooter = () => {
+        const pageCount = doc.getNumberOfPages()
+        doc.setFontSize(8)
+        doc.setTextColor(120)
+        doc.setFont("helvetica", "normal")
+        const footerY = pageHeight - 8
+        doc.text(
+          "Confidential — For audit planning purposes only.",
+          margin,
+          footerY
+        )
+        doc.text(`Page ${pageCount}`, pageWidth - margin, footerY, { align: "right" })
+      }
+
+      const safeTitle = proc?.engagementTitle || engagement?.title || "Engagement"
+
+      // Cover
+      doc.setFillColor(245, 246, 248)
+      doc.rect(0, 0, pageWidth, pageHeight, "F")
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(20)
+      doc.setFontSize(18)
+      doc.text("Planning Procedures Report", margin, 40)
+
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Engagement: ${safeTitle}`, margin, 55)
+      doc.text(`Mode: ${String(proc?.mode || "MANUAL").toUpperCase()}`, margin, 63)
+      doc.text(`Status: ${String(proc?.status || "draft")}`, margin, 71)
+
+      addFooter()
+
+      // Sections and questions
+      Array.isArray(proc.procedures) &&
+        proc.procedures.forEach((sec: any, index: number) => {
+          if (index > 0) {
+            doc.addPage()
+          }
+
+          doc.setFont("helvetica", "bold")
+          doc.setFontSize(14)
+          doc.text(`Section: ${sec.title || `Section ${index + 1}`}`, margin, 20)
+
+          const body: any[] = []
+          ;(sec.fields || []).forEach((f: any) => {
+            const t = normalizeType(f.type)
+            if (f.key === "documentation_reminder") return
+            const label = f.label || f.key
+            let answer = ""
+            if (t === "multiselect") {
+              answer = (Array.isArray(f.answer) ? f.answer : []).join(", ")
+            } else if (t === "table") {
+              const cols = Array.isArray(f.columns) ? f.columns : []
+              const rows = Array.isArray(f.answer) ? f.answer : []
+              answer = rows
+                .map((row: any) => cols.map((c: string) => String(row?.[c] ?? "")).join(" | "))
+                .join("  /  ")
+            } else if (t === "group") {
+              const val = f.answer && typeof f.answer === "object" ? f.answer : {}
+              const keys = Object.keys(val).filter((k) => !!val[k])
+              answer = keys.join(", ")
+            } else if (t === "checkbox") {
+              answer = f.answer ? "Yes" : "No"
+            } else {
+              answer = String(f.answer ?? "")
+            }
+            body.push([label, answer || "—"])
+          })
+
+          if (body.length) {
+            // @ts-ignore
+            autoTable(doc, {
+              startY: 28,
+              head: [["Procedure", "Answer / Result"]],
+              body,
+              styles: { font: "helvetica", fontSize: 9, cellPadding: 2, valign: "top" },
+              headStyles: { fillColor: [240, 240, 240], textColor: 20, halign: "left" },
+              margin: { left: margin, right: margin },
+              didDrawPage: addFooter,
+            })
+          } else {
+            addFooter()
+          }
+        })
+
+      const date = new Date()
+      const fname = `Planning_Procedures_${safeTitle
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "_")
+        .slice(0, 60)}_${date.toISOString().slice(0, 10)}.pdf`
+
+      doc.save(fname)
+      toast({
+        title: "Exported",
+        description: `${fname} has been downloaded.`,
+      })
+    } catch (e: any) {
+      console.error(e)
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not export planning procedures.",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (!proc) return null
 
   return (
@@ -528,15 +685,23 @@ const save = async (asCompleted = false) => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="font-heading text-xl">Planning Procedures</CardTitle>
+            <div>
+              <CardTitle className="font-heading text-xl">Planning Procedures</CardTitle>
+              <div className="text-sm text-muted-foreground font-body">
+                Mode: {proc.mode?.toUpperCase() || "MANUAL"}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               {statusBadge}
               <Badge variant="outline" className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-blue-500" /> Planning
               </Badge>
+              <Button variant="outline" size="sm" onClick={handleExportPlanningPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </Button>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground font-body">Mode: {proc.mode?.toUpperCase() || "MANUAL"}</div>
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -549,7 +714,23 @@ const save = async (asCompleted = false) => {
                 <Button variant="outline" onClick={() => save(true)}>
                   Save & Complete
                 </Button>
-                <Button variant="ghost" onClick={() => setEditMode(false)}>
+                <Button variant="ghost" onClick={() => {
+                  // Remove all pending questions when cancelling edit mode
+                  pendingQuestions.forEach((uid) => {
+                    // Find and remove the question
+                    setProc((prev: any) => {
+                      const next = { ...prev }
+                      const sections = [...(next.procedures || [])]
+                      sections.forEach((sec: any) => {
+                        sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
+                      })
+                      next.procedures = sections
+                      return next
+                    })
+                  })
+                  setPendingQuestions(new Set())
+                  setEditMode(false)
+                }}>
                   Cancel
                 </Button>
               </>
@@ -575,11 +756,9 @@ const save = async (asCompleted = false) => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{sec.currency || "EUR"}</Badge>
-                      {editMode && (
-                        <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>
-                          + Add Question
-                        </Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>
+                        + Add Question
+                      </Button>
                     </div>
                   </div>
 
@@ -589,20 +768,32 @@ const save = async (asCompleted = false) => {
                       const isTable = t === "table"
                       // respect visibleIf in view/edit
                       if (!isFieldVisible(f, answers)) return null
-                      if (f.key !== "documentation_reminder")
+                      if (f.key !== "documentation_reminder") {
+                        const isPending = pendingQuestions.has(f.__uid)
                         return (
                           <div key={f.__uid} className="border rounded p-3 space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-medium">{f.label || f.key}</div>
-                              {editMode && (
+                              {isPending ? (
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => confirmQuestion(sIdx, f.__uid)}>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => cancelQuestion(sIdx, f.__uid)}>
+                                    <X className="h-4 w-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : editMode && (
                                 <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>
                                   Remove
                                 </Button>
                               )}
                             </div>
 
-                            {/* Question metadata (editable in editMode) */}
-                            {editMode && (
+                            {/* Question metadata (editable in editMode or when pending) */}
+                            {(editMode || isPending) && (
                               <div className="grid md:grid-cols-2 gap-3">
                                 <div className="space-y-2">
                                   <SmallLabel>Key</SmallLabel>
@@ -677,7 +868,7 @@ const save = async (asCompleted = false) => {
                             )}
 
                             {/* Answer viewer/editor */}
-                            {!editMode ? (
+                            {!editMode && !isPending ? (
                               <>
                                 {t === "multiselect" && (
                                   <div className="mt-1 text-sm">
@@ -709,7 +900,7 @@ const save = async (asCompleted = false) => {
                                   <div className="mt-1 text-sm">{String(f.answer ?? "—")}</div>
                                 )}
                               </>
-                            ) : (
+                            ) : (editMode || isPending) ? (
                               <>
                                   <SmallLabel className="mt-2">Answer</SmallLabel>
 
@@ -765,9 +956,11 @@ const save = async (asCompleted = false) => {
                                   <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
                                 )}
                               </>
-                            )}
+                            ) : null}
                           </div>
                         )
+                      }
+                      return null
                     })}
                   </div>
 
