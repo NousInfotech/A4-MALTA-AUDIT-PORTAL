@@ -43,12 +43,16 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { ComprehensiveNavigation } from "@/components/ui/comprehensive-navigation";
 import { PortalAnalytics } from "@/components/ui/portal-analytics";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
   const { logViewDashboard } = useActivityLogger();
 
   const { toast } = useToast();
+
+  const { user: employee } = useAuth();
+
 
   interface User {
     summary: string;
@@ -78,7 +82,7 @@ export const EmployeeDashboard = () => {
 
       const user = await supabase.auth.getUser();
 
-      // Simple query - only profiles table, no joins
+
       const { data, error } = await supabase
         .from("profiles")
         .select(
@@ -95,7 +99,8 @@ export const EmployeeDashboard = () => {
             company_summary
           `
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .eq("organization_id",employee?.organizationId);
 
       if (error) {
         console.error("Supabase error:", error);
@@ -130,9 +135,8 @@ export const EmployeeDashboard = () => {
       console.error("Error fetching clients:", error);
       toast({
         title: "Error",
-        description: `Failed to fetch clients: ${
-          error.message || "Unknown error"
-        }`,
+        description: `Failed to fetch clients: ${error.message || "Unknown error"
+          }`,
         variant: "destructive",
       });
     } finally {
@@ -141,12 +145,12 @@ export const EmployeeDashboard = () => {
   };
 
   if (loading) {
-      return (
-        <div className="min-h-screen bg-brand-body flex items-center justify-center">
-          <EnhancedLoader size="lg" text="Loading..." />
-        </div>
-      )
-    }
+    return (
+      <div className="min-h-screen bg-brand-body flex items-center justify-center">
+        <EnhancedLoader size="lg" text="Loading..." />
+      </div>
+    )
+  }
   const now = new Date();
   const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
   const today = new Date();
@@ -155,13 +159,13 @@ export const EmployeeDashboard = () => {
   const completedEngMonth = engagements.filter(
     (user) => user.status === "completed" && new Date(user.createdAt) >= startOfMonth
   ).length;
-  
+
   // Calculate real data from your engagements and clients
   const totalClients = clients.length;
   const activeEngagements = engagements.filter((e) => e.status === "active").length;
   const totalEngagements = engagements.length;
   const completedEngagements = engagements.filter((e) => e.status === "completed").length;
-  
+
   // Calculate growth percentages (you can adjust these based on your actual data)
   const clientsThisMonth = clients.filter((user) => new Date(user.createdAt) >= startOfMonth).length;
   const engagementsThisWeek = engagements.filter((user) => new Date(user.createdAt) >= startOfWeek).length;
@@ -219,7 +223,7 @@ export const EmployeeDashboard = () => {
     const hour = new Date().getHours();
     // const userName = currentUser?.name || "User";
     const userName = "Cleven";
-    
+
     if (hour < 12) {
       return `Good morning, ${userName}!`;
     } else if (hour < 17) {
@@ -232,7 +236,7 @@ export const EmployeeDashboard = () => {
   const getGreetingDescription = () => {
     const hour = new Date().getHours();
     const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-    
+
     if (hour < 12) {
       return `Ready to tackle today's audit tasks? You have ${activeEngagements} active engagements.`;
     } else if (hour < 17) {
@@ -249,16 +253,16 @@ export const EmployeeDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-brand-body mb-2">{getGreetingMessage()}</h1>
           <p className="text-brand-body">{getGreetingDescription()}</p>
-      </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-8">
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
+              {stats.map((stat, index) => {
+                const Icon = stat.icon;
+                return (
                   <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
@@ -268,9 +272,9 @@ export const EmployeeDashboard = () => {
                       <p className="text-sm text-gray-700">{stat.title}</p>
                     </div>
                   </div>
-          );
-        })}
-      </div>
+                );
+              })}
+            </div>
 
             {/* Performance Indicators */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -295,7 +299,7 @@ export const EmployeeDashboard = () => {
             {/* Engagement Analytics Chart */}
             <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Engagement Analytics</h3>
-              
+
               {/* Circular Progress Charts */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
                 {[
@@ -308,7 +312,7 @@ export const EmployeeDashboard = () => {
                   const circumference = 2 * Math.PI * 30;
                   const strokeDasharray = circumference;
                   const strokeDashoffset = circumference - (percentage / 100) * circumference;
-                  
+
                   return (
                     <div key={index} className="flex flex-col items-center min-w-0">
                       <div className="relative w-16 h-16 md:w-20 md:h-20 mb-2 md:mb-3">
@@ -341,11 +345,11 @@ export const EmployeeDashboard = () => {
                       </div>
                       <span className="text-xs md:text-sm text-gray-700 text-center leading-tight px-1">{item.status}</span>
                       <span className="text-xs text-gray-600">{percentage.toFixed(0)}%</span>
-                  </div>
+                    </div>
                   );
                 })}
               </div>
-              
+
               {/* Mini Bar Chart */}
               <div className="mt-6">
                 <h4 className="text-sm font-medium text-gray-800 mb-4">Status Distribution</h4>
@@ -358,7 +362,7 @@ export const EmployeeDashboard = () => {
                     <div key={index} className="flex items-center space-x-2 md:space-x-3">
                       <div className="w-16 md:w-20 text-xs md:text-sm text-gray-700 flex-shrink-0">{item.status}</div>
                       <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-0">
-                        <div 
+                        <div
                           className={`h-2 rounded-full ${item.color}`}
                           style={{ width: `${item.percentage}%` }}
                         ></div>
@@ -394,9 +398,9 @@ export const EmployeeDashboard = () => {
             <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h3>
               <div className="space-y-3">
-              {recentEngagements.map((engagement) => {
+                {recentEngagements.map((engagement) => {
                   const client = clients.find((c) => c.id === engagement.clientId);
-                return (
+                  return (
                     <div key={engagement._id} className="p-3 hover:bg-gray-100/50 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -404,50 +408,49 @@ export const EmployeeDashboard = () => {
                           <div className="flex-1 min-w-0">
                             <p className="text-gray-900 font-medium truncate">{engagement.title}</p>
                             <p className="text-gray-600 text-sm truncate">{client?.companyName || "Unknown Client"}</p>
-                      </div>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           asChild
                           className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
-                      >
+                        >
                           <Link to={`/employee/engagements/${engagement._id}`}>
-                        <Eye className="h-3 w-3" />
+                            <Eye className="h-3 w-3" />
                           </Link>
-                      </Button>
-                    </div>
+                        </Button>
+                      </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-3 w-3 text-gray-500" />
                           <span className="text-gray-500 text-xs">
                             Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
                           </span>
-                    </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          engagement.status === "active" ? "bg-primary text-primary-foreground" :
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${engagement.status === "active" ? "bg-primary text-primary-foreground" :
                           engagement.status === "completed" ? "bg-gray-700 text-white" :
-                          "bg-gray-600 text-white"
-                        }`}>
+                            "bg-gray-600 text-white"
+                          }`}>
                           {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                         </span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              {recentEngagements.length === 0 && (
+                  );
+                })}
+                {recentEngagements.length === 0 && (
                   <div className="text-center py-8">
                     <Briefcase className="h-12 w-12 text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-600">No engagements yet. Create your first engagement to get started.</p>
-                </div>
-              )}
-                </div>
-                </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Formation Status */}
-            <div 
+            <div
               className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
-              style={{ 
+              style={{
                 borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
@@ -456,8 +459,8 @@ export const EmployeeDashboard = () => {
                 {activeEngagements > 0 ? `${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} in progress` : 'No active engagements'}
               </p>
               <div className="w-full bg-primary-foreground/20 rounded-full h-2 mb-4">
-                <div 
-                  className="bg-primary-foreground h-2 rounded-full" 
+                <div
+                  className="bg-primary-foreground h-2 rounded-full"
                   style={{ width: `${totalEngagements > 0 ? (completedEngagements / totalEngagements) * 100 : 0}%` }}
                 ></div>
               </div>
@@ -473,34 +476,34 @@ export const EmployeeDashboard = () => {
             <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Clients</h3>
               <div className="space-y-3">
-              {recentClients.map((client) => (
+                {recentClients.map((client) => (
                   <div key={client.id} className="flex items-center justify-between p-3 hover:bg-gray-100/50 rounded-xl">
                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                       <Building2 className="h-5 w-5 text-gray-600 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0">
                         <p className="text-gray-900 font-medium truncate">{client.companyName || "Unknown Company"}</p>
                         <p className="text-gray-600 text-sm truncate">{client.industry || 'N/A'}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Clock className="h-3 w-3 text-gray-500" />
-                        <span className="text-gray-500 text-xs">
-                          Added {new Date(client.createdAt).toLocaleDateString()}
-                        </span>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Clock className="h-3 w-3 text-gray-500" />
+                          <span className="text-gray-500 text-xs">
+                            Added {new Date(client.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    asChild 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
                       className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
-                  >
-                    <Link to={`/employee/clients/${client.id}`}>
+                    >
+                      <Link to={`/employee/clients/${client.id}`}>
                         <Eye className="h-3 w-3" />
-                    </Link>
-                  </Button>
-                </div>
-              ))}
-              {recentClients.length === 0 && (
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+                {recentClients.length === 0 && (
                   <div className="text-center py-8">
                     <Building2 className="h-12 w-12 text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-600">No clients yet. Add your first client to get started.</p>
@@ -534,9 +537,9 @@ export const EmployeeDashboard = () => {
             </div>
 
             {/* Board Meeting */}
-            <div 
+            <div
               className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
-              style={{ 
+              style={{
                 borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
@@ -545,16 +548,16 @@ export const EmployeeDashboard = () => {
                 <span className="text-primary-foreground font-medium">
                   {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                </div>
+              </div>
               <p className="text-primary-foreground/80 text-sm">
-                {totalClients > 0 
+                {totalClients > 0
                   ? `You have ${totalClients} client${totalClients !== 1 ? 's' : ''} and ${activeEngagements} active engagement${activeEngagements !== 1 ? 's' : ''} to manage.`
                   : 'No clients or active engagements at the moment.'
                 }
               </p>
             </div>
           </div>
-      </div>
+        </div>
       </div>
     </div>
   );
