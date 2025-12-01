@@ -728,14 +728,14 @@ export const DocumentRequestsTab = ({
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              <Button
+              {/* <Button
                 variant="outline"
                 onClick={() => setKycModalOpen(true)}
                 className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-xl"
               >
                 <Shield className="h-4 w-4 mr-2" />
                 Setup KYC
-              </Button>
+              </Button> */}
               <Button
                 variant="outline"
                 onClick={() => setAddRequestModalOpen(true)}
