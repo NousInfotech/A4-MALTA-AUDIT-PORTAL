@@ -51,7 +51,8 @@ export const useSidebarStats = () => {
         const { data: profiles, error } = await supabase
           .from("profiles")
           .select('user_id')
-          .eq('role', 'client');
+          .eq('role', 'client')
+          .eq('organization_id',user?.organizationId)
 
         if (!error && profiles) {
           totalClients = profiles.length;

@@ -12,6 +12,7 @@ import { useEngagements } from '@/hooks/useEngagements';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 import { fetchCompanies } from '@/lib/api/company';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   summary: string;
@@ -34,6 +35,8 @@ export const ClientManagement = () => {
   const { engagements } = useEngagements();
   const { toast } = useToast();
   const { logViewClient } = useActivityLogger();
+  const { user}= useAuth();
+
 
   useEffect(() => {
     fetchClients();
@@ -42,6 +45,7 @@ export const ClientManagement = () => {
   const fetchClients = async () => {
     try {
       setIsLoading(true);
+
 
       const { data: profiles, error } = await supabase
         .from("profiles")
@@ -58,6 +62,7 @@ export const ClientManagement = () => {
           company_summary
         `)
         .eq('role', 'client')
+        .eq('organization_id', user?.organizationId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
