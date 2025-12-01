@@ -148,6 +148,7 @@ const App = () => (
                 <Route path="isqm" element={<ISQMQuestionnairePage />} />
                 <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
                 <Route path="kyc/library" element={<KYCLibrary />} />
+                <Route path="document-request-template" element={<KYCLibrary />} />
                 <Route path="kyc" element={<KYCEnhancedManagement />} />
                 <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                 <Route path="salt-edge/callback" element={<CallbackPage />} />

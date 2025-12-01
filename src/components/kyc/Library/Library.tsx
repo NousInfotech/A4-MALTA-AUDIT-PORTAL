@@ -80,6 +80,7 @@ const Library = () => {
   const { drList, createDR, deleteDR, updateDR, updateDRList, deleteDRList } = useDrList();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     documentId?: string;
@@ -125,7 +126,7 @@ const Library = () => {
       name: newDoc.documentName,
       description: newDoc.description?.trim() || undefined,
       type: normalizedType,
-      category: "kyc",
+      category: newDoc.category || "Others",
     };
 
     if (normalizedType === "template") {
@@ -261,9 +262,12 @@ const Library = () => {
       const matchesType =
         typeFilter === "all" || doc.type.toLowerCase() === typeFilter.toLowerCase();
 
-      return matchesSearch && matchesType;
+      const matchesCategory =
+        categoryFilter === "all" || (doc.category ?? "Others") === categoryFilter;
+
+      return matchesSearch && matchesType && matchesCategory;
     });
-  }, [drList, searchTerm, typeFilter]);
+  }, [drList, searchTerm, typeFilter, categoryFilter]);
 
   const hasSelection = selectedDocuments.length > 0;
   const allFilteredSelected =
@@ -313,16 +317,43 @@ const Library = () => {
                 />
               </div>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full lg:w-48 border-gray-300 focus:border-gray-500">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="template">Template</SelectItem>
-                <SelectItem value="direct">Direct</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-3">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full lg:w-48 border-gray-300 focus:border-gray-500">
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="template">Template</SelectItem>
+                  <SelectItem value="direct">Direct</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full lg:w-56 border-gray-300 focus:border-gray-500">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="Planning">Planning</SelectItem>
+                  <SelectItem value="Capital & Reserves">Capital & Reserves</SelectItem>
+                  <SelectItem value="Property, plant and equipment">Property, plant and equipment</SelectItem>
+                  <SelectItem value="Intangible Assets">Intangible Assets</SelectItem>
+                  <SelectItem value="Investment Property">Investment Property</SelectItem>
+                  <SelectItem value="Investment in Subsidiaries & Associates investments">
+                    Investment in Subsidiaries & Associates investments
+                  </SelectItem>
+                  <SelectItem value="Receivables">Receivables</SelectItem>
+                  <SelectItem value="Payables">Payables</SelectItem>
+                  <SelectItem value="Inventory">Inventory</SelectItem>
+                  <SelectItem value="Bank & Cash">Bank & Cash</SelectItem>
+                  <SelectItem value="Borrowings & loans">Borrowings & loans</SelectItem>
+                  <SelectItem value="Taxation">Taxation</SelectItem>
+                  <SelectItem value="Going Concern">Going Concern</SelectItem>
+                  <SelectItem value="Others">Others</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

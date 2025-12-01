@@ -22,12 +22,29 @@ import { useToast } from "@/hooks/use-toast";
 import { uploadTemplate } from "@/lib/api/documentRequestTemplate";
 
 type DocumentType = 'Template' | 'Direct';
+const CATEGORY_OPTIONS = [
+  "Planning",
+  "Capital & Reserves",
+  "Property, plant and equipment",
+  "Intangible Assets",
+  "Investment Property",
+  "Investment in Subsidiaries & Associates investments",
+  "Receivables",
+  "Payables",
+  "Inventory",
+  "Bank & Cash",
+  "Borrowings & loans",
+  "Taxation",
+  "Going Concern",
+  "Others",
+];
 
 export interface DocumentFormValues {
   id?: string;
   documentName: string;
   description: string;
   type: DocumentType;
+  category?: string;
   templateInstructions?: string;
   templateUrl?: string;
 }
@@ -50,6 +67,8 @@ export function AddDocumentModal({
   const [documentName, setDocumentName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<DocumentType>('Direct');
+  const [category, setCategory] = useState<string>('Planning');
+  const [customCategory, setCustomCategory] = useState<string>('');
   const [templateInstructions, setTemplateInstructions] = useState('');
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templateUrl, setTemplateUrl] = useState<string | undefined>(undefined);
@@ -62,6 +81,8 @@ export function AddDocumentModal({
     setDocumentName('');
     setDescription('');
     setType('Direct');
+    setCategory('Planning');
+    setCustomCategory('');
     setTemplateInstructions('');
     setTemplateFile(null);
     setTemplateUrl(undefined);
@@ -74,6 +95,16 @@ export function AddDocumentModal({
       setDocumentName(initialData.documentName || '');
       setDescription(initialData.description || '');
       setType(initialData.type || 'Direct');
+      const existingCategory = initialData.category || 'Planning';
+      // If the existing category is one of the predefined options, use it directly.
+      // Otherwise, treat it as a custom category under "Others".
+      if (CATEGORY_OPTIONS.includes(existingCategory)) {
+        setCategory(existingCategory);
+        setCustomCategory('');
+      } else {
+        setCategory('Others');
+        setCustomCategory(existingCategory);
+      }
       setTemplateInstructions(initialData.templateInstructions || '');
       setTemplateUrl(initialData.templateUrl);
       setTemplateFile(null);
@@ -88,7 +119,12 @@ export function AddDocumentModal({
     if (!templateFile) return undefined;
     setUploadingTemplate(true);
     try {
-      const url = await uploadTemplate(templateFile);
+      const effectiveCategory =
+        category === 'Others'
+          ? (customCategory.trim() || 'Others')
+          : category;
+
+      const url = await uploadTemplate(templateFile, effectiveCategory);
       setTemplateUrl(url);
       toast({
         title: "Template uploaded",
@@ -126,8 +162,22 @@ export function AddDocumentModal({
       return;
     }
 
+    // Require a custom category name when "Others" is selected
+    if (category === 'Others' && !customCategory.trim()) {
+      toast({
+        title: "Category required",
+        description: "Please enter a category name when selecting Others.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
+      const effectiveCategory =
+        category === 'Others'
+          ? customCategory.trim()
+          : category;
       let finalTemplateUrl = templateUrl;
       if (type === 'Template' && templateFile) {
         finalTemplateUrl = await handleTemplateUpload();
@@ -139,6 +189,7 @@ export function AddDocumentModal({
         documentName: documentName.trim(),
         description: description.trim(),
         type,
+        category: effectiveCategory,
         templateInstructions: templateInstructions.trim() || undefined,
         templateUrl: finalTemplateUrl,
       });
@@ -178,7 +229,7 @@ export function AddDocumentModal({
 
         <div className="space-y-4 py-4">
           <div>
-            <Label htmlFor="documentName">Document Name *</Label>
+            <Label htmlFor="documentName">Document Name <span className="text-red-500">*</span></Label>
             <Input
               id="documentName"
               placeholder="e.g., Bank Statement Template"
@@ -188,8 +239,10 @@ export function AddDocumentModal({
             />
           </div>
 
+      
+
           <div>
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
             <Textarea
               id="description"
               placeholder="Describe what this document is for..."
@@ -200,8 +253,52 @@ export function AddDocumentModal({
             />
           </div>
 
+         {/* Category */}
+        <div className="space-y-2">
+        <Label htmlFor="category">
+        Category <span className="text-red-500">*</span>
+        </Label>
+
+        <Select
+        value={category}
+        onValueChange={(value) => {
+        setCategory(value);
+        if (value !== "Others") setCustomCategory(""); // reset custom
+        }}
+        >
+        <SelectTrigger id="category">
+        <SelectValue placeholder="Select a category" />
+        </SelectTrigger>
+
+        <SelectContent>
+        {CATEGORY_OPTIONS.map((item) => (
+        <SelectItem key={item} value={item}>
+        {item}
+        </SelectItem>
+        ))}
+        <SelectItem value="Others">Others</SelectItem>
+        </SelectContent>
+        </Select>
+        </div>
+
+          {/* Custom Category (only when Others selected) */}
+          {category === "Others" && (
+            <div className="space-y-2">
+              <Label htmlFor="customCategory">
+                Custom Category <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="customCategory"
+                placeholder="Enter custom category name"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+          )}
+          
           <div>
-            <Label htmlFor="type">Type *</Label>
+            <Label htmlFor="type">Type <span className="text-red-500">*</span></Label>
             <Select
               value={type}
               onValueChange={(value: DocumentType) => {
@@ -289,6 +386,7 @@ export function AddDocumentModal({
               </div>
             )}
           </div>
+
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t">

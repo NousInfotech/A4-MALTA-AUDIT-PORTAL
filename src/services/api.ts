@@ -177,6 +177,10 @@ export const engagementApi = {
   getAssignedAuditors: async (engagementId: string) => {
     return apiCall(`/api/engagements/${engagementId}/auditors`);
   },
+
+  getClientsWithCompanies: async () => {
+    return apiCall('/api/engagements/clients-with-companies');
+  },
 };
 
 // Document Requests API
@@ -1633,3 +1637,9 @@ export const reclassificationApi = {
     });
   },
 };
+// Prompts api 
+export const promptApi = { 
+  get: async () => {
+    return apiCall('/api/admin/prompts');
+  },
+}

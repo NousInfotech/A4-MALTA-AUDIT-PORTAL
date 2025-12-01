@@ -53,7 +53,7 @@ export const useDrList = () => {
   // === CRUD OPERATIONS ===
   const createDR = async (payload: Partial<DocumentRequestTemplate>) => {
     try {
-      const res = await createDr(payload);
+      const res = await createDr(payload, payload.category);
       const newItem = res?.data?.data;
 
       if (newItem) {
@@ -71,7 +71,7 @@ export const useDrList = () => {
 
   const updateDR = async (id: string, payload: Partial<DocumentRequestTemplate>) => {
     try {
-      const res = await updateDr(id, payload);
+      const res = await updateDr(id, payload, payload.category);
       const updatedItem = res?.data?.data;
 
       setDrList(prev =>
