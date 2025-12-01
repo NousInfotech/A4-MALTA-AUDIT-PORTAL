@@ -143,6 +143,15 @@ const navItems: NavItem[] = [
     description: 'Know Your Client Workflows',
     badge: 'New'
   },
+  { 
+    title: 'Document request template', 
+    href: '/employee/document-request-template', 
+    icon: FileText, 
+    roles: ['employee'],
+    description: 'Document Request Templates',
+    badge: 'New'
+  },
+  
 
   // Client
   { 
