@@ -863,4 +863,54 @@ export const db_WorkbookApi = {
       };
     }
   },
+
+  // ✅ NEW: Save user's last selected sheet for a workbook
+  saveUserWorkbookPreference: async (workbookId: string, sheetName: string) => {
+    try {
+      const response = await axiosInstance.post(
+        `${BASE_PATH}/${workbookId}/user-preference`,
+        { lastSelectedSheet: sheetName }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error saving user preference for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to save user workbook preference.",
+      };
+    }
+  },
+
+  // ✅ NEW: Get user's last selected sheet for a workbook
+  getUserWorkbookPreference: async (workbookId: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `${BASE_PATH}/${workbookId}/user-preference`
+      );
+      return response.data;
+    } catch (error) {
+      // If preference doesn't exist, return null (not an error)
+      if ((error as any).response?.status === 404) {
+        return {
+          success: true,
+          data: { lastSelectedSheet: null },
+        };
+      }
+      console.error(
+        `Error fetching user preference for workbook ${workbookId}:`,
+        error
+      );
+      return {
+        success: false,
+        error:
+          (error as any).response?.data?.error ||
+          "Failed to fetch user workbook preference.",
+      };
+    }
+  },
 };
