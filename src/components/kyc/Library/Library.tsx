@@ -120,8 +120,15 @@ const Library = () => {
   };
 
   const handleSaveDocument = async (newDoc: DocumentFormValues) => {
-    const normalizedType: DocumentRequestTemplate["type"] =
-      newDoc.type === "Template" ? "template" : "direct";
+    let normalizedType: DocumentRequestTemplate["type"];
+    if (newDoc.type === "Template") {
+      normalizedType = "template";
+    } else if (newDoc.type === "Multiple") {
+      normalizedType = "multiple";
+    } else {
+      normalizedType = "direct";
+    }
+
     const payload: Partial<DocumentRequestTemplate> = {
       name: newDoc.documentName,
       description: newDoc.description?.trim() || undefined,
@@ -134,6 +141,8 @@ const Library = () => {
         instructions: newDoc.templateInstructions?.trim() || undefined,
         url: newDoc.templateUrl,
       };
+    } else if (normalizedType === "multiple" && newDoc.multiple) {
+      payload.multiple = newDoc.multiple;
     }
 
     if (editingDoc && newDoc.id) {
@@ -241,16 +250,26 @@ const Library = () => {
     setIsAddModalOpen(true);
   };
 
-  const getTypeBadge = (type: 'Template' | 'Direct') => {
-    return type === 'Template' ? (
-      <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-        Template
-      </Badge>
-    ) : (
-      <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-        Direct
-      </Badge>
-    );
+  const getTypeBadge = (type: 'Template' | 'Direct' | 'Multiple') => {
+    if (type === 'Template') {
+      return (
+        <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+          Template
+        </Badge>
+      );
+    } else if (type === 'Multiple') {
+      return (
+        <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+          Multiple
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+          Direct
+        </Badge>
+      );
+    }
   };
 
   const filteredDocuments = useMemo(() => {
@@ -326,6 +345,7 @@ const Library = () => {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
+                  <SelectItem value="multiple">Multiple</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -445,6 +465,8 @@ const Library = () => {
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                         {doc.type === "template" ? (
                           <FileEdit className="h-6 w-6 text-blue-700" />
+                        ) : doc.type === "multiple" ? (
+                          <FileEdit className="h-6 w-6 text-purple-700" />
                         ) : (
                           <FileUp className="h-6 w-6 text-green-700" />
                         )}
@@ -458,7 +480,7 @@ const Library = () => {
 
                           {/* Convert type to TitleCase */}
                           {getTypeBadge(
-                            doc.type.charAt(0).toUpperCase() + doc.type.slice(1) as 'Template' | 'Direct'
+                            doc.type.charAt(0).toUpperCase() + doc.type.slice(1) as 'Template' | 'Direct' | 'Multiple'
                           )}
                         </div>
 
@@ -476,6 +498,39 @@ const Library = () => {
                               </div>
                             )}
                           
+                          </div>
+                        )}
+                        {doc.type === "multiple" && doc.multiple && doc.multiple.length > 0 && (
+                          <div className="mt-2 space-y-2">
+                            <div className="text-sm text-purple-900 bg-purple-50 border border-purple-100 rounded-lg p-2">
+                              <p className="font-medium mb-2">Template Items ({doc.multiple.length})</p>
+                              <div className="space-y-1">
+                                {doc.multiple.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center justify-between text-purple-800 text-xs"
+                                  >
+                                    <div>
+                                      • {item.label}
+                                      {item.template?.instructions && (
+                                        <span className="text-purple-600 ml-2">(with instructions)</span>
+                                      )}
+                                    </div>
+                                    {item.template?.url && (
+                                      <a
+                                        href={item.template.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900"
+                                      >
+                                        <Download className="h-3 w-3" />
+                                        Download
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -543,9 +598,14 @@ const Library = () => {
               id: editingDoc._id,
               documentName: editingDoc.name || "",
               description: editingDoc.description || "",
-              type: editingDoc.type === "template" ? "Template" : "Direct",
+              type: editingDoc.type === "template" 
+                ? "Template" 
+                : editingDoc.type === "multiple"
+                ? "Multiple"
+                : "Direct",
               templateInstructions: editingDoc.template?.instructions || "",
               templateUrl: editingDoc.template?.url,
+              multiple: editingDoc.multiple,
             }
             : undefined
         }
@@ -584,6 +644,7 @@ const Library = () => {
                   <SelectItem value="unset">Keep existing</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
+                  <SelectItem value="multiple">Multiple</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -2,15 +2,24 @@
 import { supabase } from "@/integrations/supabase/client";
 import axiosInstance from "../axiosInstance";
 
-export interface DocumentRequestTemplate {
-  _id: string;
-  name: string;
-  description?: string;
-  type: "template" | "direct";
+export interface TemplateItem {
+  label: string;
   template?: {
     url?: string;
     instructions?: string;
   };
+}
+
+export interface DocumentRequestTemplate {
+  _id: string;
+  name: string;
+  description?: string;
+  type: "template" | "direct" | "multiple";
+  template?: {
+    url?: string;
+    instructions?: string;
+  };
+  multiple?: TemplateItem[];
   category?: string;
   isActive?: boolean;
 }
@@ -113,6 +122,43 @@ export const uploadTemplate = async (file: File, category?: string) => {
     return uploadResponse.data.url as string;
   } catch (error) {
     console.error('Failed to upload template:', error);
+    throw error;
+  }
+};
+
+// 10. UPLOAD MULTIPLE TEMPLATES
+export const uploadMultipleTemplates = async (files: File[], category?: string) => {
+  try {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const { data } = await supabase.auth.getSession();
+
+    const url =
+      category && category.trim().length > 0
+        ? `${basePath}/template/upload-multiple?category=${encodeURIComponent(category)}`
+        : `${basePath}/template/upload-multiple`;
+
+    const uploadResponse = await axiosInstance.post<{
+      success: boolean;
+      files: Array<{
+        url: string;
+        filename: string;
+        originalName: string;
+        index: number;
+      }>;
+    }>(url, formData, {
+      headers: {
+        Authorization: `Bearer ${data.session?.access_token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return uploadResponse.data.files;
+  } catch (error) {
+    console.error('Failed to upload multiple templates:', error);
     throw error;
   }
 };
