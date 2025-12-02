@@ -304,6 +304,9 @@ interface ExcelViewerProps {
   setFilePreviewOpen?: (open: boolean) => void;
   selectedPreviewFile?: ClassificationEvidence | null;
   setSelectedPreviewFile?: (file: ClassificationEvidence | null) => void;
+
+  // ✅ NEW: Callback when sheet selection changes (for saving preference)
+  onSheetChange?: (workbookId: string, sheetName: string) => void;
   
 }
 
@@ -441,7 +444,16 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   setFilePreviewOpen = () => {},
   selectedPreviewFile = null,
   setSelectedPreviewFile = () => {},
+
+  // ✅ NEW: Callback when sheet selection changes
+  onSheetChange,
 }) => {
+  // ✅ NEW: Wrapper function to handle sheet changes and notify parent
+  // Note: setSelectedSheet (from props) is already a wrapper that calls onSheetChange
+  // So we just need to call setSelectedSheet here
+  const handleSheetChange = useCallback((sheetName: string) => {
+    setSelectedSheet(sheetName);
+  }, [setSelectedSheet]);
   const { toast } = useToast();
   
   // ✅ Create props object reference for functions that need to access props
@@ -493,7 +505,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       const { sheet, start, end } = mapping.details;
       const normalizedEnd = end || start;
 
-      setSelectedSheet(sheet);
+      handleSheetChange(sheet);
       setSelections([
         {
           sheet,
@@ -629,12 +641,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   useEffect(() => {
     if (!selectedSheet || !sheetNames.includes(selectedSheet)) {
       if (sheetNames.length > 0) {
-        setSelectedSheet(sheetNames[0]);
+        handleSheetChange(sheetNames[0]);
       } else {
-        setSelectedSheet("Sheet1");
+        handleSheetChange("Sheet1");
       }
     }
-  }, [workbook.id, sheetNames, selectedSheet, setSelectedSheet]);
+  }, [workbook.id, sheetNames, selectedSheet, handleSheetChange]);
 
   // Helper to get cell key for evidence tracking (must be defined before useEffect)
   const getCellKey = useCallback((row: number, col: number, sheet: string) => {
@@ -1346,7 +1358,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     const [sheetName, range] = namedRange.range.split("!");
     const [startCell, endCell] = range.split(":");
     if (sheetName && startCell) {
-      setSelectedSheet(sheetName);
+      handleSheetChange(sheetName);
 
       const startColLetter = startCell.match(/[A-Z]+/)?.[0] || "A";
       const startRowNumber = parseInt(startCell.match(/\d+/)?.[0] || "1", 10);
@@ -2302,7 +2314,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             >
               Sheets:
             </Label>
-            <Select value={selectedSheet} onValueChange={setSelectedSheet}>
+            <Select value={selectedSheet} onValueChange={handleSheetChange}>
               <SelectTrigger
                 id="sheet-selector"
                 className="w-[120px] h-7 text-xs font-semibold px-2 py-0" // Adjusted width, height, text size, and padding
@@ -3167,7 +3179,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                     key={sheet}
                     variant={selectedSheet === sheet ? "default" : "ghost"}
                     className="w-full justify-start"
-                    onClick={() => setSelectedSheet(sheet)}
+                    onClick={() => handleSheetChange(sheet)}
                   >
                     <FileSpreadsheet className="h-4 w-4 mr-2" />
                     {sheet}
@@ -3826,6 +3838,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 > & {
   parentEtbData?: ETBData | null; // ✅ NEW: Optional parent data to avoid re-fetching
   onRefreshETBData?: () => void; // ✅ NEW: Callback to refresh parent data
+  onSheetChange?: (workbookId: string, sheetName: string) => void; // ✅ NEW: Callback when sheet changes
+  initialSheet?: string; // ✅ NEW: Initial sheet to select (from saved preference)
 }> = (props) => {
   const { toast } = useToast();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -3836,6 +3850,16 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
   // Sheet selection state
   const [selectedSheet, setSelectedSheet] = useState<string>("");
+  const isInitializingRef = useRef(true); // Track if we're still initializing
+
+  // ✅ NEW: Wrapper function to handle sheet changes and notify parent
+  const handleSheetChangeWrapper = useCallback((sheetName: string) => {
+    setSelectedSheet(sheetName);
+    // Only save preference if not initializing (user actually changed the sheet)
+    if (!isInitializingRef.current && props.onSheetChange && props.workbook?.id) {
+      props.onSheetChange(props.workbook.id, sheetName);
+    }
+  }, [props.onSheetChange, props.workbook?.id]);
 
   // Cell selection states
   const [selections, setSelections] = useState<Selection[]>([]);
@@ -4791,6 +4815,35 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     }
   }, [selectedSheet, props.workbook?.id, loadSheetDataOnDemand]);
 
+  // ✅ NEW: Initialize sheet selection when workbook changes
+  // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
+  useEffect(() => {
+    if (!props.workbook?.id) return;
+    
+    const sheetNames = props.workbook.fileData 
+      ? Object.keys(props.workbook.fileData)
+      : (props.workbook.sheets?.map((s: any) => s.name) || []);
+    
+    if (sheetNames.length === 0) return;
+    
+    // Use initialSheet from props (saved preference) if provided and valid
+    // Otherwise use first sheet
+    const sheetToSelect = (props.initialSheet && sheetNames.includes(props.initialSheet))
+      ? props.initialSheet
+      : sheetNames[0];
+    
+    // Only set if different from current (to avoid unnecessary updates)
+    if (selectedSheet !== sheetToSelect) {
+      isInitializingRef.current = true; // Mark as initializing
+      setSelectedSheet(sheetToSelect);
+      console.log(`ExcelViewerWithFullscreen: Initialized sheet to ${sheetToSelect} (from ${props.initialSheet ? 'saved preference' : 'default'})`);
+      // Mark initialization complete after a short delay
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 100);
+    }
+  }, [props.workbook.id, props.initialSheet]); // Run when workbook ID or initialSheet changes
+
   // Reset states when workbook changes
   useEffect(() => {
     setSelections([]);
@@ -5221,7 +5274,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         onToggleFullscreen={handleToggleFullscreen}
         // Pass all state props
         selectedSheet={selectedSheet}
-        setSelectedSheet={setSelectedSheet}
+        setSelectedSheet={handleSheetChangeWrapper}
+        onSheetChange={props.onSheetChange}
         selections={selections}
         setSelections={setSelections}
         isSelecting={isSelecting}

@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
-import { engagementApi, documentRequestApi } from "@/services/api";
+import { engagementApi, documentRequestApi, userApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   Users,
@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { AdminComprehensiveNavigation } from "@/components/ui/admin-comprehensive-navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { NoticeBoardForm } from "@/components/notice-board/NoticeBoardForm";
 
 interface User {
   id: string;
@@ -167,14 +168,15 @@ export const AdminDashboard = () => {
       if (error) throw error;
 
       // Transform profiles to User format with emails
+      // Check if profile already has email field first
       const usersWithEmails = await Promise.all(
         profiles.map(async (profile) => {
-          try {
-            const email = await getClientEmail(profile.user_id);
+          // If profile already has email, use it
+          if (profile.email) {
             return {
               id: profile.user_id,
               name: profile.name || "Unknown User",
-              email: email,
+              email: profile.email,
               role: profile.role as "admin" | "employee" | "client",
               status: profile.status as "pending" | "approved" | "rejected",
               createdAt: profile.created_at,
@@ -182,13 +184,21 @@ export const AdminDashboard = () => {
               companyNumber: profile.company_number || undefined,
               industry: profile.industry || undefined,
             };
-          } catch (err) {
-            console.error(`Failed to get email for user ${profile.user_id}:`, err);
-            return {
-              ...profile,
-              email: "email-not-found@example.com", // fallback
-            };
           }
+          
+          // Otherwise, try to fetch email (with graceful fallback)
+          const email = await getClientEmail(profile.user_id);
+          return {
+            id: profile.user_id,
+            name: profile.name || "Unknown User",
+            email: email,
+            role: profile.role as "admin" | "employee" | "client",
+            status: profile.status as "pending" | "approved" | "rejected",
+            createdAt: profile.created_at,
+            companyName: profile.company_name || undefined,
+            companyNumber: profile.company_number || undefined,
+            industry: profile.industry || undefined,
+          };
         })
       );
 
@@ -207,25 +217,26 @@ export const AdminDashboard = () => {
 
   const getClientEmail = async (id: string): Promise<string> => {
     try {
-      const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
-      const response = await fetch(`${import.meta.env.VITE_APIURL}/api/users/email/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${data.session?.access_token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch client email');
+      const response = await userApi.getEmail(id);
+      // Handle different response structures
+      if (response?.clientData?.email) {
+        return response.clientData.email;
       }
-
-      const res = await response.json();
-      return res.clientData.email;
-    } catch (error) {
-      console.error('Error fetching client email:', error);
-      throw error;
+      if (response?.email) {
+        return response.email;
+      }
+      if (response?.data?.email) {
+        return response.data.email;
+      }
+      // If no email found in response, return fallback
+      return "email-not-found@example.com";
+    } catch (error: any) {
+      // Silently handle errors - don't spam console for expected failures
+      // Some users may not have email data available
+      if (error?.message && !error.message.includes('500')) {
+        console.warn(`Could not fetch email for user ${id}:`, error.message);
+      }
+      return "email-not-found@example.com";
     }
   };
 
@@ -415,15 +426,18 @@ export const AdminDashboard = () => {
               <h1 className="text-3xl font-semibold text-brand-body mb-2">{getGreetingMessage()}</h1>
               <p className="text-brand-body">{getGreetingDescription()}</p>
             </div>
-            <Link to="/admin/2fa">
-              <Button
-                variant="outline"
-                className="border-blue-200 hover:bg-blue-50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
-              >
-                <Shield className="h-5 w-5 mr-2" />
-                Manage 2FA Settings
-              </Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              <NoticeBoardForm />
+              {/* <Link to="/admin/2fa">
+                <Button
+                  variant="outline"
+                  className="border-blue-200 hover:bg-blue-50 text-blue-700 hover:text-blue-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                >
+                  <Shield className="h-5 w-5 mr-2" />
+                  Manage 2FA Settings
+                </Button>
+              </Link> */}
+            </div>
           </div>
         </div>
 

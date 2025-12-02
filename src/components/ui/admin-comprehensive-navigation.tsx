@@ -11,7 +11,8 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Settings
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -94,6 +95,15 @@ export const AdminComprehensiveNavigation: React.FC<AdminComprehensiveNavigation
       bgColor: "bg-primary",
       percentage: 90,
       description: "Manage Folder Security"
+    },
+    {
+      title: "Firm Settings",
+      href: "/admin/settings",
+      icon: Settings,
+      color: "text-gray-700",
+      bgColor: "bg-primary",
+      percentage: 75,
+      description: "Defaults, roles & controls"
     }
   ];
 

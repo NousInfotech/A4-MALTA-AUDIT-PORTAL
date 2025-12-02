@@ -659,8 +659,12 @@ export default function WorkBookApp({
   // ✅ UPDATED: Now fetches ALL workbooks for engagement (like evidence files) - no classification filter
   // Uses new API endpoint that queries database directly by engagementId only
   // This is exactly like getAllClassificationEvidence(engagement.id) - no classification filtering
-  const fetchWorkbooks = useCallback(async () => {
-    setIsLoadingWorkbooks(true);
+  const fetchWorkbooks = useCallback(async (showLoading: boolean = true) => {
+    // ✅ CRITICAL FIX: Only show loading if not already viewing a workbook
+    // This prevents the loading screen from replacing the viewer during background refreshes
+    if (showLoading) {
+      setIsLoadingWorkbooks(true);
+    }
     try {
       console.log('📚 WorkBookApp: Fetching ALL workbooks for engagement (like evidence files, no classification filter):', engagementId);
       
@@ -744,7 +748,9 @@ export default function WorkBookApp({
       });
       return [];
     } finally {
-      setIsLoadingWorkbooks(false);
+      if (showLoading) {
+        setIsLoadingWorkbooks(false);
+      }
     }
   }, [engagementId, toast]); // ✅ Removed classification and allClassifications - we fetch ALL workbooks like evidence files
 
@@ -885,9 +891,12 @@ export default function WorkBookApp({
   // Modify useEffect to depend on refreshWorkbooksTrigger
   useEffect(() => {
     if (engagementId && classification) {
-      fetchWorkbooks();
+      // ✅ CRITICAL FIX: Don't show loading screen when refreshing workbooks if we're viewing a workbook
+      // This prevents the viewer from being replaced by the loading screen during background refreshes
+      const isViewingWorkbook = currentView === "viewer" && selectedWorkbook !== null;
+      fetchWorkbooks(!isViewingWorkbook); // Only show loading if not viewing a workbook
     }
-  }, [engagementId, classification, fetchWorkbooks, refreshWorkbooksTrigger]);
+  }, [engagementId, classification, fetchWorkbooks, refreshWorkbooksTrigger, currentView, selectedWorkbook]);
 
   // Trigger refresh when parent notifies via refreshTrigger
   useEffect(() => {
@@ -1215,11 +1224,34 @@ export default function WorkBookApp({
 
       setSelectedWorkbook(updatedWorkbook);
 
+      // ✅ NEW: Load user's last selected sheet preference
+      let sheetToSelect: string | undefined = undefined;
       if (sheetNamesToProcess.length > 0) {
-        setViewerSelectedSheet(sheetNamesToProcess[0]);
+        try {
+          const preferenceResponse = await db_WorkbookApi.getUserWorkbookPreference(workbook.id);
+          if (preferenceResponse.success && preferenceResponse.data?.lastSelectedSheet) {
+            const savedSheet = preferenceResponse.data.lastSelectedSheet;
+            // Verify the saved sheet still exists in the workbook
+            if (sheetNamesToProcess.includes(savedSheet)) {
+              sheetToSelect = savedSheet;
+              console.log(`WorkBookApp: Restored last selected sheet: ${savedSheet}`);
+            } else {
+              console.log(`WorkBookApp: Saved sheet "${savedSheet}" no longer exists, using first sheet`);
+            }
+          }
+        } catch (prefError) {
+          console.warn('WorkBookApp: Failed to load sheet preference, using default:', prefError);
+        }
+        
+        // Fallback to first sheet if no preference or preference invalid
+        if (!sheetToSelect) {
+          sheetToSelect = sheetNamesToProcess[0];
+        }
       } else {
-        setViewerSelectedSheet("Sheet1");
+        sheetToSelect = "Sheet1";
       }
+
+      setViewerSelectedSheet(sheetToSelect);
 
       console.log("WorkBookApp: About to render ExcelViewer with data:");
       console.log("WorkBookApp: selectedWorkbook (updated):", updatedWorkbook);
@@ -1231,6 +1263,7 @@ export default function WorkBookApp({
         "WorkBookApp: namedRanges (from DB):",
         fullWorkbookFromDB.namedRanges
       );
+      console.log("WorkBookApp: Selected sheet:", sheetToSelect);
 
       setCurrentView("viewer");
     } catch (error) {
@@ -2071,7 +2104,11 @@ export default function WorkBookApp({
     });
   };
 
-  const handleUploadWorkbook = (newWorkbookFromUploadModal: Workbook) => {
+  const handleUploadWorkbook = async (newWorkbookFromUploadModal: Workbook) => {
+    // ✅ NEW WORKFLOW: After upload, navigate to dashboard (don't open workbook)
+    // User can manually open the workbook from the dashboard if needed
+    
+    // Add the workbook to the list
     setWorkbooks((prev) => {
       const existingIndex = prev.findIndex(
         (wb: any) => wb.id === newWorkbookFromUploadModal.id
@@ -2101,21 +2138,18 @@ export default function WorkBookApp({
       description: `Successfully uploaded ${newWorkbookFromUploadModal.name}`,
     });
 
-    setSelectedWorkbook(newWorkbookFromUploadModal);
+    // ✅ NEW WORKFLOW: Navigate to dashboard instead of opening the workbook
+    setCurrentView("dashboard");
+    
+    // Clear selected workbook since we're not opening it
+    setSelectedWorkbook(null);
+    setViewerSelectedSheet(undefined);
 
-    if (
-      newWorkbookFromUploadModal.fileData &&
-      Object.keys(newWorkbookFromUploadModal.fileData).length > 0
-    ) {
-      setViewerSelectedSheet(
-        Object.keys(newWorkbookFromUploadModal.fileData)[0]
-      );
-    } else {
-      setViewerSelectedSheet("Sheet1");
-    }
-
-    setCurrentView("viewer");
-    setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger refresh after upload
+    // ✅ Refresh workbook list to show the newly uploaded workbook
+    // Use setTimeout to ensure navigation happens first
+    setTimeout(() => {
+      setRefreshWorkbooksTrigger((prev) => prev + 1);
+    }, 100);
 
     // ✅ NEW: Dispatch event to notify ClassificationSection to refresh workbook list
     // This allows the Workbook tab to refresh in the background without switching tabs
@@ -2142,6 +2176,29 @@ export default function WorkBookApp({
       title: "Upload Failed",
       description: message,
     });
+  };
+
+  // ✅ NEW: Handler for sheet selection changes - saves preference
+  const handleSheetChange = async (workbookId: string, sheetName: string) => {
+    try {
+      // Update local state immediately for responsive UI
+      setViewerSelectedSheet(sheetName);
+      
+      // Save preference to backend (fire and forget - don't block UI)
+      db_WorkbookApi.saveUserWorkbookPreference(workbookId, sheetName)
+        .then((response) => {
+          if (response.success) {
+            console.log(`WorkBookApp: Saved sheet preference: ${sheetName} for workbook ${workbookId}`);
+          } else {
+            console.warn(`WorkBookApp: Failed to save sheet preference:`, response.error);
+          }
+        })
+        .catch((error) => {
+          console.error(`WorkBookApp: Error saving sheet preference:`, error);
+        });
+    } catch (error) {
+      console.error('WorkBookApp: Error in handleSheetChange:', error);
+    }
   };
 
   const handleReuploadWorkbook = (newWorkbook: Workbook) => {
@@ -2214,7 +2271,7 @@ export default function WorkBookApp({
 
         return selectedWorkbook ? (
           <ExcelViewerWithFullscreen
-          key={`${selectedWorkbook?.id}-${mappings.length}-${mappingsRefreshKey}`}
+          key={`${selectedWorkbook?.id}-${mappings.length}-${mappingsRefreshKey}-${viewerSelectedSheet}`}
             workbook={selectedWorkbook}
             mappingsRefreshKey={mappingsRefreshKey}
             setSelectedWorkbook={setSelectedWorkbook}
@@ -2243,6 +2300,8 @@ export default function WorkBookApp({
             onRefreshMappings={refreshWorkbookMappings} // ✅ NEW: Pass mappings refresh function
             onRefreshParentData={onRefreshData}
             onEvidenceMappingUpdated={onEvidenceMappingUpdated}
+            onSheetChange={handleSheetChange} // ✅ NEW: Pass sheet change handler
+            initialSheet={viewerSelectedSheet} // ✅ NEW: Pass initial sheet from saved preference
           />
         ) : null;
       case "audit-log":
