@@ -79,6 +79,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Info } from "lucide-react";
+import DocumentRequest from "../document-request/DocumentRequest";
 
 const categories = [
   "Planning",
@@ -97,6 +98,82 @@ const categories = [
   "Others",
 ];
 
+const mockSingleAndMultipleRequest: DocumentRequest = {
+  _id: "req_1",
+  engagement: "eng_123",
+  clientId: "client_456",
+
+  name: "Planning documents Q1",
+  category: "Planning",
+  description: "Please provide the following planning documents for Q1 FY 2025.",
+  comment: "Use latest available versions.",
+  status: "pending",
+
+  requestedAt: new Date("2025-01-10T09:00:00Z"),
+  completedAt: undefined,
+
+  // Single-document requirements (one file per row)
+  documents: [
+    {
+      _id: "doc_single_1",
+      name: "Trial Balance PDF",
+      type: "direct",
+      description: "Latest trial balance as at 31 Dec 2024.",
+      url: "https://example.com/files/trial-balance.pdf",
+      uploadedFileName: "TB_2024-12-31.pdf",
+      uploadedAt: new Date("2025-01-11T10:30:00Z"),
+      status: "submitted",
+      comment: "Uploaded by client on 11 Jan.",
+    },
+    {
+      _id: "doc_single_2",
+      name: "Bank Statements",
+      type: "template",
+      template: {
+        url: "https://example.com/templates/bank-statement-template.xlsx",
+        instruction: "Download, fill in per account, and re-upload as PDF/XLSX.",
+      },
+      description: "Bank statements for all operating accounts for Q4 2024.",
+      // not uploaded yet
+      status: "pending",
+      comment: "Waiting for client upload.",
+    },
+  ],
+
+  // Multi-document grouped requirement
+  multipleDocuments: [
+    {
+      _id: "multi_1",
+      name: "ID & Address Proof Set",
+      type: "template",
+      instruction: "Upload separate files for each item below.",
+      multiple: [
+        {
+          label: "Director 1 – ID proof",
+          url: "https://example.com/files/director1_id.pdf",
+          uploadedFileName: "director1_id.pdf",
+          uploadedAt: new Date("2025-01-12T08:15:00Z"),
+          status: "approved",
+          comment: "Verified against client records.",
+        },
+        {
+          label: "Director 1 – Address proof",
+          // not uploaded yet
+          status: "pending",
+          comment: "Awaiting upload.",
+        },
+        {
+          label: "Director 2 – ID proof",
+          url: "https://example.com/files/director2_id.pdf",
+          uploadedFileName: "director2_id.pdf",
+          uploadedAt: new Date("2025-01-13T14:00:00Z"),
+          status: "submitted",
+          comment: "To be reviewed.",
+        },
+      ],
+    },
+  ],
+}
 type ComboOption = { value: string; label?: string };
 
 function SearchableSelect({
@@ -210,13 +287,21 @@ export const DocumentRequestsTab = ({
   const [loading, setLoading] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
+    type?: 'document' | 'multipleItem' | 'multipleGroup' | 'request';
     documentRequestId?: string;
     documentIndex?: number;
+    multipleDocumentId?: string;
+    itemIndex?: number;
     documentName?: string;
   }>({ open: false });
   const [uploadingDocument, setUploadingDocument] = useState<{
     documentRequestId?: string;
     documentIndex?: number;
+  } | null>(null);
+  const [uploadingMultiple, setUploadingMultiple] = useState<{
+    documentRequestId?: string;
+    multipleDocumentId?: string;
+    itemIndex?: number;
   } | null>(null);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [addRequestModalOpen, setAddRequestModalOpen] = useState(false);
@@ -378,6 +463,7 @@ export const DocumentRequestsTab = ({
       
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('documentIndex', String(documentIndex));
       
       await documentRequestApi.uploadSingleDocument(documentRequestId, formData);
       
@@ -428,6 +514,257 @@ export const DocumentRequestsTab = ({
       toast({
         title: "Error",
         description: error?.message || "Failed to delete document",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteFromDialog = async () => {
+    if (deleteDialog.type === 'request') {
+      if (!deleteDialog.documentRequestId) return;
+      await handleDeleteRequest(deleteDialog.documentRequestId);
+    } else if (deleteDialog.type === 'multipleItem') {
+      await handleDeleteMultipleItem();
+    } else if (deleteDialog.type === 'multipleGroup') {
+      await handleDeleteMultipleGroup();
+    } else {
+      await handleDeleteDocument();
+    }
+  };
+
+  // Clear only the uploaded file for a document using dedicated clear endpoint
+  const handleClearDocument = async (
+    documentRequestId: string,
+    documentIndex: number,
+    documentName: string
+  ) => {
+    try {
+      await documentRequestApi.clearSingleDocument(documentRequestId, documentIndex);
+      await fetchDocumentRequests();
+      toast({
+        title: "Document Cleared",
+        description: `"${documentName}" file has been cleared. Requirement remains pending.`,
+      });
+    } catch (error: any) {
+      console.error("Error clearing document:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear document",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Clear only the uploaded file for a multiple document item
+  const handleClearMultipleItem = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    itemIndex: number,
+    itemLabel: string
+  ) => {
+    try {
+      await documentRequestApi.clearMultipleDocumentItem(documentRequestId, multipleDocumentId, itemIndex);
+      await fetchDocumentRequests();
+      toast({
+        title: "Document Item Cleared",
+        description: `"${itemLabel}" file has been cleared. Requirement remains pending.`,
+      });
+    } catch (error: any) {
+      console.error("Error clearing multiple document item:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear document item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete a specific item from a multiple document group
+  const handleDeleteMultipleItem = async () => {
+    if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId || deleteDialog.itemIndex === undefined) return;
+    
+    try {
+      await documentRequestApi.deleteMultipleDocumentItem(
+        deleteDialog.documentRequestId,
+        deleteDialog.multipleDocumentId,
+        deleteDialog.itemIndex
+      );
+      await fetchDocumentRequests();
+      toast({
+        title: "Document Item Deleted",
+        description: "Document item has been deleted successfully",
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error('Error deleting multiple document item:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete entire multiple document group
+  const handleDeleteMultipleGroup = async () => {
+    if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId) return;
+    
+    try {
+      await documentRequestApi.deleteMultipleDocumentGroup(
+        deleteDialog.documentRequestId,
+        deleteDialog.multipleDocumentId
+      );
+      await fetchDocumentRequests();
+      toast({
+        title: "Document Group Deleted",
+        description: `"${deleteDialog.documentName || 'Group'}" has been deleted successfully`,
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error('Error deleting multiple document group:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document group",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Clear all files in a multiple document group
+  const handleClearMultipleGroup = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    groupName: string
+  ) => {
+    try {
+      await documentRequestApi.clearMultipleDocumentGroup(documentRequestId, multipleDocumentId);
+      await fetchDocumentRequests();
+      toast({
+        title: "All Files Cleared",
+        description: `All uploaded files in "${groupName}" have been cleared. Requirements remain pending.`,
+      });
+    } catch (error: any) {
+      console.error("Error clearing multiple document group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear files",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Download all files from a multiple document group
+  const handleDownloadMultipleGroup = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    groupName: string,
+    items: any[]
+  ) => {
+    try {
+      const uploadedItems = items.filter((item) => item.url);
+      
+      if (uploadedItems.length === 0) {
+        toast({
+          title: "No Files to Download",
+          description: "No uploaded files found in this group",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Download each file sequentially
+      for (const item of uploadedItems) {
+        try {
+          const response = await fetch(item.url);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = item.uploadedFileName || item.label || `document-${Date.now()}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          // Small delay between downloads to avoid browser blocking
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error downloading ${item.label}:`, error);
+        }
+      }
+
+      toast({
+        title: "Downloads Started",
+        description: `Downloading ${uploadedItems.length} file(s) from "${groupName}"`,
+      });
+    } catch (error: any) {
+      console.error("Error downloading multiple documents:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download files",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle uploading files to multiple document group
+  const handleUploadMultiple = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    files: FileList,
+    itemIndex?: number
+  ) => {
+    try {
+      setUploadingMultiple({ 
+        documentRequestId, 
+        multipleDocumentId,
+        itemIndex 
+      });
+
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append('files', file);
+      });
+
+      await documentRequestApi.uploadMultipleDocuments(
+        documentRequestId,
+        multipleDocumentId,
+        formData,
+        itemIndex
+      );
+
+      await fetchDocumentRequests();
+      
+      toast({
+        title: "Files Uploaded",
+        description: `${files.length} file(s) uploaded successfully`,
+      });
+    } catch (error: any) {
+      console.error('Error uploading multiple documents:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to upload files",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingMultiple(null);
+    }
+  };
+
+  // Delete entire document request
+  const handleDeleteRequest = async (documentRequestId: string) => {
+    try {
+      await documentRequestApi.deleteRequest(documentRequestId);
+      await fetchDocumentRequests();
+      toast({
+        title: "Request Deleted",
+        description: "Document request has been deleted successfully",
+      });
+    } catch (error: any) {
+      console.error("Error deleting document request:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document request",
         variant: "destructive",
       });
     }
@@ -744,14 +1081,14 @@ export const DocumentRequestsTab = ({
                 <Plus className="h-4 w-4 mr-2" />
                 Create with Documents
               </Button>
-              <Button
+              {/* <Button
                 onClick={handleSendDocumentRequest}
                 disabled={!canSend}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground rounded-xl flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4 mr-2" />
                 Send Request
-              </Button>
+              </Button> */}
             </div>
           </CardContent>
         </Card>
@@ -788,10 +1125,25 @@ export const DocumentRequestsTab = ({
             <CardContent className="p-6 space-y-6">
               {documentRequests.map((request) => {
                 const calculatedStatus = calculateDocumentRequestStatus(request);
-                const totalDocs = request.documents?.length || 0;
-                const completedDocs = request.documents?.filter((doc: any) => 
-                  doc.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
+                
+                // Count single documents
+                const singleDocsCount = request.documents?.length || 0;
+                const completedSingleDocs = request.documents?.filter((doc: any) => 
+                  doc.url && doc.status !== 'rejected'
                 ).length || 0;
+                
+                // Count multiple document items
+                const multipleDocsItems = request.multipleDocuments?.flatMap((group: any) => 
+                  group.multiple || []
+                ) || [];
+                const multipleDocsCount = multipleDocsItems.length;
+                const completedMultipleDocs = multipleDocsItems.filter((item: any) => 
+                  item.url && item.status !== 'rejected'
+                ).length || 0;
+                
+                // Calculate total progress including both single and multiple documents
+                const totalDocs = singleDocsCount + multipleDocsCount;
+                const completedDocs = completedSingleDocs + completedMultipleDocs;
                 const progressPercentage = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
                 return (
@@ -807,6 +1159,8 @@ export const DocumentRequestsTab = ({
                         {request.comment && (
                           <p className="text-xs text-gray-500 mt-1">Comment: {request.comment}</p>
                         )}
+                         
+                         
                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                           <span>Requested: {(() => {
                             const dateStr = request.requestedAt || request.createdAt;
@@ -822,6 +1176,21 @@ export const DocumentRequestsTab = ({
                           )}
                         </div>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setDeleteDialog({
+                          open: true,
+                          type: 'request',
+                          documentRequestId: request._id,
+                          documentName: request.category || 'this document request'
+                        })}
+                        className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700"
+                        title="Delete Document Request"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Request
+                      </Button>
                     </div>
 
                     {/* Status Management */}
@@ -830,7 +1199,7 @@ export const DocumentRequestsTab = ({
                         <h4 className="font-semibold text-gray-900 text-sm">Status Management</h4>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {calculatedStatus !== 'active' && (
+                        {/* {calculatedStatus !== 'active' && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -851,7 +1220,7 @@ export const DocumentRequestsTab = ({
                             <Eye className="h-4 w-4 mr-1" />
                             Set In Review
                           </Button>
-                        )}
+                        )} */}
                         {calculatedStatus !== 'completed' && (
                           <Button
                             size="sm"
@@ -888,7 +1257,7 @@ export const DocumentRequestsTab = ({
                     )}
 
                     {/* Documents List */}
-                    {request.documents && request.documents.length > 0 ? (
+                    {/* {request.documents && request.documents.length > 0 ? (
                       <div className="space-y-2">
                         {request.documents.map((doc: any, docIndex: number) => (
                           <div key={docIndex} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
@@ -1020,6 +1389,7 @@ export const DocumentRequestsTab = ({
                                 onClick={() => {
                                   setDeleteDialog({
                                     open: true,
+                                    type: 'document',
                                     documentRequestId: request._id,
                                     documentIndex: docIndex,
                                     documentName: doc.name,
@@ -1038,7 +1408,25 @@ export const DocumentRequestsTab = ({
                       <div className="text-center py-4 text-gray-500 text-sm bg-white rounded-lg">
                         No documents in this request yet
                       </div>
-                    )}
+                    )} */}
+
+                    <DocumentRequest
+                      request={request}
+                      uploadingSingle={uploadingDocument}
+                      uploadingMultiple={uploadingMultiple}
+                      onUploadSingle={handleDocumentUpload}
+                      onUploadMultiple={handleUploadMultiple}
+                      onDeleteRequest={handleDeleteRequest}
+                      onClearDocument={handleClearDocument}
+                      onClearMultipleItem={handleClearMultipleItem}
+                      onRequestDeleteDialog={setDeleteDialog}
+                      onDocumentsAdded={fetchDocumentRequests}
+                      engagementId={engagementId}
+                      clientId={engagement?.clientId || ''}
+                      onClearMultipleGroup={handleClearMultipleGroup}
+                      onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                    />
+
                   </div>
                 );
               })}
@@ -1393,16 +1781,26 @@ export const DocumentRequestsTab = ({
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-600" />
-              Delete Document
+              {deleteDialog.type === 'request' 
+                ? 'Delete Document Request' 
+                : deleteDialog.type === 'multipleItem'
+                ? 'Delete Document Item'
+                : deleteDialog.type === 'multipleGroup'
+                ? 'Delete Document Group'
+                : 'Delete Document'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDialog.documentName}"? This action cannot be undone.
+              {deleteDialog.type === 'request' 
+                ? 'Are you sure you want to delete this entire document request? This action cannot be undone.'
+                : deleteDialog.type === 'multipleGroup'
+                ? `Are you sure you want to delete the entire document group "${deleteDialog.documentName}"? This will delete all items in the group. This action cannot be undone.`
+                : `Are you sure you want to delete "${deleteDialog.documentName}"? This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteDocument}
+              onClick={handleDeleteFromDialog}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
