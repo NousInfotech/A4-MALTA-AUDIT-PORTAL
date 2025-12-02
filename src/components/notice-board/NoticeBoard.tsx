@@ -352,24 +352,23 @@ export const NoticeBoard = () => {
             >
               <div
                 className={cn(
-                  "relative bg-gradient-to-br rounded-xl shadow-xl transition-all duration-500",
-                  `bg-gradient-to-br ${noticeConfig.gradient}`,
-                  "text-white overflow-hidden",
+                  "relative bg-primary rounded-xl shadow-xl transition-all duration-500",
+                  "text-primary-foreground overflow-hidden",
                   "w-full h-full",
                   isCurrent && "hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
                 )}
               >
                 {/* Decorative Background Patterns */}
-                <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -mr-40 -mt-40 blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-60 h-60 bg-white/10 rounded-full -ml-30 -mb-30 blur-2xl" />
+                <div className="absolute top-0 right-0 w-80 h-80 bg-primary-foreground/10 rounded-full -mr-40 -mt-40 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-60 h-60 bg-primary-foreground/10 rounded-full -ml-30 -mb-30 blur-2xl" />
                 
                 {/* Card Chip Effect (Top Left) */}
-                <div className="absolute top-4 left-4 w-10 h-8 bg-gradient-to-br from-white/30 to-white/10 rounded-md backdrop-blur-sm border border-white/20 shadow-md" />
+                <div className="absolute top-4 left-4 w-10 h-8 bg-gradient-to-br from-primary-foreground/30 to-primary-foreground/10 rounded-md backdrop-blur-sm border border-primary-foreground/20 shadow-md" />
                 
                 {/* Contactless Symbol (Top Right) */}
                 <div className="absolute top-4 right-4 flex items-center gap-1">
-                  <div className="w-7 h-7 border-2 border-white/50 rounded-full flex items-center justify-center">
-                    <div className="w-3.5 h-3.5 border-2 border-white/50 rounded-full"></div>
+                  <div className="w-7 h-7 border-2 border-primary-foreground/50 rounded-full flex items-center justify-center">
+                    <div className="w-3.5 h-3.5 border-2 border-primary-foreground/50 rounded-full"></div>
                   </div>
                 </div>
 
@@ -378,10 +377,10 @@ export const NoticeBoard = () => {
                   {/* Top Section - Badge */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg border border-white/20">
+                      <div className={cn("p-2 rounded-lg border border-white/20 backdrop-blur-sm", noticeConfig.badgeColor)}>
                         <NoticeIcon className="h-4 w-4 text-white" />
                       </div>
-                      <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm text-xs px-2 py-0.5">
+                      <Badge className={cn("text-white border-white/30 text-xs px-2 py-0.5", noticeConfig.badgeColor)}>
                         {noticeConfig.label}
                       </Badge>
                     </div>
@@ -389,39 +388,39 @@ export const NoticeBoard = () => {
 
                   {/* Middle Section - Title and Description */}
                   <div className="flex-1 flex flex-col justify-center mb-4">
-                    <h3 className="text-xl font-bold mb-2 text-white leading-tight line-clamp-1">
+                    <h3 className="text-xl font-bold mb-2 text-primary-foreground leading-tight line-clamp-1">
                       {notice.title}
                     </h3>
-                    <p className="text-white/90 text-sm leading-relaxed line-clamp-2">
+                    <p className="text-primary-foreground/90 text-sm leading-relaxed line-clamp-2">
                       {notice.description}
                     </p>
                   </div>
 
                   {/* Bottom Section - Card Number Style Layout */}
-                  <div className="mt-auto pt-3 border-t border-white/20">
+                  <div className="mt-auto pt-3 border-t border-primary-foreground/20">
                     <div className="flex items-end justify-between">
                       <div className="flex-1">
-                        <div className="text-[10px] text-white/60 mb-1 uppercase tracking-wider">Created</div>
-                        <div className="flex items-center gap-1.5 text-white">
+                        <div className="text-[10px] text-primary-foreground/60 mb-1 uppercase tracking-wider">Created</div>
+                        <div className="flex items-center gap-1.5 text-primary-foreground">
                           <Clock className="h-3 w-3" />
                           <span className="font-semibold text-xs">{noticeFormattedDate}</span>
-                          <span className="text-white/50 text-xs">•</span>
-                          <span className="text-white/70 text-[10px]">{noticeFormattedTime}</span>
+                          <span className="text-primary-foreground/50 text-xs">•</span>
+                          <span className="text-primary-foreground/70 text-[10px]">{noticeFormattedTime}</span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] text-white/60 mb-1 uppercase tracking-wider">Audience</div>
+                        <div className="text-[10px] text-primary-foreground/60 mb-1 uppercase tracking-wider">Audience</div>
                         <div className="flex gap-1 justify-end">
                           {notice.roles?.slice(0, 2).map((role: string) => (
                             <Badge
                               key={role}
-                              className="bg-white/20 text-white border-white/30 backdrop-blur-sm capitalize text-[10px] px-1.5 py-0"
+                              className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30 backdrop-blur-sm capitalize text-[10px] px-1.5 py-0"
                             >
                               {role}
                             </Badge>
                           ))}
                           {notice.roles?.length > 2 && (
-                            <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm text-[10px] px-1.5 py-0">
+                            <Badge className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30 backdrop-blur-sm text-[10px] px-1.5 py-0">
                               +{notice.roles.length - 2}
                             </Badge>
                           )}
