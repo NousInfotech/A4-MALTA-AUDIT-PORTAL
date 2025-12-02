@@ -1643,3 +1643,129 @@ export const promptApi = {
     return apiCall('/api/admin/prompts');
   },
 }
+
+// Notice Board API
+export const noticeBoardApi = {
+  // Create a new notice
+  create: async (data: {
+    title: string;
+    description: string;
+    roles: string[];
+    type: string;
+    priority?: number;
+    expiresAt?: string;
+  }) => {
+    return apiCall('/api/notices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get all notices with filtering
+  getAll: async (filters?: {
+    page?: number;
+    limit?: number;
+    sort?: string;
+    order?: 'asc' | 'desc';
+    search?: string;
+    type?: string;
+    roles?: string | string[];
+    isActive?: boolean;
+    createdBy?: string;
+    priority?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.sort) params.append('sort', filters.sort);
+    if (filters?.order) params.append('order', filters.order);
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.roles) {
+      if (Array.isArray(filters.roles)) {
+        filters.roles.forEach(role => params.append('roles', role));
+      } else {
+        params.append('roles', filters.roles);
+      }
+    }
+    if (filters?.isActive !== undefined) params.append('isActive', filters.isActive.toString());
+    if (filters?.createdBy) params.append('createdBy', filters.createdBy);
+    if (filters?.priority) params.append('priority', filters.priority.toString());
+
+    const queryString = params.toString();
+    const endpoint = queryString ? `/api/notices?${queryString}` : '/api/notices';
+    return apiCall(endpoint);
+  },
+
+  // Get active notices for current user
+  getActive: async () => {
+    return apiCall('/api/notices/active');
+  },
+
+  // Get single notice by ID
+  getById: async (id: string) => {
+    return apiCall(`/api/notices/${id}`);
+  },
+
+  // Update notice
+  update: async (id: string, data: {
+    title?: string;
+    description?: string;
+    roles?: string[];
+    type?: string;
+    priority?: number;
+    isActive?: boolean;
+    expiresAt?: string;
+  }) => {
+    return apiCall(`/api/notices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete notice
+  delete: async (id: string) => {
+    return apiCall(`/api/notices/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Deactivate notice
+  deactivate: async (id: string) => {
+    return apiCall(`/api/notices/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  // Mark notice as viewed
+  markAsViewed: async (id: string) => {
+    return apiCall(`/api/notices/${id}/view`, {
+      method: 'POST',
+    });
+  },
+
+  // Mark notice as acknowledged
+  markAsAcknowledged: async (id: string) => {
+    return apiCall(`/api/notices/${id}/acknowledge`, {
+      method: 'POST',
+    });
+  },
+
+  // Get notices by type
+  getByType: async (type: string) => {
+    return apiCall(`/api/notices/type/${type}`);
+  },
+
+  // Get notice statistics
+  getStats: async () => {
+    return apiCall('/api/notices/stats');
+  },
+
+  // Bulk delete notices
+  bulkDelete: async (ids: string[]) => {
+    return apiCall('/api/notices/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  },
+};

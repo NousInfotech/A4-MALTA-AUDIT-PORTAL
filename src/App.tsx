@@ -27,6 +27,7 @@ import { AuditorLogs } from "@/pages/admin/AuditorLogs";
 import AdminISQMQuestionnairePage from "@/pages/admin/ISQMQuestionnairePage";
 import BrandingSettings from "@/pages/admin/BrandingSettings";
 import { Folder2FAManagement } from "@/pages/admin/Folder2FAManagement";
+import { NoticeBoardManagement } from "@/pages/admin/NoticeBoardManagement";
 
 // Employee pages
 import { EmployeeDashboard } from "@/pages/employee/EmployeeDashboard";
@@ -64,6 +65,9 @@ import { AnalyticalReviewSection } from "./components/analitical review/Analytic
 import { EditClient } from "./pages/employee/EditClient";
 import { SidebarStatsProvider } from "./contexts/SidebarStatsContext";
 import { NotificationSettingsPage } from "./pages/settings/NotificationSettingsPage";
+import { EmployeeSettingsPage } from "./pages/settings/EmployeeSettingsPage";
+import { AdminSettingsPage } from "./pages/settings/AdminSettingsPage";
+import { ClientSettingsPage } from "./pages/settings/ClientSettingsPage";
 import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
 
 
@@ -120,9 +124,11 @@ const App = () => (
                 <Route path="users" element={<UserManagement />} />
                 <Route path="logs" element={<AuditorLogs />} />
                 <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
-                <Route path="branding" element={<BrandingSettings />} />
-                <Route path="2fa" element={<Folder2FAManagement />} />
-                <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+              <Route path="branding" element={<BrandingSettings />} />
+              <Route path="notice-board" element={<NoticeBoardManagement />} />
+              <Route path="2fa" element={<Folder2FAManagement />} />
+              <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+              <Route path="settings" element={<AdminSettingsPage />} />
               </Route>
 
               {/* Employee Routes */}
@@ -158,6 +164,7 @@ const App = () => (
                 <Route path="audit-workbook" element={<WorkBookApp engagementId={null} classification={null} />} />
                 <Route path="analytics" element={<AnalyticalReviewSection />} />
                 <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                <Route path="settings" element={<EmployeeSettingsPage />} />
               </Route>
 
                 {/* Client Routes */}
@@ -175,6 +182,7 @@ const App = () => (
               
                   <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                   <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                  <Route path="settings" element={<ClientSettingsPage />} />
                   
                 </Route>
 

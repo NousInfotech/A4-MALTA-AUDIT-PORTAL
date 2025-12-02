@@ -11,6 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, ChevronUp, ChevronDown } from "lucide-react"
+import Lottie from "lottie-react"
+import checkMarkAnimation from "@/../public/Check Mark.json"
+import fileSearchAnimation from "@/../public/File Search.json"
 
 // --- helpers ---
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -111,6 +114,13 @@ export const AIPlanningQuestionsStep: React.FC<{
 }> = ({ engagement, mode, stepData, onComplete, onBack }) => {
   const [loading, setLoading] = useState(false)
   const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
+  const [completedSections, setCompletedSections] = useState<Set<string>>(new Set())
+  const [celebration, setCelebration] = useState<{
+    sectionId: string
+    x: number
+    y: number
+    animate: boolean
+  } | null>(null)
   const [procedures, setProcedures] = useState<any[]>(() => {
     // Initialize with empty sections if none exist
     const existingProcedures = withUids(stepData.procedures || []);
@@ -126,6 +136,7 @@ export const AIPlanningQuestionsStep: React.FC<{
   })
   const { toast } = useToast()
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   const scrollToSection = (sectionId: string) => {
     const sectionElement = sectionRefs.current[sectionId]
@@ -177,6 +188,12 @@ export const AIPlanningQuestionsStep: React.FC<{
 
   const handleGenerateSectionQuestions = async (sectionId: string) => {
     setLoading(true)
+    // Clear previous "completed" state for this section while regenerating
+    setCompletedSections((prev) => {
+      const next = new Set(prev)
+      next.delete(sectionId)
+      return next
+    })
     setGeneratingSections(prev => {
       const newSet = new Set(prev)
       newSet.add(sectionId)
@@ -200,7 +217,46 @@ export const AIPlanningQuestionsStep: React.FC<{
         return updated
       })
 
+      // Mark section as successfully generated for celebratory UI
+      setCompletedSections((prev) => {
+        const next = new Set(prev)
+        next.add(sectionId)
+        return next
+      })
+
       toast({ title: "Questions Generated", description: `Questions for section generated successfully.` })
+
+      // Trigger Lottie celebration:
+      // 1) Play big in the center
+      // 2) After animation finishes, move & shrink towards the section
+      const container = containerRef.current
+      const targetEl = sectionRefs.current[sectionId]
+      if (container && targetEl) {
+        const containerRect = container.getBoundingClientRect()
+        const targetRect = targetEl.getBoundingClientRect()
+
+        const targetX =
+          targetRect.left +
+          targetRect.width / 2 -
+          (containerRect.left + containerRect.width / 2)
+        const targetY =
+          targetRect.top +
+          targetRect.height / 2 -
+          (containerRect.top + containerRect.height / 2)
+
+        // Start centered, no movement yet
+        setCelebration({ sectionId, x: targetX, y: targetY, animate: false })
+
+        // After the main Lottie animation duration, start the move/shrink
+        const centerDurationMs = 2000 // show in center for ~1.5s
+
+        setTimeout(() => {
+          setCelebration((prev) => (prev ? { ...prev, animate: true } : prev))
+        }, centerDurationMs)
+
+        // Clear after fly animation
+        setTimeout(() => setCelebration(null), centerDurationMs + flyDurationMs)
+      }
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
     } finally {
@@ -334,7 +390,7 @@ export const AIPlanningQuestionsStep: React.FC<{
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative" ref={containerRef}>
       <div className="text-sm text-muted-foreground">
         Step-1: Generate questions for each planning section separately. You can freely <b>edit / add / remove</b> questions here before moving to Step-4.
       </div>
@@ -390,8 +446,21 @@ export const AIPlanningQuestionsStep: React.FC<{
                     {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
                   </div>
                 </div>
-                {/* Navigation buttons */}
-                <div className="flex justify-between gap-2">
+                {/* Actions / status */}
+                <div className="flex items-center gap-3">
+                  {completedSections.has(section.sectionId) && !generatingSections.has(section.sectionId) && (
+                    <div className="flex items-center gap-1 text-emerald-600 animate-in fade-in slide-in-from-top-1">
+                      <div className="h-6 w-6">
+                        <Lottie
+                          animationData={checkMarkAnimation}
+                          loop
+                          autoplay
+                        />
+                      </div>
+                      <span className="text-xs font-semibold">Section ready</span>
+                    </div>
+                  )}
+
                   <Button
                     onClick={() => handleGenerateSectionQuestions(section.sectionId)}
                     disabled={loading || generatingSections.has(section.sectionId)}
@@ -441,8 +510,18 @@ export const AIPlanningQuestionsStep: React.FC<{
                       )}
                       <div className="text-xs text-muted-foreground">
                         <code>type:</code> {normalizeType(f.type)}
-                        {Array.isArray(f.options) && f.options.length ? <> · <code>options:</code> {f.options.join(", ")}</> : null}
-                        {Array.isArray(f.columns) && f.columns.length ? <> · <code>columns:</code> {f.columns.join(", ")}</> : null}
+                        {Array.isArray(f.options) && f.options.length && (
+                          <span>
+                            {" "}
+                            · <code>options:</code> {f.options.join(", ")}
+                          </span>
+                        )}
+                        {Array.isArray(f.columns) && f.columns.length && (
+                          <span>
+                            {" "}
+                            · <code>columns:</code> {f.columns.join(", ")}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -481,6 +560,45 @@ export const AIPlanningQuestionsStep: React.FC<{
         <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
         {/* <Button variant="ghost" onClick={onBack}>Back</Button> */}
       </div>
+
+        {/* Full-screen blurred overlay with File Search animation during procedure generation */}
+      {generatingSections.size > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-[150px] h-[150px] rounded-full bg-primary flex items-center justify-center p-4">
+              <div className="w-full h-full">
+                <Lottie animationData={fileSearchAnimation} loop autoplay />
+              </div>
+            </div>
+            <span className="mt-4 text-sm text-white font-medium">
+              Generating questions...
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Celebration Lottie overlay – centered with subtle backdrop, then moves to target section */}
+      {celebration && (
+        <div
+          className={
+            "pointer-events-none fixed inset-0 z-50 flex items-center justify-center" +
+            (celebration.animate ? "" : " bg-black/40 backdrop-blur-sm")
+          }
+        >
+          <div
+            className="transition-transform duration-700 ease-out"
+            style={{
+              transform: celebration.animate
+                ? `translate(${celebration.x}px, ${celebration.y}px) scale(0.25)`
+                : "translate(0, 0) scale(1)",
+            }}
+          >
+            <div className="w-48 h-48">
+              <Lottie animationData={checkMarkAnimation} loop={false} autoplay />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

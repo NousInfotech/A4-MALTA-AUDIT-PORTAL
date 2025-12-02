@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { EnhancedLoader } from '@/components/ui/enhanced-loader';
 import { ClientComprehensiveNavigation } from '@/components/ui/client-comprehensive-navigation';
 import { getEngagementStatusLabel, getPBCStatusLabel } from '@/lib/statusLabels';
+import { NoticeBoard } from '@/components/notice-board/NoticeBoard';
 
 export const ClientDashboard = () => {
   const { user } = useAuth();
@@ -111,6 +112,9 @@ export const ClientDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Notice Board - Top Priority */}
+            <NoticeBoard />
+
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {stats.map((stat, index) => {

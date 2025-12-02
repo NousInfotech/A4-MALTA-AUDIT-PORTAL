@@ -1,31 +1,43 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Lottie from "lottie-react"
+import loadingSearch from "@/../public/Free Searching Animation.json"
 
 interface EnhancedLoaderProps {
   size?: "sm" | "md" | "lg"
-  text?: string
   className?: string
   variant?: "default" | "dots" | "pulse" | "bounce"
 }
 
-export function EnhancedLoader({ size = "md", text, className, variant = "default" }: EnhancedLoaderProps) {
-  const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-8 w-8",
-    lg: "h-12 w-12",
+export function EnhancedLoader({ size = "md", className }: EnhancedLoaderProps) {
+  const sizePx: Record<NonNullable<EnhancedLoaderProps["size"]>, number> = {
+    sm: 64,
+    md: 80,
+    lg: 200,
   }
 
-  // Simplified loader for better performance
+  const dimension = sizePx[size]
+
   return (
-    <div className={cn("flex items-center justify-center", className)}>
-      <Loader2 className={cn(sizeClasses[size], "animate-spin text-gray-600")} />
-      {text && (
-        <span className="ml-3 text-muted-foreground">
-          {text}
-        </span>
+    <div
+      className={cn(
+        // Centered in both axes by default; callers can override with className
+        "flex flex-col items-center justify-center",
+        className
       )}
+    >
+      <div
+        style={{
+          width: dimension,
+          height: dimension,
+        }}
+      >
+        <Lottie animationData={loadingSearch} loop autoplay />
+      </div>
+      <span className="mt-3 text-sm text-muted-foreground text-center px-4">
+        Please wait a moment while we prepare your data…
+      </span>
     </div>
   )
 }

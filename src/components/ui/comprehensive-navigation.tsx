@@ -149,6 +149,35 @@ export const ComprehensiveNavigation: React.FC<ComprehensiveNavigationProps> = (
         { title: "Banking", href: "/employee/accounts/banking", icon: Building2, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 75, description: "Banking details" },
         { title: "Transactions", href: "/employee/accounts/transactions", icon: Activity, color: "text-gray-600", bgColor: "bg-gray-700", percentage: 85, description: "Transaction history" }
       ]
+    },
+    {
+      title: "Settings",
+      href: "/employee/settings",
+      icon: Settings,
+      color: "text-gray-600",
+      bgColor: "bg-gray-700",
+      percentage: 50,
+      description: "Profile & Preferences",
+      subPages: [
+        {
+          title: "Profile & Account",
+          href: "/employee/settings",
+          icon: Settings,
+          color: "text-gray-600",
+          bgColor: "bg-gray-700",
+          percentage: 50,
+          description: "Name, email, security"
+        },
+        {
+          title: "Notifications",
+          href: "/employee/settings/notifications",
+          icon: Settings,
+          color: "text-gray-600",
+          bgColor: "bg-gray-700",
+          percentage: 60,
+          description: "Notification channels"
+        }
+      ]
     }
   ];
 

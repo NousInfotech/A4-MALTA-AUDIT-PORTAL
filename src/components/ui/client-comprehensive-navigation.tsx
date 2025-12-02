@@ -14,7 +14,9 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  Shield
+  Shield,
+  Settings,
+  Bell,
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -97,6 +99,35 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
         { title: "Financial Data", href: "/client/accounts", icon: FileText, color: "text-gray-500", bgColor: "bg-gray-600", percentage: 80, description: "Financial overview" },
         { title: "Apideck Integration", href: "/client/accounts?tab=apideck", icon: Zap, color: "text-gray-500", bgColor: "bg-gray-600", percentage: 75, description: "API integrations" },
         { title: "Banking Data", href: "/client/accounts?tab=saltedge", icon: CreditCard, color: "text-gray-500", bgColor: "bg-gray-600", percentage: 85, description: "Banking connections" }
+      ]
+    },
+    {
+      title: "Settings",
+      href: "/client/settings",
+      icon: Settings,
+      color: "text-gray-500",
+      bgColor: "bg-gray-600",
+      percentage: 50,
+      description: "Profile & Notifications",
+      subPages: [
+        {
+          title: "Profile",
+          href: "/client/settings",
+          icon: Settings,
+          color: "text-gray-500",
+          bgColor: "bg-gray-600",
+          percentage: 50,
+          description: "Contact details"
+        },
+        {
+          title: "Notifications",
+          href: "/client/settings/notifications",
+          icon: Bell,
+          color: "text-gray-500",
+          bgColor: "bg-gray-600",
+          percentage: 60,
+          description: "Notification channels"
+        }
       ]
     }
   ];
