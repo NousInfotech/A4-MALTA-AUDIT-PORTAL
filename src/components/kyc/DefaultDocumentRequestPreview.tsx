@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDrList } from '@/hooks/useDocumentRequestTemplateHook';
-import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
+import { DocumentRequestTemplate, TemplateItem } from '@/lib/api/documentRequestTemplate';
 
 interface DefaultDocumentRequestPreviewProps {
   onAddDocuments: (selectedDocuments: DocumentRequestTemplate[]) => void;
@@ -103,7 +103,13 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
     );
   };
 
-  const getDocumentTypeBadge = (type: 'direct' | 'template') => {
+  const getDocumentTypeBadge = (document: DocumentRequestTemplate) => {
+    const isMultiple = document.multiple && document.multiple.length > 0;
+    const type = document.type;
+    const label = type === 'template' 
+      ? (isMultiple ? 'Template (Multiple)' : 'Template')
+      : (isMultiple ? 'Direct (Multiple)' : 'Direct');
+    
     return (
       <Badge
         variant="outline"
@@ -112,7 +118,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
           : "text-gray-600 border-gray-300 bg-gray-50"
         }
       >
-        {type === 'template' ? 'Template' : 'Direct'}
+        {label}
       </Badge>
     );
   };
@@ -178,61 +184,154 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
       <CardContent className="p-6">
         <div className="space-y-6">
           <div className="grid gap-3">
-            {drList.map((document, index) => (
-              <div
-                key={index}
-                className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${selectedDocuments.has(document._id)
-                    ? 'border-amber-500 bg-brand-body'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-4">
-                  <Checkbox
-                    checked={selectedDocuments.has(document._id)}
-                    onCheckedChange={() => handleDocumentToggle(document._id)}
-                    className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
-                  />
-                  <div className="flex items-center gap-3">
-                    {getDocumentIcon(document.type as 'direct' | 'template')}
-                    <div>
-                      <p className="font-medium text-gray-900">{document.name}</p>
-                      <p className="text-sm text-gray-600">{document.description}</p>
-                      {document.template?.instructions && (
-                        <p className="text-xs text-amber-600 mt-1 italic">
-                          {document.template?.instructions}
-                        </p>
+            {drList.map((document, index) => {
+              const isMultiple = document.multiple && document.multiple.length > 0;
+              
+              return (
+                <div
+                  key={index}
+                  className={`rounded-xl border-2 transition-all ${selectedDocuments.has(document._id)
+                      ? 'border-amber-500 bg-brand-body'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <Checkbox
+                        checked={selectedDocuments.has(document._id)}
+                        onCheckedChange={() => handleDocumentToggle(document._id)}
+                        className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                      />
+                      <div className="flex items-center gap-3 flex-1">
+                        {getDocumentIcon(document.type as 'direct' | 'template')}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{document.name}</p>
+                          <p className="text-sm text-gray-600">{document.description}</p>
+                          
+                          {/* Single copy template instructions */}
+                          {!isMultiple && document.type === 'template' && document.template?.instructions && (
+                            <p className="text-xs text-amber-600 mt-1 italic">
+                              {document.template.instructions}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {getDocumentTypeBadge(document)}
+                    
+                      {/* Preview/download buttons for single copy template */}
+                      {!isMultiple && document.type === 'template' && document.template?.url && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => previewDocument(document.template?.url!)}
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadDocument(document.template?.url!, document.name)}
+                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {getDocumentTypeBadge(document.type as 'direct' | 'template')}
-                
-                  {/* Only show preview/download buttons for template documents */}
-                  {document.type === 'template' && document.template?.url && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => previewDocument(document.template?.url!)}
-                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => downloadDocument(document.template?.url!, document.name)}
-                        className="border-gray-300 hover:bg-gray-100 text-gray-700"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
+                  
+                  {/* Multiple copies display */}
+                  {isMultiple && document.multiple && (
+                    <div className={`px-4 pb-4 border-t ${
+                      selectedDocuments.has(document._id)
+                        ? 'border-amber-200'
+                        : 'border-gray-200'
+                    }`}>
+                      <div className={`mt-3 space-y-2 ${
+                        document.type === 'template'
+                          ? 'text-amber-900 bg-amber-50 border border-amber-100 rounded-lg p-3'
+                          : 'text-gray-900 bg-gray-50 border border-gray-100 rounded-lg p-3'
+                      }`}>
+                        <p className="font-medium text-sm mb-2">
+                          Multiple Copies ({document.multiple.length} {document.multiple.length === 1 ? 'item' : 'items'})
+                        </p>
+                        <div className="space-y-2">
+                          {document.multiple.map((item: TemplateItem, idx: number) => (
+                            <div
+                              key={idx}
+                              className={`p-2 rounded border text-xs ${
+                                document.type === 'template'
+                                  ? 'bg-white border-amber-200'
+                                  : 'bg-white border-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`font-medium ${
+                                      document.type === 'template' ? 'text-amber-900' : 'text-gray-900'
+                                    }`}>
+                                      {idx + 1}. {item.label}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Instruction field (outside) - only for Template type */}
+                                  {document.type === 'template' && item.instruction && (
+                                    <div className="mt-1 mb-1 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded p-2">
+                                      <p className="font-medium mb-1">Instructions:</p>
+                                      <p className="whitespace-pre-line">{item.instruction}</p>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Template info - only for Template type */}
+                                  {document.type === 'template' && item.template && (
+                                    <div className="mt-1 space-y-1">
+                                      {item.template.instructions && (
+                                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded p-2">
+                                          <p className="font-medium mb-1">Template Instructions:</p>
+                                          <p className="whitespace-pre-line">{item.template.instructions}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Download/preview buttons for template items */}
+                                {document.type === 'template' && item.template?.url && (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => previewDocument(item.template!.url!)}
+                                      className="border-amber-300 hover:bg-amber-100 text-amber-700 h-7 px-2"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => downloadDocument(item.template!.url!, `${document.name} - ${item.label}`)}
+                                      className="border-amber-300 hover:bg-amber-100 text-amber-700 h-7 px-2"
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

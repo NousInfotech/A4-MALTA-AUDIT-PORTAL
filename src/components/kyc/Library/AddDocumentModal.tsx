@@ -21,7 +21,8 @@ import { Plus, FileEdit, FileUp, Info, Loader2, Link as LinkIcon, Trash2 } from 
 import { useToast } from "@/hooks/use-toast";
 import { uploadTemplate, uploadMultipleTemplates } from "@/lib/api/documentRequestTemplate";
 
-type DocumentType = 'Template' | 'Direct' | 'Multiple';
+type DocumentType = 'Template' | 'Direct';
+type CopyType = 'single' | 'multiple';
 const CATEGORY_OPTIONS = [
   "Planning",
   "Capital & Reserves",
@@ -43,6 +44,7 @@ const CATEGORY_OPTIONS = [
 
 export interface TemplateItem {
   label: string;
+  instruction?: string;
   templateFile?: File | null;
   templateUrl?: string;
   templateInstructions?: string;
@@ -58,6 +60,7 @@ export interface DocumentFormValues {
   templateUrl?: string;
   multiple?: Array<{
     label: string;
+    instruction?: string;
     template?: {
       url?: string;
       instructions?: string;
@@ -82,6 +85,7 @@ export function AddDocumentModal({
 }: AddDocumentModalProps) {
   const [documentName, setDocumentName] = useState('');
   const [description, setDescription] = useState('');
+  const [copyType, setCopyType] = useState<CopyType>('single');
   const [type, setType] = useState<DocumentType>('Direct');
   const [category, setCategory] = useState<string>('Planning');
   const [customCategory, setCustomCategory] = useState<string>('');
@@ -89,7 +93,7 @@ export function AddDocumentModal({
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templateUrl, setTemplateUrl] = useState<string | undefined>(undefined);
   const [multipleItems, setMultipleItems] = useState<TemplateItem[]>([
-    { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }
+    { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
@@ -99,13 +103,14 @@ export function AddDocumentModal({
   const resetForm = () => {
     setDocumentName('');
     setDescription('');
+    setCopyType('single');
     setType('Direct');
     setCategory('Planning');
     setCustomCategory('');
     setTemplateInstructions('');
     setTemplateFile(null);
     setTemplateUrl(undefined);
-    setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
+    setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }]);
     setSubmitting(false);
     setUploadingTemplate(false);
   };
@@ -114,7 +119,30 @@ export function AddDocumentModal({
     if (open && initialData) {
       setDocumentName(initialData.documentName || '');
       setDescription(initialData.description || '');
-      setType(initialData.type || 'Direct');
+      
+      // Determine if it's single or multiple based on whether multiple array exists
+      if (initialData.multiple && initialData.multiple.length > 0) {
+        setCopyType('multiple');
+        // Determine type from the multiple items - if any has template, it's Template type
+        const hasTemplate = initialData.multiple.some(item => item.template);
+        setType(hasTemplate ? 'Template' : 'Direct');
+        setMultipleItems(
+          initialData.multiple.map((item) => ({
+            label: item.label || '',
+            instruction: item.instruction || '',
+            templateUrl: item.template?.url,
+            templateInstructions: item.template?.instructions || '',
+            templateFile: null,
+          }))
+        );
+      } else {
+        setCopyType('single');
+        setType(initialData.type || 'Direct');
+        setTemplateInstructions(initialData.templateInstructions || '');
+        setTemplateUrl(initialData.templateUrl);
+        setTemplateFile(null);
+      }
+      
       const existingCategory = initialData.category || 'Planning';
       // If the existing category is one of the predefined options, use it directly.
       // Otherwise, treat it as a custom category under "Others".
@@ -124,21 +152,6 @@ export function AddDocumentModal({
       } else {
         setCategory('Others');
         setCustomCategory(existingCategory);
-      }
-      setTemplateInstructions(initialData.templateInstructions || '');
-      setTemplateUrl(initialData.templateUrl);
-      setTemplateFile(null);
-      
-      // Handle multiple type
-      if (initialData.type === 'Multiple' && initialData.multiple) {
-        setMultipleItems(
-          initialData.multiple.map((item) => ({
-            label: item.label || '',
-            templateUrl: item.template?.url,
-            templateInstructions: item.template?.instructions || '',
-            templateFile: null,
-          }))
-        );
       }
     }
 
@@ -185,39 +198,6 @@ export function AddDocumentModal({
       return;
     }
 
-    if (type === 'Template' && !templateFile && !templateUrl) {
-      toast({
-        title: "Template file required",
-        description: "Please upload a template file before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === 'Multiple') {
-      // Validate multiple items
-      const validItems = multipleItems.filter(item => item.label.trim());
-      if (validItems.length === 0) {
-        toast({
-          title: "At least one item required",
-          description: "Please add at least one template item with a label.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check if all items have labels
-      const itemsWithoutLabels = multipleItems.filter(item => !item.label.trim());
-      if (itemsWithoutLabels.length > 0) {
-        toast({
-          title: "Labels required",
-          description: "All template items must have a label.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     // Require a custom category name when "Others" is selected
     if (category === 'Others' && !customCategory.trim()) {
       toast({
@@ -228,31 +208,106 @@ export function AddDocumentModal({
       return;
     }
 
-    try {
-      setSubmitting(true);
-      const effectiveCategory =
-        category === 'Others'
-          ? customCategory.trim()
-          : category;
-      
-      if (type === 'Template') {
-        let finalTemplateUrl = templateUrl;
-        if (templateFile) {
-          finalTemplateUrl = await handleTemplateUpload();
-          if (!finalTemplateUrl) return;
+    const effectiveCategory =
+      category === 'Others'
+        ? customCategory.trim()
+        : category;
+
+    if (copyType === 'single') {
+      // Single copy validation
+      if (type === 'Template' && !templateFile && !templateUrl) {
+        toast({
+          title: "Template file required",
+          description: "Please upload a template file before saving.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+        
+        if (type === 'Template') {
+          let finalTemplateUrl = templateUrl;
+          if (templateFile) {
+            finalTemplateUrl = await handleTemplateUpload();
+            if (!finalTemplateUrl) return;
+          }
+
+          await onSubmit({
+            id: initialData?.id,
+            documentName: documentName.trim(),
+            description: description.trim(),
+            type,
+            category: effectiveCategory,
+            templateInstructions: templateInstructions.trim() || undefined,
+            templateUrl: finalTemplateUrl,
+          });
+        } else {
+          // Direct type
+          await onSubmit({
+            id: initialData?.id,
+            documentName: documentName.trim(),
+            description: description.trim(),
+            type,
+            category: effectiveCategory,
+          });
         }
 
-        await onSubmit({
-          id: initialData?.id,
-          documentName: documentName.trim(),
-          description: description.trim(),
-          type,
-          category: effectiveCategory,
-          templateInstructions: templateInstructions.trim() || undefined,
-          templateUrl: finalTemplateUrl,
+        resetForm();
+      } catch (error) {
+        console.error("Failed to submit document:", error);
+        toast({
+          title: "Unable to save",
+          description: "Something went wrong while saving the document.",
+          variant: "destructive",
         });
-      } else if (type === 'Multiple') {
-        // Upload multiple template files
+      } finally {
+        setSubmitting(false);
+        setUploadingTemplate(false);
+      }
+    } else {
+      // Multiple copies validation
+      const validItems = multipleItems.filter(item => item.label.trim());
+      if (validItems.length === 0) {
+        toast({
+          title: "At least one item required",
+          description: "Please add at least one item with a label.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if all items have labels
+      const itemsWithoutLabels = multipleItems.filter(item => !item.label.trim());
+      if (itemsWithoutLabels.length > 0) {
+        toast({
+          title: "Labels required",
+          description: "All items must have a label.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // For Template type in multiple, validate template files
+      if (type === 'Template') {
+        const itemsWithoutTemplate = multipleItems.filter(
+          item => item.label.trim() && !item.templateFile && !item.templateUrl
+        );
+        if (itemsWithoutTemplate.length > 0) {
+          toast({
+            title: "Template files required",
+            description: "All template items must have a template file.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      try {
+        setSubmitting(true);
+        
+        // Upload multiple template files if needed
         const itemsToUpload = multipleItems.filter(item => item.templateFile);
         let uploadedUrls: string[] = [];
         
@@ -274,47 +329,48 @@ export function AddDocumentModal({
               urlIndex++;
             }
 
-            return {
-              label: item.label.trim(),
-              template: itemUrl || item.templateInstructions
-                ? {
-                    url: itemUrl,
-                    instructions: item.templateInstructions?.trim() || undefined,
-                  }
-                : undefined,
-            };
+            // For Direct type: only label (no instruction field)
+            // For Template type: label, instruction (outside), and template with instructions (inside)
+            if (type === 'Direct') {
+              return {
+                label: item.label.trim(),
+              };
+            } else {
+              // Template type - include template object only if we have a URL
+              return {
+                label: item.label.trim(),
+                instruction: item.instruction?.trim() || undefined,
+                template: itemUrl
+                  ? {
+                      url: itemUrl,
+                      instructions: item.templateInstructions?.trim() || undefined,
+                    }
+                  : undefined,
+              };
+            }
           });
 
         await onSubmit({
           id: initialData?.id,
           documentName: documentName.trim(),
           description: description.trim(),
-          type: 'Multiple',
+          type,
           category: effectiveCategory,
           multiple: multipleData,
         });
-      } else {
-        // Direct type
-        await onSubmit({
-          id: initialData?.id,
-          documentName: documentName.trim(),
-          description: description.trim(),
-          type,
-          category: effectiveCategory,
-        });
-      }
 
-      resetForm();
-    } catch (error) {
-      console.error("Failed to submit document:", error);
-      toast({
-        title: "Unable to save",
-        description: "Something went wrong while saving the document.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-      setUploadingTemplate(false);
+        resetForm();
+      } catch (error) {
+        console.error("Failed to submit document:", error);
+        toast({
+          title: "Unable to save",
+          description: "Something went wrong while saving the document.",
+          variant: "destructive",
+        });
+      } finally {
+        setSubmitting(false);
+        setUploadingTemplate(false);
+      }
     }
   };
 
@@ -407,7 +463,32 @@ export function AddDocumentModal({
               />
             </div>
           )}
-          
+
+          {/* Copy Type Selection */}
+          <div>
+            <Label htmlFor="copyType">Copy Type <span className="text-red-500">*</span></Label>
+            <Select
+              value={copyType}
+              onValueChange={(value: CopyType) => {
+                setCopyType(value);
+                if (value === 'single') {
+                  setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }]);
+                } else if (value === 'multiple' && multipleItems.length === 0) {
+                  setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }]);
+                }
+              }}
+            >
+              <SelectTrigger id="copyType" className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Single Copy</SelectItem>
+                <SelectItem value="multiple">Multiple Copies</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Type Selection (Direct or Template) */}
           <div>
             <Label htmlFor="type">Type <span className="text-red-500">*</span></Label>
             <Select
@@ -416,8 +497,7 @@ export function AddDocumentModal({
                 setType(value);
                 if (value === 'Direct') {
                   setTemplateFile(null);
-                } else if (value === 'Multiple' && multipleItems.length === 0) {
-                  setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
+                  setTemplateUrl(undefined);
                 }
               }}
             >
@@ -437,15 +517,11 @@ export function AddDocumentModal({
                     Direct
                   </div>
                 </SelectItem>
-                <SelectItem value="Multiple">
-                  <div className="flex items-center gap-2">
-                    <FileEdit className="h-4 w-4 text-purple-600" />
-                    Multiple
-                  </div>
-                </SelectItem>
               </SelectContent>
             </Select>
-            {type === 'Template' && (
+            
+            {/* Single Copy - Template */}
+            {copyType === 'single' && type === 'Template' && (
               <div className="mt-4 space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center gap-2">
                   <Info className="h-4 w-4 text-blue-600" />
@@ -510,13 +586,14 @@ export function AddDocumentModal({
               </div>
             )}
 
-            {type === 'Multiple' && (
+            {/* Multiple Copies */}
+            {copyType === 'multiple' && (
               <div className="mt-4 space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Info className="h-4 w-4 text-purple-600" />
                     <span className="text-sm font-medium text-purple-800">
-                      Multiple Template Items
+                      Multiple Copies - {type === 'Direct' ? 'Direct Upload' : 'Template'}
                     </span>
                   </div>
                   <Button
@@ -526,7 +603,7 @@ export function AddDocumentModal({
                     onClick={() => {
                       setMultipleItems([
                         ...multipleItems,
-                        { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }
+                        { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }
                       ]);
                     }}
                     className="h-8"
@@ -542,11 +619,11 @@ export function AddDocumentModal({
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex-1">
                           <Label htmlFor={`item-label-${index}`} className="text-xs">
-                            Item Label <span className="text-red-500">*</span>
+                            Label <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id={`item-label-${index}`}
-                            placeholder="e.g., Front Page, Page 1"
+                            placeholder="e.g., Front Page, Page 1, Copy 1"
                             value={item.label}
                             onChange={(e) => {
                               const updated = [...multipleItems];
@@ -563,7 +640,7 @@ export function AddDocumentModal({
                             size="sm"
                             onClick={() => {
                               const updated = multipleItems.filter((_, i) => i !== index);
-                              setMultipleItems(updated.length > 0 ? updated : [{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
+                              setMultipleItems(updated.length > 0 ? updated : [{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }]);
                             }}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
@@ -572,69 +649,97 @@ export function AddDocumentModal({
                         )}
                       </div>
 
-                      <div className="space-y-2 mt-3">
-                        <Label htmlFor={`item-file-${index}`} className="text-xs">
-                          Template File <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id={`item-file-${index}`}
-                          type="file"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            const updated = [...multipleItems];
-                            updated[index].templateFile = file;
-                            if (file) {
-                              updated[index].templateUrl = undefined;
-                            }
-                            setMultipleItems(updated);
-                          }}
-                          className="text-xs"
-                          required
-                        />
-                        {(item.templateFile || item.templateUrl) && (
-                          <p className="text-xs text-gray-700">
-                            {item.templateFile
-                              ? `Selected: ${item.templateFile.name}`
-                              : item.templateUrl && (
-                                  <a
-                                    href={item.templateUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900"
-                                  >
-                                    <LinkIcon className="h-3 w-3" />
-                                    Download existing template
-                                  </a>
-                                )}
-                          </p>
-                        )}
-                      </div>
+                      {/* Instructions field (optional) - only shown for Template type */}
+                      {type === 'Template' && (
+                        <div className="mt-3">
+                          <Label htmlFor={`item-instruction-${index}`} className="text-xs">
+                            Instructions (Optional)
+                          </Label>
+                          <Textarea
+                            id={`item-instruction-${index}`}
+                            placeholder="Instructions for this item..."
+                            value={item.instruction || ''}
+                            onChange={(e) => {
+                              const updated = [...multipleItems];
+                              updated[index].instruction = e.target.value;
+                              setMultipleItems(updated);
+                            }}
+                            rows={2}
+                            className="mt-1 text-xs"
+                          />
+                        </div>
+                      )}
 
-                      <div className="mt-3">
-                        <Label htmlFor={`item-instructions-${index}`} className="text-xs">
-                          Instructions <span className="text-red-500">*</span>    
-                        </Label>
-                        <Textarea
-                          id={`item-instructions-${index}`}
-                          placeholder="Instructions for this template item..."
-                          value={item.templateInstructions || ''}
-                          onChange={(e) => {
-                            const updated = [...multipleItems];
-                            updated[index].templateInstructions = e.target.value;
-                            setMultipleItems(updated);
-                          }}
-                          rows={2}
-                          className="mt-1 text-xs"
-                          required
-                        />
-                      </div>
+                      {/* Template file field - only shown for Template type */}
+                      {type === 'Template' && (
+                        <div className="space-y-2 mt-3">
+                          <Label htmlFor={`item-file-${index}`} className="text-xs">
+                            Template File <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id={`item-file-${index}`}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              const updated = [...multipleItems];
+                              updated[index].templateFile = file;
+                              if (file) {
+                                updated[index].templateUrl = undefined;
+                              }
+                              setMultipleItems(updated);
+                            }}
+                            className="text-xs"
+                            required
+                          />
+                          {(item.templateFile || item.templateUrl) && (
+                            <p className="text-xs text-gray-700">
+                              {item.templateFile
+                                ? `Selected: ${item.templateFile.name}`
+                                : item.templateUrl && (
+                                    <a
+                                      href={item.templateUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900"
+                                    >
+                                      <LinkIcon className="h-3 w-3" />
+                                      Download existing template
+                                    </a>
+                                  )}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Template instructions field - only shown for Template type */}
+                      {type === 'Template' && (
+                        <div className="mt-3">
+                          <Label htmlFor={`item-template-instructions-${index}`} className="text-xs">
+                            Template Instructions (Optional)
+                          </Label>
+                          <Textarea
+                            id={`item-template-instructions-${index}`}
+                            placeholder="Instructions for filling this template..."
+                            value={item.templateInstructions || ''}
+                            onChange={(e) => {
+                              const updated = [...multipleItems];
+                              updated[index].templateInstructions = e.target.value;
+                              setMultipleItems(updated);
+                            }}
+                            rows={2}
+                            className="mt-1 text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 <p className="text-xs text-gray-600">
-                  Add multiple template items for documents that require multiple pages or files (e.g., Passport front/back, Form16 pages)
+                  {type === 'Direct' 
+                    ? "Add multiple items for documents that require multiple copies (e.g., multiple pages, different versions)"
+                    : "Add multiple template items for documents that require multiple pages or files (e.g., Passport front/back, Form16 pages)"}
                 </p>
               </div>
             )}
@@ -655,7 +760,8 @@ export function AddDocumentModal({
               !documentName.trim() || 
               submitting || 
               uploadingTemplate ||
-              (type === 'Multiple' && multipleItems.filter(item => item.label.trim()).length === 0)
+              (copyType === 'multiple' && multipleItems.filter(item => item.label.trim()).length === 0) ||
+              (copyType === 'multiple' && type === 'Template' && multipleItems.some(item => item.label.trim() && !item.templateFile && !item.templateUrl))
             }
             className="bg-brand-hover hover:bg-brand-sidebar text-white"
           >

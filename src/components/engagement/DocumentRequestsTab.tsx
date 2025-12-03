@@ -89,7 +89,7 @@ const categories = [
   "Investment Property",
   "Investment in Subsidiaries & Associates investments",
   "Receivables",
-  "Payables",
+  "Payables",     
   "Inventory",
   "Bank & Cash",
   "Borrowings & loans",
@@ -99,7 +99,7 @@ const categories = [
 ];
 
 const mockSingleAndMultipleRequest: DocumentRequest = {
-  _id: "req_1",
+  _id: "req_1", 
   engagement: "eng_123",
   clientId: "client_456",
 
@@ -173,7 +173,8 @@ const mockSingleAndMultipleRequest: DocumentRequest = {
       ],
     },
   ],
-}
+} 
+
 type ComboOption = { value: string; label?: string };
 
 function SearchableSelect({
@@ -306,6 +307,7 @@ export const DocumentRequestsTab = ({
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [addRequestModalOpen, setAddRequestModalOpen] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [multipleDocuments, setMultipleDocuments] = useState<any[]>([]);
   const [newDocument, setNewDocument] = useState<Partial<any>>({
     name: '',
     type: 'direct',
@@ -851,7 +853,7 @@ export const DocumentRequestsTab = ({
       return;
     }
 
-    if (documents.length === 0) {
+    if (documents.length === 0 && multipleDocuments.length === 0) {
       toast({
         title: "Error",
         description: "Please add at least one document",
@@ -893,6 +895,42 @@ export const DocumentRequestsTab = ({
         })
       );
 
+      // Process multiple documents (they don't need template uploads as templates are already URLs)
+      const processedMultipleDocuments = multipleDocuments.map((doc: any) => {
+        const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+        return {
+          name: doc.name,
+          type: docType,
+          instruction: doc.instruction || undefined,
+          multiple: doc.multiple.map((item: any) => {
+            // Backend expects: label, template.url, template.instruction (singular)
+            // Combine item.instruction and template.instructions into template.instruction
+            // Priority: template.instructions > item.instruction, combine if both exist
+            let combinedInstruction = '';
+            if (item.instruction) {
+              combinedInstruction = item.instruction;
+            }
+            if (item.template?.instructions) {
+              combinedInstruction = combinedInstruction 
+                ? `${combinedInstruction}\n\nTemplate Instructions: ${item.template.instructions}`
+                : item.template.instructions;
+            }
+            const templateInstruction = combinedInstruction || undefined;
+            
+            return {
+              label: item.label,
+              template: item.template?.url || templateInstruction
+                ? {
+                    url: item.template?.url || undefined,
+                    instruction: templateInstruction, // Backend uses singular 'instruction'
+                  }
+                : undefined,
+              status: 'pending' as const
+            };
+          })
+        };
+      });
+
       const documentRequestData = {
         engagementId: engagementId!,
         clientId: engagement?.clientId || '',
@@ -908,7 +946,8 @@ export const DocumentRequestsTab = ({
             status: 'pending' as const,
             template: docType === 'template' ? doc.template : undefined
           };
-        })
+        }),
+        multipleDocuments: processedMultipleDocuments
       };
 
       await documentRequestApi.create(documentRequestData);
@@ -920,6 +959,7 @@ export const DocumentRequestsTab = ({
 
       // Reset form
       setDocuments([]);
+      setMultipleDocuments([]);
       setNewDocument({
         name: '',
         type: 'direct',
@@ -1527,25 +1567,74 @@ export const DocumentRequestsTab = ({
               {/* Default Document Request Preview */}
               <DefaultDocumentRequestPreview
                 onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
-              const newDocs: any[] = selectedDocuments.map(doc => {
-                // Ensure type is always a string
-                const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
-                return {
-                  name: doc.name,
-                  type: docType,
-                  description: doc.description,
-                  template: docType === 'template'
-                    ? { url: doc.template?.url, instruction: doc.template?.instructions }
-                    : undefined,
-                  status: 'pending' as const
-                };
-              });
+                  const newDocs: any[] = [];
+                  const newMultipleDocs: any[] = [];
                   
-                  setDocuments(prev => [...prev, ...newDocs]);
+                  selectedDocuments.forEach(doc => {
+                    // Check if this is a multiple copy template
+                    const isMultiple = doc.multiple && doc.multiple.length > 0;
+                    const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+                    
+                    if (isMultiple) {
+                      // Create multiple document entry
+                      // Backend schema: MultipleDocumentItemSchema has label, template.url, template.instruction
+                      const multipleDoc = {
+                        name: doc.name,
+                        type: docType,
+                        instruction: undefined, // Group-level instruction (optional)
+                        multiple: doc.multiple.map((item: any) => {
+                          // Combine item.instruction and template.instructions into template.instruction
+                          // Backend uses singular 'instruction' in template object
+                          // Priority: template.instructions > item.instruction, combine if both exist
+                          let combinedInstruction = '';
+                          if (item.instruction) {
+                            combinedInstruction = item.instruction;
+                          }
+                          if (item.template?.instructions) {
+                            combinedInstruction = combinedInstruction 
+                              ? `${combinedInstruction}\n\nTemplate Instructions: ${item.template.instructions}`
+                              : item.template.instructions;
+                          }
+                          const templateInstruction = combinedInstruction || undefined;
+                          
+                          return {
+                            label: item.label,
+                            template: item.template?.url || templateInstruction
+                              ? {
+                                  url: item.template?.url || undefined,
+                                  instruction: templateInstruction, // Backend expects singular
+                                }
+                              : undefined,
+                            status: 'pending' as const
+                          };
+                        })
+                      };
+                      newMultipleDocs.push(multipleDoc);
+                    } else {
+                      // Create regular document entry
+                      const regularDoc = {
+                        name: doc.name,
+                        type: docType,
+                        description: doc.description,
+                        template: docType === 'template'
+                          ? { url: doc.template?.url, instruction: doc.template?.instructions }
+                          : undefined,
+                        status: 'pending' as const
+                      };
+                      newDocs.push(regularDoc);
+                    }
+                  });
+                  
+                  if (newDocs.length > 0) {
+                    setDocuments(prev => [...prev, ...newDocs]);
+                  }
+                  if (newMultipleDocs.length > 0) {
+                    setMultipleDocuments(prev => [...prev, ...newMultipleDocs]);
+                  }
 
                   toast({
                     title: "Documents Added",
-                    description: `${selectedDocuments.length} documents added.`,
+                    description: `${selectedDocuments.length} document(s) added (${newDocs.length} single, ${newMultipleDocs.length} multiple).`,
                   });
                 }}
                 engagementId={engagementId!}
@@ -1669,50 +1758,113 @@ export const DocumentRequestsTab = ({
               </Card>
 
               {/* Documents List */}
-              {documents.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Documents to Request ({documents.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {documents.map((doc, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
-                        >
-                          <div className="flex items-center gap-3">
-                            {getDocumentTypeIcon(typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct'))}
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{doc.name}</span>
-                                {getDocumentTypeBadge(doc.type)}
+              {(documents.length > 0 || multipleDocuments.length > 0) && (
+                <>
+                  {documents.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          Single Documents ({documents.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {documents.map((doc, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
+                            >
+                              <div className="flex items-center gap-3">
+                                {getDocumentTypeIcon(typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct'))}
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{doc.name}</span>
+                                    {getDocumentTypeBadge(doc.type)}
+                                  </div>
+                                  {doc.description && (
+                                    <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
+                                  )}
+                                  {doc.type === 'template' && doc.template?.instruction && (
+                                    <p className="text-xs text-blue-600 mt-1">
+                                      Instructions: {doc.template.instruction}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              {doc.description && (
-                                <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
-                              )}
-                              {doc.type === 'template' && doc.template?.instruction && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                  Instructions: {doc.template.instruction}
-                                </p>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveDocument(index)}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRemoveDocument(index)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {multipleDocuments.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">
+                          Multiple Copy Documents ({multipleDocuments.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {multipleDocuments.map((doc, index) => {
+                            const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+                            return (
+                              <div
+                                key={index}
+                                className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border"
+                              >
+                                <div className="flex items-start gap-3 flex-1">
+                                  {getDocumentTypeIcon(docType)}
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className="font-medium">{doc.name}</span>
+                                      {getDocumentTypeBadge(docType)}
+                                      <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                                        {doc.multiple.length} {doc.multiple.length === 1 ? 'item' : 'items'}
+                                      </Badge>
+                                    </div>
+                                    <div className="space-y-1 mt-2">
+                                      {doc.multiple.map((item: any, itemIdx: number) => (
+                                        <div key={itemIdx} className="text-xs text-gray-600 bg-white p-2 rounded border border-gray-200">
+                                          <span className="font-medium">{itemIdx + 1}. {item.label}</span>
+                                          {docType === 'template' && item.instruction && (
+                                            <p className="text-gray-500 mt-1">Instructions: {item.instruction}</p>
+                                          )}
+                                          {docType === 'template' && item.template?.instructions && (
+                                            <p className="text-gray-500 mt-1">Template Instructions: {item.template.instructions}</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setMultipleDocuments(prev => prev.filter((_, i) => i !== index));
+                                  }}
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
 
               {/* Workflow Information */}
@@ -1755,7 +1907,7 @@ export const DocumentRequestsTab = ({
               </Button>
               <Button
                 onClick={handleCreateDocumentRequest}
-                disabled={loading || documents.length === 0 || !documentRequest.category || !documentRequest.description}
+                disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || !documentRequest.category || !documentRequest.description}
                 className="bg-blue-600 hover:bg-blue-700 text-white hover:text-white"
               >
                 {loading ? (

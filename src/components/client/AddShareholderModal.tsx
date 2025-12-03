@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Building2, Plus, X, ChevronDown, ChevronUp, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +31,6 @@ import {
   buildTotalSharesPayload,
   calculateTotalSharesSum,
   parseTotalSharesArray,
-  OPTIONAL_SHARE_CLASS_LABELS,
   DEFAULT_SHARE_TYPE,
 } from "./ShareClassInput";
 
@@ -101,8 +99,6 @@ interface NewEntityForm {
   companyStartedAt?: string;
   // Company's own totalShares (for new companies only) - uses share class logic
   shareClassValues?: ShareClassValues;
-  useClassShares?: boolean;
-  visibleShareClasses?: string[];
   // Shareholder shares (for the shares this entity holds in the parent company)
   classAShares: number;
   classBShares: number;
@@ -136,8 +132,6 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       // Only initialize shareClassValues for companies (for their own totalShares)
       ...(entityType === "company" && {
         shareClassValues: getDefaultShareClassValues(),
-        useClassShares: false,
-        visibleShareClasses: [],
         industry: "",
         customIndustry: "",
       }),
@@ -711,8 +705,6 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         // Only initialize shareClassValues for companies (for their own totalShares)
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
@@ -928,8 +920,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           for (const entity of filledNewEntities) {
             // Create company first
             // Build totalShares payload with only the selected mode's data
-            const totalSharesPayload = entity.shareClassValues && entity.useClassShares !== undefined
-              ? buildTotalSharesPayload(entity.shareClassValues, entity.useClassShares)
+            const totalSharesPayload = entity.shareClassValues
+              ? buildTotalSharesPayload(entity.shareClassValues)
               : undefined;
 
             const companyResponse = await fetch(
@@ -1088,8 +1080,6 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
@@ -1798,31 +1788,10 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                             <ShareClassInput
                               values={entity.shareClassValues || getDefaultShareClassValues()}
                               errors={getDefaultShareClassErrors()}
-                              useClassShares={entity.useClassShares || false}
-                              visibleShareClasses={entity.visibleShareClasses || []}
                               onValuesChange={(values) => {
                                 setNewEntities((prev) =>
                                   prev.map((e, i) =>
                                     i === entityIndex ? { ...e, shareClassValues: values } : e
-                                  )
-                                );
-                              }}
-                              onUseClassSharesChange={(useClassShares) => {
-                                setNewEntities((prev) =>
-                                  prev.map((e, i) =>
-                                    i === entityIndex
-                                      ? {
-                                          ...e,
-                                          useClassShares,
-                                        }
-                                      : e
-                                  )
-                                );
-                              }}
-                              onVisibleShareClassesChange={(visibleShareClasses) => {
-                                setNewEntities((prev) =>
-                                  prev.map((e, i) =>
-                                    i === entityIndex ? { ...e, visibleShareClasses } : e
                                   )
                                 );
                               }}

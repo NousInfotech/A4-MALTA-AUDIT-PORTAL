@@ -4,6 +4,7 @@ import axiosInstance from "../axiosInstance";
 
 export interface TemplateItem {
   label: string;
+  instruction?: string;
   template?: {
     url?: string;
     instructions?: string;
@@ -14,7 +15,7 @@ export interface DocumentRequestTemplate {
   _id: string;
   name: string;
   description?: string;
-  type: "template" | "direct" | "multiple";
+  type: "template" | "direct";
   template?: {
     url?: string;
     instructions?: string;
