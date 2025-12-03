@@ -44,6 +44,7 @@ import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { ComprehensiveNavigation } from "@/components/ui/comprehensive-navigation";
 import { PortalAnalytics } from "@/components/ui/portal-analytics";
 import { useAuth } from "@/contexts/AuthContext";
+import { NoticeBoard } from "@/components/notice-board/NoticeBoard";
 
 export const EmployeeDashboard = () => {
   const { engagements, loading } = useEngagements();
@@ -258,6 +259,9 @@ export const EmployeeDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Notice Board - Top Priority */}
+            <NoticeBoard />
+
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {stats.map((stat, index) => {
@@ -467,9 +471,12 @@ export const EmployeeDashboard = () => {
               <p className="text-primary-foreground/80 text-sm mb-4">
                 {completedEngagements} of {totalEngagements} engagements completed
               </p>
-              <button className="w-full bg-primary-foreground text-primary py-2 px-4 rounded-xl font-medium hover:bg-primary-foreground/90 transition-colors duration-200">
+              <Link
+                to="/employee/engagements"
+                className="inline-flex w-full items-center justify-center bg-primary-foreground text-primary py-2 px-4 rounded-xl font-medium hover:bg-primary-foreground/90 transition-colors duration-200"
+              >
                 View all engagements
-              </button>
+              </Link>
             </div>
 
             {/* Recent Clients */}

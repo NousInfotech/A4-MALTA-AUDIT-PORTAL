@@ -2,17 +2,18 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   const handleSidebarToggle = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
   return (
-    <div className="flex h-screen bg-brand-body">
+    <div className="flex h-screen bg-brand-body relative">
       {/* Sidebar for desktop & mobile */}
       <Sidebar 
         isOpen={isSidebarOpen} 
@@ -29,7 +30,13 @@ export const DashboardLayout = () => {
         ></div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div 
+        className={cn(
+          "flex-1 flex flex-col overflow-hidden transition-all duration-300",
+          // Add left margin based on sidebar state
+          isSidebarCollapsed ? "md:ml-24" : "md:ml-[21rem]"
+        )}
+      >
         <Header 
           onMenuClick={() => setIsSidebarOpen(true)} 
           onSidebarToggle={handleSidebarToggle}

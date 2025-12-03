@@ -193,7 +193,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                     className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
                   />
                   <div className="flex items-center gap-3">
-                    {getDocumentIcon(document.type)}
+                    {getDocumentIcon(document.type as 'direct' | 'template')}
                     <div>
                       <p className="font-medium text-gray-900">{document.name}</p>
                       <p className="text-sm text-gray-600">{document.description}</p>
@@ -207,7 +207,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {getDocumentTypeBadge(document.type)}
+                  {getDocumentTypeBadge(document.type as 'direct' | 'template')}
                 
                   {/* Only show preview/download buttons for template documents */}
                   {document.type === 'template' && document.template?.url && (

@@ -20,10 +20,17 @@ import {
   Clock,
   Activity,
   Target,
-  Shield
+  Shield,
+  Bell
 } from 'lucide-react';
 import { IconRobotFace } from '@tabler/icons-react';
 import { useSidebarStats } from "@/contexts/SidebarStatsContext";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface NavItem {
   title: string;
@@ -86,6 +93,13 @@ const navItems: NavItem[] = [
   roles: ['admin'],
   description: 'Customize Portal Appearance',
   badge: 'New'
+},
+{ 
+  title: 'Notice Board', 
+  href: '/admin/notice-board', 
+  icon: Bell, 
+  roles: ['admin'],
+  description: 'Manage Notices & Announcements'
 },
   // Employee
   { 
@@ -213,23 +227,29 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
   });
 
   return (
-    <div
-      className={cn(
-        // container
-        "fixed inset-y-0 left-0 flex flex-col transform transition-all duration-300 ease-in-out z-50 md:static md:z-auto md:translate-x-0",
-        // mobile slide
-        isOpen ? "translate-x-0" : "-translate-x-full",
-        // desktop width
-        isCollapsed ? "md:w-20" : "md:w-72",
-        // modern styling
-        "border-r shadow-xl"
-      )}
-      style={{
-        backgroundColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'})`,
-        color: `hsl(${branding?.sidebar_text_color || '220 14% 96%'})`,
-        borderColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'} / 0.5)`
-      }}
-    >
+    <TooltipProvider delayDuration={300}>
+      <div
+        className={cn(
+          // container
+          "flex flex-col transform transition-all duration-300 ease-in-out z-50",
+          // mobile slide - only hide on mobile when not open
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          // desktop positioning - fixed when collapsed, absolute when expanded (floating)
+          // Add margins so sidebar doesn't attach to screen edges
+          isCollapsed 
+            ? "md:fixed md:top-4 md:bottom-4 md:left-4 md:w-20 md:h-[calc(100vh-2rem)]" 
+            : "md:absolute md:top-4 md:bottom-4 md:left-4 md:w-80 md:max-w-[4000px] md:h-[calc(100vh-2rem)]",
+          // modern styling with curves on all corners
+          "border-r shadow-xl",
+          // Curved on all corners (top-left, top-right, bottom-left, bottom-right)
+          "rounded-tl-[2rem] rounded-tr-[2rem] rounded-bl-[2rem] rounded-br-[2rem]"
+        )}
+        style={{
+          backgroundColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'})`,
+          color: `hsl(${branding?.sidebar_text_color || '220 14% 96%'})`,
+          borderColor: `hsl(${branding?.sidebar_background_color || '222 47% 11%'} / 0.5)`
+        }}
+      >
       {/* Header */}
       <div 
         className={cn(
@@ -361,7 +381,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
               (item.href !== `/${user.role}` &&
                 location.pathname.startsWith(item.href));
 
-            return (
+            const linkContent = (
               <Link
                 key={item.href}
                 to={item.href}
@@ -390,7 +410,6 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                     e.currentTarget.style.color = `hsl(var(--sidebar-foreground) / 0.8)`;
                   }
                 }}
-                title={isCollapsed ? item.title : undefined}
               >
                 {/* Active indicator */}
                 {isActive && !isCollapsed && (
@@ -457,6 +476,30 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
                 ></div>
               </Link>
             );
+
+            // Wrap with tooltip when collapsed
+            if (isCollapsed) {
+              return (
+                <Tooltip key={item.href}>
+                  <TooltipTrigger asChild>
+                    {linkContent}
+                  </TooltipTrigger>
+                  <TooltipContent 
+                    side="right" 
+                    className="bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-border shadow-lg"
+                  >
+                    <div className="space-y-1">
+                      <p className="font-semibold">{item.title}</p>
+                      {item.description && (
+                        <p className="text-xs opacity-80">{item.description}</p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            return linkContent;
           })}
         </div>
       </nav>
@@ -479,7 +522,12 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
             borderColor: `hsl(var(--sidebar-border))`
           }}
         >
-          <div className="flex items-center gap-3">
+          <div 
+            className={cn(
+              "flex items-center",
+              isCollapsed ? "justify-center" : "gap-3"
+            )}
+          >
             <div className="relative">
               <div 
                 className={cn(
@@ -530,6 +578,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };

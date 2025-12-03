@@ -249,6 +249,12 @@ export const documentRequestApi = {
       body: formData,
     });
   },
+ 
+  deleteDocument: async (id: string, documentIndex: number) => {
+    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}`, {
+      method: 'DELETE',
+    });
+  },
 
   updateDocumentStatus: async (id: string, documentIndex: number, status: string) => {
     return apiCall(`/api/document-requests/${id}/documents/${documentIndex}/status`, {
@@ -297,11 +303,133 @@ export const documentRequestApi = {
     return response.blob();
   },
 
-  deleteDocument: async (id: string, documentIndex: number) => {
-    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}`, {
+  /**
+   * Clear only the uploaded file for a single-document requirement.
+   * This hits the dedicated backend clear endpoint so template metadata is preserved.
+   */
+  clearSingleDocument: async (id: string, documentIndex: number) => {
+    return apiCall(`/api/document-requests/clear/${id}/${documentIndex}`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Upload files to a multiple document group.
+   * Optionally specify itemIndex to upload to a specific item, otherwise finds first pending item.
+   */
+  uploadMultipleDocuments: async (
+    id: string,
+    multipleDocumentId: string,
+    formData: FormData,
+    itemIndex?: number
+  ) => {
+    if (itemIndex !== undefined) {
+      formData.append('itemIndex', String(itemIndex));
+    }
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * Clear only the uploaded file for a multiple document item.
+   * This clears the file but keeps the item in the multiple array.
+   */
+  clearMultipleDocumentItem: async (
+    id: string,
+    multipleDocumentId: string,
+    itemIndex: number
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/items/${itemIndex}/clear`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a specific item from a multiple document group.
+   */
+  deleteMultipleDocumentItem: async (
+    id: string,
+    multipleDocumentId: string,
+    itemIndex: number
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/items/${itemIndex}`, {
       method: 'DELETE',
     });
-  }
+  },
+
+  /**
+   * Delete entire multiple document group.
+   */
+  deleteMultipleDocumentGroup: async (
+    id: string,
+    multipleDocumentId: string
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Clear all files in a multiple document group (keeps items, removes files).
+   */
+  clearMultipleDocumentGroup: async (
+    id: string,
+    multipleDocumentId: string
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/clear`, {
+      method: 'POST',
+    });
+  },
+
+  // Delete entire document request (main request row)
+  deleteRequest: async (id: string) => {
+    return apiCall(`/api/document-requests/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Add documents to an existing document request
+   */
+  addDocumentsToRequest: async (
+    id: string,
+    data: {
+      documents?: Array<{
+        name: string;
+        type: 'direct' | 'template';
+        description?: string;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+        status: 'pending';
+      }>;
+      multipleDocuments?: Array<{
+        name: string;
+        type: 'direct' | 'template';
+        instruction?: string;
+        multiple: Array<{
+          label: string;
+          status: 'pending';
+          template?: {
+            url?: string;
+            instruction?: string;
+          };
+        }>;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+      }>;
+    }
+  ) => {
+    return apiCall(`/api/document-requests/${id}/documents/add`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // Procedures API
@@ -1643,3 +1771,129 @@ export const promptApi = {
     return apiCall('/api/admin/prompts');
   },
 }
+
+// Notice Board API
+export const noticeBoardApi = {
+  // Create a new notice
+  create: async (data: {
+    title: string;
+    description: string;
+    roles: string[];
+    type: string;
+    priority?: number;
+    expiresAt?: string;
+  }) => {
+    return apiCall('/api/notices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get all notices with filtering
+  getAll: async (filters?: {
+    page?: number;
+    limit?: number;
+    sort?: string;
+    order?: 'asc' | 'desc';
+    search?: string;
+    type?: string;
+    roles?: string | string[];
+    isActive?: boolean;
+    createdBy?: string;
+    priority?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.sort) params.append('sort', filters.sort);
+    if (filters?.order) params.append('order', filters.order);
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.roles) {
+      if (Array.isArray(filters.roles)) {
+        filters.roles.forEach(role => params.append('roles', role));
+      } else {
+        params.append('roles', filters.roles);
+      }
+    }
+    if (filters?.isActive !== undefined) params.append('isActive', filters.isActive.toString());
+    if (filters?.createdBy) params.append('createdBy', filters.createdBy);
+    if (filters?.priority) params.append('priority', filters.priority.toString());
+
+    const queryString = params.toString();
+    const endpoint = queryString ? `/api/notices?${queryString}` : '/api/notices';
+    return apiCall(endpoint);
+  },
+
+  // Get active notices for current user
+  getActive: async () => {
+    return apiCall('/api/notices/active');
+  },
+
+  // Get single notice by ID
+  getById: async (id: string) => {
+    return apiCall(`/api/notices/${id}`);
+  },
+
+  // Update notice
+  update: async (id: string, data: {
+    title?: string;
+    description?: string;
+    roles?: string[];
+    type?: string;
+    priority?: number;
+    isActive?: boolean;
+    expiresAt?: string;
+  }) => {
+    return apiCall(`/api/notices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Delete notice
+  delete: async (id: string) => {
+    return apiCall(`/api/notices/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Deactivate notice
+  deactivate: async (id: string) => {
+    return apiCall(`/api/notices/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  // Mark notice as viewed
+  markAsViewed: async (id: string) => {
+    return apiCall(`/api/notices/${id}/view`, {
+      method: 'POST',
+    });
+  },
+
+  // Mark notice as acknowledged
+  markAsAcknowledged: async (id: string) => {
+    return apiCall(`/api/notices/${id}/acknowledge`, {
+      method: 'POST',
+    });
+  },
+
+  // Get notices by type
+  getByType: async (type: string) => {
+    return apiCall(`/api/notices/type/${type}`);
+  },
+
+  // Get notice statistics
+  getStats: async () => {
+    return apiCall('/api/notices/stats');
+  },
+
+  // Bulk delete notices
+  bulkDelete: async (ids: string[]) => {
+    return apiCall('/api/notices/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  },
+};

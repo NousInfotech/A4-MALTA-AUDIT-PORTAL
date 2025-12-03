@@ -3,39 +3,41 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { LogOut, Menu, Settings, User, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications';
+import { useNavigate } from 'react-router-dom';
 
 export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => {
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header 
-      className="h-16 backdrop-blur-xl border-b flex items-center justify-between px-6 sticky top-0 z-40"
+      className="h-16 backdrop-blur-xl border flex items-center justify-between px-6 sticky top-0 z-40 rounded-[2rem] m-2 mb-0 mr-2 bg-background/80 shadow-lg"
       style={{
-        backgroundColor: `hsl(var(--sidebar-background) / 0.8)`,
-        borderColor: `hsl(var(--sidebar-border) / 0.5)`
+        borderColor: `hsl(var(--border))`,
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'
       }}
     >
       <div className="flex items-center gap-4">
         {/* Hamburger - visible on mobile only */}
         <button
-          className="md:hidden p-2 rounded-2xl hover:bg-brand-hover transition-colors"
+          className="md:hidden p-2 rounded-2xl hover:bg-muted transition-colors"
           onClick={onMenuClick}
           aria-label="Open Menu"
         >
-          <Menu className="h-5 w-5 text-brand-sidebar" />
+          <Menu className="h-5 w-5 text-foreground" />
         </button>
 
         {/* Sidebar toggle - visible on desktop only */}
         <button
-          className="hidden md:flex p-2 rounded-2xl hover:bg-brand-hover transition-colors group"
+          className="hidden md:flex p-2 rounded-2xl hover:bg-muted transition-colors group"
           onClick={onSidebarToggle}
           aria-label={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >
           {isSidebarCollapsed ? (
-            <PanelLeft className="h-5 w-5 group-hover:scale-110 transition-transform text-brand-sidebar" />
+            <PanelLeft className="h-5 w-5 group-hover:scale-110 transition-transform text-foreground" />
           ) : (
-            <PanelLeftClose className="h-5 w-5 group-hover:scale-110 transition-transform text-brand-sidebar" />
+            <PanelLeftClose className="h-5 w-5 group-hover:scale-110 transition-transform text-foreground" />
           )}
         </button>
 
@@ -55,25 +57,38 @@ export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => 
 
       <div className="flex items-center gap-3">
         {/* Notifications */}
-        <NotificationBell className="h-9 w-9 rounded-2xl hover:bg-brand-hover" />
+        <NotificationBell className="h-9 w-9 rounded-2xl bg-foreground/90 hover:bg-background text-background" />
 
         {/* Settings */}
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-2xl hover:bg-brand-hover"
+          className="h-9 w-9 rounded-2xl hover:bg-muted"
+          aria-label="Open settings"
+          title="Settings"
+          onClick={() => {
+            if (user?.role === 'admin') {
+              navigate('/admin/settings');
+            } else if (user?.role === 'employee') {
+              navigate('/employee/settings');
+            } else if (user?.role === 'client') {
+              navigate('/client/settings');
+            } else {
+              navigate('/settings/notifications');
+            }
+          }}
         >
-          <Settings className="h-4 w-4 text-brand-sidebar" />
+          <Settings className="h-4 w-4 text-foreground" />
         </Button>
 
         {/* User profile */}
         <div 
           className="flex items-center gap-3 pl-3 border-l"
-          style={{ borderColor: `hsl(var(--sidebar-border))` }}
+          style={{ borderColor: `hsl(var(--border))` }}
         >
           <div className="hidden sm:block text-right">
-            <p className="text-sm font-semibold text-brand-sidebar">{user?.name}</p>
-            <p className="text-xs text-brand-sidebar opacity-70 capitalize">
+            <p className="text-sm font-semibold text-foreground">{user?.name}</p>
+            <p className="text-xs text-muted-foreground capitalize">
               {user?.role}
             </p>
           </div>
@@ -81,14 +96,12 @@ export const Header = ({ onMenuClick, onSidebarToggle, isSidebarCollapsed }) => 
           {/* User avatar */}
           <div className="relative">
             <div 
-              className="w-8 h-8 rounded-2xl flex items-center justify-center"
-              style={{ backgroundColor: `hsl(var(--sidebar-hover))` }}
+              className="w-8 h-8 rounded-2xl flex items-center justify-center bg-muted"
             >
-              <User className="h-4 w-4 text-brand-sidebar" />
+              <User className="h-4 w-4 text-foreground" />
             </div>
             <div 
-              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2"
-              style={{ borderColor: `hsl(var(--sidebar-background))` }}
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background"
             ></div>
           </div>
 
