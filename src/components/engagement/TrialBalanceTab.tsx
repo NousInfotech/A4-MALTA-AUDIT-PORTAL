@@ -19,6 +19,8 @@ import {
   Search,
   CheckCircle,
   X,
+  Sparkles,
+  Eye,
 } from "lucide-react";
 import { TrialBalanceUpload } from "./TrialBalanceUpload";
 import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
@@ -31,6 +33,10 @@ import { supabase } from "../../integrations/supabase/client";
 import ProcedureView from "../procedures/ProcedureView";
 import { PlanningProcedureView } from "../procedures/PlanningProcedureView";
 import { CompletionProcedureView } from "../procedures/CompletionProcedureView";
+import { ProcedureTypeSelection } from "../procedures/ProcedureTypeSelection";
+import { ProcedureGeneration } from "../procedures/ProcedureGeneration";
+import { PlanningProcedureGeneration } from "../procedures/PlanningProcedureGeneration";
+import { CompletionProcedureGeneration } from "../procedures/CompletionProcedureGeneration";
 import {
   Tooltip,
   TooltipContent,
@@ -97,8 +103,9 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     setClassificationNotificationCounts,
   ] = useState<{ [key: string]: number }>({});
 
-  // Procedure states
-  const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>(null);
+  // Procedure states - read from URL params for proper navigation (like ProceduresTab.tsx)
+  const selectedProcedureType = (searchParams.get("procedureType") as "planning" | "fieldwork" | "completion") || null;
+  const procedureTab = (searchParams.get("procedureTab") as "generate" | "view") || "view";
   const [planningProcedure, setPlanningProcedure] = useState<any>(null);
   const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null);
   const [completionProcedure, setCompletionProcedure] = useState<any>(null);
@@ -415,12 +422,11 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     setActiveTab("sections");
   };
 
-  // Load procedure data when procedure type is selected
+  // Load procedure data when procedure type changes from URL
   const loadProcedure = useCallback(async (procedureType: "planning" | "fieldwork" | "completion") => {
     if (!engagement?._id) return;
     
     setProcedureLoading(true);
-    setSelectedProcedureType(procedureType);
     
     try {
       const base = import.meta.env.VITE_APIURL;
@@ -455,6 +461,50 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
       setProcedureLoading(false);
     }
   }, [engagement?._id, toast]);
+
+  // Separate load functions for initial loading (like ProceduresTab.tsx)
+  const base = import.meta.env.VITE_APIURL;
+  const loadFieldwork = async () => {
+    try {
+      const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+      const data = await res.json();
+      if (res.ok && data?.procedure) {
+        setFieldworkProcedure(data.procedure);
+      }
+    } catch (error) {
+      console.error("Error fetching fieldwork procedure:", error);
+    }
+  };
+
+  const loadCompletion = async () => {
+    try {
+      const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`);
+      if (res.ok) setCompletionProcedure(await res.json());
+    } catch { }
+  };
+
+  const loadPlanning = async () => {
+    try {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
+      if (res.ok) setPlanningProcedure(await res.json());
+    } catch { }
+  };
+
+  // Initial load of all procedures (like ProceduresTab.tsx)
+  useEffect(() => {
+    if (!engagement?._id) return;
+    loadFieldwork();
+    loadPlanning();
+    loadCompletion();
+  }, [engagement?._id]);
+
+  // Load procedures when procedureType changes from URL (like ProceduresTab.tsx)
+  useEffect(() => {
+    if (!engagement?._id) return;
+    if (selectedProcedureType) {
+      loadProcedure(selectedProcedureType);
+    }
+  }, [engagement?._id, selectedProcedureType, loadProcedure]);
 
   // Generate Answers for Field Work Procedures (all classifications)
   const generateAnswersForAllClassifications = async () => {
@@ -706,13 +756,93 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
     }
   };
 
+  // Helper function to update procedure params (for generation flow navigation)
+  const updateProcedureParams = useCallback((updates: Record<string, string | null>, replace = false) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
+    setSearchParams(newParams, { replace });
+  }, [searchParams, setSearchParams]);
+
   const handleProcedureButtonClick = (procedureType: "planning" | "fieldwork" | "completion") => {
     setSelectedClassification(""); // Clear classification selection
-    loadProcedure(procedureType);
+    updateProcedureParams({
+      procedureType: procedureType,
+      procedureTab: "view",
+      mode: null,
+      step: null
+    }, false);
+  };
+
+  const handleProcedureTypeSelect = (type: "planning" | "fieldwork" | "completion") => {
+    // Set procedure type and clear mode/step (will be set by the generation component)
+    updateProcedureParams({
+      procedureType: type,
+      procedureTab: "generate",
+      mode: null,
+      step: null
+    }, false);
+  };
+
+  const handleProcedureTypeBack = () => {
+    // Clear procedure type and all nested params
+    updateProcedureParams({
+      procedureType: null,
+      mode: null,
+      step: null
+    }, false);
+  };
+
+  const handleProcedureComplete = (procedureData: any) => {
+    if (procedureData?.procedureType === "planning") {
+      setPlanningProcedure(procedureData);
+      loadProcedure("planning"); // Reload to get latest data
+    } else if (procedureData?.procedureType === "fieldwork" || procedureData?.procedureType === "procedures") {
+      setFieldworkProcedure(procedureData);
+      loadProcedure("fieldwork"); // Reload to get latest data
+    } else {
+      setCompletionProcedure(procedureData);
+      loadProcedure("completion"); // Reload to get latest data
+    }
+    // Navigate to view tab and clear procedure generation params
+    updateProcedureParams({
+      procedureTab: "view",
+      procedureType: procedureData?.procedureType === "procedures" ? "fieldwork" : procedureData?.procedureType || null,
+      mode: null,
+      step: null
+    }, false);
+    toast({
+      title: "Procedures Generated",
+      description: "Saved successfully."
+    });
+  };
+
+  const handleProcedureTabChange = (tab: "generate" | "view") => {
+    updateProcedureParams({ procedureTab: tab }, false);
+  };
+
+  const handleRegenerate = () => {
+    // Clear procedure generation params, stay on generate tab
+    updateProcedureParams({
+      procedureTab: "generate",
+      procedureType: null,
+      mode: null,
+      step: null
+    }, false);
   };
 
   const handleCloseProcedure = () => {
-    setSelectedProcedureType(null);
+    updateProcedureParams({
+      procedureType: null,
+      procedureTab: null,
+      mode: null,
+      step: null
+    }, false);
   };
 
   if (loading) {
@@ -816,7 +946,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </span>
                     </Button>
 
-                    <Button
+                    {/* <Button
                       variant={selectedProcedureType === "fieldwork" ? "default" : "outline"}
                       className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => handleProcedureButtonClick("fieldwork")}
@@ -828,7 +958,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         </span>
                         <span className="sm:hidden">Field Work</span>
                       </span>
-                    </Button>
+                    </Button> */}
 
                     <Button
                       variant={selectedProcedureType === "completion" ? "default" : "outline"}
@@ -853,7 +983,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         }
                         className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                         onClick={() => {
-                          setSelectedProcedureType(null);
+                          updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                           setSelectedClassification("ETB");
                         }}
                       >
@@ -876,7 +1006,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => {
-                        setSelectedProcedureType(null);
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                         setSelectedClassification("Adjustments");
                       }}
                     >
@@ -895,7 +1025,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => {
-                        setSelectedProcedureType(null);
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                         setSelectedClassification("Reclassifications");
                       }}
                     >
@@ -914,7 +1044,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       }
                       className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => {
-                        setSelectedProcedureType(null);
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                         setSelectedClassification("Exports");
                       }}
                     >
@@ -932,7 +1062,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => {
-                        setSelectedProcedureType(null);
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                         setSelectedClassification("IncomeStatement");
                       }}
                     >
@@ -950,7 +1080,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       }
                       className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => {
-                        setSelectedProcedureType(null);
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                         setSelectedClassification("BalanceSheet");
                       }}
                     >
@@ -1087,7 +1217,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                             }
                                             className="w-full justify-between text-left h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl flex flex-row flex-wrap items-start gap-2 overflow-hidden whitespace-normal break-words"
                                             onClick={() => {
-                                              setSelectedProcedureType(null);
+                                              updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
                                               setSelectedClassification(key);
                                             }}
                                           >
@@ -1165,7 +1295,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
               {/* Content Panel */}
               <div className="flex-1 min-w-0">
                 {selectedProcedureType ? (
-                  // Procedure View Content
+                  // Procedure Content with Generate/View Tabs
                   <div className="h-full flex flex-col">
                     <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
                       <h3 className="font-semibold text-lg">
@@ -1189,230 +1319,68 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         <span>Loading Procedures...</span>
                       </div>
                     ) : (
-                      <div className="flex-1 overflow-auto p-4">
-                        {selectedProcedureType === "planning" && planningProcedure ? (
-                          <>
-                            {/* Generate Answers Section for Planning */}
-                            {planningProcedure && planningProcedure.procedures && planningProcedure.procedures.length > 0 && (
-                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h4 className="font-semibold">Generate Answers for Planning Sections</h4>
-                                </div>
-                                <div className="space-y-2">
-                                  {planningProcedure.procedures.map((section: any) => {
-                                    const sectionId = section.sectionId || section.id;
-                                    // Check if section has fields (questions) - fields might be empty array or undefined
-                                    const fields = section?.fields || [];
-                                    const hasFields = Array.isArray(fields) && fields.length > 0;
-                                    const isGenerating = generatingPlanningSections.has(sectionId);
-                                    const isDisabled = isGenerating || !hasFields;
-                                    
-                                    return (
-                                      <div key={sectionId} className="flex items-center justify-between p-3 bg-white rounded border">
-                                        <div className="flex-1">
-                                          <div className="font-medium">{section.title || sectionId}</div>
-                                          {section.standards?.length && (
-                                            <div className="text-xs text-muted-foreground">
-                                              Standards: {section.standards.join(", ")}
-                                            </div>
-                                          )}
-                                          {!hasFields && !isGenerating && (
-                                            <div className="text-xs text-amber-600 mt-1">
-                                              No questions available. Generate questions first.
-                                            </div>
-                                          )}
-                                        </div>
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span>
-                                                <Button
-                                                  onClick={() => generateAnswersForPlanningSection(sectionId)}
-                                                  disabled={isDisabled}
-                                                  size="sm"
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  {isGenerating ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                  ) : (
-                                                    <FileText className="h-4 w-4" />
-                                                  )}
-                                                  {isGenerating ? "Generating..." : "Generate Answers"}
-                                                </Button>
-                                              </span>
-                                            </TooltipTrigger>
-                                            {!hasFields && !isGenerating && (
-                                              <TooltipContent>
-                                                <p>This section has no questions yet. Please generate questions first in the Procedures tab.</p>
-                                              </TooltipContent>
-                                            )}
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            <PlanningProcedureView 
-                              procedure={planningProcedure} 
-                              engagement={engagement} 
-                            />
-                          </>
-                        ) : selectedProcedureType === "fieldwork" && fieldworkProcedure ? (
-                          <>
-                            {/* Field Work Procedures Section Cards */}
-                            {fieldworkProcedure && fieldworkProcedure.questions && fieldworkProcedure.questions.length > 0 && (
-                              <div className="mb-6 space-y-4">
-                                {/* Group questions by classification */}
-                                {(() => {
-                                  const questionsByClassification: { [key: string]: any[] } = {};
-                                  (fieldworkProcedure.questions || []).forEach((q: any) => {
-                                    const classification = q.classification || "General";
-                                    if (!questionsByClassification[classification]) {
-                                      questionsByClassification[classification] = [];
-                                    }
-                                    questionsByClassification[classification].push(q);
-                                  });
-                                  
-                                  return Object.entries(questionsByClassification).map(([classification, questions]) => {
-                                    const questionsWithAnswers = questions.filter((q: any) => q.answer && q.answer.trim() !== "");
-                                    
-                                    return (
-                                      <div key={classification} className="p-4 bg-white rounded-lg border shadow-sm">
-                                        {/* Classification Header with Buttons */}
-                                        <div className="flex items-center justify-between mb-4 pb-3 border-b">
-                                          <div className="flex-1">
-                                            <div className="font-semibold text-lg">
-                                              {formatClassificationForDisplay(classification)}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1">
-                                              {questions.length} question{questions.length !== 1 ? 's' : ''}
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <Button
-                                              onClick={generateAnswersForAllClassifications}
-                                              disabled={generatingAnswers}
-                                              size="sm"
-                                              className="flex items-center gap-2"
-                                            >
-                                              {generatingAnswers ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <FileText className="h-4 w-4" />
-                                              )}
-                                              {generatingAnswers ? "Generating..." : "Generate Answers"}
-                                            </Button>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Answers Section */}
-                                        {questionsWithAnswers.length > 0 && (
-                                          <div className="mt-4 space-y-3">
-                                            <h5 className="font-medium text-sm text-gray-700">Answers:</h5>
-                                            <div className="space-y-2">
-                                              {questionsWithAnswers.map((q: any, idx: number) => (
-                                                <div key={q.id || idx} className="p-3 bg-gray-50 rounded border">
-                                                  <div className="text-sm font-medium text-gray-900 mb-1">
-                                                    {q.question || "—"}
-                                                  </div>
-                                                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                                                    {String(q.answer || "—")}
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  });
-                                })()}
-                              </div>
-                            )}
-                            <ProcedureView
-                              procedure={fieldworkProcedure}
+                      <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1 flex flex-col">
+                        <div className="px-4 pt-4 border-b">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="generate" className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4" /> Generate Procedures
+                            </TabsTrigger>
+                            <TabsTrigger value="view" className="flex items-center gap-2">
+                              <Eye className="h-4 w-4" /> View Procedures
+                            </TabsTrigger>
+                          </TabsList>
+                        </div>
+
+                        <TabsContent value="generate" className="flex-1 mt-4 overflow-auto">
+                          {!selectedProcedureType ? (
+                            <div className="p-4">
+                              <ProcedureTypeSelection 
+                                onTypeSelect={handleProcedureTypeSelect} 
+                                title="Choose the type of audit procedures you want to generate" 
+                              />
+                            </div>
+                          ) : selectedProcedureType === "planning" ? (
+                            <PlanningProcedureGeneration
                               engagement={engagement}
-                              onProcedureUpdate={setFieldworkProcedure}
-                              currentClassification={undefined} // Show all procedures, but allow adding questions
+                              existingProcedure={planningProcedure}
+                              onComplete={handleProcedureComplete}
+                              onBack={handleProcedureTypeBack}
+                              updateProcedureParams={updateProcedureParams}
+                              searchParams={searchParams}
                             />
-                          </>
-                        ) : selectedProcedureType === "completion" && completionProcedure ? (
-                          <>
-                            {/* Generate Answers Section for Completion */}
-                            {completionProcedure && completionProcedure.procedures && completionProcedure.procedures.length > 0 && (
-                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h4 className="font-semibold">Generate Answers for Completion Sections</h4>
-                                </div>
-                                <div className="space-y-2">
-                                  {completionProcedure.procedures.map((section: any) => {
-                                    const sectionId = section.sectionId || section.id;
-                                    // Check if section has fields (questions) - fields might be empty array or undefined
-                                    const fields = section?.fields || [];
-                                    const hasFields = Array.isArray(fields) && fields.length > 0;
-                                    const isGenerating = generatingCompletionSections.has(sectionId);
-                                    const isDisabled = isGenerating || !hasFields;
-                                    
-                                    return (
-                                      <div key={sectionId} className="flex items-center justify-between p-3 bg-white rounded border">
-                                        <div className="flex-1">
-                                          <div className="font-medium">{section.title || sectionId}</div>
-                                          {section.standards?.length && (
-                                            <div className="text-xs text-muted-foreground">
-                                              Standards: {section.standards.join(", ")}
-                                            </div>
-                                          )}
-                                          {!hasFields && !isGenerating && (
-                                            <div className="text-xs text-amber-600 mt-1">
-                                              No questions available. Generate questions first.
-                                            </div>
-                                          )}
-                                        </div>
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span>
-                                                <Button
-                                                  onClick={() => generateAnswersForCompletionSection(sectionId)}
-                                                  disabled={isDisabled}
-                                                  size="sm"
-                                                  className="flex items-center gap-2"
-                                                >
-                                                  {isGenerating ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                  ) : (
-                                                    <FileText className="h-4 w-4" />
-                                                  )}
-                                                  {isGenerating ? "Generating..." : "Generate Answers"}
-                                                </Button>
-                                              </span>
-                                            </TooltipTrigger>
-                                            {!hasFields && !isGenerating && (
-                                              <TooltipContent>
-                                                <p>This section has no questions yet. Please generate questions first in the Procedures tab.</p>
-                                              </TooltipContent>
-                                            )}
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            <CompletionProcedureView 
-                              procedure={completionProcedure} 
-                              engagement={engagement} 
+                          ) : selectedProcedureType === "fieldwork" ? (
+                            <ProcedureGeneration
+                              engagement={engagement}
+                              existingProcedure={fieldworkProcedure}
+                              onBack={handleProcedureTypeBack}
+                              onComplete={handleProcedureComplete}
+                              updateProcedureParams={updateProcedureParams}
+                              searchParams={searchParams}
                             />
-                          </>
-                        ) : (
-                          <div className="text-center text-muted-foreground py-8">
-                            No {selectedProcedureType} procedures found.
-                          </div>
-                        )}
-                      </div>
+                          ) : selectedProcedureType === "completion" ? (
+                            <CompletionProcedureGeneration
+                              engagement={engagement}
+                              onBack={handleProcedureTypeBack}
+                              existingProcedure={completionProcedure}
+                              onComplete={handleProcedureComplete}
+                              updateProcedureParams={updateProcedureParams}
+                              searchParams={searchParams}
+                            />
+                          ) : null}
+                        </TabsContent>
+
+                        <TabsContent value="view" className="flex-1 mt-6">
+                          {!selectedProcedureType ? (
+                            <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
+                          ) : selectedProcedureType === "planning" ? (
+                            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+                          ) : selectedProcedureType === "fieldwork" ? (
+                            fieldworkProcedure && fieldworkProcedure.status === "completed"
+                              ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                              : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+                          ) : completionProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
+                        </TabsContent>
+                      </Tabs>
                     )}
                   </div>
                 ) : selectedClassification === "IncomeStatement" ? (

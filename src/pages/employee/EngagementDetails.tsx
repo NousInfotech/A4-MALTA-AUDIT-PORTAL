@@ -260,6 +260,52 @@ export const EngagementDetails = () => {
               className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
               aria-label="Back to engagements"
               onClick={() => {
+                const procedureType = searchParams.get("procedureType");
+                const mode = searchParams.get("mode");
+                const step = searchParams.get("step");
+                
+                // If in tabs view (step === "tabs"), go back to questions step
+                if (procedureType && step === "tabs") {
+                  const newParams = new URLSearchParams(searchParams);
+                  newParams.set("step", "1"); // Go back to questions step (step 1)
+                  setSearchParams(newParams, { replace: false });
+                  return;
+                }
+                
+                // If in a numbered step, go back one step or to mode selection
+                if (procedureType && mode && step) {
+                  const stepNum = parseInt(step, 10);
+                  const newParams = new URLSearchParams(searchParams);
+                  
+                  if (stepNum > 0) {
+                    // Go back one step
+                    newParams.set("step", (stepNum - 1).toString());
+                  } else {
+                    // At step 0, go back to mode selection (clear step and mode)
+                    newParams.delete("step");
+                    newParams.delete("mode");
+                  }
+                  setSearchParams(newParams, { replace: false });
+                  return;
+                }
+                
+                // If at mode selection (mode exists but no step), clear mode
+                if (procedureType && mode && !step) {
+                  const newParams = new URLSearchParams(searchParams);
+                  newParams.delete("mode");
+                  setSearchParams(newParams, { replace: false });
+                  return;
+                }
+                
+                // If at procedure type selection (procedureType exists but no mode), clear procedureType
+                if (procedureType && !mode) {
+                  const newParams = new URLSearchParams(searchParams);
+                  newParams.delete("procedureType");
+                  setSearchParams(newParams, { replace: false });
+                  return;
+                }
+                
+                // Otherwise, navigate back normally
                 if (window.history.length > 1) {
                   navigate(-1);
                 } else {

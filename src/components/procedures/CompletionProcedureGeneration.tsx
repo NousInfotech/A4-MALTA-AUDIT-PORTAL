@@ -3,13 +3,14 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FileText, ArrowRight, User, Bot, Users } from 'lucide-react'
-import { CompletionMaterialityStep } from "./steps/CompletionMaterialityStep"
+// CompletionMaterialityStep removed - no longer needed
 import { CompletionProceduresStep } from "./steps/CompletionProceduresStep"
 import { CompletionRecommendationsStep } from "./steps/CompletionRecommendationsStep"
 import { CompletionClassificationStep } from "./steps/CompletionClassificationStep"
 import { AICompletionQuestionsStep } from "./steps/AICompletionQuestionsStep"
 import AICompletionAnswersStep from "./steps/AICompletionAnswersStep"
 import { HybridCompletionProceduresStep } from "./steps/HybridCompletionProceduresStep"
+import { CompletionProcedureTabsView } from "./CompletionProcedureTabsView"
 
 interface CompletionProcedureGenerationProps {
   engagement: any
@@ -45,6 +46,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
   const [currentStep, setCurrentStep] = useState(stepFromUrl !== null ? stepFromUrl : 0)
   const [stepData, setStepData] = useState<StepData>({})
   const [steps, setSteps] = useState<any[]>([])
+  const [showTabsView, setShowTabsView] = useState(false)
 
   // Initialize steps array when mode is available
   useEffect(() => {
@@ -53,22 +55,16 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     // Build steps array based on mode (without updating URL)
     if (selectedMode === "ai") {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Generate Questions", component: AICompletionQuestionsStep },
-        { title: "Generate Answers", component: AICompletionAnswersStep },
-        { title: "Recommendations", component: CompletionRecommendationsStep },
       ])
     } else if (selectedMode === "hybrid") {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Generate Procedures", component: HybridCompletionProceduresStep },
-        { title: "Recommendations", component: CompletionRecommendationsStep },
       ])
     } else {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Completion Procedures", component: CompletionProceduresStep },
         { title: "Recommendations", component: CompletionRecommendationsStep },
@@ -147,22 +143,16 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     setSelectedMode(mode)
     if (mode === "ai") {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Generate Questions", component: AICompletionQuestionsStep },
-        { title: "Generate Answers", component: AICompletionAnswersStep },
-        { title: "Recommendations", component: CompletionRecommendationsStep },
       ])
     } else if (mode === "hybrid") {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Generate Procedures", component: HybridCompletionProceduresStep },
-        { title: "Recommendations", component: CompletionRecommendationsStep },
       ])
     } else {
       setSteps([
-        { title: "Set Materiality", component: CompletionMaterialityStep },
         { title: "Select Sections", component: CompletionClassificationStep },
         { title: "Completion Procedures", component: CompletionProceduresStep },
         { title: "Recommendations", component: CompletionRecommendationsStep },
@@ -196,11 +186,22 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
       });
     }
     
-    setStepData((prev) => ({ 
-      ...prev, 
-      ...data,
-      recommendations: combinedRecommendations 
-    }));
+    const updatedData = { ...stepData, ...data, recommendations: combinedRecommendations }
+    setStepData(updatedData)
+    
+    // After questions/procedures are generated (step 1 for AI/Hybrid), show tabs view
+    // Check if procedures have fields (questions)
+    const hasQuestions = updatedData.procedures && 
+      Array.isArray(updatedData.procedures) && 
+      updatedData.procedures.some((proc: any) => proc.fields && proc.fields.length > 0)
+    
+    if (hasQuestions && (selectedMode === "ai" || selectedMode === "hybrid") && currentStep === 1) {
+      setShowTabsView(true)
+      if (updateProcedureParams) {
+        updateProcedureParams({ step: "tabs" }, false)
+      }
+      return
+    }
     
     if (currentStep < steps.length - 1) {
       const nextStep = currentStep + 1
@@ -294,6 +295,37 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
           </button>
         </div> */}
       </div>
+    )
+  }
+
+  // Show tabs view if questions have been generated
+  if (showTabsView || (stepData.procedures && Array.isArray(stepData.procedures) && stepData.procedures.some((proc: any) => proc.fields && proc.fields.length > 0) && (selectedMode === "ai" || selectedMode === "hybrid"))) {
+    return (
+      <CompletionProcedureTabsView
+        engagement={engagement}
+        stepData={stepData}
+        mode={selectedMode || "ai"}
+        onComplete={(data) => {
+          setShowTabsView(false)
+          onComplete({
+            ...data,
+            mode: selectedMode,
+            status: "completed",
+            procedureType: "completion",
+          })
+          if (updateProcedureParams) {
+            updateProcedureParams({ mode: null, step: null }, false)
+          }
+        }}
+        onBack={() => {
+          setShowTabsView(false)
+          setCurrentStep(1) // Go back to questions step
+          if (updateProcedureParams) {
+            updateProcedureParams({ step: "1" }, false)
+          }
+        }}
+        updateProcedureParams={updateProcedureParams}
+      />
     )
   }
 

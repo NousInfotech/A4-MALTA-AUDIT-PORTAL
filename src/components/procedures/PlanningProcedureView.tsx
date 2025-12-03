@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { Download, Save, X } from "lucide-react"
+import { Download, Save, X, Plus } from "lucide-react"
 
 // NEW: floating notes + notebook
 import FloatingNotesButton from "./FloatingNotesButton"
@@ -262,7 +262,8 @@ function isFieldVisible(field: any, answersMap: Record<string, any>) {
 export const PlanningProcedureView: React.FC<{
   procedure: any
   engagement?: any
-}> = ({ procedure: initial, engagement }) => {
+  onProcedureUpdate?: (updatedProcedure: any) => void
+}> = ({ procedure: initial, engagement, onProcedureUpdate }) => {
   const [editMode, setEditMode] = useState(false)
   const [proc, setProc] = useState<any>(() => {
     const initialWithUids = { ...(initial || {}) }
@@ -438,6 +439,32 @@ const handleSaveRecommendations = async (content: string | any[]) => {
     })
   }
 
+  const addSectionAndQuestion = () => {
+    // Automatically enable edit mode if not already enabled
+    if (!editMode) {
+      setEditMode(true)
+    }
+    setProc((prev: any) => {
+      const next = { ...prev }
+      const sections = [...(next.procedures || [])]
+      // Create a simple new section matching the structure used in ProceduresTab generation flow
+      // This matches the structure created in PlanningProceduresStep.tsx for manual sections
+      const timestamp = Date.now()
+      const newSection = {
+        id: `sec-${timestamp}`,
+        sectionId: `section-${timestamp}`,
+        title: "New Section",
+        standards: undefined, // Optional - not needed for custom sections
+        currency: "EUR",
+        fields: [],
+        footer: null // Optional - matches structure from generation flow
+      }
+      sections.push(newSection)
+      next.procedures = sections
+      return next
+    })
+  }
+
   const addQuestion = (sIdx: number) => {
     // Automatically enable edit mode if not already enabled
     if (!editMode) {
@@ -550,6 +577,10 @@ const save = async (asCompleted = false) => {
     setPendingQuestions(new Set())
     toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
     setEditMode(false)
+    // Notify parent component of update
+    if (onProcedureUpdate) {
+      onProcedureUpdate(saved)
+    }
   } catch (e: any) {
     toast({ title: "Save failed", description: e.message, variant: "destructive" })
   }
@@ -678,8 +709,8 @@ const save = async (asCompleted = false) => {
     }
   }
 
-  if (!proc) return null
-
+  // Always render, even if proc is empty/null - allows users to add questions
+  // proc is initialized as {} if initial is null/undefined, so this should always render
   return (
     <div className="space-y-6">
       <Card>
@@ -696,6 +727,10 @@ const save = async (asCompleted = false) => {
               <Badge variant="outline" className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-blue-500" /> Planning
               </Badge>
+              <Button variant="outline" size="sm" onClick={addSectionAndQuestion}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Question
+              </Button>
               <Button variant="outline" size="sm" onClick={handleExportPlanningPDF}>
                 <Download className="h-4 w-4 mr-2" />
                 Export PDF
@@ -976,7 +1011,17 @@ const save = async (asCompleted = false) => {
               )
             })
           ) : (
-            <div className="text-muted-foreground">No sections.</div>
+            <div className="flex flex-col items-center justify-center py-8 space-y-4">
+              <div className="text-muted-foreground">No sections.</div>
+              <Button 
+                variant="outline" 
+                onClick={addSectionAndQuestion}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Question
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

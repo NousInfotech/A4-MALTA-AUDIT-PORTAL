@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight, User, Bot, Users } from "lucide-react"
 
-import { MaterialityStep } from "./steps/MaterialityStep"         // unchanged (keep as-is)
+// MaterialityStep removed - no longer needed
 import { ClassificationStep } from "./steps/ClassificationStep"   // unchanged (keep as-is)
 import { ProcedureQuestionsStep } from "./steps/ProcedureQuestionsStep" // now MANUAL-only
 
@@ -12,6 +12,7 @@ import AIProcedureAnswersStep  from "./steps/AIProcedureAnswersStep"
 import { HybridProceduresStep } from "./steps/HybridProceduresStep"
 
 import { RecommendationsStep } from "./steps/RecommendationsStep" // unchanged
+import { ProcedureTabsView } from "./ProcedureTabsView"
 
 interface ProcedureGenerationProps {
   engagement: any
@@ -49,6 +50,7 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
   const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(modeFromUrl)
   const [currentStep, setCurrentStep] = useState(stepFromUrl !== null ? stepFromUrl : 0)
   const [stepData, setStepData] = useState<any>({})
+  const [showTabsView, setShowTabsView] = useState(false)
 
   // Sync state with URL parameters when they change (browser back/forward)
   useEffect(() => {
@@ -91,7 +93,25 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
   ]
 
   const onStepDone = (patch: any) => {
-    setStepData((prev: any) => ({ ...prev, ...patch }))
+    const updatedData = { ...stepData, ...patch }
+    setStepData(updatedData)
+    
+    // After questions are generated (for any mode), show tabs view
+    // AI mode: step 1 is questions generation (after classifications)
+    // Hybrid mode: step 1 is questions generation (after classifications)
+    // Manual mode: step 1 is questions/procedures (after classifications)
+    if (updatedData.questions && updatedData.questions.length > 0) {
+      if ((selectedMode === "ai" && currentStep === 1) ||
+          (selectedMode === "hybrid" && currentStep === 1) ||
+          (selectedMode === "manual" && currentStep === 1)) {
+        setShowTabsView(true)
+        if (updateProcedureParams) {
+          updateProcedureParams({ step: "tabs" }, false)
+        }
+        return
+      }
+    }
+    
     if (currentStep < steps.length - 1) {
       const nextStep = currentStep + 1
       setCurrentStep(nextStep)
@@ -141,18 +161,6 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
     if (selectedMode === "manual") {
       return [
         {
-          title: "Set Materiality",
-          render: ({ stepData, setStepData, onStepDone, onBack }) => (
-            <MaterialityStep
-              engagement={engagement}
-              mode="manual"
-              stepData={stepData}
-              onBack={onBack}
-              onComplete={onStepDone}
-            />
-          ),
-        },
-        {
           title: "Select Classifications",
           render: ({ stepData, setStepData, onStepDone, onBack }) => (
             <ClassificationStep
@@ -193,18 +201,6 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
     if (selectedMode === "ai") {
       return [
         {
-          title: "Set Materiality",
-          render: ({ stepData, setStepData, onStepDone, onBack }) => (
-            <MaterialityStep
-              engagement={engagement}
-              mode="ai"
-              stepData={stepData}
-              onBack={onBack}
-              onComplete={onStepDone}
-            />
-          ),
-        },
-        {
           title: "Select Classifications",
           render: ({ stepData, setStepData, onStepDone, onBack }) => (
             <ClassificationStep
@@ -228,46 +224,10 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
             />
           ),
         },
-        {
-          title: "AI — Generate Answers",
-          render: ({ stepData, setStepData, onStepDone, onBack }) => (
-            <AIProcedureAnswersStep
-              engagement={engagement}
-              mode="ai"
-              stepData={stepData}
-              onBack={onBack}
-              onComplete={onStepDone}
-            />
-          ),
-        },
-        {
-          title: "Recommendations",
-          render: ({ stepData, setStepData, onStepDone, onBack }) => (
-            <RecommendationsStep
-              engagement={engagement}
-              mode="ai"
-              stepData={stepData}
-              onBack={onBack}
-              onComplete={onStepDone}
-            />
-          ),
-        },
       ]
     }
     // hybrid
     return [
-      {
-        title: "Set Materiality",
-        render: ({ stepData, setStepData, onStepDone, onBack }) => (
-          <MaterialityStep
-            engagement={engagement}
-            mode="hybrid"
-            stepData={stepData}
-            onBack={onBack}
-            onComplete={onStepDone}
-          />
-        ),
-      },
       {
         title: "Select Classifications",
         render: ({ stepData, setStepData, onStepDone, onBack }) => (
@@ -284,30 +244,6 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
         title: "Hybrid — Manual First, then AI",
         render: ({ stepData, setStepData, onStepDone, onBack }) => (
           <HybridProceduresStep
-            engagement={engagement}
-            mode="hybrid"
-            stepData={stepData}
-            onBack={onBack}
-            onComplete={onStepDone}
-          />
-        ),
-      },
-      {
-          title: "AI — Generate Answers",
-          render: ({ stepData, setStepData, onStepDone, onBack }) => (
-            <AIProcedureAnswersStep
-              engagement={engagement}
-              mode="ai"
-              stepData={stepData}
-              onBack={onBack}
-              onComplete={onStepDone}
-            />
-          ),
-        },
-      {
-        title: "Recommendations",
-        render: ({ stepData, setStepData, onStepDone, onBack }) => (
-          <RecommendationsStep
             engagement={engagement}
             mode="hybrid"
             stepData={stepData}
@@ -369,6 +305,37 @@ export const ProcedureGeneration: React.FC<ProcedureGenerationProps> = ({
           })}
         </div>
       </div>
+    )
+  }
+
+  // Show tabs view if questions have been generated
+  if (showTabsView || (stepData.questions && stepData.questions.length > 0 && (selectedMode === "ai" || selectedMode === "hybrid" || selectedMode === "manual"))) {
+    return (
+      <ProcedureTabsView
+        engagement={engagement}
+        stepData={stepData}
+        mode={selectedMode || "ai"}
+        onComplete={(data) => {
+          setShowTabsView(false)
+          onComplete({
+            ...data,
+            mode: selectedMode,
+            status: "completed",
+            procedureType: "procedures",
+          })
+          if (updateProcedureParams) {
+            updateProcedureParams({ mode: null, step: null }, false)
+          }
+        }}
+        onBack={() => {
+          setShowTabsView(false)
+          setCurrentStep(1) // Go back to questions step
+          if (updateProcedureParams) {
+            updateProcedureParams({ step: "1" }, false)
+          }
+        }}
+        updateProcedureParams={updateProcedureParams}
+      />
     )
   }
 
