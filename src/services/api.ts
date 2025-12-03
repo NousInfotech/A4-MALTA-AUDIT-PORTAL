@@ -249,6 +249,12 @@ export const documentRequestApi = {
       body: formData,
     });
   },
+ 
+  deleteDocument: async (id: string, documentIndex: number) => {
+    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}`, {
+      method: 'DELETE',
+    });
+  },
 
   updateDocumentStatus: async (id: string, documentIndex: number, status: string) => {
     return apiCall(`/api/document-requests/${id}/documents/${documentIndex}/status`, {
@@ -297,11 +303,133 @@ export const documentRequestApi = {
     return response.blob();
   },
 
-  deleteDocument: async (id: string, documentIndex: number) => {
-    return apiCall(`/api/document-requests/${id}/documents/${documentIndex}`, {
+  /**
+   * Clear only the uploaded file for a single-document requirement.
+   * This hits the dedicated backend clear endpoint so template metadata is preserved.
+   */
+  clearSingleDocument: async (id: string, documentIndex: number) => {
+    return apiCall(`/api/document-requests/clear/${id}/${documentIndex}`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Upload files to a multiple document group.
+   * Optionally specify itemIndex to upload to a specific item, otherwise finds first pending item.
+   */
+  uploadMultipleDocuments: async (
+    id: string,
+    multipleDocumentId: string,
+    formData: FormData,
+    itemIndex?: number
+  ) => {
+    if (itemIndex !== undefined) {
+      formData.append('itemIndex', String(itemIndex));
+    }
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * Clear only the uploaded file for a multiple document item.
+   * This clears the file but keeps the item in the multiple array.
+   */
+  clearMultipleDocumentItem: async (
+    id: string,
+    multipleDocumentId: string,
+    itemIndex: number
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/items/${itemIndex}/clear`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a specific item from a multiple document group.
+   */
+  deleteMultipleDocumentItem: async (
+    id: string,
+    multipleDocumentId: string,
+    itemIndex: number
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/items/${itemIndex}`, {
       method: 'DELETE',
     });
-  }
+  },
+
+  /**
+   * Delete entire multiple document group.
+   */
+  deleteMultipleDocumentGroup: async (
+    id: string,
+    multipleDocumentId: string
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Clear all files in a multiple document group (keeps items, removes files).
+   */
+  clearMultipleDocumentGroup: async (
+    id: string,
+    multipleDocumentId: string
+  ) => {
+    return apiCall(`/api/document-requests/${id}/multiple/${multipleDocumentId}/clear`, {
+      method: 'POST',
+    });
+  },
+
+  // Delete entire document request (main request row)
+  deleteRequest: async (id: string) => {
+    return apiCall(`/api/document-requests/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Add documents to an existing document request
+   */
+  addDocumentsToRequest: async (
+    id: string,
+    data: {
+      documents?: Array<{
+        name: string;
+        type: 'direct' | 'template';
+        description?: string;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+        status: 'pending';
+      }>;
+      multipleDocuments?: Array<{
+        name: string;
+        type: 'direct' | 'template';
+        instruction?: string;
+        multiple: Array<{
+          label: string;
+          status: 'pending';
+          template?: {
+            url?: string;
+            instruction?: string;
+          };
+        }>;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+      }>;
+    }
+  ) => {
+    return apiCall(`/api/document-requests/${id}/documents/add`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // Procedures API

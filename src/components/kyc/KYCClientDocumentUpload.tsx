@@ -99,6 +99,8 @@ export function KYCClientDocumentUpload({
       const formData = new FormData();
       formData.append('file', file);
       formData.append('comment', uploadComments[documentIndex] || '');
+      formData.append('documentIndex', String(documentIndex));
+      formData.append('documentName', documentRequest.documents[documentIndex].name);
 
       await documentRequestApi.uploadSingleDocument(documentRequest._id, formData);
       

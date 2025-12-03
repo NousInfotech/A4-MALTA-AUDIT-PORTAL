@@ -568,7 +568,7 @@ export function KYCDocumentRequestModal({
             onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
               const newDocs: Document[] = selectedDocuments.map(doc => ({
                 name: doc.name,
-                type: doc.type,
+                type: doc.type as 'direct' | 'template',
                 description: doc.description,
                 template: doc.type === 'template'
                   ? { url: doc.template?.url, instruction: doc.template?.instructions }

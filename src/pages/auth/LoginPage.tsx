@@ -315,14 +315,14 @@ export const LoginPage = () => {
                     </Button>
                   </form>
                   
-            <div className="text-center pt-6 border-t border-gray-200">
+            {/* <div className="text-center pt-6 border-t border-gray-200">
                     <p className="text-gray-600">
                       Don't have an account?{' '}
                 <Link to="/signup" className="text-gray-800 font-semibold hover:text-gray-900">
                         Sign up
                       </Link>
               </p>
-            </div>
+            </div> */}
           </div>
 
 

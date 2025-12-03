@@ -36,6 +36,8 @@ const CATEGORY_OPTIONS = [
   "Borrowings & loans",
   "Taxation",
   "Going Concern",
+  "kyc",
+  "pbc",
   "Others",
 ];
 
