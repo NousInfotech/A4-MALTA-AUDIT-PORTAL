@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
-import { Download, Save, X } from "lucide-react"
+import { Download, Save, X, Plus } from "lucide-react"
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 const withUids = (procedures: any[]) =>
@@ -265,7 +265,8 @@ function formatBytes(bytes?: number) {
 export const CompletionProcedureView: React.FC<{
   procedure: any
   engagement?: any
-}> = ({ procedure: initial, engagement }) => {
+  onProcedureUpdate?: (updatedProcedure: any) => void
+}> = ({ procedure: initial, engagement, onProcedureUpdate }) => {
   const [editMode, setEditMode] = useState(false)
   const [proc, setProc] = useState<any>(() => {
     const initialWithUids = { ...(initial || {}) }
@@ -429,6 +430,32 @@ export const CompletionProcedureView: React.FC<{
     })
   }
 
+  const addSectionAndQuestion = () => {
+    // Automatically enable edit mode if not already enabled
+    if (!editMode) {
+      setEditMode(true)
+    }
+    setProc((prev: any) => {
+      const next = { ...prev }
+      const sections = [...(next.procedures || [])]
+      // Create a simple new section matching the structure used in ProceduresTab generation flow
+      // This matches the structure created in CompletionProceduresStep.tsx for manual sections
+      const timestamp = Date.now()
+      const newSection = {
+        id: `sec-${timestamp}`,
+        sectionId: `section-${timestamp}`,
+        title: "New Section",
+        standards: undefined, // Optional - not needed for custom sections
+        currency: "EUR",
+        fields: [],
+        footer: null // Optional - matches structure from generation flow
+      }
+      sections.push(newSection)
+      next.procedures = sections
+      return next
+    })
+  }
+
   const addQuestion = (sIdx: number) => {
     // Automatically enable edit mode if not already enabled
     if (!editMode) {
@@ -535,6 +562,10 @@ export const CompletionProcedureView: React.FC<{
       setPendingQuestions(new Set())
       toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
       setEditMode(false)
+      // Notify parent component of update
+      if (onProcedureUpdate) {
+        onProcedureUpdate(saved)
+      }
     } catch (e: any) {
       toast({ title: "Save failed", description: e.message, variant: "destructive" })
     }
@@ -662,8 +693,8 @@ export const CompletionProcedureView: React.FC<{
       })
     }
   }
-  if (!proc) return null
-
+  // Always render, even if proc is empty/null - allows users to add questions
+  // proc is initialized as {} if initial is null/undefined, so this should always render
   return (
     <div className="space-y-6">
       <Card>
@@ -680,6 +711,10 @@ export const CompletionProcedureView: React.FC<{
               <Badge variant="outline" className="flex items-center gap-1">
                 <div className="h-2 w-2 rounded-full bg-purple-500" /> Completion
               </Badge>
+              <Button variant="outline" size="sm" onClick={addSectionAndQuestion}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Question
+              </Button>
               <Button variant="outline" size="sm" onClick={handleExportCompletionPDF}>
                 <Download className="h-4 w-4 mr-2" />
                 Export PDF
@@ -975,7 +1010,17 @@ export const CompletionProcedureView: React.FC<{
               )
             })
           ) : (
-            <div className="text-muted-foreground">No sections.</div>
+            <div className="flex flex-col items-center justify-center py-8 space-y-4">
+              <div className="text-muted-foreground">No sections.</div>
+              <Button 
+                variant="outline" 
+                onClick={addSectionAndQuestion}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Question
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
