@@ -522,7 +522,12 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed = false }) => {
             borderColor: `hsl(var(--sidebar-border))`
           }}
         >
-          <div className="flex items-center gap-3">
+          <div 
+            className={cn(
+              "flex items-center",
+              isCollapsed ? "justify-center" : "gap-3"
+            )}
+          >
             <div className="relative">
               <div 
                 className={cn(
