@@ -21,7 +21,6 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import NotebookInterface from "./NotebookInterface"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
@@ -107,7 +106,8 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
     Array.isArray(stepData.recommendations) ? stepData.recommendations : []
   )
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
-  const [isNotesOpen, setIsNotesOpen] = useState(false)
+  const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null)
+  const [editRecommendationText, setEditRecommendationText] = useState("")
 
   // Filtered questions
   const filteredQuestions = useMemo(() => {
@@ -295,6 +295,8 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
     setIsSaving(true)
     try {
       const base = import.meta.env.VITE_APIURL
+      if (!base) throw new Error("VITE_APIURL is not set")
+      
       const payload = {
         ...stepData,
         questions: questions.map(({ __uid, ...rest }) => rest),
@@ -304,16 +306,23 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
         mode: mode,
       }
 
-      await authFetch(`${base}/api/procedures/${engagement._id}`, {
+      const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
         method: "POST",
         body: JSON.stringify(payload),
       })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        const errorMessage = text || `Failed to save answers (HTTP ${response.status})`
+        throw new Error(errorMessage)
+      }
 
       toast({
         title: "Answers Saved",
         description: "Your answers have been saved successfully.",
       })
     } catch (error: any) {
+      console.error("Save answers error:", error)
       toast({
         title: "Save failed",
         description: error.message || "Could not save answers.",
@@ -327,47 +336,61 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
   // Generate procedures
   const handleGenerateProcedures = async () => {
     setGeneratingProcedures(true)
+    // Ensure we stay on the procedures tab
+    setActiveTab("procedures")
     try {
       // First ensure we have answers
       if (unansweredQuestions.length > 0) {
         await handleGenerateAnswers()
       }
 
-      // Generate recommendations if not already present
-      if (recommendations.length === 0 && questionsWithAnswers.length > 0) {
-        try {
-          const base = import.meta.env.VITE_APIURL
-          const res = await authFetch(`${base}/api/procedures/recommendations`, {
-            method: "POST",
-            body: JSON.stringify({
-              engagementId: engagement._id,
-              procedureId: stepData._id,
-              framework: stepData.framework || "IFRS",
-              classifications: stepData.selectedClassifications || [],
-              questions: questionsWithAnswers.map(({ __uid, ...rest }) => rest),
-            }),
-          })
+      // Generate recommendations
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/procedures/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          engagementId: engagement._id,
+          procedureId: stepData._id,
+          framework: stepData.framework || "IFRS",
+          classifications: stepData.selectedClassifications || [],
+          questions: questionsWithAnswers.map(({ __uid, ...rest }) => rest),
+        }),
+      })
 
-          if (res.ok) {
-            const data = await res.json()
-            const recs = Array.isArray(data.recommendations)
-              ? data.recommendations
-              : typeof data.recommendations === "string"
-              ? data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
-                  id: `rec-${Date.now()}-${idx}`,
-                  text: text.trim(),
-                  checked: false,
-                }))
-              : []
-            setRecommendations(recs)
-          }
-        } catch (error: any) {
-          console.error("Failed to generate recommendations:", error)
-          // Continue without recommendations - user can add them manually
-        }
+      if (res.ok) {
+        const data = await res.json()
+        const recs = Array.isArray(data.recommendations)
+          ? data.recommendations
+          : typeof data.recommendations === "string"
+          ? data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
+              id: `rec-${Date.now()}-${idx}`,
+              text: text.trim(),
+              checked: false,
+            }))
+          : []
+        setRecommendations(recs)
+        toast({
+          title: "Procedures Generated",
+          description: "Recommendations have been generated successfully.",
+        })
+      } else {
+        throw new Error("Failed to generate recommendations")
       }
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Could not generate procedures.",
+        variant: "destructive",
+      })
+    } finally {
+      setGeneratingProcedures(false)
+    }
+  }
 
-      // Save everything as completed
+  // Save all and complete
+  const handleComplete = async () => {
+    setIsSaving(true)
+    try {
       const base = import.meta.env.VITE_APIURL
       const payload = {
         ...stepData,
@@ -386,33 +409,84 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
       if (saved.ok) {
         const savedData = await saved.json()
         toast({
-          title: "Procedures Generated",
-          description: "Your audit procedures have been generated and saved.",
+          title: "Procedures Saved",
+          description: "Your audit procedures have been saved successfully.",
         })
         onComplete({
           ...payload,
           _id: savedData._id || savedData.procedure?._id,
         })
+      } else {
+        throw new Error("Failed to save procedures")
       }
     } catch (error: any) {
       toast({
-        title: "Generation failed",
-        description: error.message || "Could not generate procedures.",
+        title: "Save failed",
+        description: error.message || "Could not save procedures.",
         variant: "destructive",
       })
     } finally {
-      setGeneratingProcedures(false)
+      setIsSaving(false)
     }
   }
 
-  // Handle save recommendations
-  const handleSaveRecommendations = async (content: any) => {
-    const recs = Array.isArray(content) ? content : []
-    setRecommendations(recs)
+  // Handle edit recommendation
+  const handleEditRecommendation = (rec: any, idx: number) => {
+    const recId = rec.id || rec.__uid || `rec-${idx}`
+    setEditingRecommendationId(recId)
+    const recText = typeof rec === 'string' ? rec : rec.text || rec.content || ""
+    setEditRecommendationText(recText)
+  }
+
+  // Handle save recommendation
+  const handleSaveRecommendation = () => {
+    if (!editingRecommendationId) return
+    setRecommendations(prev =>
+      prev.map((rec, idx) => {
+        const recId = rec.id || rec.__uid || `rec-${idx}`
+        if (recId === editingRecommendationId) {
+          if (typeof rec === 'string') {
+            return editRecommendationText
+          }
+          return { ...rec, text: editRecommendationText }
+        }
+        return rec
+      })
+    )
+    setEditingRecommendationId(null)
+    setEditRecommendationText("")
     toast({
-      title: "Recommendations Saved",
-      description: "Your recommendations have been updated.",
+      title: "Recommendation Updated",
+      description: "Your recommendation has been updated.",
     })
+  }
+
+  // Handle cancel edit
+  const handleCancelEditRecommendation = () => {
+    setEditingRecommendationId(null)
+    setEditRecommendationText("")
+  }
+
+  // Handle delete recommendation
+  const handleDeleteRecommendation = (rec: any, idx: number) => {
+    const recId = rec.id || rec.__uid || `rec-${idx}`
+    setRecommendations(prev => prev.filter((r, i) => {
+      const rId = r.id || r.__uid || `rec-${i}`
+      return rId !== recId
+    }))
+    toast({ title: "Recommendation deleted", description: "The recommendation has been removed." })
+  }
+
+  // Handle add recommendation
+  const handleAddRecommendation = () => {
+    const newRec = {
+      id: `rec-${Date.now()}`,
+      text: "New recommendation",
+      checked: false,
+    }
+    setRecommendations([...recommendations, newRec])
+    setEditingRecommendationId(newRec.id)
+    setEditRecommendationText(newRec.text)
   }
 
   return (
@@ -758,7 +832,7 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
         {/* Procedures Tab */}
         <TabsContent value="procedures" className="flex-1 flex flex-col mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">Audit Procedures & Recommendations</h4>
+            <h4 className="text-lg font-semibold">Audit Recommendations</h4>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -771,69 +845,108 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}
-                {questionsWithAnswers.length > 0 ? "Regenerate Procedures" : "Generate Procedures"}
+                {recommendations.length > 0 ? "Regenerate Procedures" : "Generate Procedures"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleAddRecommendation}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Procedures
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleComplete}
+                disabled={isSaving || questionsWithAnswers.length === 0}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save & Complete
               </Button>
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col gap-6 overflow-auto">
-            {/* Audit Procedures Section */}
-            {questions.length > 0 && (
-              <div className="space-y-4">
-                <h5 className="text-md font-semibold">Audit Procedures</h5>
-                <Card>
-                  <CardContent className="pt-6">
-                    <ScrollArea className="h-[400px]">
-                      <div className="space-y-4">
-                        {questions.map((q: any, idx: number) => (
-                          <div key={q.__uid || idx} className="border-b pb-4 last:border-b-0">
-                            <div className="font-medium mb-2">
-                              {idx + 1}. {q.question || "—"}
-                            </div>
-                            {q.answer ? (
-                              <div className="text-sm text-muted-foreground mb-2">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {String(q.answer)}
-                                </ReactMarkdown>
+          <ScrollArea className="flex-1">
+            <div className="space-y-4">
+              {recommendations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {questionsWithAnswers.length > 0 
+                    ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
+                    : "Generate questions and answers first, then generate procedures."}
+                </div>
+              ) : (
+                recommendations.map((rec: any, idx: number) => {
+                  const recId = rec.id || rec.__uid || `rec-${idx}`
+                  const recText = typeof rec === 'string' 
+                    ? rec 
+                    : rec.text || rec.content || "—"
+                  const isEditing = editingRecommendationId === recId
+                  
+                  return (
+                    <Card key={recId}>
+                      <CardContent className="pt-6">
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium">{idx + 1}.</div>
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={handleSaveRecommendation}>
+                                  <Save className="h-4 w-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={handleCancelEditRecommendation}>
+                                  <X className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
                               </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground italic mb-2">
-                                No answer.
+                            </div>
+                            <Textarea
+                              value={editRecommendationText}
+                              onChange={(e) => setEditRecommendationText(e.target.value)}
+                              placeholder="Recommendation"
+                              className="min-h-[100px]"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start">
+                              <div className="font-medium mb-2 text-black">
+                                {idx + 1}. {recText}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditRecommendation(rec, idx)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteRecommendation(rec, idx)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            {rec.checked !== undefined && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant={rec.checked ? "default" : "secondary"}>
+                                  {rec.checked ? "Completed" : "Pending"}
+                                </Badge>
                               </div>
                             )}
-                            <div className="flex gap-2">
-                              {q.framework && (
-                                <Badge variant="default">{q.framework}</Badge>
-                              )}
-                              {q.reference && (
-                                <Badge variant="default">{q.reference}</Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Audit Recommendations Section */}
-            <div className="space-y-4">
-              <h5 className="text-md font-semibold">Audit Recommendations</h5>
-              <div className="flex-1 relative min-h-[400px]">
-                <NotebookInterface
-                  isOpen={true}
-                  isEditable={true}
-                  isPlanning={false}
-                  onClose={() => {}}
-                  recommendations={recommendations}
-                  onSave={handleSaveRecommendations}
-                  dismissible={false}
-                />
-              </div>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })
+              )}
             </div>
-          </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>

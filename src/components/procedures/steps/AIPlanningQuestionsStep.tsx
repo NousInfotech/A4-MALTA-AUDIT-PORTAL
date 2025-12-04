@@ -248,7 +248,8 @@ export const AIPlanningQuestionsStep: React.FC<{
         setCelebration({ sectionId, x: targetX, y: targetY, animate: false })
 
         // After the main Lottie animation duration, start the move/shrink
-        const centerDurationMs = 2000 // show in center for ~1.5s
+        const centerDurationMs = 2000 // show in center for ~2s
+        const flyDurationMs = 700 // matches CSS transition duration
 
         setTimeout(() => {
           setCelebration((prev) => (prev ? { ...prev, animate: true } : prev))

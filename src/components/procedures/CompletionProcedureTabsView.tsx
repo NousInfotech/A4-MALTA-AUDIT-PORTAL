@@ -21,19 +21,32 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import NotebookInterface from "./NotebookInterface"
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const token = data?.session?.access_token
+  
+  // Don't set Content-Type for FormData - let browser set it with boundary
+  const isFormData = options.body instanceof FormData
+  const existingHeaders = (options.headers || {}) as Record<string, string>
+  
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...existingHeaders,
+  }
+  
+  // Only set Content-Type if not FormData and not already explicitly set
+  if (!isFormData && !existingHeaders["Content-Type"]) {
+    headers["Content-Type"] = "application/json"
+  } else if (isFormData) {
+    // Remove Content-Type for FormData to let browser set it with boundary
+    delete headers["Content-Type"]
+  }
+  
   return fetch(url, {
     ...options,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
   })
 }
 
@@ -161,29 +174,39 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
     Array.isArray(stepData.recommendations) ? stepData.recommendations : []
   )
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
+  const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null)
+  const [editRecommendationText, setEditRecommendationText] = useState("")
 
   // Update questions when procedures change
   React.useEffect(() => {
     setQuestions(proceduresToQuestions(procedures))
   }, [procedures])
 
+  // Helper function to safely check if answer is non-empty
+  const hasAnswer = (answer: any): boolean => {
+    if (!answer) return false
+    if (typeof answer === 'string') return answer.trim() !== ""
+    if (typeof answer === 'number') return true
+    return false
+  }
+
   // Filtered questions
   const filteredQuestions = useMemo(() => {
     let filtered = questions
     if (questionFilter === "unanswered") {
-      filtered = filtered.filter((q: any) => !q.answer || q.answer.trim() === "")
+      filtered = filtered.filter((q: any) => !hasAnswer(q.answer))
     }
     return filtered
   }, [questions, questionFilter])
 
   // Questions with answers
   const questionsWithAnswers = useMemo(() => {
-    return questions.filter((q: any) => q.answer && q.answer.trim() !== "")
+    return questions.filter((q: any) => hasAnswer(q.answer))
   }, [questions])
 
   // Unanswered questions
   const unansweredQuestions = useMemo(() => {
-    return questions.filter((q: any) => !q.answer || q.answer.trim() === "")
+    return questions.filter((q: any) => !hasAnswer(q.answer))
   }, [questions])
 
   // Handle add question
@@ -302,7 +325,12 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
       
       // Generate answers for all sections that have questions without answers
       const sectionsToProcess = procedures.filter(proc => 
-        proc.fields && proc.fields.some((f: any) => !f.answer || f.answer.trim() === "")
+        proc.fields && proc.fields.some((f: any) => {
+          const answer = f.answer
+          if (!answer) return true
+          if (typeof answer === 'string') return answer.trim() === ""
+          return false
+        })
       )
       
       for (const section of sectionsToProcess) {
@@ -358,6 +386,8 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
     setIsSaving(true)
     try {
       const base = import.meta.env.VITE_APIURL
+      if (!base) throw new Error("VITE_APIURL is not set")
+      
       const formData = new FormData()
       
       const payload = {
@@ -374,15 +404,37 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
       
       formData.append("data", JSON.stringify(payload))
       
+      // Collect all files & a single fileMap array (if any files exist)
+      const fileMap: Array<{ sectionId: string; fieldKey: string; originalName: string }> = []
+      procedures.forEach((proc) => {
+        (proc.fields || []).forEach((field: any) => {
+          if (field.type === "file" && field.answer instanceof File) {
+            formData.append("files", field.answer, field.answer.name)
+            fileMap.push({ 
+              sectionId: proc.sectionId, 
+              fieldKey: field.key, 
+              originalName: field.answer.name 
+            })
+          }
+        })
+      })
+      if (fileMap.length) formData.append("fileMap", JSON.stringify(fileMap))
+      
       const response = await authFetch(`${base}/api/completion-procedures/${engagement._id}/save`, {
         method: "POST",
         body: formData,
+        headers: {}, // let browser set multipart boundary
       })
       
-      if (!response.ok) throw new Error("Failed to save answers")
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        const errorMessage = text || `Failed to save answers (HTTP ${response.status})`
+        throw new Error(errorMessage)
+      }
       
       toast({ title: "Answers Saved", description: "Your answers have been saved successfully." })
     } catch (error: any) {
+      console.error("Save answers error:", error)
       toast({
         title: "Save failed",
         description: error.message || "Could not save answers.",
@@ -396,37 +448,41 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
   // Generate procedures/recommendations
   const handleGenerateProcedures = async () => {
     setGeneratingProcedures(true)
+    // Ensure we stay on the procedures tab
+    setActiveTab("procedures")
     try {
       const base = import.meta.env.VITE_APIURL
       
-      // Generate recommendations
-      const res = await authFetch(`${base}/api/completion-procedures/recommendations`, {
+      // Generate recommendations - use correct endpoint format
+      const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}/generate/recommendations`, {
         method: "POST",
         body: JSON.stringify({
-          engagementId: engagement._id,
-          procedureId: stepData._id,
-          framework: stepData.framework || "IFRS",
-          selectedSections: stepData.selectedSections || [],
           procedures: procedures.map(sec => ({
             ...sec,
             fields: (sec.fields || []).map(({ __uid, ...rest }) => rest)
           })),
+          materiality: stepData.materiality || 0,
         }),
       })
       
       if (res.ok) {
         const data = await res.json()
-        const recs = Array.isArray(data.recommendations)
-          ? data.recommendations
-          : typeof data.recommendations === "string"
-          ? data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
-              id: `rec-${Date.now()}-${idx}`,
-              text: text.trim(),
-              checked: false,
-            }))
-          : []
+        // Handle both checklist format and legacy string format
+        let recs = []
+        if (data.recommendations && Array.isArray(data.recommendations)) {
+          recs = data.recommendations
+        } else if (data.recommendations && typeof data.recommendations === 'string') {
+          recs = data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
+            id: `rec-${Date.now()}-${idx}`,
+            text: text.trim(),
+            checked: false,
+          }))
+        }
         setRecommendations(recs)
-        toast({ title: "Procedures Generated", description: "Procedures and recommendations have been generated." })
+        toast({ title: "Procedures Generated", description: "Recommendations have been generated successfully." })
+      } else {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to generate recommendations")
       }
     } catch (error: any) {
       toast({
@@ -437,6 +493,65 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
     } finally {
       setGeneratingProcedures(false)
     }
+  }
+
+  // Handle edit recommendation
+  const handleEditRecommendation = (rec: any, idx: number) => {
+    const recId = rec.id || rec.__uid || `rec-${idx}`
+    setEditingRecommendationId(recId)
+    const recText = typeof rec === 'string' ? rec : rec.text || rec.content || ""
+    setEditRecommendationText(recText)
+  }
+
+  // Handle save recommendation
+  const handleSaveRecommendation = () => {
+    if (!editingRecommendationId) return
+    setRecommendations(prev =>
+      prev.map((rec, idx) => {
+        const recId = rec.id || rec.__uid || `rec-${idx}`
+        if (recId === editingRecommendationId) {
+          if (typeof rec === 'string') {
+            return editRecommendationText
+          }
+          return { ...rec, text: editRecommendationText }
+        }
+        return rec
+      })
+    )
+    setEditingRecommendationId(null)
+    setEditRecommendationText("")
+    toast({
+      title: "Recommendation Updated",
+      description: "Your recommendation has been updated.",
+    })
+  }
+
+  // Handle cancel edit
+  const handleCancelEditRecommendation = () => {
+    setEditingRecommendationId(null)
+    setEditRecommendationText("")
+  }
+
+  // Handle delete recommendation
+  const handleDeleteRecommendation = (rec: any, idx: number) => {
+    const recId = rec.id || rec.__uid || `rec-${idx}`
+    setRecommendations(prev => prev.filter((r, i) => {
+      const rId = r.id || r.__uid || `rec-${i}`
+      return rId !== recId
+    }))
+    toast({ title: "Recommendation deleted", description: "The recommendation has been removed." })
+  }
+
+  // Handle add recommendation
+  const handleAddRecommendation = () => {
+    const newRec = {
+      id: `rec-${Date.now()}`,
+      text: "New recommendation",
+      checked: false,
+    }
+    setRecommendations([...recommendations, newRec])
+    setEditingRecommendationId(newRec.id)
+    setEditRecommendationText(newRec.text)
   }
 
   // Save all and complete
@@ -586,9 +701,10 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
                 Object.entries(questionsBySection).map(([sectionId, sectionQuestions]) => {
                   const section = procedures.find(p => p.sectionId === sectionId)
                   const sectionTitle = section?.title || sectionId
-                  const filteredSectionQuestions = sectionQuestions.filter(q => 
-                    questionFilter === "all" || !q.answer || q.answer.trim() === ""
-                  )
+                  const filteredSectionQuestions = sectionQuestions.filter(q => {
+                    if (questionFilter === "all") return true
+                    return !hasAnswer(q.answer)
+                  })
                   
                   if (filteredSectionQuestions.length === 0) return null
                   
@@ -864,83 +980,143 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
         {/* Procedures Tab */}
         <TabsContent value="procedures" className="flex-1 flex flex-col mt-4">
           <div className="flex items-center justify-between mb-4">
-            {hasQuestions && hasAnswers ? (
-              hasProcedures ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateProcedures}
-                  disabled={generatingProcedures}
-                >
-                  {generatingProcedures ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Regenerate Procedures
-                </Button>
+            <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+            <div className="flex items-center gap-2">
+              {hasQuestions && hasAnswers ? (
+                hasProcedures ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateProcedures}
+                    disabled={generatingProcedures}
+                  >
+                    {generatingProcedures ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Regenerate Procedures
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleGenerateProcedures}
+                    disabled={generatingProcedures}
+                  >
+                    {generatingProcedures ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Generate Procedures
+                  </Button>
+                )
               ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleGenerateProcedures}
-                  disabled={generatingProcedures}
-                >
-                  {generatingProcedures ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-2" />
-                  )}
-                  Generate Procedures
-                </Button>
-              )
-            ) : (
-              <div className="text-muted-foreground">
-                {!hasQuestions ? "Generate questions first." : "Generate answers first."}
-              </div>
-            )}
-            <Button variant="outline" size="sm" onClick={handleAddQuestion}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Procedures
-            </Button>
+                <div className="text-muted-foreground">
+                  {!hasQuestions ? "Generate questions first." : "Generate answers first."}
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={handleAddRecommendation}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Procedures
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleComplete}
+                disabled={isSaving || !hasQuestions || !hasAnswers}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save & Complete
+              </Button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-            {/* Audit Procedures */}
+          <ScrollArea className="flex-1">
             <div className="space-y-4">
-              <h4 className="font-semibold text-lg">Audit Procedures</h4>
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-4">
-                  {questionsWithAnswers.map((q: any, idx: number) => (
-                    <Card key={q.__uid || idx}>
+              {recommendations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {hasQuestions && hasAnswers
+                    ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
+                    : "Generate questions and answers first, then generate procedures."}
+                </div>
+              ) : (
+                recommendations.map((rec: any, idx: number) => {
+                  const recId = rec.id || rec.__uid || `rec-${idx}`
+                  const recText = typeof rec === 'string' 
+                    ? rec 
+                    : rec.text || rec.content || "—"
+                  const isEditing = editingRecommendationId === recId
+                  
+                  return (
+                    <Card key={recId}>
                       <CardContent className="pt-6">
-                        <div className="font-medium mb-2">
-                          {idx + 1}. {q.question || "—"}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {String(q.answer || "No answer.")}
-                          </ReactMarkdown>
-                        </div>
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium">{idx + 1}.</div>
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={handleSaveRecommendation}>
+                                  <Save className="h-4 w-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={handleCancelEditRecommendation}>
+                                  <X className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                            <Textarea
+                              value={editRecommendationText}
+                              onChange={(e) => setEditRecommendationText(e.target.value)}
+                              placeholder="Recommendation"
+                              className="min-h-[100px]"
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start">
+                              <div className="font-medium mb-2 text-black">
+                                {idx + 1}. {recText}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditRecommendation(rec, idx)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteRecommendation(rec, idx)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            {rec.checked !== undefined && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant={rec.checked ? "default" : "secondary"}>
+                                  {rec.checked ? "Completed" : "Pending"}
+                                </Badge>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-              </ScrollArea>
+                  )
+                })
+              )}
             </div>
-
-            {/* Audit Recommendations */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-lg">Audit Recommendations</h4>
-              <div className="h-[500px]">
-                <NotebookInterface
-                  items={recommendations}
-                  onItemsChange={setRecommendations}
-                  engagement={engagement}
-                />
-              </div>
-            </div>
-          </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>
