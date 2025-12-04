@@ -142,7 +142,9 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                         <RefreshCw className="animate-spin" />
                       ) : (
                         <>
+                         
                           <Upload />
+                          Upload
                         </>
                       )}
                     </span>
@@ -191,7 +193,23 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                 </>
               )}
 
-              {/* Separate template download button - only for template documents */}
+             
+
+              {/* Clear (reset) only the uploaded file, keep requirement row */}
+              {onClearDocument && doc.url && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onClearDocument(requestId, docIndex, doc.name)}
+                  className="border-yellow-300 hover:bg-yellow-50 hover:text-yellow-800 text-yellow-700 h-8 px-2 text-xs"
+                  title="Clear Uploaded File"
+                >
+                  Clear
+                </Button>
+              )}
+
+               {/* Template download button - always available for template documents,
+                  so users can re-open the original blank template even after upload. */}
               {docType === "template" && (doc as any).template?.url && (
                 <Button
                   size="sm"
@@ -205,22 +223,10 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center h-8 w-8 p-0"
-                  >
+                  >  
                     <span><File/></span>
                   </a>
-                </Button>
-              )}
-
-              {/* Clear (reset) only the uploaded file, keep requirement row */}
-              {onClearDocument && doc.url && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onClearDocument(requestId, docIndex, doc.name)}
-                  className="border-yellow-300 hover:bg-yellow-50 hover:text-yellow-800 text-yellow-700 h-8 px-2 text-xs"
-                  title="Clear Uploaded File"
-                >
-                  <Eraser/>
+                  
                 </Button>
               )}
 

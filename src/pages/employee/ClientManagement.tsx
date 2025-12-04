@@ -155,7 +155,7 @@ export const ClientManagement = () => {
           <EnhancedLoader size="lg" text="Loading..." />
         </div>
       )
-    }
+  }
 
   return (
     <div className="min-h-screen  bg-brand-body p-6">

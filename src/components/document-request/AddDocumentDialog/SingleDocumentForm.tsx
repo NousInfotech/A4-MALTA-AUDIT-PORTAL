@@ -29,6 +29,7 @@ export const SingleDocumentForm = ({
   handleClose,
   handleSubmit,
   showBackButton = true,
+  documentResult = true
 }: any) => {
   const [newDocument, setNewDocument] = useState<any>({
     name: "",
@@ -87,13 +88,13 @@ export const SingleDocumentForm = ({
 
   return (
     <div className="space-y-6">
-      <div className={`flex items-center ${showBackButton ? 'justify-between' : 'justify-end'}`}>
+      <div className={`flex items-center ${showBackButton ? 'justify-between' : 'justify-end'} `}>
         {showBackButton && (
-          <Button variant="outline" onClick={() => setMode("select")}>
-            ← Back
+          <Button variant="default" onClick={() => setMode("select")}>
+            Back
           </Button>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-2 border-gray-300 p-1 rounded-2xl">
           <Button variant="default" onClick={() => setMode("new")}>
             Single Copy
           </Button>
@@ -215,50 +216,58 @@ export const SingleDocumentForm = ({
         </CardContent>
       </Card>
 
-      {documents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Documents to Add ({documents.length})</CardTitle>
-          </CardHeader>
+      
 
-          <CardContent>
-            <div className="space-y-2">
-              {documents.map((doc: any, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">{doc.name}</p>
-                    {doc.description && (
-                      <p className="text-sm text-gray-600">{doc.description}</p>
-                    )}
-                  </div>
+      {documentResult && documents.length > 0 && (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-lg">
+        Documents to Add ({documents.length})
+      </CardTitle>
+    </CardHeader>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setDocuments((p: any) => p.filter((_, i: number) => i !== index))
-                    }
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ))}
+    <CardContent>
+      <div className="space-y-2">
+        {documents.map((doc: any, index: number) => (
+          <div
+            key={index}
+            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+          >
+            <div>
+              <p className="font-medium">{doc.name}</p>
+              {doc.description && (
+                <p className="text-sm text-gray-600">{doc.description}</p>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {documents.length > 0 && (
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setDocuments((p: any) => p.filter((_, i: number) => i !== index))
+              }
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+)}
 
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? "Adding..." : "Add Documents"}
-          </Button>
-        </div>
-      )}
+{documentResult && documents.length > 0 && (
+  <div className="flex justify-end gap-3">
+    <Button variant="outline" onClick={handleClose}>
+      Cancel
+    </Button>
+
+    <Button onClick={handleSubmit} disabled={loading}>
+      {loading ? "Adding..." : "Add Documents"}
+    </Button>
+  </div>
+)}
+
     </div>
   );
 };

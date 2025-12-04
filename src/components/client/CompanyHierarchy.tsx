@@ -339,7 +339,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
                   marginBottom: 6,
                 }}
               >
-                {((node.sharePercentage ?? node.percentage) || 0).toFixed(0)}%
+                {((node.sharePercentage ?? node.percentage) || 0).toFixed(2)}%
               </div>
             )}
             

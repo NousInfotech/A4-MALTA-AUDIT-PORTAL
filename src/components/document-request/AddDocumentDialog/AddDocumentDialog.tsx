@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileEdit, FileUp, Plus } from "lucide-react";
+import { FileEdit, FileText, FileUp, Plus } from "lucide-react";
 import { DefaultDocumentRequestPreview } from "@/components/kyc/DefaultDocumentRequestPreview";
 import { DocumentRequestTemplate } from "@/lib/api/documentRequestTemplate";
 import { useToast } from "@/hooks/use-toast";
@@ -84,30 +84,78 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
   };
 
   const handleDefaultDocumentsAdd = (selectedDocs: DocumentRequestTemplate[]) => {
-    const convertedDocs: Document[] = selectedDocs.map((doc) => {
+    const newDocs: Document[] = [];
+    const newMultipleDocs: MultipleDocument[] = [];
+
+    selectedDocs.forEach((doc) => {
+      const isMultiple = doc.multiple && doc.multiple.length > 0;
       const docType =
         typeof doc.type === "string" ? doc.type : (doc.type as any)?.type || "direct";
 
-      return {
-        name: doc.name,
-        type: docType as "direct" | "template",
-        description: doc.description,
-        template:
-          docType === "template" && doc.template?.url
-            ? {
-                url: doc.template.url,
-                instruction: doc.template.instructions || "",
-              }
-            : undefined,
-        status: "pending",
-      };
+      if (isMultiple) {
+        // Map default multiple-copy template into MultipleDocument shape
+        const multipleDoc: MultipleDocument = {
+          name: doc.name,
+          type: docType as "direct" | "template",
+          instruction: undefined,
+          multiple: (doc.multiple || []).map((item: any) => {
+            // Combine item.instruction + template.instructions into a single instruction field
+            let combinedInstruction = "";
+            if (item.instruction) {
+              combinedInstruction = item.instruction;
+            }
+            if (item.template?.instructions) {
+              combinedInstruction = combinedInstruction
+                ? `${combinedInstruction}\n\nTemplate Instructions: ${item.template.instructions}`
+                : item.template.instructions;
+            }
+            const templateInstruction = combinedInstruction || undefined;
+
+            return {
+              label: item.label,
+              template:
+                item.template?.url || templateInstruction
+                  ? {
+                      url: item.template?.url || undefined,
+                      instruction: templateInstruction,
+                    }
+                  : undefined,
+              status: "pending",
+            };
+          }),
+        };
+
+        newMultipleDocs.push(multipleDoc);
+      } else {
+        // Regular single document from default template
+        const regularDoc: Document = {
+          name: doc.name,
+          type: docType as "direct" | "template",
+          description: doc.description,
+          template:
+            docType === "template" && doc.template?.url
+              ? {
+                  url: doc.template.url,
+                  instruction: doc.template.instructions || "",
+                }
+              : undefined,
+          status: "pending",
+        };
+
+        newDocs.push(regularDoc);
+      }
     });
 
-    setDocuments((prev) => [...prev, ...convertedDocs]);
+    if (newDocs.length > 0) {
+      setDocuments((prev) => [...prev, ...newDocs]);
+    }
+    if (newMultipleDocs.length > 0) {
+      setMultipleDocuments((prev) => [...prev, ...newMultipleDocs]);
+    }
 
     toast({
       title: "Documents Added",
-      description: `${selectedDocs.length} document(s) have been added.`,
+      description: `${selectedDocs.length} document(s) have been added (${newDocs.length} single, ${newMultipleDocs.length} multiple).`,
     });
   };
 
@@ -250,9 +298,9 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
               className="cursor-pointer hover:border-blue-500 transition-colors"
               onClick={() => setMode("default")}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileEdit className="h-5 w-5 text-blue-600" />
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <FileText className="h-5 w-5 text-blue-600" />
                   Use Default Document Request
                 </CardTitle>
                 <CardDescription>
@@ -265,8 +313,8 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
               className="cursor-pointer hover:border-green-500 transition-colors"
               onClick={() => setMode("new")}
             >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-xl">
                   <FileUp className="h-5 w-5 text-green-600" />
                   Create New Document Request
                 </CardTitle>
@@ -280,8 +328,8 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
 
         {mode === "default" && (
           <div className="space-y-4">
-            <Button variant="outline" onClick={() => setMode("select")}>
-              ← Back
+            <Button variant="default" onClick={() => setMode("select")}>
+              Back
             </Button>
 
             <DefaultDocumentRequestPreview
@@ -291,7 +339,7 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
             />
 
             {documents.length > 0 && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg ">
                 <p className="text-sm font-medium mb-2">
                   {documents.length} document(s) selected
                 </p>

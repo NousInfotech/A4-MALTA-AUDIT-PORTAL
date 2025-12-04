@@ -130,7 +130,8 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
   const downloadDocument = (url: string, name: string) => {
     const link = document.createElement('a');
     link.href = url;
-    link.download = name;
+    // Download directly without opening a new tab
+    link.download = name || '';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -157,7 +158,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
             <Button
               variant="outline"
               onClick={handleSelectAll}
-              className="border-gray-300 hover:bg-gray-100 text-gray-700"
+              className="border-gray-300 text-gray-700"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Select All
@@ -165,14 +166,15 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
             <Button
               variant="outline"
               onClick={handleDeselectAll}
-              className="border-gray-300 hover:bg-gray-100 text-gray-700"
+              className="border-gray-300 text-gray-700"
             >
               Deselect All
             </Button>
             <Button
               onClick={handleAddSelectedDocuments}
               disabled={selectedDocuments.size === 0}
-              className="bg-brand-hover hover:bg-brand-sidebar text-white disabled:bg-gray-400"
+              variant="default"
+              className=" disabled:bg-gray-400"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Selected ({selectedDocuments.size})
@@ -228,7 +230,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                             size="sm"
                             variant="outline"
                             onClick={() => previewDocument(document.template?.url!)}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                            className="border-gray-300 text-gray-700"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -236,7 +238,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                             size="sm"
                             variant="outline"
                             onClick={() => downloadDocument(document.template?.url!, document.name)}
-                            className="border-gray-300 hover:bg-gray-100 text-gray-700"
+                            className="border-gray-300 text-gray-700"
                           >
                             <Download className="h-4 w-4" />
                           </Button>
@@ -308,7 +310,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                                       size="sm"
                                       variant="outline"
                                       onClick={() => previewDocument(item.template!.url!)}
-                                      className="border-amber-300 hover:bg-amber-100 text-amber-700 h-7 px-2"
+                                      className="border-amber-300 text-amber-700 h-7 px-2"
                                     >
                                       <Eye className="h-3 w-3" />
                                     </Button>
@@ -316,7 +318,7 @@ export const DefaultDocumentRequestPreview: React.FC<DefaultDocumentRequestPrevi
                                       size="sm"
                                       variant="outline"
                                       onClick={() => downloadDocument(item.template!.url!, `${document.name} - ${item.label}`)}
-                                      className="border-amber-300 hover:bg-amber-100 text-amber-700 h-7 px-2"
+                                      className="border-amber-300 text-amber-700 h-7 px-2"
                                     >
                                       <Download className="h-3 w-3" />
                                     </Button>
