@@ -35,7 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useDrList } from '@/hooks/useDocumentRequestTemplateHook';
-import type { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
+import type { DocumentRequestTemplate, TemplateItem } from '@/lib/api/documentRequestTemplate';
 
 // Mock data
 // const mockDocuments: LibraryDocument[] = [
@@ -120,11 +120,12 @@ const Library = () => {
   };
 
   const handleSaveDocument = async (newDoc: DocumentFormValues) => {
+    // Check if it's multiple copies by checking if multiple array exists and has items
+    const isMultipleCopies = newDoc.multiple && newDoc.multiple.length > 0;
+    
     let normalizedType: DocumentRequestTemplate["type"];
     if (newDoc.type === "Template") {
       normalizedType = "template";
-    } else if (newDoc.type === "Multiple") {
-      normalizedType = "multiple";
     } else {
       normalizedType = "direct";
     }
@@ -136,12 +137,16 @@ const Library = () => {
       category: newDoc.category || "Others",
     };
 
-    if (normalizedType === "template") {
+    // For single copy template
+    if (!isMultipleCopies && normalizedType === "template") {
       payload.template = {
         instructions: newDoc.templateInstructions?.trim() || undefined,
         url: newDoc.templateUrl,
       };
-    } else if (normalizedType === "multiple" && newDoc.multiple) {
+    }
+    
+    // For multiple copies (both direct and template)
+    if (isMultipleCopies && newDoc.multiple) {
       payload.multiple = newDoc.multiple;
     }
 
@@ -250,23 +255,20 @@ const Library = () => {
     setIsAddModalOpen(true);
   };
 
-  const getTypeBadge = (type: 'Template' | 'Direct' | 'Multiple') => {
-    if (type === 'Template') {
+  const getTypeBadge = (doc: DocumentRequestTemplate) => {
+    const isMultiple = doc.multiple && doc.multiple.length > 0;
+    const type = doc.type;
+    
+    if (type === 'template') {
       return (
         <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-          Template
-        </Badge>
-      );
-    } else if (type === 'Multiple') {
-      return (
-        <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
-          Multiple
+          {isMultiple ? 'Template (Multiple)' : 'Template'}
         </Badge>
       );
     } else {
       return (
         <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-          Direct
+          {isMultiple ? 'Direct (Multiple)' : 'Direct'}
         </Badge>
       );
     }
@@ -279,7 +281,9 @@ const Library = () => {
         doc.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType =
-        typeFilter === "all" || doc.type.toLowerCase() === typeFilter.toLowerCase();
+        typeFilter === "all" || 
+        (typeFilter === "multiple" && doc.multiple && doc.multiple.length > 0) ||
+        (typeFilter !== "multiple" && doc.type.toLowerCase() === typeFilter.toLowerCase());
 
       const matchesCategory =
         categoryFilter === "all" || (doc.category ?? "Others") === categoryFilter;
@@ -465,8 +469,6 @@ const Library = () => {
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                         {doc.type === "template" ? (
                           <FileEdit className="h-6 w-6 text-blue-700" />
-                        ) : doc.type === "multiple" ? (
-                          <FileEdit className="h-6 w-6 text-purple-700" />
                         ) : (
                           <FileUp className="h-6 w-6 text-green-700" />
                         )}
@@ -477,17 +479,15 @@ const Library = () => {
                           <h4 className="font-semibold text-gray-900 text-lg">
                             {doc.name}
                           </h4>
-
-                          {/* Convert type to TitleCase */}
-                          {getTypeBadge(
-                            doc.type.charAt(0).toUpperCase() + doc.type.slice(1) as 'Template' | 'Direct' | 'Multiple'
-                          )}
+                          {getTypeBadge(doc)}
                         </div>
 
                         {doc.description && (
                           <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
                         )}
-                        {doc.type === "template" && (
+                        
+                        {/* Single copy template */}
+                        {doc.type === "template" && (!doc.multiple || doc.multiple.length === 0) && (
                           <div className="mt-2 space-y-2">
                             {doc.template?.instructions && (
                               <div className="text-sm text-blue-900 bg-blue-50 border border-blue-100 rounded-lg p-2">
@@ -497,36 +497,83 @@ const Library = () => {
                                 </p>
                               </div>
                             )}
-                          
+                            {doc.template?.url && (
+                              <a
+                                href={doc.template.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-blue-700 hover:text-blue-900"
+                              >
+                                <Download className="h-4 w-4" />
+                                Download Template
+                              </a>
+                            )}
                           </div>
                         )}
-                        {doc.type === "multiple" && doc.multiple && doc.multiple.length > 0 && (
+                        
+                        {/* Multiple copies (both Direct and Template) */}
+                        {doc.multiple && doc.multiple.length > 0 && (
                           <div className="mt-2 space-y-2">
-                            <div className="text-sm text-purple-900 bg-purple-50 border border-purple-100 rounded-lg p-2">
-                              <p className="font-medium mb-2">Template Items ({doc.multiple.length})</p>
-                              <div className="space-y-1">
+                            <div className={`text-sm border rounded-lg p-3 ${
+                              doc.type === "template" 
+                                ? "text-blue-900 bg-blue-50 border-blue-100" 
+                                : "text-green-900 bg-green-50 border-green-100"
+                            }`}>
+                              <p className="font-medium mb-2">
+                                Multiple Copies ({doc.multiple.length} {doc.multiple.length === 1 ? 'item' : 'items'})
+                              </p>
+                              <div className="space-y-3">
                                 {doc.multiple.map((item, idx) => (
                                   <div
                                     key={idx}
-                                    className="flex items-center justify-between text-purple-800 text-xs"
+                                    className={`p-2 rounded border ${
+                                      doc.type === "template"
+                                        ? "bg-white border-blue-200"
+                                        : "bg-white border-green-200"
+                                    }`}
                                   >
-                                    <div>
-                                      • {item.label}
-                                      {item.template?.instructions && (
-                                        <span className="text-purple-600 ml-2">(with instructions)</span>
-                                      )}
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className={`font-medium text-sm ${
+                                            doc.type === "template" ? "text-blue-900" : "text-green-900"
+                                          }`}>
+                                            {idx + 1}. {item.label}
+                                          </span>
+                                        </div>
+                                        
+                                        {/* Instruction field (outside) - only for Template type */}
+                                        {doc.type === "template" && (item as TemplateItem).instruction && (
+                                          <div className="mt-2 mb-2 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded p-2">
+                                            <p className="font-medium mb-1">Instructions:</p>
+                                            <p className="whitespace-pre-line">{(item as TemplateItem).instruction}</p>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Template info - only for Template type */}
+                                        {doc.type === "template" && item.template && (
+                                          <div className="mt-2 space-y-1">
+                                            {item.template.instructions && (
+                                              <div className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
+                                                <p className="font-medium mb-1">Template Instructions:</p>
+                                                <p className="whitespace-pre-line">{item.template.instructions}</p>
+                                              </div>
+                                            )}
+                                            {item.template.url && (
+                                              <a
+                                                href={item.template.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900"
+                                              >
+                                                <Download className="h-3 w-3" />
+                                                Download Template
+                                              </a>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    {item.template?.url && (
-                                      <a
-                                        href={item.template.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900"
-                                      >
-                                        <Download className="h-3 w-3" />
-                                        Download
-                                      </a>
-                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -600,8 +647,6 @@ const Library = () => {
               description: editingDoc.description || "",
               type: editingDoc.type === "template" 
                 ? "Template" 
-                : editingDoc.type === "multiple"
-                ? "Multiple"
                 : "Direct",
               templateInstructions: editingDoc.template?.instructions || "",
               templateUrl: editingDoc.template?.url,
@@ -644,7 +689,6 @@ const Library = () => {
                   <SelectItem value="unset">Keep existing</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
-                  <SelectItem value="multiple">Multiple</SelectItem>
                 </SelectContent>
               </Select>
             </div>

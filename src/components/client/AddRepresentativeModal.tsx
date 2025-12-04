@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -232,6 +232,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [searchPagination, setSearchPagination] = useState({
     page: 1,
     limit: 10,
@@ -241,20 +242,25 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   
   const { toast } = useToast();
 
-  // Reset global search mode when switching to person mode
+  // Set global search mode based on entity type
   useEffect(() => {
-    if (entityType === "person" && isGlobalSearchMode) {
+    if (entityType === "person") {
+      // Always disable global search for persons
       setIsGlobalSearchMode(false);
       setSearchQuery("");
       setSearchResults([]);
+      setHasSearched(false);
       setSearchPagination({
         page: 1,
         limit: 10,
         total: 0,
         totalPages: 0,
       });
+    } else if (entityType === "company") {
+      // Always enable global search for companies
+      setIsGlobalSearchMode(true);
     }
-  }, [entityType, isGlobalSearchMode]);
+  }, [entityType]);
 
   // Fetch nationality options
   useEffect(() => {
@@ -1186,16 +1192,14 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   // Global search function
   const handleGlobalSearch = async (pageOverride?: number) => {
     if (!searchQuery.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a search query",
-        variant: "destructive",
-      });
+      setSearchResults([]);
+      setHasSearched(false);
       return;
     }
 
     try {
       setIsSearching(true);
+      setHasSearched(true);
       const currentPage = pageOverride !== undefined ? pageOverride : searchPagination.page;
       
       if (entityType === "person") {
@@ -1222,6 +1226,8 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         description: error?.response?.data?.message || "Failed to search",
         variant: "destructive",
       });
+      setSearchResults([]);
+      setHasSearched(true);
     } finally {
       setIsSearching(false);
     }
@@ -1231,6 +1237,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     setIsGlobalSearchMode(false);
     setSearchQuery("");
     setSearchResults([]);
+    setHasSearched(false);
     setSearchPagination({
       page: 1,
       limit: 10,
@@ -1266,6 +1273,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     setIsGlobalSearchMode(false);
     setSearchQuery("");
     setSearchResults([]);
+    setHasSearched(false);
     setSearchPagination({
       page: 1,
       limit: 10,
@@ -1278,6 +1286,51 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
   if (!isOpen) return null;
 
   
+  // Get IDs of companies that are already representatives (excluding those with only "Shareholder" role)
+  const existingRepresentativeCompanyIds = useMemo(() => {
+    const ids = new Set<string>();
+    
+    if (!currentCompany?.representationalCompany || !Array.isArray(currentCompany.representationalCompany)) {
+      return ids;
+    }
+    
+    currentCompany.representationalCompany.forEach((rep: any) => {
+      const repCompanyId = rep?.companyId?._id || rep?.companyId?.id || rep?.companyId;
+      if (repCompanyId) {
+        const companyIdStr = String(repCompanyId);
+        // Get roles array - handle both array and single value
+        const roles = Array.isArray(rep.role) ? rep.role : (rep.role ? [rep.role] : []);
+        
+        // Only exclude if company has representative roles (not just "Shareholder")
+        // If it has only "Shareholder" role, it can still be selected
+        const hasOnlyShareholderRole = roles.length === 1 && roles[0] === "Shareholder";
+        if (!hasOnlyShareholderRole && roles.length > 0) {
+          ids.add(companyIdStr);
+        }
+      }
+    });
+    
+    return ids;
+  }, [currentCompany]);
+
+  // Filter search results to exclude companies that are already representatives and the current company
+  const filteredSearchResults = useMemo(() => {
+    if (entityType !== "company") return searchResults;
+    
+    const currentCompanyIdStr = companyId ? String(companyId) : null;
+    
+    return searchResults.filter((entity) => {
+      const entityId = entity._id || entity.id;
+      const entityIdStr = String(entityId);
+      // Filter out the current company
+      if (currentCompanyIdStr && entityIdStr === currentCompanyIdStr) {
+        return false;
+      }
+      // Filter out companies that are already representatives
+      return !existingRepresentativeCompanyIds.has(entityIdStr);
+    });
+  }, [searchResults, existingRepresentativeCompanyIds, entityType, companyId]);
+
   // Get available share classes from parent company
   const getAvailableShareClasses = useCallback((): Array<"A" | "B" | "C" | "Ordinary"> => {
     if (!currentCompany?.totalShares || !Array.isArray(currentCompany.totalShares)) {
@@ -1453,36 +1506,25 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">
                 Select Existing {entityType === "person" ? "Person" : "Company"}
               </h3>
-              {/* {!isGlobalSearchMode && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsGlobalSearchMode(true)}
-                  className="rounded-xl"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Search Globally
-                </Button>
-              )} */}
             </div>
 
-            {isGlobalSearchMode ? (
+            {/* Companies: Always show global search */}
+            {entityType === "company" && (
               <>
                 <div className="flex items-center gap-2 mb-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleExitGlobalSearch}
-                    className="rounded-xl"
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
-                  </Button>
                   <div className="flex-1 flex gap-2">
                     <Input
-                      placeholder={`Search ${entityType === "person" ? "persons" : "companies"} globally...`}
+                      placeholder="Search companies globally..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSearchQuery(value);
+                        // Clear results when input is cleared
+                        if (!value.trim()) {
+                          setSearchResults([]);
+                          setHasSearched(false);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           handleGlobalSearch();
@@ -1504,12 +1546,12 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   </div>
                 </div>
                 
-                {searchResults.length > 0 && (
+                {searchQuery.trim() && filteredSearchResults.length > 0 && (
                   <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                    {searchResults.map((entity) => {
-                      const entityId = entity._id || entity.id;
-                      const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
-                      const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
+                    {filteredSearchResults.map((entity) => {
+                        const entityId = entity._id || entity.id;
+                        const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
+                        const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
 
                       return (
                         <div key={entityId} className="space-y-2">
@@ -1520,23 +1562,12 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                             />
                             <div className="flex-1">
                               <p className="font-medium">{entity.name}</p>
-                              {entityType === "company" && entity.registrationNumber && (
+                              {entity.registrationNumber && (
                                 <p className="text-sm text-gray-500">
                                   {entity.registrationNumber}
                                 </p>
                               )}
-                              {entityType === "person" && entity.email && (
-                                <p className="text-sm text-gray-500">{entity.email}</p>
-                              )}
-                              {entityType === "person" && entity.nationality && (
-                                <p className="text-xs text-gray-400">{entity.nationality}</p>
-                              )}
                             </div>
-                            {entityType === "person" && entity.sourceCompany && entity.sourceCompany.id !== companyId && (
-                              <Badge variant="outline" className="text-xs">
-                                {entity.sourceCompany.name}
-                              </Badge>
-                            )}
                             {isSelected && (
                               <Button
                                 variant="ghost"
@@ -1580,7 +1611,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                 )}
                                 
                                 {/* Shares Input Section */}
-                                <div className="border-t pt-4 mt-4">
+                                {/* <div className="border-t pt-4 mt-4">
                                   <div className="flex items-center justify-between mb-3">
                                     <Label className="text-sm font-semibold">
                                       Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
@@ -1692,7 +1723,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                                       </p>
                                     )}
                                   </div>
-                                </div>
+                                </div> */}
                               </CardContent>
                             </Card>
                           )}
@@ -1735,13 +1766,16 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   </div>
                 )}
                 
-                {searchResults.length === 0 && !isSearching && searchQuery && (
+                {searchQuery.trim() && filteredSearchResults.length === 0 && !isSearching && hasSearched && (
                   <p className="text-sm text-gray-500 text-center py-4">
                     No results found. Try a different search query.
                   </p>
                 )}
               </>
-            ) : (
+            )}
+
+            {/* Persons: Always show existing list (no global search) */}
+            {entityType === "person" && (
               <>
                 {isLoading ? (
                   <div className="flex justify-center py-8">
@@ -1751,7 +1785,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
                     {existingEntities.length === 0 ? (
                       <p className="text-sm text-gray-500 text-center py-4">
-                        No {entityType === "person" ? "persons" : "companies"} found
+                        No persons found
                       </p>
                     ) : (
                       existingEntities.map((entity) => {
@@ -1768,13 +1802,8 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                               />
                               <div className="flex-1">
                                 <p className="font-medium">{entity.name}</p>
-                                {entityType === "company" && entity.registrationNumber && (
-                                  <p className="text-sm text-gray-500">
-                                    {entity.registrationNumber}
-                                  </p>
-                                )}
                               </div>
-                              {entityType === "person" && entity.sourceCompany && entity.sourceCompany.id !== companyId && (
+                              {entity.sourceCompany && entity.sourceCompany.id !== companyId && (
                                 <Badge variant="outline" className="text-xs">
                                   {entity.sourceCompany.name}
                                 </Badge>
@@ -1798,7 +1827,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                               <Card className="ml-8 mb-2">
                                 <CardContent className="p-4">
                                   <Label className="text-sm font-semibold mb-3 block">
-                                    Select Roles 
+                                    Select Roles (at least one required)
                                   </Label>
                                   <div className="grid grid-cols-2 gap-3">
                                     {REPRESENTATIVE_ROLES.map((role) => (

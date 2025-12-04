@@ -28,7 +28,7 @@ import { Button } from "../ui/button";
 import { EnhancedLoader } from "../ui/enhanced-loader";
 
 const LEVEL_GAP_Y = 270;
-const NODE_WIDTH = 250;
+const NODE_WIDTH = 350;
 const PARENT_NODE_WIDTH = 800;
 const HORIZONTAL_SPACING = NODE_WIDTH + 1;
 const NODE_GAP = 130; // Gap between nodes (horizontal spacing)
@@ -851,7 +851,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
   if (isStillLoading) {
     return (
       <div className="flex h-48 items-center justify-center border border-dashed rounded-md">
-        <EnhancedLoader size="lg" text="Loading hierarchy..." />
+        <EnhancedLoader size="lg" />
       </div>
     );
   }
@@ -859,7 +859,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
   if (rootData === null) {
     return (
       <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-gray-300 text-gray-500">
-        <EnhancedLoader size="lg" text="Loading hierarchy..." />
+        <EnhancedLoader size="lg" />
       </div>
     );
   }

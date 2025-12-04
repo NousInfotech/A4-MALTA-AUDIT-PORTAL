@@ -1123,14 +1123,33 @@ export const PersonList: React.FC<PersonListProps> = ({
         return shareCompanyId?.toString() !== deleteCompanyId?.toString();
       });
 
-      // Also remove from representatives if it exists there
+      // Remove only the "Shareholder" role from representationalCompany
+      // Keep all other representative roles intact
       const currentCompany = company || {};
-      const updatedRepresentationalCompany = (currentCompany.representationalCompany || []).filter(
-        (rc: any) => {
+      const currentRepresentationalCompany = currentCompany.representationalCompany || [];
+      const updatedRepresentationalCompany = currentRepresentationalCompany
+        .map((rc: any) => {
           const rcId = rc?.companyId?._id || rc?.companyId?.id || rc?.companyId;
-          return String(rcId) !== String(deleteCompanyId);
-        }
-      );
+          if (String(rcId) !== String(deleteCompanyId)) {
+            return rc; // Not the company being deleted, keep as is
+          }
+
+          // This is the company being deleted - remove only "Shareholder" role
+          const roles = Array.isArray(rc.role) ? rc.role : (rc.role ? [rc.role] : []);
+          const remainingRoles = roles.filter((r: string) => r !== "Shareholder");
+
+          // If no roles remain after removing "Shareholder", return null to remove entry
+          if (remainingRoles.length === 0) {
+            return null;
+          }
+
+          // Return entry with remaining roles (single role or array)
+          return {
+            ...rc,
+            role: remainingRoles.length === 1 ? remainingRoles[0] : remainingRoles,
+          };
+        })
+        .filter((rc: any) => rc !== null); // Remove entries that became null
 
       const response = await fetch(
         `${import.meta.env.VITE_APIURL}/api/client/${clientId}/company/${companyId}`,

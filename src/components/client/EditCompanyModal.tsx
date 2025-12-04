@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
@@ -68,85 +67,39 @@ const getDefaultShareClassErrors = (): ShareClassErrors => ({
 
 /**
  * Builds the totalShares payload for the backend.
- * IMPORTANT: Only includes the selected mode's data:
- * - If useClassShares is false: ONLY sends Ordinary share data (A, B, C are excluded)
- * - If useClassShares is true: ONLY sends Class A, B, C share data (Ordinary is excluded)
+ * Includes all share classes: Class A, B, C, and Ordinary
  */
-const buildTotalSharesPayload = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Share Classes mode: ONLY include Class A, B, C (Ordinary is completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key !== "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  } else {
-    // Ordinary mode: ONLY include Ordinary (A, B, C are completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key === "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  }
+const buildTotalSharesPayload = (values: ShareClassValues) => {
+  const allShares = SHARE_CLASS_CONFIG.map(({ key, backendValue }) => ({
+    totalShares: Number(values[key]) || 0,
+    class: backendValue,
+    type: DEFAULT_SHARE_TYPE,
+  }));
+  
+  // Filter out entries with totalShares <= 0 before sending to backend
+  return allShares.filter(item => item.totalShares > 0);
 };
 
-const calculateTotalSharesSum = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Only sum Class A, B, C (exclude Ordinary)
-    return SHARE_CLASS_CONFIG.filter(({ key }) => key !== "ordinary")
-      .reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
-  } else {
-    // Only sum Ordinary (exclude A, B, C)
-    return Number(values.ordinary) || 0;
-  }
+const calculateTotalSharesSum = (values: ShareClassValues) => {
+  // Sum all share classes: Class A, B, C, and Ordinary
+  return SHARE_CLASS_CONFIG.reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
 };
-
-const OPTIONAL_SHARE_CLASS_LABELS = SHARE_CLASS_CONFIG.filter(
-  ({ key }) => key !== "ordinary"
-).map(({ label }) => label);
 
 // Helper to parse totalShares array from backend into shareClassValues
-const parseTotalSharesArray = (totalSharesArray?: Array<{ totalShares: number; class: string; type: string }>): { values: ShareClassValues; useClassShares: boolean } => {
+const parseTotalSharesArray = (totalSharesArray?: Array<{ totalShares: number; class: string; type: string }>): ShareClassValues => {
   const defaultValues = getDefaultShareClassValues();
-  let useClassShares = false;
 
-  if (!Array.isArray(totalSharesArray) || totalSharesArray.length === 0) {
-    return { values: defaultValues, useClassShares: false };
-  }
-
-  // Check if we have Ordinary or Share Classes
-  const hasOrdinary = totalSharesArray.some(item => item.class === "Ordinary");
-  const hasShareClasses = totalSharesArray.some(item => ["A", "B", "C"].includes(item.class));
-
-  if (hasShareClasses && !hasOrdinary) {
-    // Share Classes mode
-    useClassShares = true;
-    totalSharesArray.forEach(item => {
+  if (Array.isArray(totalSharesArray) && totalSharesArray.length > 0) {
+    // Parse values from array
+    totalSharesArray.forEach((item) => {
       if (item.class === "A") defaultValues.classA = Number(item.totalShares) || 0;
-      else if (item.class === "B") defaultValues.classB = Number(item.totalShares) || 0;
-      else if (item.class === "C") defaultValues.classC = Number(item.totalShares) || 0;
+      if (item.class === "B") defaultValues.classB = Number(item.totalShares) || 0;
+      if (item.class === "C") defaultValues.classC = Number(item.totalShares) || 0;
+      if (item.class === "Ordinary") defaultValues.ordinary = Number(item.totalShares) || 0;
     });
-  } else if (hasOrdinary && !hasShareClasses) {
-    // Ordinary mode
-    useClassShares = false;
-    const ordinaryItem = totalSharesArray.find(item => item.class === "Ordinary");
-    if (ordinaryItem) {
-      defaultValues.ordinary = Number(ordinaryItem.totalShares) || 0;
-    }
-  } else {
-    // Default to Ordinary if ambiguous
-    useClassShares = false;
-    const ordinaryItem = totalSharesArray.find(item => item.class === "Ordinary");
-    if (ordinaryItem) {
-      defaultValues.ordinary = Number(ordinaryItem.totalShares) || 0;
-    }
   }
 
-  return { values: defaultValues, useClassShares };
+  return defaultValues;
 };
 
 interface EditCompanyModalProps {
@@ -187,9 +140,6 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     registrationNumber: "",
     address: "",
   });
-  const [useClassShares, setUseClassShares] = useState(false);
-  const [visibleShareClasses, setVisibleShareClasses] = useState<string[]>([]);
-
   const [shareClassValues, setShareClassValues] = useState<ShareClassValues>(
     () => getDefaultShareClassValues()
   );
@@ -203,8 +153,8 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     () => getDefaultShareClassValues()
   );
 
-  const totalSharesPayload = buildTotalSharesPayload(shareClassValues, useClassShares);
-  const totalSharesSum = calculateTotalSharesSum(shareClassValues, useClassShares);
+  const totalSharesPayload = buildTotalSharesPayload(shareClassValues);
+  const totalSharesSum = calculateTotalSharesSum(shareClassValues);
 
   const { toast } = useToast();
   const isShareholdersAvailable = company.shareHoldingCompanies.length > 0 || company.shareHolders.length > 0;
@@ -356,24 +306,11 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     // Always update the value to allow free typing, even if there's an error
     setShareClassErrors((prev) => ({ ...prev, [key]: error }));
 
-    // Reset the inactive mode when entering a value
-    if (key === "ordinary") {
-      // If entering Ordinary, reset A, B, C
-      setShareClassValues((prev) => ({
-        ...prev,
-        [key]: parsedValue,
-        classA: 0,
-        classB: 0,
-        classC: 0,
-      }));
-    } else {
-      // If entering A, B, or C, reset Ordinary
-      setShareClassValues((prev) => ({
-        ...prev,
-        [key]: parsedValue,
-        ordinary: 0,
-      }));
-    }
+    // Update the value for the selected share class
+    setShareClassValues((prev) => ({
+      ...prev,
+      [key]: parsedValue,
+    }));
   };
 
   const handleShareValueBlur = (
@@ -444,7 +381,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     setErrors(newErrors);
 
     // Validate total shares using the calculated sum
-    const currentTotalSum = calculateTotalSharesSum(shareClassValues, useClassShares);
+    const currentTotalSum = calculateTotalSharesSum(shareClassValues);
     let sharesError = "";
     if (currentTotalSum <= 0) {
       sharesError = "Enter at least one share amount greater than 0";
@@ -473,8 +410,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         companyIndustry && industryOptions.includes(companyIndustry);
 
       // Parse totalShares array from backend
-      const { values: parsedShareValues, useClassShares: parsedUseClassShares } =
-        parseTotalSharesArray(company.totalShares);
+      const parsedShareValues = parseTotalSharesArray(company.totalShares);
 
       setFormData({
         name: company.name || "",
@@ -494,19 +430,13 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         description: company.description || "",
       });
 
-      // Set share class values and mode
+      // Set share class values
       setShareClassValues(parsedShareValues);
       // Store original values for validation
       setOriginalShareClassValues(parsedShareValues);
-      setUseClassShares(parsedUseClassShares);
-      if (parsedUseClassShares) {
-        setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
-      } else {
-        setVisibleShareClasses([]);
-      }
 
       // Validate totalShares on load
-      const totalSum = calculateTotalSharesSum(parsedShareValues, parsedUseClassShares);
+      const totalSum = calculateTotalSharesSum(parsedShareValues);
       if (totalSum <= 0) {
         setTotalSharesError("Enter at least one share amount greater than 0");
       } else {
@@ -544,14 +474,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Not authenticated");
 
-      // Build payload with only the selected mode's share data
+      // Build payload with all share classes (filtered to only include values > 0)
       const payload = {
         name: formData.name,
         registrationNumber: formData.registrationNumber,
         address: formData.address,
         status: formData.status,
         companyStartedAt: formData.companyStartedAt,
-        totalShares: totalSharesPayload, // Already filtered to only include active mode
+        totalShares: totalSharesPayload, // Includes all share classes with values > 0
         industry: resolvedIndustry || undefined,
         description: formData.description.trim() || undefined,
         supportingDocuments,
@@ -779,7 +709,6 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               <Label className="text-gray-700 font-semibold">
                 Total Shares
               </Label>
-
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600">
                   Total: {totalSharesSum.toLocaleString()}
@@ -789,40 +718,6 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                     Purchased: {Object.values(purchasedShares).reduce((sum, val) => sum + val, 0).toLocaleString()}
                   </span>
                 )}
-                {!isShareholdersAvailable && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Share Classes</span>
-                    <Switch
-                      checked={useClassShares}
-                      onCheckedChange={(checked) => {
-                        setUseClassShares(checked);
-                        setVisibleShareClasses([]);
-
-                        if (!checked) {
-                          // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
-                          setShareClassValues((prev) => ({
-                            classA: 0,
-                            classB: 0,
-                            classC: 0,
-                            ordinary: prev.ordinary || 100,
-                          }));
-                          setShareClassErrors(getDefaultShareClassErrors());
-                        } else {
-                          // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
-                          setShareClassValues((prev) => ({
-                            classA: prev.classA || 0,
-                            classB: prev.classB || 0,
-                            classC: prev.classC || 0,
-                            ordinary: 0,
-                          }));
-                          setShareClassErrors(getDefaultShareClassErrors());
-                          // Enable all share classes when turned ON
-                          setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
-                        }
-                      }}
-                    />
-                  </div>
-                )}
               </div>
             </div>
             {hasPurchasedShares && (
@@ -830,20 +725,9 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 Note: Shares have been purchased. You can increase or decrease total shares, but cannot decrease below the purchased amount.
               </p>
             )}
-            {/* Dynamic Share Class Inputs */}
+            {/* All Share Class Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SHARE_CLASS_CONFIG.map(({ key, label }) => {
-                const isOrdinary = key === "ordinary";
-                // Show Ordinary only when useClassShares is false
-                // Show A, B, C only when useClassShares is true
-                const shouldRender = isOrdinary
-                  ? !useClassShares
-                  : useClassShares && visibleShareClasses.includes(label);
-
-                if (!shouldRender) {
-                  return null;
-                }
-
                 const value = shareClassValues[key];
                 const error = shareClassErrors[key];
 

@@ -34,6 +34,7 @@ interface MultipleDocumentItem {
     url?: string;
     instruction?: string;
   };
+  templateFile?: File;
 }
 
 interface MultipleDocument {
@@ -147,16 +148,37 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
           const docType =
             typeof doc.type === "string" ? doc.type : (doc.type as any)?.type || "direct";
 
-          if (docType === "template" && doc.templateFile) {
-            const response = await documentRequestApi.uploadTemplate(doc.templateFile);
-            const url = typeof response === "string" ? response : response?.url || "";
-            return {
-              ...doc,
-              template: { ...doc.template, url },
-              templateFile: undefined,
-            };
-          }
-          return doc;
+          // Process each item's template file individually
+          const processedMultiple = await Promise.all(
+            doc.multiple.map(async (item: any) => {
+              // If template-based and item has its own template file, upload it
+              if (docType === "template" && item.templateFile) {
+                const response = await documentRequestApi.uploadTemplate(item.templateFile);
+                const url = typeof response === "string" ? response : response?.url || "";
+                return {
+                  ...item,
+                  template: {
+                    url: url,
+                    instruction: item.template?.instruction || doc.template?.instruction || "",
+                  },
+                  templateFile: undefined,
+                };
+              }
+              // If item already has template URL, preserve it
+              if (item.template?.url) {
+                return {
+                  ...item,
+                  template: item.template,
+                };
+              }
+              return item;
+            })
+          );
+
+          return {
+            ...doc,
+            multiple: processedMultiple,
+          };
         })
       );
 
@@ -176,18 +198,17 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
             name: d.name,
             type: d.type,
             instruction: d.instruction || "",
-            multiple: d.multiple.map((m) => ({
+            multiple: d.multiple.map((m: any) => ({
               label: m.label,
               status: "pending",
-              // Each item gets its own template object with the template URL when type is "template"
-              template: docType === "template" && d.template?.url 
+              // Each item has its own template with URL from uploaded template file
+              template: docType === "template" && m.template?.url 
                 ? { 
-                    url: d.template.url, 
-                    instruction: d.template.instruction || "" 
+                    url: m.template.url, 
+                    instruction: m.template.instruction || "" 
                   } 
                 : undefined,
             })),
-            // Remove template from group level as it's now stored in each item
           };
         }),
       });

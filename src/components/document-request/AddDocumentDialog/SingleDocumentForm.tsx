@@ -28,6 +28,7 @@ export const SingleDocumentForm = ({
   loading,
   handleClose,
   handleSubmit,
+  showBackButton = true,
 }: any) => {
   const [newDocument, setNewDocument] = useState<any>({
     name: "",
@@ -86,10 +87,12 @@ export const SingleDocumentForm = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => setMode("select")}>
-          ← Back
-        </Button>
+      <div className={`flex items-center ${showBackButton ? 'justify-between' : 'justify-end'}`}>
+        {showBackButton && (
+          <Button variant="outline" onClick={() => setMode("select")}>
+            ← Back
+          </Button>
+        )}
         <div className="flex gap-2">
           <Button variant="default" onClick={() => setMode("new")}>
             Single Copy

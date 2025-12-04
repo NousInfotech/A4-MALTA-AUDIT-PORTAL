@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X, Plus } from "lucide-react";
@@ -69,46 +68,24 @@ const getDefaultShareClassErrors = (): ShareClassErrors => ({
 
 /**
  * Builds the totalShares payload for the backend.
- * IMPORTANT: Only includes the selected mode's data:
- * - If useClassShares is false: ONLY sends Ordinary share data (A, B, C are excluded)
- * - If useClassShares is true: ONLY sends Class A, B, C share data (Ordinary is excluded)
+ * Includes all share classes: Class A, B, C, and Ordinary
  */
-const buildTotalSharesPayload = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Share Classes mode: ONLY include Class A, B, C (Ordinary is completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key !== "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  } else {
-    // Ordinary mode: ONLY include Ordinary (A, B, C are completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key === "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  }
+const buildTotalSharesPayload = (values: ShareClassValues) => {
+  const allShares = SHARE_CLASS_CONFIG.map(({ key, backendValue }) => ({
+    totalShares: Number(values[key]) || 0,
+    class: backendValue,
+    type: DEFAULT_SHARE_TYPE,
+  }));
+  
+  // Filter out entries with totalShares <= 0 before sending to backend
+  return allShares.filter(item => item.totalShares > 0);
 };
 
-const calculateTotalSharesSum = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Only sum Class A, B, C (exclude Ordinary)
-    return SHARE_CLASS_CONFIG.filter(({ key }) => key !== "ordinary")
-      .reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
-  } else {
-    // Only sum Ordinary (exclude A, B, C)
-    return Number(values.ordinary) || 0;
-  }
+const calculateTotalSharesSum = (values: ShareClassValues) => {
+  // Sum all share classes: Class A, B, C, and Ordinary
+  return SHARE_CLASS_CONFIG.reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
 };
 
-const OPTIONAL_SHARE_CLASS_LABELS = SHARE_CLASS_CONFIG.filter(
-  ({ key }) => key !== "ordinary"
-).map(({ label }) => label);
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -152,8 +129,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalSharesError, setTotalSharesError] = useState<string>("");
   const [sharePercentageError, setSharePercentageError] = useState<string>("");
-  const [visibleShareClasses, setVisibleShareClasses] = useState<string[]>([]);
-  const [useClassShares, setUseClassShares] = useState(false);
   const [shareClassValues, setShareClassValues] = useState<ShareClassValues>(
     () => getDefaultShareClassValues()
   );
@@ -168,8 +143,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       ? formData.customIndustry
       : formData.industry
   ).trim();
-  const totalSharesPayload = buildTotalSharesPayload(shareClassValues, useClassShares);
-  const totalSharesSum = calculateTotalSharesSum(shareClassValues, useClassShares);
+  const totalSharesPayload = buildTotalSharesPayload(shareClassValues);
+  const totalSharesSum = calculateTotalSharesSum(shareClassValues);
   const hasShareClassErrors = Object.values(shareClassErrors).some(Boolean);
 
   useEffect(() => {
@@ -200,24 +175,11 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     } else {
       setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
       
-      // Reset the inactive mode when entering a value
-      if (key === "ordinary") {
-        // If entering Ordinary, reset A, B, C
-        setShareClassValues((prev) => ({
-          ...prev,
-          [key]: parsedValue,
-          classA: 0,
-          classB: 0,
-          classC: 0,
-        }));
-      } else {
-        // If entering A, B, or C, reset Ordinary
-        setShareClassValues((prev) => ({
-          ...prev,
-          [key]: parsedValue,
-          ordinary: 0,
-        }));
-      }
+      // Update the value for the selected share class
+      setShareClassValues((prev) => ({
+        ...prev,
+        [key]: parsedValue,
+      }));
     }
   };
 
@@ -262,8 +224,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       setShareHoldingCompanies([]);
       setTotalSharesError("");
       setSharePercentageError("");
-      setVisibleShareClasses([]);
-      setUseClassShares(false);
       setShareClassValues(getDefaultShareClassValues());
       setShareClassErrors(getDefaultShareClassErrors());
     }
@@ -303,9 +263,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         }
       }
 
-      // Build payload with only the selected mode's share data
-      // If useClassShares is false: only Ordinary shares are included
-      // If useClassShares is true: only Class A, B, C shares are included
+      // Build payload with all share classes (filtered to only include values > 0)
       const payload = {
         name: formData.name,
         registrationNumber: formData.registrationNumber,
@@ -313,7 +271,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         status: formData.status,
         timelineStart: formData.timelineStart,
         timelineEnd: formData.timelineEnd || undefined,
-        totalShares: totalSharesPayload, // Already filtered to only include active mode
+        totalShares: totalSharesPayload, // Includes all share classes with values > 0
         industry: resolvedIndustry || undefined,
         description: formData.description.trim() || undefined,
         supportingDocuments,
@@ -322,8 +280,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         ),
       };
 
-      // Debug: Log the payload to verify only the selected mode is included
-      console.log("Creating company with shares mode:", useClassShares ? "Share Classes (A, B, C)" : "Ordinary");
+      // Debug: Log the payload
       console.log("Total shares payload:", totalSharesPayload);
 
       const response = await fetch(
@@ -444,8 +401,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     setShareHoldingCompanies([]);
     setTotalSharesError("");
     setSharePercentageError("");
-    setVisibleShareClasses([]);
-    setUseClassShares(false);
     setShareClassValues(getDefaultShareClassValues());
     setShareClassErrors(getDefaultShareClassErrors());
   };
@@ -592,122 +547,62 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 
               />
             </div>
-          
 
-          <div className="space-y-3">
-            <Label htmlFor="industry" className="text-gray-700 font-semibold">
-              Industry
-            </Label>
-            <Select
-              value={formData.industry}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  industry: value,
-                  customIndustry: value === "Other" ? prev.customIndustry : "",
-                }))
-              }
-            >
-              <SelectTrigger
-                id="industry"
-                className="rounded-xl border-gray-200 text-left"
-              >
-                <SelectValue placeholder="Select an industry" />
-              </SelectTrigger>
-              <SelectContent>
-                {industryOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {formData.industry === "Other" && (
-              <Input
-                id="customIndustry"
-                placeholder="Enter custom industry"
-                value={formData.customIndustry}
-                onChange={(e) =>
-                  setFormData({ ...formData, customIndustry: e.target.value })
+            <div className="space-y-3">
+              <Label htmlFor="industry" className="text-gray-700 font-semibold">
+                Industry
+              </Label>
+              <Select
+                value={formData.industry}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    industry: value,
+                    customIndustry: value === "Other" ? prev.customIndustry : "",
+                  }))
                 }
-                className="rounded-xl border-gray-200"
-                
-              />
-            )}
-          </div>
+              >
+                <SelectTrigger
+                  id="industry"
+                  className="rounded-xl border-gray-200 text-left"
+                >
+                  <SelectValue placeholder="Select an industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {industryOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.industry === "Other" && (
+                <Input
+                  id="customIndustry"
+                  placeholder="Enter custom industry"
+                  value={formData.customIndustry}
+                  onChange={(e) =>
+                    setFormData({ ...formData, customIndustry: e.target.value })
+                  }
+                  className="rounded-xl border-gray-200"
+                />
+              )}
+            </div>
           </div>
          
           <div className="space-y-2">
-  <div className="flex items-center justify-between">
-    <Label className="text-gray-700 font-semibold">
-      Total Shares
-    </Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-gray-700 font-semibold">
+                Total Shares
+              </Label>
+              <span className="text-sm text-gray-600">
+                Total: {totalSharesSum.toLocaleString()}
+              </span>
+            </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">
-            Total: {totalSharesSum.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Share Classes</span>
-            <Switch
-        checked={useClassShares}
-        onCheckedChange={(checked) => {
-          setUseClassShares(checked);
-          setVisibleShareClasses([]);
-
-          if (!checked) {
-            // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
-            setShareClassValues((prev) => ({
-              classA: 0,
-              classB: 0,
-              classC: 0,
-              ordinary: prev.ordinary || 100,
-            }));
-            setShareClassErrors((prev) => ({
-              classA: "",
-              classB: "",
-              classC: "",
-              ordinary: prev.ordinary,
-            }));
-          } else {
-            // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
-            setShareClassValues((prev) => ({
-              classA: prev.classA || 0,
-              classB: prev.classB || 0,
-              classC: prev.classC || 0,
-              ordinary: 0,
-            }));
-            setShareClassErrors((prev) => ({
-              classA: prev.classA || "",
-              classB: prev.classB || "",
-              classC: prev.classC || "",
-              ordinary: "",
-            }));
-            // Enable all share classes when turned ON
-            setVisibleShareClasses(OPTIONAL_SHARE_CLASS_LABELS);
-          }
-        }}
-            />
-          </div>
-    </div>
-  </div>
-</div>
-
-
-            {/* Dynamic Share Class Inputs */}
+            {/* All Share Class Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SHARE_CLASS_CONFIG.map(({ key, label }) => {
-                const isOrdinary = key === "ordinary";
-                // Show Ordinary only when useClassShares is false
-                // Show A, B, C only when useClassShares is true
-                const shouldRender = isOrdinary
-                  ? !useClassShares
-                  : useClassShares && visibleShareClasses.includes(label);
-
-                if (!shouldRender) {
-                  return null;
-                }
-
                 const value = shareClassValues[key];
                 const error = shareClassErrors[key];
 
@@ -748,6 +643,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
             {totalSharesError && (
               <p className="text-sm text-red-500">{totalSharesError}</p>
             )}
+          </div>
            {isShareholdingCompany && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
