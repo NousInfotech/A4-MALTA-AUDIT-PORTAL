@@ -379,7 +379,7 @@ export const CompanyDetail: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <EnhancedLoader size="lg" text="Loading..." />
+        <EnhancedLoader size="lg" />
       </div>
     );
   }
@@ -512,7 +512,7 @@ export const CompanyDetail: React.FC = () => {
                         className="text-xs text-gray-600 flex items-center justify-between px-2 py-1"
                         >
                         <span>
-                        Class {className}: {share.totalShares.toLocaleString()} Shares
+                        {share.class.toLowerCase() != "ordinary" ? "Class" : ""} {share.class}: {share.totalShares.toLocaleString()} Shares
                         </span>
                         </Badge>
                         );

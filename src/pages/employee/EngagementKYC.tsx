@@ -936,12 +936,14 @@ export function EngagementKYC() {
                 {/* Status Management – only show when there are document requests */}
                 {workflow.documentRequests && workflow.documentRequests.length > 0 && (
                   <div className="bg-gray-50 rounded-xl p-4">
+                    
                     <div className="flex items-center justify-between mb-3">
+                      
                       <h3 className="font-semibold text-gray-900">Status Management</h3>
                       {getStatusBadge(workflow.status)}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {workflow.status !== 'active' && (
+                      {/* {workflow.status !== 'active' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -962,7 +964,7 @@ export function EngagementKYC() {
                           <Eye className="h-4 w-4 mr-1" />
                           Set In Review
                         </Button>
-                      )}
+                      )} */}
                       {workflow.status !== 'completed' && (
                         <Button
                           size="sm"

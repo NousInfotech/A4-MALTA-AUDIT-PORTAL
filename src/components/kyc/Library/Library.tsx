@@ -349,8 +349,7 @@ const Library = () => {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="template">Template</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
-                  <SelectItem value="multiple">Multiple</SelectItem>
-                </SelectContent>
+                 </SelectContent>
               </Select>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -374,6 +373,8 @@ const Library = () => {
                   <SelectItem value="Borrowings & loans">Borrowings & loans</SelectItem>
                   <SelectItem value="Taxation">Taxation</SelectItem>
                   <SelectItem value="Going Concern">Going Concern</SelectItem>
+                  <SelectItem value="kyc">kyc</SelectItem>
+                  <SelectItem value="pbc">pbc</SelectItem>
                   <SelectItem value="Others">Others</SelectItem>
                 </SelectContent>
               </Select>

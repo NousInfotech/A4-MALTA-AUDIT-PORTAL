@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Download, FileEdit, FileUp, Upload, RefreshCw, Trash2, Eraser } from "lucide-react";
+import { Eye, Download, FileEdit, FileUp, Upload, RefreshCw, Trash2, Eraser, File } from "lucide-react";
 import {
   DocumentRequestDocumentMultiple,
   MultipleDocumentItem,
@@ -287,7 +287,8 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                                 <RefreshCw className="h-4 w-4 animate-spin" />
                               ) : (
                                 <>
-                                  <Upload className="h-4 w-4" />
+                                  <Upload />
+                                  Upload
                                 </>
                               )}
                             </span>
@@ -296,26 +297,7 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                       )}
 
                       {/* Template download button - only visible when template URL exists */}
-                      {templateUrl && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-amber-300 hover:bg-amber-50 text-amber-700 h-8 px-3"
-                          title="Download Template"
-                          asChild
-                        >
-                          <a
-                            href={templateUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-sm"
-                          >
-                            <Download className="h-4 w-4" />
-                            <span>Template</span>
-                          </a>
-                        </Button>
-                      )}
-
+                      
                       {/* Uploaded file actions – only if item.url exists (works for both direct and template types) */}
                       {item.url && (
                         <>
@@ -369,9 +351,29 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                           className="border-yellow-300 hover:bg-yellow-50 hover:text-yellow-800 text-yellow-700 h-8 px-2 text-xs"
                           title="Clear Uploaded File"
                         >
-                          <Eraser className="h-4 w-4" />
+                          Clear
                         </Button>
                       )}
+                       
+                       {templateUrl && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-amber-300 hover:bg-amber-50 hover:text-amber-700 text-amber-700"
+                          title="Download Template"
+                          asChild
+                        >
+                          <a
+                            href={templateUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm"
+                          >
+                            <File/>
+                          </a>
+                        </Button>
+                      )}
+
 
                       {/* Full delete of document item (handled via dialog in parent) */}
                       {onRequestDeleteDialog && (

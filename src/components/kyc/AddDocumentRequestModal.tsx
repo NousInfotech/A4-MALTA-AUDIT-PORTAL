@@ -639,6 +639,7 @@ export function AddDocumentRequestModal({
               handleClose={() => {}}
               handleSubmit={() => {}}
               showBackButton={false}
+              documentResult={false}
             />
           )}
 
@@ -652,6 +653,7 @@ export function AddDocumentRequestModal({
               handleClose={() => {}}
               handleSubmit={() => {}}
               showBackButton={false}
+              documentResult={false}
             />
           )}
 

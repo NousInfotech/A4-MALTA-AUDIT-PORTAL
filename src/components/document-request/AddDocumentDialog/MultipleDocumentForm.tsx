@@ -17,6 +17,7 @@ export const MultipleDocumentForm = ({
   handleClose,
   handleSubmit,
   showBackButton = true,
+  documentResult = true
 }: any) => {
   const [newMultipleDocument, setNewMultipleDocument] = useState<any>({
     name: "",
@@ -142,11 +143,11 @@ export const MultipleDocumentForm = ({
     <div className="space-y-6">
       <div className={`flex items-center ${showBackButton ? 'justify-between' : 'justify-end'}`}>
         {showBackButton && (
-          <Button variant="outline" onClick={() => setMode("select")}>
-            ← Back
+          <Button variant="default" onClick={() => setMode("select")}>
+            Back
           </Button>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-2 border-gray-300 p-1 rounded-2xl">
           <Button variant="outline" onClick={() => setMode("new")}>
             Single Copy
           </Button>
@@ -333,8 +334,8 @@ export const MultipleDocumentForm = ({
           </Button>
         </CardContent>
       </Card>
-
-      {multipleDocuments.length > 0 && (
+        
+      {documentResult && multipleDocuments.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
@@ -372,7 +373,7 @@ export const MultipleDocumentForm = ({
         </Card>
       )}
 
-      {multipleDocuments.length > 0 && (
+      {documentResult && multipleDocuments.length > 0 && (
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={handleClose}>
             Cancel
@@ -383,6 +384,7 @@ export const MultipleDocumentForm = ({
             </Button>
         </div>
       )}
+
     </div>
   );
 };

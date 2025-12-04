@@ -41,76 +41,14 @@ import {
 } from "@/lib/api/company";
 import { fetchCompanies } from "@/lib/api/company";
 import { fetchCompanyById } from "@/lib/api/company";
-
-const SHARE_CLASS_CONFIG = [
-  { key: "classA", label: "Class A", backendValue: "A" },
-  { key: "classB", label: "Class B", backendValue: "B" },
-  { key: "classC", label: "Class C", backendValue: "C" },
-  { key: "ordinary", label: "Ordinary", backendValue: "Ordinary" },
-] as const;
-
-type ShareClassKey = (typeof SHARE_CLASS_CONFIG)[number]["key"];
-type ShareClassValues = Record<ShareClassKey, number>;
-type ShareClassErrors = Record<ShareClassKey, string>;
-
-const DEFAULT_SHARE_TYPE = "Ordinary";
-
-const getDefaultShareClassValues = (): ShareClassValues => ({
-  classA: 0,
-  classB: 0,
-  classC: 0,
-  ordinary: 0,
-});
-
-const getDefaultShareClassErrors = (): ShareClassErrors => ({
-  classA: "",
-  classB: "",
-  classC: "",
-  ordinary: "",
-});
-
-/**
- * Builds the totalShares payload for the backend.
- * IMPORTANT: Only includes the selected mode's data:
- * - If useClassShares is false: ONLY sends Ordinary share data (A, B, C are excluded)
- * - If useClassShares is true: ONLY sends Class A, B, C share data (Ordinary is excluded)
- */
-const buildTotalSharesPayload = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Share Classes mode: ONLY include Class A, B, C (Ordinary is completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key !== "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  } else {
-    // Ordinary mode: ONLY include Ordinary (A, B, C are completely excluded)
-    return SHARE_CLASS_CONFIG
-      .filter(({ key }) => key === "ordinary")
-      .map(({ key, backendValue }) => ({
-        totalShares: Number(values[key]) || 0,
-        class: backendValue,
-        type: DEFAULT_SHARE_TYPE,
-      }));
-  }
-};
-
-const calculateTotalSharesSum = (values: ShareClassValues, useClassShares: boolean) => {
-  if (useClassShares) {
-    // Only sum Class A, B, C (exclude Ordinary)
-    return SHARE_CLASS_CONFIG.filter(({ key }) => key !== "ordinary")
-      .reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
-  } else {
-    // Only sum Ordinary (exclude A, B, C)
-    return Number(values.ordinary) || 0;
-  }
-};
-
-const OPTIONAL_SHARE_CLASS_LABELS = SHARE_CLASS_CONFIG.filter(
-  ({ key }) => key !== "ordinary"
-).map(({ label }) => label);
+import {
+  ShareClassInput,
+  type ShareClassValues,
+  type ShareClassErrors,
+  getDefaultShareClassValues,
+  getDefaultShareClassErrors,
+  buildTotalSharesPayload,
+} from "./ShareClassInput";
 
 const industryOptions = [
   "Technology",
@@ -166,8 +104,6 @@ interface NewEntityForm {
   companyStartedAt?: string;
   // Company's own totalShares (for new companies only) - uses share class logic
   shareClassValues?: ShareClassValues;
-  useClassShares?: boolean;
-  visibleShareClasses?: string[];
   // Shareholder shares (for the shares this entity holds in the parent company)
   classAShares: number;
   classBShares: number;
@@ -210,8 +146,6 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       // Initialize share class values for companies
       ...(entityType === "company" && {
         shareClassValues: getDefaultShareClassValues(),
-        useClassShares: false,
-        visibleShareClasses: [],
         industry: "",
         customIndustry: "",
       }),
@@ -706,8 +640,6 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         // Initialize share class values for companies
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
@@ -805,85 +737,6 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     setTimeout(() => validateShares(), 0);
   };
 
-  const handleShareValueChange = (
-    index: number,
-    key: ShareClassKey,
-    label: string,
-    rawValue: string
-  ) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i !== index || !entity.shareClassValues) return entity;
-
-        if (rawValue === "") {
-          return {
-            ...entity,
-            shareClassValues: { ...entity.shareClassValues, [key]: 0 },
-          };
-        }
-
-        const parsedValue = parseInt(rawValue, 10);
-        if (Number.isNaN(parsedValue) || parsedValue < 0) {
-          return entity;
-        }
-
-        // Reset the inactive mode when entering a value
-        const updatedValues = { ...entity.shareClassValues };
-        if (key === "ordinary") {
-          // If entering Ordinary, reset A, B, C
-          updatedValues.classA = 0;
-          updatedValues.classB = 0;
-          updatedValues.classC = 0;
-          updatedValues.ordinary = parsedValue;
-        } else {
-          // If entering A, B, or C, reset Ordinary
-          updatedValues.ordinary = 0;
-          updatedValues[key] = parsedValue;
-        }
-
-        return {
-          ...entity,
-          shareClassValues: updatedValues,
-        };
-      })
-    );
-  };
-
-  const handleShareClassToggle = (index: number, checked: boolean) => {
-    setNewEntities(
-      newEntities.map((entity, i) => {
-        if (i !== index || !entity.shareClassValues) return entity;
-
-        if (!checked) {
-          // Switch to Ordinary mode: reset A, B, C to 0, keep Ordinary
-          return {
-            ...entity,
-            useClassShares: false,
-            visibleShareClasses: [],
-            shareClassValues: {
-              ...entity.shareClassValues,
-              classA: 0,
-              classB: 0,
-              classC: 0,
-              ordinary: entity.shareClassValues.ordinary || 100,
-            },
-          };
-        } else {
-          // Switch to Share Classes mode: reset Ordinary to 0, enable A, B, C
-          return {
-            ...entity,
-            useClassShares: true,
-            visibleShareClasses: OPTIONAL_SHARE_CLASS_LABELS,
-            shareClassValues: {
-              ...entity.shareClassValues,
-              ordinary: 0,
-            },
-          };
-        }
-      })
-    );
-  };
-
   const validateForm = (): string | null => {
     // Validate shares don't exceed remaining
     if (!validateShares()) {
@@ -925,13 +778,13 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           return `Please enter registration number for ${entity.name || `new company #${i + 1}`}`;
         }
         // Validate total shares for companies
-        if (entity.shareClassValues) {
-          const totalSum = calculateTotalSharesSum(
-            entity.shareClassValues,
-            entity.useClassShares || false
-          );
+        // if (entity.shareClassValues) {
+        //   const totalSum = calculateTotalSharesSum(
+        //     entity.shareClassValues,
+        //     entity.useClassShares || false  
+        //   );
         
-        }
+        // }
       }
       if (!entity.address.trim()) {
         return `Please enter address for ${entity.name || `new ${entityType} #${i + 1}`}`;
@@ -1119,9 +972,9 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
             });
           } else {
             // First create the company
-            // Build totalShares payload with only the selected mode's data
-            const totalSharesPayload = entity.shareClassValues && entity.useClassShares !== undefined
-              ? buildTotalSharesPayload(entity.shareClassValues, entity.useClassShares)
+            // Build totalShares payload using shared helper (same behaviour as AddShareholderModal)
+            const totalSharesPayload = entity.shareClassValues
+              ? buildTotalSharesPayload(entity.shareClassValues as ShareClassValues)
               : undefined;
 
             const companyResponse = await fetch(
@@ -1260,8 +1113,6 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
@@ -2039,80 +1890,20 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                         </div>
 
                         {/* Total Shares Section */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-gray-700 font-semibold">
-                              Total Shares
-                            </Label>
-                            <div className="flex items-center gap-4">
-                              <span className="text-sm text-gray-600">
-                                Total:{" "}
-                                {entity.shareClassValues
-                                  ? calculateTotalSharesSum(
-                                      entity.shareClassValues,
-                                      entity.useClassShares || false
-                                    ).toLocaleString()
-                                  : "0"}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-600">Share Classes</span>
-                                <Switch
-                                  checked={entity.useClassShares || false}
-                                  onCheckedChange={(checked) =>
-                                    handleShareClassToggle(index, checked)
-                                  }
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Dynamic Share Class Inputs */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {SHARE_CLASS_CONFIG.map(({ key, label }) => {
-                              const isOrdinary = key === "ordinary";
-                              const shouldRender = isOrdinary
-                                ? !(entity.useClassShares || false)
-                                : (entity.useClassShares || false) &&
-                                  (entity.visibleShareClasses || []).includes(label);
-
-                              if (!shouldRender || !entity.shareClassValues) {
-                                return null;
-                              }
-
-                              const value = entity.shareClassValues[key];
-
-                              return (
-                                <div className="space-y-2" key={key}>
-                                  <div className="flex items-center justify-between">
-                                    <Label
-                                      htmlFor={`${index}-${key}`}
-                                      className="text-gray-700 font-semibold"
-                                    >
-                                      {label}
-                                    </Label>
-                                  </div>
-                                  <Input
-                                    id={`${index}-${key}`}
-                                    min={0}
-                                    type="number"
-                                    step={1}
-                                    placeholder={`Enter ${label} shares`}
-                                    value={value === 0 ? "" : value}
-                                    onChange={(e) =>
-                                      handleShareValueChange(
-                                        index,
-                                        key,
-                                        label,
-                                        e.target.value
-                                      )
-                                    }
-                                    className="rounded-xl border-gray-200"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        <ShareClassInput
+                              values={entity.shareClassValues || getDefaultShareClassValues()}
+                              errors={getDefaultShareClassErrors()}
+                              onValuesChange={(values) => {
+                                setNewEntities((prev) =>
+                                  prev.map((e, i) =>
+                                    i === index ? { ...e, shareClassValues: values } : e
+                                  )
+                                );
+                              }}
+                              showTotal={true}
+                              label="Total Shares (Optional)"
+                              className="mt-2"
+                            />
                       </>
                     )}
 
