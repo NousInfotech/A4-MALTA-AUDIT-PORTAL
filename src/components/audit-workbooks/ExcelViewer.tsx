@@ -308,6 +308,13 @@ interface ExcelViewerProps {
   // ✅ NEW: Callback when sheet selection changes (for saving preference)
   onSheetChange?: (workbookId: string, sheetName: string) => void;
   
+  // Auto-scrolling props
+  spreadsheetContainerRef?: React.RefObject<HTMLDivElement>;
+  autoScrollInterval?: NodeJS.Timeout | null;
+  setAutoScrollInterval?: (interval: NodeJS.Timeout | null) => void;
+  mousePosition?: { x: number; y: number };
+  setMousePosition?: (position: { x: number; y: number }) => void;
+  
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -447,6 +454,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // ✅ NEW: Callback when sheet selection changes
   onSheetChange,
+
+  // Auto-scrolling props
+  spreadsheetContainerRef,
+  autoScrollInterval,
+  setAutoScrollInterval,
+  mousePosition,
+  setMousePosition,
 }) => {
   // ✅ NEW: Wrapper function to handle sheet changes and notify parent
   // Note: setSelectedSheet (from props) is already a wrapper that calls onSheetChange
@@ -2757,8 +2771,21 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
     return (
       <>
-
-        <div className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1">
+        <div 
+          ref={spreadsheetContainerRef}
+          className="w-full bg-white rounded-lg shadow overflow-x-auto mb-1 scrollbar-hide-y"
+          style={{ 
+            maxHeight: 'calc(100vh - 250px)', // Adjust based on your layout
+            overflowY: 'auto',
+            scrollbarWidth: 'none', /* For Firefox */
+            msOverflowStyle: 'none' /* IE and Edge */
+          } as React.CSSProperties}
+        >
+          <style>{`
+            .scrollbar-hide-y::-webkit-scrollbar {
+              display: none; /* Safari and Chrome */
+            }
+          `}</style>
           <Table className="border-collapse">
             <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
               <TableRow>
@@ -2814,13 +2841,51 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               event
                             )
                           }
-                          onMouseEnter={() =>
-                            handleMouseEnter(excelGridRowIndex, excelGridColIndex)
-                          }
+                          onMouseEnter={(e) => {
+                            handleMouseEnter(excelGridRowIndex, excelGridColIndex);
+                            
+                            // Auto-scroll to selected row when dragging - Excel-like behavior
+                            // Only scroll if we're actively selecting (mouse button is down) AND isSelecting is true
+                            if (isSelecting && e.buttons === 1 && spreadsheetContainerRef?.current) {
+                              const container = spreadsheetContainerRef.current;
+                              const table = container.querySelector('table');
+                              
+                              if (table) {
+                                // Calculate the position of the current row
+                                const currentRow = table.querySelector(`tbody tr:nth-child(${dataRowArrayIndex + 1})`);
+                                
+                                if (currentRow) {
+                                  const rowRect = currentRow.getBoundingClientRect();
+                                  const containerRect = container.getBoundingClientRect();
+                                  
+                                  // Check if the row is near the bottom edge of the visible area
+                                  const edgeThreshold = 50; // pixels from edge
+                                  const isNearBottom = rowRect.bottom > containerRect.bottom - edgeThreshold;
+                                  
+                                  // If we're near the bottom, scroll down to show the selected row
+                                  if (isNearBottom) {
+                                    // Calculate how much to scroll to show the row
+                                    const scrollAmount = rowRect.bottom - containerRect.bottom + edgeThreshold;
+                                    container.scrollTop += scrollAmount;
+                                  }
+                                  
+                                  // Also check if the row is near the top edge
+                                  const isNearTop = rowRect.top < containerRect.top + edgeThreshold;
+                                  
+                                  // If we're near the top, scroll up to show the selected row
+                                  if (isNearTop) {
+                                    // Calculate how much to scroll to show the row
+                                    const scrollAmount = containerRect.top + edgeThreshold - rowRect.top;
+                                    container.scrollTop -= scrollAmount;
+                                  }
+                                }
+                              }
+                            }
+                          }}
                         >
                           <span className="whitespace-nowrap">{cell}</span>
 
-                          {/* invisible but occupying the enough space for the title */}
+                          {/* invisible but occupying enough space for the title */}
                           {mapping &&
                             !isHeaderCell &&
                             isFirstCellOfMapping && ( // <--- MODIFIED CONDITION HERE
@@ -2838,7 +2903,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               </span>
                             )}
 
-                          {/* end invisible but occupying the enough space for the title */}
+                          {/* end invisible but occupying enough space for the title */}
                           {/* visible title */}
                           {mapping &&
                             !isHeaderCell &&
@@ -2904,7 +2969,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                 if (referenceFiles.length > 0) {
                                   return (
                                     <>
-                                      {/* invisible but occupying the enough space for the title */}
+                                      {/* invisible but occupying enough space for the title */}
                                       <span
                                         className="invisible text-[15px] text-nowrap whitespace-nowrap font-semibold text-blue-600 px-1 rounded-sm bg-blue-50"
                                         style={{
@@ -3916,6 +3981,12 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const [selectedPreviewFile, setSelectedPreviewFile] = useState<ClassificationEvidence | null>(null);
 
+  // Auto-scrolling state variables
+  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const spreadsheetContainerRef = useRef<HTMLDivElement>(null);
+  const isMouseDownRef = useRef(false);
+
   // ✅ CRITICAL: Use a ref to store the latest workbook state
   // This ensures fetchEvidenceFilesForRange always has access to the most up-to-date referenceFiles
   const workbookRef = useRef(props.workbook);
@@ -4705,6 +4776,115 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     }
   }, [props, selections, selectedSheet, fetchEvidenceFilesForRange, toast]);
 
+  // Auto-scrolling: Handle mouse move and mouse up events during selection
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // Only track mouse position if mouse button is pressed (dragging)
+      if (e.buttons === 1) {
+        isMouseDownRef.current = true;
+        setMousePosition({ x: e.clientX, y: e.clientY });
+      } else {
+        isMouseDownRef.current = false;
+      }
+    };
+
+    const handleMouseDown = () => {
+      isMouseDownRef.current = true;
+    };
+
+    const handleMouseUp = () => {
+      isMouseDownRef.current = false;
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        setAutoScrollInterval(null);
+      }
+    };
+
+    if (isSelecting) {
+      document.addEventListener('mousedown', handleMouseDown);
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      isMouseDownRef.current = false;
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        setAutoScrollInterval(null);
+      }
+    };
+  }, [isSelecting, autoScrollInterval]);
+
+  // Auto-scrolling: Implement auto-scrolling logic
+  useEffect(() => {
+    if (!isSelecting || !spreadsheetContainerRef.current) return;
+
+    const container = spreadsheetContainerRef.current;
+    const scrollSpeed = 5; // pixels per interval
+    const scrollInterval = 50; // milliseconds
+    const edgeThreshold = 50; // pixels from edge to trigger scrolling
+
+    // Clear any existing interval
+    if (autoScrollInterval) {
+      clearInterval(autoScrollInterval);
+      setAutoScrollInterval(null);
+    }
+
+    // Check if mouse is near edges and start scrolling if needed
+    const checkAndScroll = () => {
+      // Only scroll if mouse button is actually pressed (dragging)
+      if (!isMouseDownRef.current) {
+        if (autoScrollInterval) {
+          clearInterval(autoScrollInterval);
+          setAutoScrollInterval(null);
+        }
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      let needsScroll = false;
+      let scrollX = 0;
+      let scrollY = 0;
+
+      // Check horizontal edges
+      if (mousePosition.x < rect.left + edgeThreshold) {
+        scrollX = -scrollSpeed;
+        needsScroll = true;
+      } else if (mousePosition.x > rect.right - edgeThreshold) {
+        scrollX = scrollSpeed;
+        needsScroll = true;
+      }
+
+      // Check vertical edges
+      if (mousePosition.y < rect.top + edgeThreshold) {
+        scrollY = -scrollSpeed;
+        needsScroll = true;
+      } else if (mousePosition.y > rect.bottom - edgeThreshold) {
+        scrollY = scrollSpeed;
+        needsScroll = true;
+      }
+
+      if (needsScroll) {
+        container.scrollBy(scrollX, scrollY);
+      }
+    };
+
+    if (isSelecting) {
+      const interval = setInterval(checkAndScroll, scrollInterval);
+      setAutoScrollInterval(interval);
+    }
+
+    return () => {
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        setAutoScrollInterval(null);
+      }
+    };
+  }, [isSelecting, mousePosition, autoScrollInterval]);
+
   const resolveFullscreenRowIdentifier = useCallback(
     (row?: Partial<ETBRow>, fallback?: string) => {
       if (!row) return fallback;
@@ -5362,6 +5542,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         setFilePreviewOpen={setFilePreviewOpen}
         selectedPreviewFile={selectedPreviewFile}
         setSelectedPreviewFile={setSelectedPreviewFile}
+
+        // Auto-scrolling props
+        spreadsheetContainerRef={spreadsheetContainerRef}
+        autoScrollInterval={autoScrollInterval}
+        setAutoScrollInterval={setAutoScrollInterval}
+        mousePosition={mousePosition}
+        setMousePosition={setMousePosition}
       />
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent className="w-screen h-screen max-w-full max-h-full p-0 flex flex-col">
@@ -5465,6 +5652,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               setFilePreviewOpen={setFilePreviewOpen}
               selectedPreviewFile={selectedPreviewFile}
               setSelectedPreviewFile={setSelectedPreviewFile}
+
+              // Auto-scrolling props
+              spreadsheetContainerRef={spreadsheetContainerRef}
+              autoScrollInterval={autoScrollInterval}
+              setAutoScrollInterval={setAutoScrollInterval}
+              mousePosition={mousePosition}
+              setMousePosition={setMousePosition}
             />
           </div>
           <div className="absolute top-4 right-4 z-50">
