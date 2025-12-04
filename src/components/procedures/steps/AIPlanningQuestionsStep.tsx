@@ -10,6 +10,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Loader2, ChevronUp, ChevronDown } from "lucide-react"
 import Lottie from "lottie-react"
 import checkMarkAnimation from "@/../public/Check Mark.json"
@@ -248,7 +249,8 @@ export const AIPlanningQuestionsStep: React.FC<{
         setCelebration({ sectionId, x: targetX, y: targetY, animate: false })
 
         // After the main Lottie animation duration, start the move/shrink
-        const centerDurationMs = 2000 // show in center for ~1.5s
+        const centerDurationMs = 2000 // show in center for ~2s
+        const flyDurationMs = 700 // matches CSS transition duration
 
         setTimeout(() => {
           setCelebration((prev) => (prev ? { ...prev, animate: true } : prev))
@@ -427,124 +429,109 @@ export const AIPlanningQuestionsStep: React.FC<{
 
 
 
-      <div className="space-y-4 h-[60vh] overflow-y-scroll">
+      <Accordion type="multiple" className="space-y-4 h-[60vh] overflow-y-scroll">
         {PLANNING_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
 
           return (
-            <Card
+            <AccordionItem
               key={section.sectionId}
-              className="border rounded-md p-4 space-y-3"
+              value={section.sectionId}
+              className="border rounded-md px-4"
               ref={el => sectionRefs.current[section.sectionId] = el}
               data-section-id={section.sectionId}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-heading text-lg">{section.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center justify-between w-full pr-4">
+                  <div className="text-left">
+                    <div className="font-heading text-lg">{section.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
+                    </div>
+                  </div>
+                  {/* Actions / status */}
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    {completedSections.has(section.sectionId) && !generatingSections.has(section.sectionId) && (
+                      <div className="flex items-center gap-1 text-emerald-600 animate-in fade-in slide-in-from-top-1">
+                        <div className="h-6 w-6">
+                          <Lottie
+                            animationData={checkMarkAnimation}
+                            loop
+                            autoplay
+                          />
+                        </div>
+                        <span className="text-xs font-semibold">Section ready</span>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={() => handleGenerateSectionQuestions(section.sectionId)}
+                      disabled={loading || generatingSections.has(section.sectionId)}
+                      className="flex items-center justify-center"
+                    >
+                      {generatingSections.has(section.sectionId) ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
+                      {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
+                    </Button>
                   </div>
                 </div>
-                {/* Actions / status */}
-                <div className="flex items-center gap-3">
-                  {completedSections.has(section.sectionId) && !generatingSections.has(section.sectionId) && (
-                    <div className="flex items-center gap-1 text-emerald-600 animate-in fade-in slide-in-from-top-1">
-                      <div className="h-6 w-6">
-                        <Lottie
-                          animationData={checkMarkAnimation}
-                          loop
-                          autoplay
-                        />
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 pb-4">
+                {hasQuestions ? (
+                  <div className="space-y-3">
+                    {(sectionData.fields || []).map((f: any) => (
+                      <div key={f.__uid} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium">Question</div>
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                            if (secIdx >= 0) removeQuestion(secIdx, f.__uid);
+                          }}>Remove</Button>
+                        </div>
+                        {editorForField(
+                          procedures.findIndex(s => s.sectionId === section.sectionId),
+                          f
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          <code>type:</code> {normalizeType(f.type)}
+                          {Array.isArray(f.options) && f.options.length && (
+                            <span>
+                              {" "}
+                              · <code>options:</code> {f.options.join(", ")}
+                            </span>
+                          )}
+                          {Array.isArray(f.columns) && f.columns.length && (
+                            <span>
+                              {" "}
+                              · <code>columns:</code> {f.columns.join(", ")}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-xs font-semibold">Section ready</span>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={() => handleGenerateSectionQuestions(section.sectionId)}
-                    disabled={loading || generatingSections.has(section.sectionId)}
-                    className="flex items-center justify-center"
-                  >
-                    {generatingSections.has(section.sectionId) ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
-                    {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
-                  </Button>
-                  {/* {index > 0 && (
+                    ))}
                     <Button
+                      size="sm"
                       variant="outline"
-                      onClick={() => scrollToSection(PLANNING_SECTIONS[index - 1].sectionId)}
-                      className="flex items-center gap-2"
+                      onClick={() => {
+                        const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                        if (secIdx >= 0) addQuestion(secIdx);
+                      }}
                     >
-                      <ChevronUp className="h-4 w-4" />
-                      Previous Section
+                      + Add Question
                     </Button>
-                  )}
-                  {index < PLANNING_SECTIONS.length - 1 && (
-                    <Button
-                      onClick={() => scrollToSection(PLANNING_SECTIONS[index + 1].sectionId)}
-                      className="flex items-center gap-2 ml-auto"
-                    >
-                      Next Section
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  )} */}
-                </div>
-              </div>
-
-              {hasQuestions ? (
-                <div className="space-y-3">
-                  {(sectionData.fields || []).map((f: any) => (
-                    <div key={f.__uid} className="space-y-3 p-4 rounded-md border bg-card shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">Question</div>
-                        <Button size="sm" variant="ghost" onClick={() => {
-                          const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
-                          if (secIdx >= 0) removeQuestion(secIdx, f.__uid);
-                        }}>Remove</Button>
-                      </div>
-                      {editorForField(
-                        procedures.findIndex(s => s.sectionId === section.sectionId),
-                        f
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        <code>type:</code> {normalizeType(f.type)}
-                        {Array.isArray(f.options) && f.options.length && (
-                          <span>
-                            {" "}
-                            · <code>options:</code> {f.options.join(", ")}
-                          </span>
-                        )}
-                        {Array.isArray(f.columns) && f.columns.length && (
-                          <span>
-                            {" "}
-                            · <code>columns:</code> {f.columns.join(", ")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
-                      if (secIdx >= 0) addQuestion(secIdx);
-                    }}
-                  >
-                    + Add Question
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-muted-foreground py-4 text-center">
-                  No questions generated yet. Click "Generate Questions" to create questions for this section.
-                </div>
-              )}
-            </Card>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground py-4 text-center">
+                    No questions generated yet. Click "Generate Questions" to create questions for this section.
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
           );
         })}
-      </div>
+      </Accordion>
 
       <div className="flex gap-2">
         <Button
