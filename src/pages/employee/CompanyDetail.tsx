@@ -39,6 +39,11 @@ interface Person {
   type?: string;
 }
 
+interface PerShareValue {
+  value: number;
+  currency?: string; // defaults to "EUR"
+}
+
 interface Company {
   _id: string;
   name: string;
@@ -46,6 +51,9 @@ interface Company {
   address?: string;
   industry?: string;
   status: "active" | "record";
+  issuedShares?: number;
+  authorizedShares?: number;
+  perShareValue?: PerShareValue;
   totalShares?: Array<{
     totalShares: number;
     class: string;
@@ -456,6 +464,80 @@ export const CompanyDetail: React.FC = () => {
               </div>
 
 
+               {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
+              {company.totalShares && company.totalShares.length > 0 && (
+                <div className="flex items-start gap-3 p-4 bg-[#FFB300]/10 border border-[#FFB300] rounded-xl">
+                  <PieChart
+                    className="h-5 w-5 mt-0.5" />
+                  <div>
+
+                  {/* TOP GRID */}
+                  <div className="grid grid-cols-3 gap-6">
+
+                  {/* Authorized Shares */}
+                  <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide font-semibold">
+                  Authorized Shares
+                  </p>
+                  <p className="text-lg font-semibold">
+                  {company.authorizedShares.toLocaleString()}
+                  </p>
+                  </div>
+
+                  {/* Per Share Value */}
+                  <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide font-semibold">
+                  Per Share Value
+                  </p>
+                  <p className="text-lg font-semibold">
+                  € {company.perShareValue.value}
+                  </p>
+                  </div>
+
+                  {/* Issued Shares */}
+                  <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide font-semibold">
+                  Issued Shares
+                  </p>
+                  <p className="text-lg font-semibold">
+                  {company.issuedShares.toLocaleString()}
+                  </p>
+                  </div>
+                  </div>
+
+                  {/* SHARE BREAKDOWN LIST */}
+                  <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium mb-2">
+                  Share Breakdown
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                  {company.totalShares
+                  .filter((share) => share.totalShares > 0)
+                  .map((share, idx) => {
+                  const className =
+                  share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
+
+                  return (
+                  <Badge
+                  key={idx}
+                  variant="outline"
+                  className="px-3 py-1.5 rounded-lg border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 transition"
+                  >
+                  <span className="font-medium text-xs">
+                  {share.class.toLowerCase() !== "ordinary" ? "Class" : ""} {share.class}:{" "}
+                  {share.totalShares.toLocaleString()} Shares
+                  </span>
+                  </Badge>
+                  );
+                  })}
+                  </div>
+                  </div>
+                  </div>
+
+                </div>
+              )}
+
               {highestShareholders.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
@@ -488,37 +570,6 @@ export const CompanyDetail: React.FC = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Address</p>
                     <p className="text-gray-900">{company.address}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
-              {company.totalShares && company.totalShares.length > 0 && (
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
-                  <PieChart
-                    className="h-5 w-5 text-gray-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500 font-medium">Total Shares</p>
-                    <p className="text-gray-900">{calculateTotalSharesSum(company.totalShares).toLocaleString()}</p>
-                    <div className="mt-2 flex flex-col gap-2">
-                        {company.totalShares
-                        .filter((share) => share.totalShares > 0)
-                        .map((share, idx) => {
-                        const className = share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
-                        return (
-                        <Badge
-                        key={idx}
-                        variant="outline"
-                        className="text-xs text-gray-600 flex items-center justify-between px-2 py-1"
-                        >
-                        <span>
-                        {share.class.toLowerCase() != "ordinary" ? "Class" : ""} {share.class}: {share.totalShares.toLocaleString()} Shares
-                        </span>
-                        </Badge>
-                        );
-                        })}
-                   </div>
-
                   </div>
                 </div>
               )}
@@ -745,6 +796,8 @@ export const CompanyDetail: React.FC = () => {
                 }))}
                 companyTotalShares={calculateTotalSharesSum(company?.totalShares)}
                 companyTotalSharesArray={company?.totalShares || []}
+                authorizedShares={company?.authorizedShares}
+                issuedShares={company?.issuedShares}
                 title="Distribution"
               />
             </TabsContent>

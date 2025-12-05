@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ErrorMessage } from "@/components/ui/error-message";
 
 export const SHARE_CLASS_CONFIG = [
   { key: "classA", label: "Class A", backendValue: "A" },
@@ -8,11 +9,19 @@ export const SHARE_CLASS_CONFIG = [
   { key: "classC", label: "Class C", backendValue: "C" },
   { key: "ordinary", label: "Ordinary", backendValue: "Ordinary" },
 ] as const;
-
+  
 export type ShareClassKey = (typeof SHARE_CLASS_CONFIG)[number]["key"];
 
-export type ShareClassValues = Record<ShareClassKey, number>;
-export type ShareClassErrors = Record<ShareClassKey, string>;
+export type ShareClassValues = Record<ShareClassKey, number> & {
+  authorizedShares: number;
+  issuedShares: number;
+  perShareValue: number;
+};
+export type ShareClassErrors = Record<ShareClassKey, string> & {
+  authorizedShares?: string;
+  issuedShares?: string;
+  perShareValue?: string;
+};
 
 export const DEFAULT_SHARE_TYPE = "Ordinary";
 
@@ -20,7 +29,10 @@ export const getDefaultShareClassValues = (): ShareClassValues => ({
   classA: 0,
   classB: 0,
   classC: 0,
-  ordinary: 100,
+  ordinary: 0,
+  authorizedShares: 0,
+  issuedShares: 0,
+  perShareValue: 0,
 });
 
 export const getDefaultShareClassErrors = (): ShareClassErrors => ({
@@ -28,12 +40,11 @@ export const getDefaultShareClassErrors = (): ShareClassErrors => ({
   classB: "",
   classC: "",
   ordinary: "",
+  authorizedShares: "",
+  issuedShares: "",
+  perShareValue: "",
 });
 
-/**
- * Builds the totalShares payload for the backend.
- * Includes all share classes: Class A, B, C, and Ordinary
- */
 export const buildTotalSharesPayload = (values: ShareClassValues) => {
   const allShares = SHARE_CLASS_CONFIG.map(({ key, backendValue }) => ({
     totalShares: Number(values[key]) || 0,
@@ -41,25 +52,19 @@ export const buildTotalSharesPayload = (values: ShareClassValues) => {
     type: DEFAULT_SHARE_TYPE,
   }));
   
-  // Filter out entries with totalShares <= 0 before sending to backend
   return allShares.filter(item => item.totalShares > 0);
 };
 
 export const calculateTotalSharesSum = (values: ShareClassValues) => {
-  // Sum all share classes: Class A, B, C, and Ordinary
   return SHARE_CLASS_CONFIG.reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
 };
 
-/**
- * Parses totalShares array from backend into form state
- */
 export const parseTotalSharesArray = (
   totalShares?: Array<{ totalShares: number; class: string; type: string }>
 ): ShareClassValues => {
   const defaultValues = getDefaultShareClassValues();
 
   if (Array.isArray(totalShares) && totalShares.length > 0) {
-    // Parse values from array
     totalShares.forEach((item) => {
       if (item.class === "A") defaultValues.classA = Number(item.totalShares) || 0;
       if (item.class === "B") defaultValues.classB = Number(item.totalShares) || 0;
@@ -70,6 +75,8 @@ export const parseTotalSharesArray = (
 
   return defaultValues;
 };
+
+// --- Component Interface and Definition ---
 
 interface ShareClassInputProps {
   values: ShareClassValues;
@@ -92,22 +99,99 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
 }) => {
   const totalSharesSum = calculateTotalSharesSum(values);
   const [localErrors, setLocalErrors] = useState<ShareClassErrors>(errors);
-
+  
   useEffect(() => {
-    setLocalErrors(errors);
+    // Only update localErrors from props if there's a real change (initial load or external change)
+    if (JSON.stringify(errors) !== JSON.stringify(localErrors)) {
+        setLocalErrors(errors);
+    }
   }, [errors]);
+
+  /**
+   * Centralized validation function for Authorized/Issued/Total Shares sum.
+   * This is the key fix for the "glitching" issue.
+   */
+  const runAllValidations = (currentValues: ShareClassValues, currentErrors: ShareClassErrors): ShareClassErrors => {
+    let newErrors: ShareClassErrors = { ...currentErrors, issuedShares: "" }; // Reset issuedShares error for re-evaluation
+
+    const issued = currentValues.issuedShares;
+    const authorized = currentValues.authorizedShares;
+    const totalShareClassesSum = calculateTotalSharesSum(currentValues);
+    
+    // 1. Issued Shares vs. Authorized Shares
+    if (issued > authorized) {
+      newErrors.issuedShares = "Issued Shares cannot exceed Authorized Shares";
+      // If error 1 exists, we skip checking error 2 on the same field for clarity.
+      return newErrors; 
+    }
+
+    // 2. Total Share Classes vs. Issued Shares (your new required validation)
+    if (totalShareClassesSum > issued) {
+      newErrors.issuedShares = `Total Share Classes (${totalShareClassesSum}) cannot exceed Issued Shares (${issued})`;
+      // If error 2 exists, we skip checking error 1 on the same field for clarity.
+      return newErrors;
+    }
+    
+    // If neither validation fails, issuedShares error remains empty ("")
+
+    // Retain non-issuedShares errors (e.g., perShareValue or individual class errors)
+    // The explicit reset and re-evaluation above handles the issuedShares field correctly.
+    return newErrors;
+  }
 
   const handleShareValueChange = (
     key: ShareClassKey,
     label: string,
     rawValue: string
   ) => {
+    let newErrors = { ...localErrors };
+    let updatedValues = { ...values };
+
     if (rawValue === "") {
+      updatedValues[key] = 0;
+      newErrors[key] = "";
+    } else {
+      const parsedValue = parseInt(rawValue, 10);
+      
+      if (Number.isNaN(parsedValue) || parsedValue < 0) {
+        newErrors[key] = `${label} shares must be 0 or greater`;
+        setLocalErrors(newErrors);
+        onErrorChange?.(newErrors);
+        return;
+      } else {
+        updatedValues[key] = parsedValue;
+        newErrors[key] = "";
+      }
+    }
+    
+    const issuedLimit = updatedValues.issuedShares;
+    if (updatedValues[key] > issuedLimit) {
+      newErrors[key] = `${label} shares cannot exceed Issued Shares`;
+    }
+
+    newErrors = runAllValidations(updatedValues, newErrors);
+
+    setLocalErrors(newErrors);
+    onErrorChange?.(newErrors);
+    onValuesChange(updatedValues);
+  };
+
+  const handleShareValueBlur = (
+    key: ShareClassKey,
+    label: string,
+    rawValue: string
+  ) => {
+    if (rawValue === "") {
+      // If empty on blur, ensure state reflects 0 and error is clear
+      let newErrors = { ...localErrors, [key]: "" };
       const newValues = { ...values, [key]: 0 };
-      onValuesChange(newValues);
-      const newErrors = { ...localErrors, [key]: "" };
+      
+      // Re-run validation for issuedShares in case this change fixed an issue
+      newErrors = runAllValidations(newValues, newErrors);
+
       setLocalErrors(newErrors);
       onErrorChange?.(newErrors);
+      onValuesChange(newValues);
       return;
     }
 
@@ -120,52 +204,116 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
       setLocalErrors(newErrors);
       onErrorChange?.(newErrors);
     } else {
-      const newErrors = { ...localErrors, [key]: "" };
+      let newErrors = { ...localErrors };
+      const issuedLimit = values.issuedShares;
+      if (parsedValue > issuedLimit) {
+        newErrors[key] = `${label} shares cannot exceed Issued Shares`;
+      } else {
+        newErrors[key] = "";
+      }
       setLocalErrors(newErrors);
       onErrorChange?.(newErrors);
-
-      // Update the value for the selected share class
-      const updatedValues = { ...values, [key]: parsedValue };
-      onValuesChange(updatedValues);
     }
   };
 
-  const handleShareValueBlur = (
-    key: ShareClassKey,
-    label: string,
-    rawValue: string
+  const handleGeneralValueBlur = (
+    key: "authorizedShares" | "issuedShares" | "perShareValue"
   ) => {
-    if (rawValue === "") {
-      const newErrors = { ...localErrors, [key]: "" };
-      setLocalErrors(newErrors);
-      onErrorChange?.(newErrors);
-      const newValues = { ...values, [key]: 0 };
-      onValuesChange(newValues);
-      return;
+    // Run full validation on blur to catch any inconsistencies
+    const newErrors = runAllValidations(values, localErrors);
+    setLocalErrors(newErrors);
+    onErrorChange?.(newErrors);
+  };
+
+  const handleGeneralValueChange = (
+    key: "authorizedShares" | "issuedShares" | "perShareValue",
+    value: string
+  ) => {
+    const parsedValue = parseInt(value, 10);
+    const newValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
+    
+    const updatedValues = { ...values, [key]: newValue };
+    let newErrors = { ...localErrors };
+    if (localErrors.issuedShares) {
+        newErrors = runAllValidations(updatedValues, newErrors);
     }
 
-    const parsedValue = parseInt(rawValue, 10);
-    if (Number.isNaN(parsedValue) || parsedValue < 0) {
-      const newErrors = {
-        ...localErrors,
-        [key]: `${label} shares must be 0 or greater`,
-      };
-      setLocalErrors(newErrors);
-      onErrorChange?.(newErrors);
-    }
+    setLocalErrors(newErrors);
+    onErrorChange?.(newErrors);
+    onValuesChange(updatedValues);
   };
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div className="space-y-2">
+      <Label className="text-gray-700 font-semibold">{label}</Label>
+    <div className={`space-y-2 ${className} border border-gray-200 rounded-xl p-4`}>
       <div className="flex items-center justify-between">
-        <Label className="text-gray-700 font-semibold">{label}</Label>
-        {showTotal && (
+        {/* {showTotal && (
           <span className="text-sm text-gray-600">
             Total: {totalSharesSum.toLocaleString()}
           </span>
-        )}
+        )} */}
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="space-y-2">
+          <Label htmlFor="authorizedShares" className="text-gray-700 font-semibold">
+            Authorized Shares
+          </Label>
+          <Input
+            id="authorizedShares"
+            type="number"
+            min={0}
+            value={values.authorizedShares || ""}
+            onChange={(e) => handleGeneralValueChange("authorizedShares", e.target.value)}
+            onBlur={() => handleGeneralValueBlur("authorizedShares")}
+            className="rounded-xl border-gray-200"
+            placeholder="Enter Authorized Shares"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="issuedShares" className="text-gray-700 font-semibold">
+            Issued Shares
+          </Label>
+          <Input
+            id="issuedShares"
+            type="number"
+            min={0}
+            value={values.issuedShares || ""}
+            onChange={(e) => handleGeneralValueChange("issuedShares", e.target.value)}
+            onBlur={() => handleGeneralValueBlur("issuedShares")}
+            className={`rounded-xl border-gray-200 ${
+              localErrors?.issuedShares ? "border-red-500" : ""
+            }`}
+              placeholder="Enter Issued Shares"
+          />
+          <ErrorMessage message={localErrors?.issuedShares} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="perShareValue" className="text-gray-700 font-semibold">
+            Per Share Value (EUR)
+          </Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">€</span>
+            <Input
+              id="perShareValue"
+              type="number"
+              min={0}
+              value={values.perShareValue || ""}
+              onChange={(e) => handleGeneralValueChange("perShareValue", e.target.value)}
+              className="pl-8 rounded-xl border-gray-200"
+              placeholder="Enter Per Share Value"
+            />
+          </div>
+        </div>
+      </div>
+     <div className="flex justify-end">
+       {showTotal && (
+          <span className="text-sm text-gray-600">
+            Total: {totalSharesSum.toLocaleString()}/{values.issuedShares.toLocaleString()}
+          </span>
+        )}
+      </div>
       {/* All Share Class Inputs */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {SHARE_CLASS_CONFIG.map(({ key, label: classLabel }) => {
@@ -196,14 +344,13 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
                   error ? "border-red-500" : ""
                 }`}
               />
-              {error && (
-                <p className="text-sm text-red-500 mt-1">{error}</p>
-              )}
+              <ErrorMessage message={error} />
             </div>
           );
         })}
       </div>
+
+    </div>
     </div>
   );
 };
-

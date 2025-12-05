@@ -49,6 +49,7 @@ import {
   getDefaultShareClassErrors,
   buildTotalSharesPayload,
 } from "./ShareClassInput";
+import { PaidUpSharesInput } from "@/components/client/PaidUpSharesInput";
 
 const industryOptions = [
   "Technology",
@@ -86,6 +87,7 @@ interface ExistingEntity {
   classAShares?: number;
   classBShares?: number;
   classCShares?: number;
+  paidUpSharesPercentage?: number;
   expanded?: boolean;
 }
 
@@ -110,6 +112,7 @@ interface NewEntityForm {
   classCShares: number;
   sharesData: ShareDataItem[];
   roles: string[];
+  paidUpSharesPercentage?: number;
 }
 
 
@@ -143,6 +146,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
       classBShares: 0,
       classCShares: 0,
       sharesData: [],
+      paidUpSharesPercentage: 0,
       // Initialize share class values for companies
       ...(entityType === "company" && {
         shareClassValues: getDefaultShareClassValues(),
@@ -173,7 +177,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
     total: 0,
     totalPages: 0,
   });
-  
+  const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
   const { toast } = useToast();
 
   // Set global search mode based on entity type
@@ -572,6 +576,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
           classAShares: 0,
           classBShares: 0,
           classCShares: 0,
+          paidUpSharesPercentage: 0,
           expanded: true,
         },
       ]);
@@ -637,6 +642,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
         classBShares: 0,
         classCShares: 0,
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
+        paidUpSharesPercentage: 0,
         // Initialize share class values for companies
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
@@ -989,6 +995,12 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                   name: entity.name,
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
+                  authorizedShares: entity.shareClassValues?.authorizedShares || 0,
+                  issuedShares: entity.shareClassValues?.issuedShares || 0,
+                  perShareValue: {
+                    value: entity.shareClassValues?.perShareValue || 0,
+                    currency: "EUR"
+                  },
                   totalShares: totalSharesPayload,
                   industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry)?.trim() || undefined,
                   description: entity.description || undefined,
@@ -1017,6 +1029,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
               await addShareHolderCompanyNew("non-primary", companyId, {
                 companyId: companyId_new,
                 sharesData: validSharesData,
+                paidUpSharesPercentage: entity.paidUpSharesPercentage,
               });
             }
           }
@@ -1892,7 +1905,8 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                         {/* Total Shares Section */}
                         <ShareClassInput
                               values={entity.shareClassValues || getDefaultShareClassValues()}
-                              errors={getDefaultShareClassErrors()}
+                              errors={shareClassErrors}
+                              onErrorChange={(errs) => setShareClassErrors(errs)}
                               onValuesChange={(values) => {
                                 setNewEntities((prev) =>
                                   prev.map((e, i) =>
@@ -2075,9 +2089,18 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                               {shareValidationErrors.global}
                             </p>
                           )}
-                        </div>
                       </div>
-                    )}
+                         <div>
+                            <PaidUpSharesInput
+                               value={entity.paidUpSharesPercentage ?? 100}
+                               onChange={(val) => {
+                                  const numVal = val === "" ? 0 : val;
+                                  handleNewEntityChange(index, "paidUpSharesPercentage", numVal);
+                               }}
+                            />
+                         </div>
+                    </div>
+                  )}
                     
                   </CardContent>
                 </Card>

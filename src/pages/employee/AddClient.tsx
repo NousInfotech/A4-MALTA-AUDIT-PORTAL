@@ -56,6 +56,7 @@ import {
   buildTotalSharesPayload,
   calculateTotalSharesSum,
 } from "@/components/client/ShareClassInput";
+import { PaidUpSharesInput } from "@/components/client/PaidUpSharesInput";
 
 const industries = [
   "Technology",
@@ -108,6 +109,7 @@ export const AddClient = () => {
     visibleShareClasses: [] as string[],
     selectedRoles: [] as string[],
     sharesData: [] as Array<{ totalShares: string; class: string }>,
+    paidUpSharesPercentage: 0,
   });
   const [showPassword, setShowPassword] = useState(true);
   const [showCompanyDialog, setShowCompanyDialog] = useState(false);
@@ -259,7 +261,7 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData, paidUpSharesPercentage } =
       formData;
 
     const industry =
@@ -283,6 +285,12 @@ export const AddClient = () => {
         role: "client",
         isCreateCompany,
         isNewCompany: formData.isNewCompany,
+        authorizedShares: formData.shareClassValues?.authorizedShares,
+        issuedShares: formData.shareClassValues?.issuedShares,
+        perShareValue: {
+          value: formData.shareClassValues?.perShareValue,
+          currency: "EUR",
+        },
       };
 
       // Add company creation data if enabled
@@ -313,6 +321,7 @@ export const AddClient = () => {
             // Send the array format for the company's totalShares field
             totalSharesArray: totalSharesPayload && totalSharesPayload.length > 0 ? totalSharesPayload : undefined,
             shares: validShares.length > 0 ? validShares : undefined,
+            paidUpSharesPercentage: paidUpSharesPercentage,
           };
         }
 
@@ -424,13 +433,14 @@ export const AddClient = () => {
       setFormData((prev) => ({
         ...prev,
         sharesData: [],
-        shareClassValues: getDefaultShareClassValues(),
         useClassShares: false,
         visibleShareClasses: [],
       }));
     }
   }, [formData.selectedRoles]);
   
+
+  const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
 
   return (
     <div className="w-full bg-brand-body p-4 sm:p-6 box-border">
@@ -913,6 +923,37 @@ export const AddClient = () => {
                     </div>
                   </div>
 
+                  {/* Share Information: Company Total Shares (moved above Roles) */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                        <Sparkles className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Share Information
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                      <div className="space-y-3">
+                        <ShareClassInput
+                          values={formData.shareClassValues}
+                          errors={shareClassErrors}
+                          onValuesChange={(values) => {
+                            handleChange("shareClassValues", values);
+                          }}
+                          onErrorChange={(errs) => setShareClassErrors(errs)}
+                          showTotal={true}
+                          label="Company Total Shares *"
+                          className="mt-2"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Total number of shares issued by the company
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Roles */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -951,36 +992,10 @@ export const AddClient = () => {
                     </div>
                   </div>
 
-                  {/* Share Data */}
+                  {/* Client Share Holdings: only shown when Shareholder is selected */}
                   {isShareholderSelected && (
                   <div className="space-y-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
-                        <Sparkles className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Share Information
-                      </h3>
-                    </div>
-
                     <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
-                      {/* Company Total Shares */}
-                      <div className="space-y-3">
-                        <ShareClassInput
-                          values={formData.shareClassValues}
-                          errors={getDefaultShareClassErrors()}
-                          onValuesChange={(values) => {
-                            handleChange("shareClassValues", values);
-                          }}
-                          showTotal={true}
-                          label="Company Total Shares *"
-                          className="mt-2"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Total number of shares issued by the company
-                        </p>
-                      </div>
-
                       {/* Client Share Holdings */}
                       <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex items-center justify-between">
@@ -1226,12 +1241,20 @@ export const AddClient = () => {
                                 </div>
                               );
                             })()}
+
+                            {/* Paid Up Shares Percentage */}
+                            <div className="md:col-span-2">
+                              <PaidUpSharesInput
+                                value={formData.paidUpSharesPercentage}
+                                onChange={(val) => handleChange("paidUpSharesPercentage", val)}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                  )}
                 </>
               )}
 
@@ -1239,7 +1262,7 @@ export const AddClient = () => {
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || Object.values(shareClassErrors).some(Boolean)}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && (

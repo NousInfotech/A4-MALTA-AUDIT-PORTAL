@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorMessage } from "@/components/ui/error-message";
 import {
   Select,
   SelectContent,
@@ -46,8 +47,16 @@ const SHARE_CLASS_CONFIG = [
 ] as const;
 
 type ShareClassKey = (typeof SHARE_CLASS_CONFIG)[number]["key"];
-type ShareClassValues = Record<ShareClassKey, number>;
-type ShareClassErrors = Record<ShareClassKey, string>;
+type ShareClassValues = Record<ShareClassKey, number> & {
+  authorizedShares: number;
+  issuedShares: number;
+  perShareValue: number;
+};
+type ShareClassErrors = Record<ShareClassKey, string> & {
+  authorizedShares?: string;
+  issuedShares?: string;
+  perShareValue?: string;
+};
 
 const DEFAULT_SHARE_TYPE = "Ordinary";
 
@@ -55,7 +64,10 @@ const getDefaultShareClassValues = (): ShareClassValues => ({
   classA: 0,
   classB: 0,
   classC: 0,
-  ordinary: 100,
+  ordinary: 0,
+  authorizedShares: 0,
+  issuedShares: 0,
+  perShareValue: 0,
 });
 
 const getDefaultShareClassErrors = (): ShareClassErrors => ({
@@ -63,6 +75,9 @@ const getDefaultShareClassErrors = (): ShareClassErrors => ({
   classB: "",
   classC: "",
   ordinary: "",
+  authorizedShares: "",
+  issuedShares: "",
+  perShareValue: "",
 });
 
 /**
@@ -81,8 +96,30 @@ const buildTotalSharesPayload = (values: ShareClassValues) => {
 };
 
 const calculateTotalSharesSum = (values: ShareClassValues) => {
-  // Sum all share classes: Class A, B, C, and Ordinary
   return SHARE_CLASS_CONFIG.reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
+};
+
+const runAllValidations = (
+  currentValues: ShareClassValues,
+  currentErrors: ShareClassErrors
+): ShareClassErrors => {
+  let newErrors: ShareClassErrors = { ...currentErrors, issuedShares: "" };
+
+  const issued = currentValues.issuedShares;
+  const authorized = currentValues.authorizedShares;
+  const totalShareClassesSum = calculateTotalSharesSum(currentValues);
+
+  if (issued > authorized) {
+    newErrors.issuedShares = "Issued Shares cannot exceed Authorized Shares";
+    return newErrors;
+  }
+
+  if (totalShareClassesSum > issued) {
+    newErrors.issuedShares = `Total Share Classes (${totalShareClassesSum}) cannot exceed Issued Shares (${issued})`;
+    return newErrors;
+  }
+
+  return newErrors;
 };
 
 // Helper to parse totalShares array from backend into shareClassValues
@@ -155,13 +192,14 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
   const totalSharesPayload = buildTotalSharesPayload(shareClassValues);
   const totalSharesSum = calculateTotalSharesSum(shareClassValues);
+  const hasShareClassErrors = Object.values(shareClassErrors).some((err) => !!err);
 
   const { toast } = useToast();
   const isShareholdersAvailable = company.shareHoldingCompanies.length > 0 || company.shareHolders.length > 0;
 
   // Calculate purchased shares per share class
-  const calculatePurchasedShares = (): ShareClassValues => {
-    const purchased: ShareClassValues = {
+  const calculatePurchasedShares = (): Record<ShareClassKey, number> => {
+    const purchased: Record<ShareClassKey, number> = {
       classA: 0,
       classB: 0,
       classC: 0,
@@ -255,6 +293,40 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     }
   }, [totalSharesSum]);
 
+  const handleGeneralValueChange = (
+    key: "authorizedShares" | "issuedShares" | "perShareValue",
+    value: string
+  ) => {
+    const parsedValue = parseInt(value, 10);
+    const newValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
+
+    setShareClassValues((prev) => {
+      const nextValues = { ...prev, [key]: newValue };
+      setShareClassErrors((prevErrs) => {
+        let nextErrors = runAllValidations(nextValues, prevErrs);
+        if (key === "issuedShares") {
+          SHARE_CLASS_CONFIG.forEach(({ key: classKey, label }) => {
+            const classVal = nextValues[classKey];
+            if (classVal > nextValues.issuedShares) {
+              nextErrors[classKey] = `${label} shares cannot exceed Issued Shares`;
+            } else if (nextErrors[classKey]) {
+              // Clear previous per-class error if now valid
+              nextErrors[classKey] = "";
+            }
+          });
+        }
+        return nextErrors;
+      });
+      return nextValues;
+    });
+  };
+
+  const handleGeneralValueBlur = (
+    key: "authorizedShares" | "issuedShares" | "perShareValue"
+  ) => {
+    setShareClassErrors((prev) => runAllValidations(shareClassValues, prev));
+  };
+
   const handleShareValueChange = (
     key: ShareClassKey,
     label: string,
@@ -303,14 +375,25 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       // Allow increasing above purchased shares - no restriction on increases
     }
 
-    // Always update the value to allow free typing, even if there's an error
-    setShareClassErrors((prev) => ({ ...prev, [key]: error }));
+    // Per-class vs Issued Shares validation
+    const issuedLimit = shareClassValues.issuedShares;
+    if (parsedValue > issuedLimit && issuedLimit > 0) {
+      error = `${label} shares cannot exceed Issued Shares`;
+    }
 
-    // Update the value for the selected share class
-    setShareClassValues((prev) => ({
-      ...prev,
-      [key]: parsedValue,
-    }));
+    setShareClassValues((prev) => {
+      const nextValues = { ...prev, [key]: parsedValue };
+      setShareClassErrors((prevErrs) => {
+        let nextErrors = { ...prevErrs, [key]: error };
+        const issuedLimit = nextValues.issuedShares;
+        if (issuedLimit > 0 && nextValues[key] > issuedLimit) {
+          nextErrors[key] = `${label} shares cannot exceed Issued Shares`;
+        }
+        nextErrors = runAllValidations(nextValues, nextErrors);
+        return nextErrors;
+      });
+      return nextValues;
+    });
   };
 
   const handleShareValueBlur = (
@@ -351,7 +434,27 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       // Allow increasing above purchased shares - no restriction on increases
     }
 
-    setShareClassErrors((prev) => ({ ...prev, [key]: error }));
+    // Per-class vs Issued Shares validation on blur
+    const issuedLimit = shareClassValues.issuedShares;
+    if (parsedValue > issuedLimit && issuedLimit > 0) {
+      error = `${label} shares cannot exceed Issued Shares`;
+    }
+
+    setShareClassValues((prev) => {
+      const nextValues = { ...prev, [key]: parsedValue };
+      setShareClassErrors((prevErrs) => {
+        let nextErrors = { ...prevErrs, [key]: error };
+        const issuedLimit = nextValues.issuedShares;
+        if (issuedLimit > 0 && parsedValue > issuedLimit) {
+          nextErrors[key] = `${label} shares cannot exceed Issued Shares`;
+        } else if (!error) {
+          nextErrors[key] = "";
+        }
+        nextErrors = runAllValidations(nextValues, nextErrors);
+        return nextErrors;
+      });
+      return nextValues;
+    });
   };
 
   const validateField = (fieldName: string, value: string) => {
@@ -431,9 +534,25 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
       });
 
       // Set share class values
-      setShareClassValues(parsedShareValues);
+      setShareClassValues({
+        ...parsedShareValues,
+        authorizedShares: Number(company.authorizedShares) || 0,
+        issuedShares: Number(company.issuedShares) || calculateTotalSharesSum(parsedShareValues),
+        perShareValue:
+          typeof company.perShareValue === "object"
+            ? Number(company.perShareValue?.value) || 0
+            : Number(company.perShareValue) || 0,
+      });
       // Store original values for validation
-      setOriginalShareClassValues(parsedShareValues);
+      setOriginalShareClassValues({
+        ...parsedShareValues,
+        authorizedShares: Number(company.authorizedShares) || 0,
+        issuedShares: Number(company.issuedShares) || calculateTotalSharesSum(parsedShareValues),
+        perShareValue:
+          typeof company.perShareValue === "object"
+            ? Number(company.perShareValue?.value) || 0
+            : Number(company.perShareValue) || 0,
+      });
 
       // Validate totalShares on load
       const totalSum = calculateTotalSharesSum(parsedShareValues);
@@ -482,6 +601,12 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         status: formData.status,
         companyStartedAt: formData.companyStartedAt,
         totalShares: totalSharesPayload, // Includes all share classes with values > 0
+        authorizedShares: shareClassValues.authorizedShares,
+        issuedShares: shareClassValues.issuedShares,
+        perShareValue: {
+          value: shareClassValues.perShareValue,
+          currency: "EUR"
+        },
         industry: resolvedIndustry || undefined,
         description: formData.description.trim() || undefined,
         supportingDocuments,
@@ -707,7 +832,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-gray-700 font-semibold">
-                Total Shares
+                Company Total Shares
               </Label>
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600">
@@ -725,6 +850,58 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 Note: Shares have been purchased. You can increase or decrease total shares, but cannot decrease below the purchased amount.
               </p>
             )}
+            {/* General company share inputs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="space-y-2">
+                <Label htmlFor="authorizedShares" className="text-gray-700 font-semibold">
+                  Authorized Shares
+                </Label>
+                <Input
+                  id="authorizedShares"
+                  type="number"
+                  min={shareClassValues.issuedShares || 0}
+                  value={shareClassValues.authorizedShares || ""}
+                  onChange={(e) => handleGeneralValueChange("authorizedShares", e.target.value)}
+                  onBlur={() => handleGeneralValueBlur("authorizedShares")}
+                  className={`rounded-xl border-gray-200`}
+                  placeholder="Enter Authorized Shares"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="issuedShares" className="text-gray-700 font-semibold">
+                  Issued Shares
+                </Label>
+                <Input
+                  id="issuedShares"
+                  type="number"
+                  min={totalSharesSum || 0}
+                  max={shareClassValues.authorizedShares || undefined}
+                  value={shareClassValues.issuedShares || ""}
+                  onChange={(e) => handleGeneralValueChange("issuedShares", e.target.value)}
+                  onBlur={() => handleGeneralValueBlur("issuedShares")}
+                  className={`rounded-xl border-gray-200 ${shareClassErrors.issuedShares ? "border-red-500" : ""}`}
+                  placeholder="Enter Issued Shares"
+                />
+                <ErrorMessage message={shareClassErrors.issuedShares} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="perShareValue" className="text-gray-700 font-semibold">
+                  Per Share Value (EUR)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">€</span>
+                  <Input
+                    id="perShareValue"
+                    type="number"
+                    min={0}
+                    value={shareClassValues.perShareValue || ""}
+                    onChange={(e) => handleGeneralValueChange("perShareValue", e.target.value)}
+                    className="pl-8 rounded-xl border-gray-200"
+                    placeholder="Enter Per Share Value"
+                  />
+                </div>
+              </div>
+            </div>
             {/* All Share Class Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SHARE_CLASS_CONFIG.map(({ key, label }) => {
@@ -773,7 +950,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               })}
             </div>
             {totalSharesError && (
-              <p className="text-sm text-red-500">{totalSharesError}</p>
+              <ErrorMessage message={totalSharesError} />
             )}
           </div>
 
@@ -864,6 +1041,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 isSubmitting ||
                 totalSharesSum <= 0 ||
                 !!totalSharesError ||
+                hasShareClassErrors ||
                 !formData.name.trim() ||
                 !formData.registrationNumber.trim() ||
                 !formData.address.trim()
