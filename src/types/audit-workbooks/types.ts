@@ -25,6 +25,13 @@ export interface Selection {
 
 
 
+export interface MappingReferenceFile {
+  fileName: string;
+  fileUrl: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+}
+
 export interface Mapping {
   _id: string; // Add _id since your backend returns it
   destinationField: string;
@@ -36,6 +43,7 @@ export interface Mapping {
     start: MappingCoordinates;
     end: MappingCoordinates;
   };
+  referenceFiles?: MappingReferenceFile[];
 }
 
 export interface NamedRange {

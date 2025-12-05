@@ -778,7 +778,12 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                     className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <div
-                      onClick={() => onSelectWorkbook(wb)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Open workbook in new tab with fullscreen mode
+                        const url = `/employee/workbook-viewer/${wb.id}?engagementId=${engagementId}&classification=${encodeURIComponent(classification)}&rowType=${rowType || 'etb'}`;
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
                       className="cursor-pointer bg-gray-50 rounded-lg p-2 hover:bg-gray-300 transition-colors"
                     >
                       <p className="font-medium text-sm">{wb.name}</p>

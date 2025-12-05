@@ -17,6 +17,13 @@ export interface Workbook {
   updatedAt: string;
 }
 
+export interface MappingReferenceFile {
+  fileName: string;
+  fileUrl: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+}
+
 export interface WPMapping {
   _id: string;
   workbookId: Workbook;
@@ -33,6 +40,7 @@ export interface WPMapping {
     };
   };
   isActive: boolean;
+  referenceFiles?: MappingReferenceFile[];
 }
 
 export interface WPRow {
@@ -73,6 +81,7 @@ export interface CreateMappingRequest {
       col: number;
     };
   };
+  referenceFiles?: MappingReferenceFile[];
 }
 
 export interface UpdateMappingRequest {
