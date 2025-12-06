@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Download, Edit, Save, X, Trash2, Plus } from "lucide-react"
+import { Download, Edit, Save, X, Trash2, Plus, Sparkles, Loader2, RefreshCw, FileText } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
@@ -113,6 +114,11 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [editAnswerText, setEditAnswerText] = useState("")
   const [localQuestions, setLocalQuestions] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState("questions")
+  const [generatingClassification, setGeneratingClassification] = useState<string | null>(null)
+  const [generatingQuestions, setGeneratingQuestions] = useState(false)
+  const [generatingAnswers, setGeneratingAnswers] = useState(false)
+  const [generatingProcedures, setGeneratingProcedures] = useState(false)
 
   // Initialize local questions when procedure changes
   React.useEffect(() => {
@@ -157,6 +163,11 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       g[key].push(q)
     })
     return g
+  }, [filteredQuestions])
+
+  // Questions with answers
+  const questionsWithAnswers = useMemo(() => {
+    return filteredQuestions.filter((q: any) => q.answer && q.answer.trim() !== "")
   }, [filteredQuestions])
 
   const validCount = filteredQuestions?.filter((q: any) => q?.isValid)?.length || 0
@@ -363,6 +374,198 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     )
   }
 
+  // Generate/Regenerate questions for classification
+  const handleGenerateQuestions = async () => {
+    if (!currentClassification) {
+      toast({ title: "No Classification Selected", description: "Please select a classification to generate questions.", variant: "destructive" })
+      return
+    }
+    setGeneratingClassification(currentClassification)
+    setGeneratingQuestions(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/procedures/ai/classification-questions`, {
+        method: "POST",
+        body: JSON.stringify({
+          engagementId: engagement?._id,
+          materiality: procedure.materiality,
+          classification: currentClassification,
+          validitySelections: procedure.validitySelections || [],
+        }),
+      })
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "")
+        const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate AI questions" }
+        throw new Error(errorData.message || "Failed to generate AI questions")
+      }
+
+      const data = await res.json()
+      const newQuestions = (Array.isArray(data?.aiQuestions) ? data.aiQuestions : []).map((q: any, i: number) => {
+        const __uid = q.__uid || q.id || q._id || `q_${Math.random().toString(36).slice(2, 10)}_${i}`
+        const id = q.id ?? __uid
+        const key = q.key || q.aiKey || `q${i + 1}`
+        return { ...q, __uid, id, key, classification: currentClassification }
+      })
+
+      setLocalQuestions(prev => {
+        const filtered = prev.filter(q => q.classification !== currentClassification)
+        return [...filtered, ...newQuestions]
+      })
+
+      toast({
+        title: "AI Questions Ready",
+        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(currentClassification)}.`,
+      })
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" })
+    } finally {
+      setGeneratingClassification(null)
+      setGeneratingQuestions(false)
+    }
+  }
+
+  // Generate/Regenerate answers
+  const handleGenerateAnswers = async () => {
+    if (!currentClassification) {
+      toast({ title: "No Classification Selected", description: "Please select a classification to generate answers.", variant: "destructive" })
+      return
+    }
+    setGeneratingAnswers(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const questionsWithoutAnswers = filteredQuestions
+        .filter((q: any) => !q.answer || q.answer.trim() === "")
+
+      if (questionsWithoutAnswers.length === 0) {
+        toast({ title: "Info", description: "All questions already have answers." })
+        return
+      }
+
+      const res = await authFetch(`${base}/api/procedures/ai/classification-answers`, {
+        method: "POST",
+        body: JSON.stringify({
+          engagementId: engagement._id,
+          questions: questionsWithoutAnswers.map(({ answer, __uid, ...rest }) => rest),
+        }),
+      })
+
+      if (!res.ok) throw new Error("Failed to generate answers")
+
+      const data = await res.json()
+      let updatedQuestions = localQuestions
+
+      if (Array.isArray(data?.aiAnswers)) {
+        const answerMap = new Map<string, string>()
+        data.aiAnswers.forEach((a: any) => {
+          const k = String(a?.key || "").trim().toLowerCase()
+          if (k) answerMap.set(k, a?.answer || "")
+        })
+        updatedQuestions = localQuestions.map((q: any) => {
+          const k = String(q.key || "").trim().toLowerCase()
+          return answerMap.has(k) ? { ...q, answer: answerMap.get(k) || "" } : q
+        })
+      } else if (Array.isArray(data?.questions)) {
+        updatedQuestions = data.questions.map((q: any, i: number) => {
+          const __uid = q.__uid || q.id || q._id || `q_${Math.random().toString(36).slice(2, 10)}_${i}`
+          const id = q.id ?? __uid
+          const key = q.key || q.aiKey || `q${i + 1}`
+          return { ...q, __uid, id, key }
+        })
+      }
+
+      setLocalQuestions(updatedQuestions)
+
+      toast({
+        title: "Answers Generated",
+        description: "Answers have been generated successfully.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Could not generate answers.",
+        variant: "destructive",
+      })
+    } finally {
+      setGeneratingAnswers(false)
+    }
+  }
+
+  // Save answers
+  const handleSaveAnswers = async () => {
+    setIsSaving(true)
+    try {
+      await handleSaveAllChanges()
+      toast({ title: "Answers Saved", description: "Your answers have been saved successfully." })
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error.message || "Could not save answers.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Generate/Regenerate procedures (recommendations)
+  const handleGenerateProcedures = async () => {
+    if (!currentClassification) {
+      toast({ title: "No Classification Selected", description: "Please select a classification to generate procedures.", variant: "destructive" })
+      return
+    }
+    setGeneratingProcedures(true)
+    setActiveTab("procedures")
+    try {
+      // First ensure we have answers
+      if (filteredQuestions.some((q: any) => !q.answer || q.answer.trim() === "")) {
+        await handleGenerateAnswers()
+      }
+
+      // Generate recommendations
+      const base = import.meta.env.VITE_APIURL
+      const res = await authFetch(`${base}/api/procedures/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          engagementId: engagement._id,
+          procedureId: procedure._id,
+          framework: procedure.framework || "IFRS",
+          classifications: [currentClassification],
+          questions: questionsWithAnswers.map(({ __uid, ...rest }) => rest),
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const recs = Array.isArray(data.recommendations)
+          ? data.recommendations
+          : typeof data.recommendations === "string"
+          ? data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
+              id: `rec-${Date.now()}-${idx}`,
+              text: text.trim(),
+              checked: false,
+              classification: currentClassification
+            }))
+          : []
+        setRecommendations(recs)
+        toast({
+          title: "Procedures Generated",
+          description: "Recommendations have been generated successfully.",
+        })
+      } else {
+        throw new Error("Failed to generate recommendations")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Could not generate procedures.",
+        variant: "destructive",
+      })
+    } finally {
+      setGeneratingProcedures(false)
+    }
+  }
+
   // PDF export (still includes just this classification)
   const handleExportPDF = async () => {
     try {
@@ -537,155 +740,493 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
   return (
     <>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-2xl font-bold text-foreground">Audit Procedures</h3>
-          <div className="text-sm text-muted-foreground">
-            {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
-            {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
-            {currentClassification ? (
-              <>
-                {" "}
-                | Classification:{" "}
-                <span className="font-medium">
-                  {formatClassificationForDisplay(currentClassification)}
-                </span>
-              </>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportPDF}>
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleSaveAllChanges}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </div>
+      {/* Step-1 Description */}
+      <div className="text-sm text-muted-foreground font-body mb-4">
+        Step-1: Generate questions for the classification section. You can freely edit / add / remove questions here before moving to the next step.
       </div>
 
-      {/* Body */}
+      {/* Classification Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-xl">
-              {currentClassification
-                ? formatClassificationForDisplay(currentClassification)
-                : "Procedures"}
-            </CardTitle>
-            <div className="text-sm text-muted-foreground">
-              <Badge variant="outline">{filteredQuestions.length} procedures</Badge>{" "}
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">
+                {currentClassification || "Classification"}
+              </CardTitle>
+              <div className="text-sm text-muted-foreground mt-1">
+                {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
+                {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
+              </div>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateQuestions}
+              disabled={!!generatingClassification}
+            >
+              {generatingClassification ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate Questions
+                </>
+              )}
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={handleAddQuestion}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Question
-          </Button>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-96">
-            <div className="space-y-6">
-              {Object.entries(grouped).map(([klass, list]) => (
-                <div key={klass} className="border rounded-lg p-4">
-                  <div className="font-semibold mb-3">
-                    {formatClassificationForDisplay(klass)}
-                  </div>
-                  <div className="space-y-3">
-                    {list.map((q: any, idx: number) => (
-                      <div key={q.id || idx} className="p-3 rounded-md border">
-                        {editingQuestionId === q.id ? (
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <div className="font-medium">{idx + 1}.</div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="questions">Questions</TabsTrigger>
+              <TabsTrigger value="answers">Answers</TabsTrigger>
+              <TabsTrigger value="procedures">Procedures</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="questions" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleAddQuestion}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Question
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  {filteredQuestions.length > 0 ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateQuestions}
+                      disabled={generatingQuestions}
+                    >
+                      {generatingQuestions ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Regenerate Questions
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleGenerateQuestions}
+                      disabled={generatingQuestions}
+                    >
+                      {generatingQuestions ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <FileText className="h-4 w-4 mr-2" />
+                      )}
+                      Generate Questions
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleExportPDF}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export PDF
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleSaveAllChanges}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="h-[500px]">
+                <div className="space-y-4">
+                  {filteredQuestions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No questions available. Click "Generate Questions" or "Add Question" to create one.
+                    </div>
+                  ) : (
+                    filteredQuestions.map((q: any, idx: number) => (
+                      <Card key={q.id || idx}>
+                        <CardContent className="pt-6">
+                          {editingQuestionId === q.id ? (
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <div className="font-medium">{idx + 1}.</div>
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={handleSaveQuestion}>
+                                    <Save className="h-4 w-4 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                    <X className="h-4 w-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                              <Input
+                                value={editQuestionText}
+                                onChange={(e) => setEditQuestionText(e.target.value)}
+                                placeholder="Question"
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start">
+                                <div className="font-medium mb-1">
+                                  {idx + 1}. {q.question || "—"}
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditQuestion(q)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteQuestion(q.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                              {q.framework && (
+                                <Badge className="mr-2 mt-2" variant="default">{q.framework}</Badge>
+                              )}
+                              {q.reference && (
+                                <Badge className="mt-2" variant="default">{q.reference}</Badge>
+                              )}
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            
+            <TabsContent value="answers" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex gap-2">
+                  {filteredQuestions.length > 0 ? (
+                    questionsWithAnswers.length > 0 ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleGenerateAnswers}
+                        disabled={generatingAnswers}
+                      >
+                        {generatingAnswers ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Regenerate Answers
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleGenerateAnswers}
+                        disabled={generatingAnswers}
+                      >
+                        {generatingAnswers ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2" />
+                        )}
+                        Generate Answers
+                      </Button>
+                    )
+                  ) : (
+                    <div className="text-muted-foreground text-sm">No questions added yet.</div>
+                  )}
+                </div>
+                {filteredQuestions.length > 0 && (
+                  <Button variant="default" size="sm" onClick={handleSaveAnswers} disabled={isSaving}>
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save Answers
+                  </Button>
+                )}
+              </div>
+              <ScrollArea className="h-[500px]">
+                <div className="space-y-4">
+                  {questionsWithAnswers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No answers available. Go to Questions tab to add questions.
+                    </div>
+                  ) : (
+                    questionsWithAnswers.map((q: any, idx: number) => (
+                      <Card key={q.id || idx}>
+                        <CardContent className="pt-6">
+                          <div className="font-medium mb-2">
+                            {idx + 1}. {q.question || "—"}
+                          </div>
+                          {editingAnswerId === q.id ? (
+                            <div className="space-y-3">
+                              <Textarea
+                                value={editAnswerValue}
+                                onChange={(e) => setEditAnswerValue(e.target.value)}
+                                placeholder="Answer"
+                                className="min-h-[100px]"
+                              />
                               <div className="flex gap-2">
-                                <Button size="sm" onClick={handleSaveQuestion}>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setLocalQuestions(prev =>
+                                      prev.map(question =>
+                                        question.id === q.id
+                                          ? { ...question, answer: editAnswerValue }
+                                          : question
+                                      )
+                                    )
+                                    setEditingAnswerId(null)
+                                    setEditAnswerValue("")
+                                  }}
+                                >
                                   <Save className="h-4 w-4 mr-1" />
                                   Save
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingAnswerId(null)
+                                    setEditAnswerValue("")
+                                  }}
+                                >
                                   <X className="h-4 w-4 mr-1" />
                                   Cancel
                                 </Button>
                               </div>
                             </div>
-                            <Input
-                              value={editQuestionText}
-                              onChange={(e) => setEditQuestionText(e.target.value)}
-                              placeholder="Question"
-                            />
-                            <Textarea
-                              value={editAnswerText}
-                              onChange={(e) => setEditAnswerText(e.target.value)}
-                              placeholder="Answer"
-                            />
-                          </div>
-                        ) : (
-                          <>
-
-                            <div className="flex justify-between items-start">
-
-                              <div className="font-medium mb-1">
-                                {idx + 1}. {q.question || "—"}
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditQuestion(q)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteQuestion(q.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                            {q.answer ? (
-                              <div className="text-sm text-muted-foreground">
+                          ) : (
+                            <>
+                              <div className="text-sm text-muted-foreground mb-3">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {String(q.answer)}
+                                  {String(q.answer || "No answer.")}
                                 </ReactMarkdown>
                               </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground italic">No answer.</div>
-                            )}
-                            {q.framework &&
-                              <Badge className="mr-2" variant="default">{q.framework}</Badge>
-                            }
-                            {q.reference &&
-                              <Badge variant="default">{q.reference}</Badge>
-                            }
-                          </>
-
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingAnswerId(q.id)
+                                    setEditAnswerValue(q.answer || "")
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4 mr-1" />
+                                  Edit Answer
+                                </Button>
+                                {q.framework && (
+                                  <Badge variant="default">{q.framework}</Badge>
+                                )}
+                                {q.reference && (
+                                  <Badge variant="default">{q.reference}</Badge>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
+              </ScrollArea>
+            </TabsContent>
+            
+            <TabsContent value="procedures" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                <div className="flex items-center gap-2">
+                  {filteredQuestions.length > 0 && questionsWithAnswers.length > 0 ? (
+                    recommendations.length > 0 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateProcedures}
+                        disabled={generatingProcedures}
+                      >
+                        {generatingProcedures ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Regenerate Procedures
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleGenerateProcedures}
+                        disabled={generatingProcedures}
+                      >
+                        {generatingProcedures ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2" />
+                        )}
+                        Generate Procedures
+                      </Button>
+                    )
+                  ) : (
+                    <div className="text-muted-foreground text-sm">
+                      {filteredQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
+                    </div>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const newRec = {
+                      id: `rec-${Date.now()}`,
+                      text: "New recommendation",
+                      checked: false,
+                      classification: currentClassification
+                    }
+                    setRecommendations(prev => [...prev, newRec])
+                  }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Procedures
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={handleSaveAllChanges}
+                    disabled={isSaving || filteredQuestions.length === 0 || questionsWithAnswers.length === 0}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save & Complete
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="h-[500px]">
+                <div className="space-y-4">
+                  {recommendations.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No recommendations generated yet. Click "Add Recommendation" to create one.
+                    </div>
+                  ) : (
+                    recommendations.map((rec: any, idx: number) => {
+                      const recId = rec.id || rec.__uid || `rec-${idx}`
+                      const recText = typeof rec === 'string' 
+                        ? rec 
+                        : rec.text || rec.content || "—"
+                      const isEditing = editingQuestionId === `rec-${recId}`
+                      const editText = editQuestionText || recText
+                      
+                      return (
+                        <Card key={recId}>
+                          <CardContent className="pt-6">
+                            {isEditing ? (
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <div className="font-medium">{idx + 1}.</div>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" onClick={() => {
+                                      setRecommendations(prev =>
+                                        prev.map((r: any, i: number) => {
+                                          const rId = r.id || r.__uid || `rec-${i}`
+                                          if (rId === recId) {
+                                            if (typeof r === 'string') {
+                                              return editText
+                                            }
+                                            return { ...r, text: editText }
+                                          }
+                                          return r
+                                        })
+                                      )
+                                      setEditingQuestionId(null)
+                                      setEditQuestionText("")
+                                    }}>
+                                      <Save className="h-4 w-4 mr-1" />
+                                      Save
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => {
+                                      setEditingQuestionId(null)
+                                      setEditQuestionText("")
+                                    }}>
+                                      <X className="h-4 w-4 mr-1" />
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                                <Textarea
+                                  value={editText}
+                                  onChange={(e) => setEditQuestionText(e.target.value)}
+                                  placeholder="Recommendation"
+                                  className="min-h-[100px]"
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex justify-between items-start">
+                                  <div className="font-medium mb-2 text-black">
+                                    {idx + 1}. {recText}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingQuestionId(`rec-${recId}`)
+                                        setEditQuestionText(recText)
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                          const rId = r.id || r.__uid || `rec-${i}`
+                                          return rId !== recId
+                                        }))
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                {rec.checked !== undefined && (
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Badge variant={rec.checked ? "default" : "secondary"}>
+                                      {rec.checked ? "Completed" : "Pending"}
+                                    </Badge>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

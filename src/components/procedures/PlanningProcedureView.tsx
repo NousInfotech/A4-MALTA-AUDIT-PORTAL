@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { Download, Save, X, Plus } from "lucide-react"
+import { Download, Save, X, Plus, Sparkles, Edit2, Trash2, Loader2, RefreshCw, FileText } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 // NEW: floating notes + notebook
 import FloatingNotesButton from "./FloatingNotesButton"
@@ -33,12 +37,27 @@ async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const token = data?.session?.access_token
+  
+  // Don't set Content-Type for FormData - let browser set it with boundary
+  const isFormData = options.body instanceof FormData
+  const existingHeaders = (options.headers || {}) as Record<string, string>
+  
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...existingHeaders,
+  }
+  
+  // Only set Content-Type if not FormData and not already explicitly set
+  if (!isFormData && !existingHeaders["Content-Type"]) {
+    headers["Content-Type"] = "application/json"
+  } else if (isFormData) {
+    // Remove Content-Type for FormData to let browser set it with boundary
+    delete headers["Content-Type"]
+  }
+  
   return fetch(url, {
     ...options,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
+    headers,
   })
 }
 
@@ -272,6 +291,11 @@ export const PlanningProcedureView: React.FC<{
   })
   // Track which questions are in "pending" state (newly added, not yet confirmed)
   const [pendingQuestions, setPendingQuestions] = useState<Set<string>>(new Set())
+  // Track active tab for each section
+  const [sectionTabs, setSectionTabs] = useState<Record<string, string>>({})
+  // Track editing question IDs
+  const [editingQuestionIds, setEditingQuestionIds] = useState<Record<string, string>>({})
+  const [editQuestionTexts, setEditQuestionTexts] = useState<Record<string, string>>({})
 
   // NEW: notes state + modal flag
   const [isNotesOpen, setIsNotesOpen] = useState(false)
@@ -303,21 +327,34 @@ export const PlanningProcedureView: React.FC<{
   }, [initial])
 
   // Add useEffect to update recommendations when initial prop changes
+  // Only update if recommendations actually exist in initial, don't clear if we have local recommendations
   useEffect(() => {
-    const recs = initial?.recommendations || [];
-    if (Array.isArray(recs)) {
-      setRecommendations(recs);
-    } else if (typeof recs === 'string') {
-      try {
-        const parsed = JSON.parse(recs);
-        setRecommendations(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setRecommendations([]);
+    if (initial?.recommendations !== undefined) {
+      const recs = initial.recommendations;
+      if (Array.isArray(recs) && recs.length > 0) {
+        setRecommendations(recs);
+      } else if (typeof recs === 'string' && recs.trim()) {
+        try {
+          const parsed = JSON.parse(recs);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRecommendations(parsed);
+          }
+        } catch {
+          // If it's not JSON, try splitting by newlines
+          const lines = recs.split("\n").filter((l: string) => l.trim());
+          if (lines.length > 0) {
+            setRecommendations(lines.map((text: string, idx: number) => ({
+              id: `rec-${Date.now()}-${idx}`,
+              text: text.trim(),
+              checked: false,
+            })));
+          }
+        }
       }
-    } else {
-      setRecommendations([]);
+      // Don't clear recommendations if initial.recommendations is empty/undefined
+      // This preserves locally generated recommendations
     }
-  }, [initial?.recommendations])
+  }, [initial?._id]) // Only update when procedure ID changes, not on every recommendations change
 // NEW: handle save of notebook notes
 const handleSaveRecommendations = async (content: string | any[]) => {
   try {
@@ -396,6 +433,282 @@ const handleSaveRecommendations = async (content: string | any[]) => {
   const fileInput = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const base = import.meta.env.VITE_APIURL
+  const [generatingSections, setGeneratingSections] = useState<Set<string>>(new Set())
+  const [generatingQuestions, setGeneratingQuestions] = useState(false)
+  const [generatingAnswers, setGeneratingAnswers] = useState(false)
+  const [generatingProcedures, setGeneratingProcedures] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleGenerateSectionQuestions = async (sectionId: string) => {
+    setGeneratingSections(prev => {
+      const newSet = new Set(prev)
+      newSet.add(sectionId)
+      return newSet
+    })
+
+    try {
+      // Find the section to get the correct sectionId
+      const section = proc.procedures?.find((s: any) => (s.sectionId || s.id) === sectionId)
+      const validSectionId = section?.sectionId || section?.id || sectionId
+      
+      if (!validSectionId) {
+        throw new Error("Invalid section ID")
+      }
+
+      // Backend will create the procedure document if it doesn't exist when generating questions
+      // No need to save it first - generateSectionQuestions handles document creation
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/section-questions`, {
+        method: "POST",
+        body: JSON.stringify({ sectionId: validSectionId }),
+      })
+      
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "")
+        const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate questions" }
+        throw new Error(errorData.message || "Failed to generate questions for section")
+      }
+      const data = await res.json()
+
+      // Update the section with generated questions
+      setProc((prev: any) => {
+        const next = { ...prev }
+        const sections = [...(next.procedures || [])]
+        const updatedSections = sections.map((sec: any) => {
+          const secId = sec.sectionId || sec.id
+          return secId === sectionId
+            ? { ...sec, fields: (data.fields || []).map((f: any) => ({ ...f, __uid: f.__uid || uid() })) }
+            : sec
+        })
+        next.procedures = updatedSections
+        return next
+      })
+
+      toast({ 
+        title: "Questions Generated", 
+        description: `Questions for section generated successfully.` 
+      })
+    } catch (e: any) {
+      toast({ 
+        title: "Generation failed", 
+        description: e.message || "Could not generate questions.", 
+        variant: "destructive" 
+      })
+    } finally {
+      setGeneratingSections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sectionId)
+        return newSet
+      })
+    }
+  }
+
+  // Generate/Regenerate questions for all sections
+  const handleGenerateAllQuestions = async () => {
+    setGeneratingQuestions(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const sections = proc.procedures || []
+      
+      for (const section of sections) {
+        const sectionId = section.sectionId || section.id
+        if (!sectionId) continue
+        
+        const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/section-questions`, {
+          method: "POST",
+          body: JSON.stringify({ sectionId }),
+        })
+        
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "")
+          const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate questions" }
+          throw new Error(errorData.message || "Failed to generate questions for section")
+        }
+        
+        const data = await res.json()
+        setProc((prev: any) => {
+          const next = { ...prev }
+          const sections = [...(next.procedures || [])]
+          const updatedSections = sections.map((sec: any) => {
+            const secId = sec.sectionId || sec.id
+            return secId === sectionId
+              ? { ...sec, fields: (data.fields || []).map((f: any) => ({ ...f, __uid: f.__uid || uid() })) }
+              : sec
+          })
+          next.procedures = updatedSections
+          return next
+        })
+      }
+      
+      toast({ 
+        title: "Questions Generated", 
+        description: "Questions for all sections generated successfully." 
+      })
+    } catch (e: any) {
+      toast({ 
+        title: "Generation failed", 
+        description: e.message || "Could not generate questions.", 
+        variant: "destructive" 
+      })
+    } finally {
+      setGeneratingQuestions(false)
+    }
+  }
+
+  // Generate/Regenerate answers for a specific section
+  const handleGenerateSectionAnswers = async (sectionId: string) => {
+    setGeneratingSections(prev => {
+      const newSet = new Set(prev)
+      newSet.add(sectionId)
+      return newSet
+    })
+
+    try {
+      const section = proc.procedures?.find((s: any) => (s.sectionId || s.id) === sectionId)
+      const validSectionId = section?.sectionId || section?.id || sectionId
+      
+      if (!validSectionId) {
+        throw new Error("Invalid section ID")
+      }
+
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/section-answers`, {
+        method: "POST",
+        body: JSON.stringify({ sectionId: validSectionId }),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        const answers: Record<string, any> = {}
+        
+        if (data.fields && Array.isArray(data.fields)) {
+          data.fields.forEach((fieldItem: any) => {
+            const fieldData = fieldItem._doc || fieldItem
+            const key = fieldData.key
+            if (key) {
+              answers[key] = fieldItem.answer !== undefined ? fieldItem.answer :
+                fieldData.answer !== undefined ? fieldData.answer :
+                fieldData.content !== undefined ? fieldData.content : null
+            }
+          })
+        }
+        
+        setProc((prev: any) => {
+          const next = { ...prev }
+          const sections = [...(next.procedures || [])]
+          const updatedSections = sections.map((sec: any) => {
+            const secId = sec.sectionId || sec.id
+            return secId === sectionId
+              ? {
+                  ...sec,
+                  fields: (sec.fields || []).map((f: any) => ({
+                    ...f,
+                    answer: answers[f.key] !== undefined ? answers[f.key] : f.answer
+                  }))
+                }
+              : sec
+          })
+          next.procedures = updatedSections
+          return next
+        })
+        
+        toast({ title: "Answers Generated", description: `Answers for section generated successfully.` })
+      } else {
+        const errorText = await res.text().catch(() => "")
+        const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate answers" }
+        throw new Error(errorData.message || "Failed to generate answers for section")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Could not generate answers.",
+        variant: "destructive",
+      })
+    } finally {
+      setGeneratingSections(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sectionId)
+        return newSet
+      })
+    }
+  }
+
+  // Save answers
+  const handleSaveAnswers = async () => {
+    setIsSaving(true)
+    try {
+      await save(false)
+      toast({ title: "Answers Saved", description: "Your answers have been saved successfully." })
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error.message || "Could not save answers.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Generate/Regenerate procedures (recommendations)
+  const handleGenerateProcedures = async () => {
+    setGeneratingProcedures(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          procedures: (proc.procedures || []).map((sec: any) => ({
+            ...sec,
+            fields: (sec.fields || []).map(({ __uid, ...rest }) => rest)
+          })),
+          materiality: proc.materiality || 0,
+        }),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        let recs = []
+        if (data.recommendations && Array.isArray(data.recommendations)) {
+          recs = data.recommendations.map((rec: any, idx: number) => {
+            // Ensure each recommendation has required properties
+            if (typeof rec === 'string') {
+              return {
+                id: `rec-${Date.now()}-${idx}`,
+                text: rec.trim(),
+                checked: false,
+              }
+            }
+            return {
+              id: rec.id || rec.__uid || `rec-${Date.now()}-${idx}`,
+              text: rec.text || rec.content || String(rec),
+              checked: rec.checked || false,
+              ...rec
+            }
+          })
+        } else if (data.recommendations && typeof data.recommendations === 'string') {
+          recs = data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
+            id: `rec-${Date.now()}-${idx}`,
+            text: text.trim(),
+            checked: false,
+          }))
+        }
+        console.log("Generated recommendations:", recs)
+        setRecommendations(recs)
+        toast({ title: "Procedures Generated", description: `Generated ${recs.length} recommendations successfully.` })
+      } else {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to generate recommendations")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message || "Could not generate procedures.",
+        variant: "destructive",
+      })
+    } finally {
+      setGeneratingProcedures(false)
+    }
+  }
 
   const statusBadge = useMemo(() => {
     const status = proc?.status || "draft"
@@ -713,318 +1026,605 @@ const save = async (asCompleted = false) => {
   // proc is initialized as {} if initial is null/undefined, so this should always render
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="font-heading text-xl">Planning Procedures</CardTitle>
-              <div className="text-sm text-muted-foreground font-body">
-                Mode: {proc.mode?.toUpperCase() || "MANUAL"}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {statusBadge}
-              <Badge variant="outline" className="flex items-center gap-1">
-                <div className="h-2 w-2 rounded-full bg-blue-500" /> Planning
-              </Badge>
-              <Button variant="outline" size="sm" onClick={addSectionAndQuestion}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Question
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPlanningPDF}>
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
+      {/* Step-1 Description */}
+      <div className="text-sm text-muted-foreground font-body mb-4">
+        Step-1: Generate questions for each planning section separately. You can freely edit / add / remove questions here before moving to Step-4
+      </div>
 
-        <CardContent className="space-y-6">
-          <div className="flex gap-2">
-            {!editMode ? (
-              <Button onClick={() => setEditMode(true)}>Edit</Button>
-            ) : (
-              <>
-                <Button onClick={() => save(false)}>Save</Button>
-                <Button variant="outline" onClick={() => save(true)}>
-                  Save & Complete
-                </Button>
-                <Button variant="ghost" onClick={() => {
-                  // Remove all pending questions when cancelling edit mode
-                  pendingQuestions.forEach((uid) => {
-                    // Find and remove the question
-                    setProc((prev: any) => {
-                      const next = { ...prev }
-                      const sections = [...(next.procedures || [])]
-                      sections.forEach((sec: any) => {
-                        sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
-                      })
-                      next.procedures = sections
-                      return next
-                    })
-                  })
-                  setPendingQuestions(new Set())
-                  setEditMode(false)
-                }}>
-                  Cancel
-                </Button>
-              </>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Attach files (optional)</div>
-            <input ref={fileInput} type="file" multiple disabled={!editMode} />
-          </div>
-
-          {Array.isArray(proc.procedures) && proc.procedures.length > 0 ? (
-            proc.procedures.map((sec: any, sIdx: number) => {
-              const answers = makeAnswers(sec)
-              return (
-                <div key={sec.id || sIdx} className="rounded-lg border p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-heading text-lg">{sec.title}</div>
-                      {sec.standards?.length ? (
-                        <div className="text-xs text-muted-foreground">Standards: {sec.standards.join(", ")}</div>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{sec.currency || "EUR"}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => addQuestion(sIdx)}>
-                        + Add Question
-                      </Button>
-                    </div>
+      {Array.isArray(proc.procedures) && proc.procedures.length > 0 ? (
+        proc.procedures.map((sec: any, sIdx: number) => {
+          const answers = makeAnswers(sec)
+          const sectionId = sec.id || `section-${sIdx}`
+          const activeSectionTab = sectionTabs[sectionId] || "questions"
+          const setActiveSectionTab = (value: string) => {
+            setSectionTabs(prev => ({ ...prev, [sectionId]: value }))
+          }
+          
+          return (
+            <Card key={sec.id || sIdx} className="rounded-lg border">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="font-heading text-lg">{sec.title}</CardTitle>
+                    {sec.standards?.length ? (
+                      <div className="text-xs text-muted-foreground">Standards: {sec.standards.join(", ")}</div>
+                    ) : null}
                   </div>
-
-                  <div className="space-y-3">
-                    {(sec.fields || []).map((f: any) => {
-                      const t = normalizeType(f.type)
-                      const isTable = t === "table"
-                      // respect visibleIf in view/edit
-                      if (!isFieldVisible(f, answers)) return null
-                      if (f.key !== "documentation_reminder") {
-                        const isPending = pendingQuestions.has(f.__uid)
-                        return (
-                          <div key={f.__uid} className="border rounded p-3 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm font-medium">{f.label || f.key}</div>
-                              {isPending ? (
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={() => confirmQuestion(sIdx, f.__uid)}>
-                                    <Save className="h-4 w-4 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => cancelQuestion(sIdx, f.__uid)}>
-                                    <X className="h-4 w-4 mr-1" />
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : editMode && (
-                                <Button size="sm" variant="ghost" onClick={() => removeQuestion(sIdx, f.__uid)}>
-                                  Remove
-                                </Button>
-                              )}
-                            </div>
-
-                            {/* Question metadata (editable in editMode or when pending) */}
-                            {(editMode || isPending) && (
-                              <div className="grid md:grid-cols-2 gap-3">
-                                <div className="space-y-2">
-                                  <SmallLabel>Key</SmallLabel>
-                                  <Input value={f.key} onChange={(e) => changeKey(sIdx, f.__uid, e.target.value)} />
-                                  <SmallLabel>Label</SmallLabel>
-                                  <Input value={f.label ?? ""} onChange={(e) => setField(sIdx, f.__uid, { label: e.target.value })} />
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Checkbox checked={!!f.required} onCheckedChange={(ck) => setField(sIdx, f.__uid, { required: !!ck })} />
-                                    <SmallLabel>Required</SmallLabel>
-                                  </div>
-                                  <SmallLabel className="mt-2">Help</SmallLabel>
-                                  <Textarea value={f.help ?? ""} onChange={(e) => setField(sIdx, f.__uid, { help: e.target.value })} />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <SmallLabel>Type</SmallLabel>
-                                  <select
-                                    className="w-full border rounded px-3 py-2 bg-background"
-                                    value={f.type}
-                                    onChange={(e) => setField(sIdx, f.__uid, { type: e.target.value })}
-                                  >
-                                    {[
-                                      "text",
-                                      "textarea",
-                                      "checkbox",
-                                      "number",
-                                      "currency",
-                                      "select",
-                                      "multiselect",
-                                      "table",
-                                      "group",
-                                      "textfield",
-                                      "selection",
-                                    ].map((t) => (
-                                      <option key={t} value={t}>
-                                        {t}
-                                      </option>
-                                    ))}
-                                  </select>
-
-                                  {(t === "select" || t === "multiselect") && (
-                                    <>
-                                      <SmallLabel>Options (comma-separated)</SmallLabel>
-                                      <Input
-                                        value={(f.options || []).join(", ")}
-                                        onChange={(e) =>
-                                          setField(sIdx, f.__uid, {
-                                            options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                                          })
-                                        }
-                                        placeholder="Option A, Option B"
-                                      />
-                                    </>
-                                  )}
-
-                                  {isTable && (
-                                    <>
-                                      <SmallLabel>Columns (comma-separated)</SmallLabel>
-                                      <Input
-                                        value={(f.columns || []).join(", ")}
-                                        onChange={(e) =>
-                                          setField(sIdx, f.__uid, {
-                                            columns: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                                          })
-                                        }
-                                        placeholder="Col1, Col2"
-                                      />
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Answer viewer/editor */}
-                            {!editMode && !isPending ? (
-                              <>
-                                {t === "multiselect" && (
-                                  <div className="mt-1 text-sm">
-                                    {(Array.isArray(f.answer) ? f.answer : []).join(", ") || "—"}
-                                  </div>
-                                )}
-
-                                {isTable && (
-                                  <TableDisplay columns={f.columns} rows={Array.isArray(f.answer) ? f.answer : []} />
-                                )}
-
-                                {t === "group" && !isTable && (
-                                  <div className="mt-1 text-sm">
-                                    {(() => {
-                                      const val = f.answer && typeof f.answer === "object" ? f.answer : {}
-                                      const keys = Object.keys(val).filter((k) => !!val[k])
-                                      if (!keys.length) return "—"
-                                      // prefer child labels if available
-                                      const labels =
-                                        (f.fields || [])
-                                          .filter((ff: any) => keys.includes(ff.key))
-                                          .map((ff: any) => ff.label || ff.key)
-                                      return labels.length ? labels.join(", ") : keys.join(", ")
-                                    })()}
-                                  </div>
-                                )}
-
-                                {!isTable && t !== "multiselect" && t !== "group" && (
-                                  <div className="mt-1 text-sm">{String(f.answer ?? "—")}</div>
-                                )}
-                              </>
-                            ) : (editMode || isPending) ? (
-                              <>
-                                  <SmallLabel className="mt-2">Answer</SmallLabel>
-
-                                {t === "textarea" ? (
-                                  <Textarea value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                                ) : t === "text" ? (
-                                  <Input value={f.answer ?? ""} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                                ) : t === "number" || t === "currency" ? (
-                                  <Input
-                                    type="number"
-                                    value={f.answer ?? ""}
-                                    onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value === "" ? "" : e.target.valueAsNumber })}
-                                  />
-                                ) : t === "checkbox" ? (
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox checked={!!f.answer} onCheckedChange={(ck) => setField(sIdx, f.__uid, { answer: !!ck })} />
-                                    <span className="text-sm">Yes</span>
-                                  </div>
-                                ) : t === "select" ? (
-                                  <SelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
-                                ) : t === "multiselect" ? (
-                                  <MultiSelectEditor field={f} onChange={(v) => setField(sIdx, f.__uid, { answer: v })} />
-                                ) : isTable ? (
-                                  <TableEditor
-                                    columns={f.columns}
-                                    value={Array.isArray(f.answer) ? f.answer : []}
-                                    onChange={(rows) => setField(sIdx, f.__uid, { answer: rows })}
-                                  />
-                                ) : t === "group" ? (
-                                  // Compact editor: toggle true/false with checkboxes for group children
-                                  <div className="flex flex-col gap-2">
-                                    {(f.fields || []).map((child: any) => {
-                                      const val = (f.answer && typeof f.answer === "object" ? f.answer : {}) as any
-                                      const checked = !!val[child.key]
-                                      return (
-                                        <label key={child.key} className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={checked}
-                                            onCheckedChange={(ck) => {
-                                              const next = { ...(val || {}) }
-                                              next[child.key] = !!ck
-                                              setField(sIdx, f.__uid, { answer: next })
-                                            }}
-                                          />
-                                          <span className="text-sm">{child.label || child.key}</span>
-                                        </label>
-                                      )
-                                    })}
-                                  </div>
-                                ) : t === "file" ? (
-                                  <Input value={"scajsnasj"} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                                ) : (
-                                  <Input value={String(f.answer ?? "")} onChange={(e) => setField(sIdx, f.__uid, { answer: e.target.value })} />
-                                )}
-                              </>
-                            ) : null}
-                          </div>
-                        )
-                      }
-                      return null
-                    })}
-                  </div>
-
-                  {/* footer: support object or string */}
-                  {(() => {
-                    const footerText =
-                      typeof sec.footer === "string" ? sec.footer : sec.footer?.content ? sec.footer.content : ""
-                    return footerText ? (
-                      <div className="text-xs text-muted-foreground">{footerText}</div>
-                    ) : null
-                  })()}
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
+                    disabled={generatingSections.has(sec.sectionId || sec.id)}
+                  >
+                    {generatingSections.has(sec.sectionId || sec.id) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Questions
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )
-            })
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <div className="text-muted-foreground">No sections.</div>
-              <Button 
-                variant="outline" 
-                onClick={addSectionAndQuestion}
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Question
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={activeSectionTab} onValueChange={setActiveSectionTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="questions">Questions</TabsTrigger>
+                    <TabsTrigger value="answers">Answers</TabsTrigger>
+                    <TabsTrigger value="procedures">Procedures</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="questions" className="space-y-3 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => addQuestion(sIdx)}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Question
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        {((sec.fields || []).length > 0) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
+                            disabled={generatingSections.has(sec.sectionId || sec.id)}
+                          >
+                            {generatingSections.has(sec.sectionId || sec.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            Regenerate Questions
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
+                            disabled={generatingSections.has(sec.sectionId || sec.id)}
+                          >
+                            {generatingSections.has(sec.sectionId || sec.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <FileText className="h-4 w-4 mr-2" />
+                            )}
+                            Generate Questions
+                          </Button>
+                        )}
+                        {!editMode ? (
+                          <Button size="sm" onClick={() => setEditMode(true)}>Edit</Button>
+                        ) : (
+                          <>
+                            <Button size="sm" onClick={() => save(false)}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={() => save(true)}>
+                              Save & Complete
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => {
+                              pendingQuestions.forEach((uid) => {
+                                setProc((prev: any) => {
+                                  const next = { ...prev }
+                                  const sections = [...(next.procedures || [])]
+                                  sections.forEach((sec: any) => {
+                                    sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
+                                  })
+                                  next.procedures = sections
+                                  return next
+                                })
+                              })
+                              setPendingQuestions(new Set())
+                              setEditMode(false)
+                            }}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <ScrollArea className="h-[500px]">
+                      <div className="space-y-3">
+                        {(sec.fields || []).map((f: any, idx: number) => {
+                          const t = normalizeType(f.type)
+                          const isTable = t === "table"
+                          // respect visibleIf in view/edit
+                          if (!isFieldVisible(f, answers)) return null
+                          if (f.key === "documentation_reminder") return null
+                          
+                          const isPending = pendingQuestions.has(f.__uid)
+                          const questionKey = `${sIdx}-${f.__uid}`
+                          const isEditing = editingQuestionIds[questionKey] === f.__uid
+                          const editText = editQuestionTexts[questionKey] ?? (f.label || f.key)
+                          
+                          return (
+                            <Card key={f.__uid}>
+                              <CardContent className="pt-6">
+                                {isEditing || isPending ? (
+                                  <div className="space-y-3">
+                                    <Input
+                                      value={editText}
+                                      onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [questionKey]: e.target.value }))}
+                                      placeholder="Question"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button size="sm" onClick={() => {
+                                        setField(sIdx, f.__uid, { label: editText })
+                                        if (isPending) confirmQuestion(sIdx, f.__uid)
+                                        setEditingQuestionIds(prev => {
+                                          const next = { ...prev }
+                                          delete next[questionKey]
+                                          return next
+                                        })
+                                        setEditQuestionTexts(prev => {
+                                          const next = { ...prev }
+                                          delete next[questionKey]
+                                          return next
+                                        })
+                                      }}>
+                                        <Save className="h-4 w-4 mr-1" />
+                                        Save
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={() => {
+                                        if (isPending) cancelQuestion(sIdx, f.__uid)
+                                        setEditingQuestionIds(prev => {
+                                          const next = { ...prev }
+                                          delete next[questionKey]
+                                          return next
+                                        })
+                                        setEditQuestionTexts(prev => {
+                                          const next = { ...prev }
+                                          delete next[questionKey]
+                                          return next
+                                        })
+                                      }}>
+                                        <X className="h-4 w-4 mr-1" />
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex justify-between items-start">
+                                      <div className="font-medium mb-1">
+                                        {idx + 1}. {f.label || f.key}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        {editMode && (
+                                          <>
+                                            <Button variant="ghost" size="sm" onClick={() => {
+                                              setEditingQuestionIds(prev => ({ ...prev, [questionKey]: f.__uid }))
+                                              setEditQuestionTexts(prev => ({ ...prev, [questionKey]: f.label || f.key }))
+                                            }}>
+                                              <Edit2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => removeQuestion(sIdx, f.__uid)}>
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {f.help && (
+                                      <div className="text-xs text-muted-foreground mt-1">{f.help}</div>
+                                    )}
+                                  </>
+                                )}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+                        {(!sec.fields || sec.fields.length === 0) && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            No questions available. Click "Add Question" to get started.
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  
+                  <TabsContent value="answers" className="space-y-3 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex gap-2">
+                        {((sec.fields || []).length > 0) ? (
+                          (sec.fields || []).some((f: any) => f.answer) ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
+                              disabled={generatingSections.has(sec.sectionId || sec.id)}
+                            >
+                              {generatingSections.has(sec.sectionId || sec.id) ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Regenerate Answers
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
+                              disabled={generatingSections.has(sec.sectionId || sec.id)}
+                            >
+                              {generatingSections.has(sec.sectionId || sec.id) ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <FileText className="h-4 w-4 mr-2" />
+                              )}
+                              Generate Answers
+                            </Button>
+                          )
+                        ) : (
+                          <div className="text-muted-foreground text-sm">No questions added yet.</div>
+                        )}
+                      </div>
+                      {((sec.fields || []).length > 0) && (
+                        <Button variant="default" size="sm" onClick={handleSaveAnswers} disabled={isSaving}>
+                          {isSaving ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          Save Answers
+                        </Button>
+                      )}
+                    </div>
+                    <ScrollArea className="h-[500px]">
+                      <div className="space-y-3">
+                        {(sec.fields || []).map((f: any, idx: number) => {
+                          const t = normalizeType(f.type)
+                          const isTable = t === "table"
+                          if (!isFieldVisible(f, answers)) return null
+                          if (f.key === "documentation_reminder") return null
+                          
+                          const questionKey = `${sIdx}-${f.__uid}`
+                          const isEditingAnswer = editingQuestionIds[`answer-${questionKey}`] === f.__uid
+                          const editAnswerValue = editQuestionTexts[`answer-${questionKey}`] ?? String(f.answer ?? "")
+                          
+                          return (
+                            <Card key={f.__uid}>
+                              <CardContent className="pt-6">
+                                <div className="font-medium mb-2">
+                                  {idx + 1}. {f.label || f.key}
+                                </div>
+                                {isEditingAnswer ? (
+                                  <div className="space-y-3">
+                                    <Textarea
+                                      value={editAnswerValue}
+                                      onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: e.target.value }))}
+                                      placeholder="Answer"
+                                      className="min-h-[100px]"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button size="sm" onClick={() => {
+                                        setField(sIdx, f.__uid, { answer: editAnswerValue })
+                                        setEditingQuestionIds(prev => {
+                                          const next = { ...prev }
+                                          delete next[`answer-${questionKey}`]
+                                          return next
+                                        })
+                                        setEditQuestionTexts(prev => {
+                                          const next = { ...prev }
+                                          delete next[`answer-${questionKey}`]
+                                          return next
+                                        })
+                                      }}>
+                                        <Save className="h-4 w-4 mr-1" />
+                                        Save
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={() => {
+                                        setEditingQuestionIds(prev => {
+                                          const next = { ...prev }
+                                          delete next[`answer-${questionKey}`]
+                                          return next
+                                        })
+                                        setEditQuestionTexts(prev => {
+                                          const next = { ...prev }
+                                          delete next[`answer-${questionKey}`]
+                                          return next
+                                        })
+                                      }}>
+                                        <X className="h-4 w-4 mr-1" />
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="text-sm text-muted-foreground mb-3">
+                                      {f.answer ? (
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                          {String(f.answer)}
+                                        </ReactMarkdown>
+                                      ) : (
+                                        <span className="italic">No answer.</span>
+                                      )}
+                                    </div>
+                                    {editMode && (
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setEditingQuestionIds(prev => ({ ...prev, [`answer-${questionKey}`]: f.__uid }))
+                                            setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: String(f.answer ?? "") }))
+                                          }}
+                                        >
+                                          <Edit2 className="h-4 w-4 mr-1" />
+                                          Edit Answer
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+                        {(!sec.fields || sec.fields.length === 0) && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            No answers yet.
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  
+                  <TabsContent value="procedures" className="space-y-3 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                      <div className="flex items-center gap-2">
+                        {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
+                          recommendations.length > 0 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleGenerateProcedures}
+                              disabled={generatingProcedures}
+                            >
+                              {generatingProcedures ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Regenerate Procedures
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={handleGenerateProcedures}
+                              disabled={generatingProcedures}
+                            >
+                              {generatingProcedures ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <FileText className="h-4 w-4 mr-2" />
+                              )}
+                              Generate Procedures
+                            </Button>
+                          )
+                        ) : (
+                          <div className="text-muted-foreground text-sm">
+                            {((sec.fields || []).length === 0) ? "Generate questions first." : "Generate answers first."}
+                          </div>
+                        )}
+                        {editMode && (
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const newRec = {
+                              id: `rec-${Date.now()}`,
+                              text: "New recommendation",
+                              checked: false,
+                              section: sec.sectionId || sec.id
+                            }
+                            setRecommendations(prev => [...prev, newRec])
+                          }}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Procedures
+                          </Button>
+                        )}
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          onClick={() => save(true)}
+                          disabled={isSaving || (sec.fields || []).length === 0 || !(sec.fields || []).some((f: any) => f.answer)}
+                        >
+                          {isSaving ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          Save & Complete
+                        </Button>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-[500px]">
+                      <div className="space-y-3">
+                        {(() => {
+                          // Show all recommendations globally (matching TabsView behavior)
+                          // Don't filter by section - show all recommendations in each section's Procedures tab
+                          const allRecs = Array.isArray(recommendations) ? recommendations : []
+                          
+                          if (allRecs.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-muted-foreground">
+                                {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer)
+                                  ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
+                                  : "Generate questions and answers first, then generate procedures."}
+                              </div>
+                            )
+                          }
+                          
+                          return allRecs.map((rec: any, idx: number) => {
+                            const recId = rec.id || rec.__uid || `rec-${idx}`
+                            const recText = typeof rec === 'string' 
+                              ? rec 
+                              : rec.text || rec.content || String(rec) || "—"
+                            const isEditing = editingQuestionIds[`rec-${recId}`] === recId
+                            const editText = editQuestionTexts[`rec-${recId}`] ?? recText
+                              
+                              return (
+                                <Card key={recId}>
+                                  <CardContent className="pt-6">
+                                    {isEditing ? (
+                                      <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                          <div className="font-medium">{idx + 1}.</div>
+                                          <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => {
+                                              setRecommendations(prev =>
+                                                prev.map((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  if (rId === recId) {
+                                                    if (typeof r === 'string') {
+                                                      return editText
+                                                    }
+                                                    return { ...r, text: editText }
+                                                  }
+                                                  return r
+                                                })
+                                              )
+                                              setEditingQuestionIds(prev => {
+                                                const next = { ...prev }
+                                                delete next[`rec-${recId}`]
+                                                return next
+                                              })
+                                              setEditQuestionTexts(prev => {
+                                                const next = { ...prev }
+                                                delete next[`rec-${recId}`]
+                                                return next
+                                              })
+                                            }}>
+                                              <Save className="h-4 w-4 mr-1" />
+                                              Save
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => {
+                                              setEditingQuestionIds(prev => {
+                                                const next = { ...prev }
+                                                delete next[`rec-${recId}`]
+                                                return next
+                                              })
+                                              setEditQuestionTexts(prev => {
+                                                const next = { ...prev }
+                                                delete next[`rec-${recId}`]
+                                                return next
+                                              })
+                                            }}>
+                                              <X className="h-4 w-4 mr-1" />
+                                              Cancel
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        <Textarea
+                                          value={editText}
+                                          onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: e.target.value }))}
+                                          placeholder="Recommendation"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="flex justify-between items-start">
+                                          <div className="font-medium mb-2 text-black">
+                                            {idx + 1}. {recText}
+                                          </div>
+                                          {editMode && (
+                                            <div className="flex gap-2">
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                  setEditingQuestionIds(prev => ({ ...prev, [`rec-${recId}`]: recId }))
+                                                  setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: recText }))
+                                                }}
+                                              >
+                                                <Edit2 className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                  setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                                    const rId = r.id || r.__uid || `rec-${i}`
+                                                    return rId !== recId
+                                                  }))
+                                                }}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {rec.checked !== undefined && (
+                                          <div className="flex items-center gap-2 mt-2">
+                                            <Badge variant={rec.checked ? "default" : "secondary"}>
+                                              {rec.checked ? "Completed" : "Pending"}
+                                            </Badge>
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              )
+                            })
+                        })()}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )
+        })
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">
+            <div className="text-muted-foreground">No sections.</div>
+            <Button 
+              variant="outline" 
+              onClick={addSectionAndQuestion}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Question
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={handleExportPlanningPDF}>
+          <Download className="h-4 w-4 mr-2" />
+          Export PDF
+        </Button>
+      </div>
 
       {/* Floating Notes Button (same feel as ProcedureView) */}
       <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />

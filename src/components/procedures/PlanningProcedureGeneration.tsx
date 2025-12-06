@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FileText, ArrowRight, User, Bot, Users } from 'lucide-react'
-// PlanningMaterialityStep removed - no longer needed
+import { PlanningMaterialityStep } from "./steps/PlanningMaterialityStep"
 import { PlanningProceduresStep } from "./steps/PlanningProceduresStep"
 import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
@@ -40,13 +40,14 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
 }) => {
   // Initialize state from URL parameters to support browser back/forward navigation
   const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
-  const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+  const stepFromUrl = searchParams?.get("step")
+  const stepFromUrlNum = stepFromUrl && stepFromUrl !== "tabs" ? parseInt(stepFromUrl || "0", 10) : null
   
   const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(modeFromUrl)
-  const [currentStep, setCurrentStep] = useState(stepFromUrl !== null ? stepFromUrl : 0)
+  const [currentStep, setCurrentStep] = useState(stepFromUrlNum !== null ? stepFromUrlNum : 0)
   const [stepData, setStepData] = useState<StepData>({})
   const [steps, setSteps] = useState<any[]>([])
-  const [showTabsView, setShowTabsView] = useState(false)
+  const [showTabsView, setShowTabsView] = useState(stepFromUrl === "tabs")
 
   // Initialize steps array when mode is available
   useEffect(() => {
@@ -55,16 +56,19 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     // Build steps array based on mode (without updating URL)
     if (selectedMode === "ai") {
       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: AIPlanningQuestionsStep },
       ])
     } else if (selectedMode === "hybrid") {
       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: HybridPlanningProceduresStep },
       ])
     } else {
       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Planning Procedures", component: PlanningProceduresStep },
         { title: "Recommendations", component: PlanningRecommendationsStep },
@@ -75,13 +79,16 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
   // Sync state with URL parameters when they change (browser back/forward)
   useEffect(() => {
     const modeFromUrl = (searchParams?.get("mode") as GenerationMode) || null
-    const stepFromUrl = searchParams?.get("step") ? parseInt(searchParams.get("step") || "0", 10) : null
+    const stepFromUrl = searchParams?.get("step")
+    const stepFromUrlNum = stepFromUrl && stepFromUrl !== "tabs" ? parseInt(stepFromUrl || "0", 10) : null
     
     if (modeFromUrl !== selectedMode) {
       setSelectedMode(modeFromUrl)
     }
-    if (stepFromUrl !== null && stepFromUrl !== currentStep) {
-      setCurrentStep(stepFromUrl)
+    if (stepFromUrl === "tabs") {
+      setShowTabsView(true)
+    } else if (stepFromUrlNum !== null && stepFromUrlNum !== currentStep) {
+      setCurrentStep(stepFromUrlNum)
     }
   }, [searchParams])
 
@@ -143,6 +150,7 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     setSelectedMode(mode)
     if (mode ==="ai") {
       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: AIPlanningQuestionsStep },
       ])
@@ -150,12 +158,14 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     else if(mode==="hybrid")
     {
        setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: HybridPlanningProceduresStep },
       ])
     }
     else {
       setSteps([
+        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Planning Procedures", component: PlanningProceduresStep },
         { title: "Recommendations", component: PlanningRecommendationsStep },
@@ -171,7 +181,7 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
 
  // In PlanningProcedureGeneration.tsx
 // In PlanningProcedureGeneration.tsx
-const handleStepComplete = (data: any) => {
+const handleStepComplete = async (data: any) => {
   // Format section recommendations with section titles
   let combinedRecommendations = "";
   
@@ -196,16 +206,62 @@ const handleStepComplete = (data: any) => {
   const updatedData = { ...stepData, ...data, recommendations: combinedRecommendations }
   setStepData(updatedData)
   
-   // After questions/procedures are generated (step 1 for AI/Hybrid), show tabs view
+  // When "Proceed to Procedures" is clicked (moving from step 1 to step 2)
+  // Switch to View tab immediately and skip showing step 2 UI
+  if (currentStep === 1) {
+    // Create minimal procedure structure from selectedSections for View components
+    const sectionTitles: Record<string, string> = {
+      "engagement_setup_acceptance_independence": "Engagement Setup, Acceptance & Independence",
+      "understanding_entity_environment": "Understanding the Entity & Its Environment",
+      "materiality_risk_summary": "Materiality & Risk Summary",
+      "risk_response_planning": "Risk Register & Audit Response Planning",
+      "fraud_gc_planning": "Fraud Risk & Going Concern Planning",
+      "compliance_laws_regulations": "Compliance with Laws & Regulations (ISA 250)"
+    }
+    
+    const selectedSections = updatedData.selectedSections || []
+    const initialProcedures = selectedSections.map((sectionId: string) => ({
+      id: sectionId,
+      sectionId: sectionId,
+      title: sectionTitles[sectionId] || sectionId,
+      fields: [] // Empty initially, will be populated when questions are generated
+    }))
+    
+    // Create minimal procedure object
+    // Note: We don't save it here - the backend will create it when generating questions
+    const minimalProcedure = {
+      procedureType: "planning",
+      mode: selectedMode,
+      materiality: updatedData.materiality || 0,
+      procedures: initialProcedures,
+      recommendations: [],
+      status: "in-progress",
+      selectedSections: updatedData.selectedSections || [],
+    }
+    
+    // Switch to View tab
+    if (updateProcedureParams) {
+      updateProcedureParams({ procedureTab: "view", step: "tabs" }, false)
+    }
+    
+    // Pass minimal procedure to parent so View components can show it
+    // Backend will create the procedure document when generating questions
+    onComplete(minimalProcedure)
+    
+    // Don't increment step - we're going directly to View tab
+    return
+  }
+  
+   // After questions/procedures are generated (step 2 for AI/Hybrid, after Materiality + Classifications), show tabs view
    // Check if procedures have fields (questions)
    const hasQuestions = updatedData.procedures && 
      Array.isArray(updatedData.procedures) && 
      updatedData.procedures.some((proc: any) => proc.fields && proc.fields.length > 0)
    
-   if (hasQuestions && (selectedMode === "ai" || selectedMode === "hybrid") && currentStep === 1) {
+   if (hasQuestions && (selectedMode === "ai" || selectedMode === "hybrid") && currentStep === 2) {
      setShowTabsView(true)
      if (updateProcedureParams) {
-       updateProcedureParams({ step: "tabs" }, false)
+       updateProcedureParams({ step: "tabs", procedureTab: "view" }, false)
      }
      return
    }
@@ -250,6 +306,13 @@ const handleStepComplete = (data: any) => {
       }
     }
   }
+
+  // Switch to View tab when TabsView should be shown
+  useEffect(() => {
+    if ((showTabsView || (stepData.procedures && Array.isArray(stepData.procedures) && stepData.procedures.some((proc: any) => proc.fields && proc.fields.length > 0) && (selectedMode === "ai" || selectedMode === "hybrid"))) && updateProcedureParams) {
+      updateProcedureParams({ procedureTab: "view" }, false)
+    }
+  }, [showTabsView, stepData.procedures, selectedMode, updateProcedureParams])
 
   if (!selectedMode) {
     return (
@@ -326,9 +389,9 @@ const handleStepComplete = (data: any) => {
          }}
          onBack={() => {
            setShowTabsView(false)
-           setCurrentStep(1) // Go back to questions step
+           setCurrentStep(2) // Go back to questions step (after Materiality + Classifications)
            if (updateProcedureParams) {
-             updateProcedureParams({ step: "1" }, false)
+             updateProcedureParams({ step: "2" }, false)
            }
          }}
          updateProcedureParams={updateProcedureParams}

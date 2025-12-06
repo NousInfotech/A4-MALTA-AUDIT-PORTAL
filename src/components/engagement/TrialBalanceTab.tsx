@@ -21,6 +21,11 @@ import {
   X,
   Sparkles,
   Eye,
+  RefreshCw,
+  ArrowLeft,
+  User,
+  Bot,
+  Users,
 } from "lucide-react";
 import { TrialBalanceUpload } from "./TrialBalanceUpload";
 import { ExtendedTrialBalance } from "./ExtendedTrialBalance";
@@ -827,7 +832,60 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   };
 
   const handleRegenerate = () => {
-    // Clear procedure generation params, stay on generate tab
+    // Hierarchical back navigation (matching EngagementDetails.tsx logic)
+    const procedureType = searchParams.get("procedureType");
+    const mode = searchParams.get("mode");
+    const step = searchParams.get("step");
+    
+    // If in tabs view (step === "tabs"), go back to questions step
+    if (procedureType && step === "tabs") {
+      updateProcedureParams({
+        procedureTab: "generate",
+        step: "1" // Go back to questions step (step 1)
+      }, false);
+      return;
+    }
+    
+    // If in a numbered step, go back one step or to mode selection
+    if (procedureType && mode && step) {
+      const stepNum = parseInt(step, 10);
+      
+      if (stepNum > 0) {
+        // Go back one step
+        updateProcedureParams({
+          procedureTab: "generate",
+          step: (stepNum - 1).toString()
+        }, false);
+      } else {
+        // At step 0, go back to mode selection (clear step and mode)
+        updateProcedureParams({
+          procedureTab: "generate",
+          mode: null,
+          step: null
+        }, false);
+      }
+      return;
+    }
+    
+    // If at mode selection (mode exists but no step), clear mode
+    if (procedureType && mode && !step) {
+      updateProcedureParams({
+        procedureTab: "generate",
+        mode: null
+      }, false);
+      return;
+    }
+    
+    // If at procedure type selection (procedureType exists but no mode), clear procedureType
+    if (procedureType && !mode) {
+      updateProcedureParams({
+        procedureTab: "generate",
+        procedureType: null
+      }, false);
+      return;
+    }
+    
+    // Fallback: Clear all procedure params
     updateProcedureParams({
       procedureTab: "generate",
       procedureType: null,
@@ -1298,11 +1356,94 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                   // Procedure Content with Generate/View Tabs
                   <div className="h-full flex flex-col">
                     <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
-                      <h3 className="font-semibold text-lg">
-                        {selectedProcedureType === "planning" && "Planning Procedures"}
-                        {selectedProcedureType === "fieldwork" && "Field Work Procedures"}
-                        {selectedProcedureType === "completion" && "Completion Procedures"}
-                      </h3>
+                      <div className="flex items-center gap-3">
+                        {selectedProcedureType && (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
+                            aria-label="Back"
+                            onClick={() => {
+                              const procedureType = searchParams.get("procedureType");
+                              const mode = searchParams.get("mode");
+                              const step = searchParams.get("step");
+                              
+                              // If in tabs view (step === "tabs"), go back to questions step
+                              if (procedureType && step === "tabs") {
+                                updateProcedureParams({
+                                  procedureTab: "generate",
+                                  step: "1" // Go back to questions step (step 1)
+                                }, false);
+                                return;
+                              }
+                              
+                              // If in a numbered step, go back one step or to mode selection
+                              if (procedureType && mode && step) {
+                                const stepNum = parseInt(step, 10);
+                                
+                                if (stepNum > 0) {
+                                  // Go back one step
+                                  updateProcedureParams({
+                                    procedureTab: "generate",
+                                    step: (stepNum - 1).toString()
+                                  }, false);
+                                } else {
+                                  // At step 0, go back to mode selection (clear step and mode)
+                                  updateProcedureParams({
+                                    procedureTab: "generate",
+                                    mode: null,
+                                    step: null
+                                  }, false);
+                                }
+                                return;
+                              }
+                              
+                              // If at mode selection (mode exists but no step), clear mode
+                              if (procedureType && mode && !step) {
+                                updateProcedureParams({
+                                  procedureTab: "generate",
+                                  mode: null
+                                }, false);
+                                return;
+                              }
+                              
+                              // If at procedure type selection (procedureType exists but no mode), clear procedureType
+                              if (procedureType && !mode) {
+                                updateProcedureParams({
+                                  procedureTab: "generate",
+                                  procedureType: null
+                                }, false);
+                                return;
+                              }
+                              
+                              // Fallback: Clear all procedure params
+                              updateProcedureParams({
+                                procedureTab: "generate",
+                                procedureType: null,
+                                mode: null,
+                                step: null
+                              }, false);
+                            }}
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <h3 className="font-semibold text-lg">
+                          {selectedProcedureType === "planning" && "Planning Procedures"}
+                          {selectedProcedureType === "fieldwork" && "Field Work Procedures"}
+                          {selectedProcedureType === "completion" && "Completion Procedures"}
+                        </h3>
+                        {selectedProcedureType && (
+                          <Button 
+                            variant="outline" 
+                            onClick={handleRegenerate} 
+                            className="flex items-center gap-2 bg-transparent"
+                            size="sm"
+                          >
+                            <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
+                          </Button>
+                        )}
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1338,6 +1479,55 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                                 onTypeSelect={handleProcedureTypeSelect} 
                                 title="Choose the type of audit procedures you want to generate" 
                               />
+                            </div>
+                          ) : !searchParams.get("mode") ? (
+                            // Show vertical approach selection when procedure type is selected but mode is not
+                            <div className="p-6">
+                              <div className="text-center mb-6">
+                                <h3 className="font-heading text-xl text-foreground mb-2">Choose Your Approach</h3>
+                                <p className="text-muted-foreground text-sm">Select how you'd like to generate your procedures</p>
+                              </div>
+                              <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+                                <Button
+                                  variant={searchParams.get("mode") === "manual" ? "default" : "outline"}
+                                  className="w-full flex flex-row items-center justify-start gap-4 h-auto p-6 hover:bg-primary/5 hover:border-primary/50 transition-all"
+                                  onClick={() => updateProcedureParams({ mode: "manual", step: "0" }, false)}
+                                >
+                                  <div className="p-3 rounded-lg bg-primary text-white">
+                                    <User className="h-6 w-6" />
+                                  </div>
+                                  <div className="text-left flex-1">
+                                    <div className="font-semibold text-base">Manual</div>
+                                    <div className="text-xs text-muted-foreground mt-1">Predefined templates</div>
+                                  </div>
+                                </Button>
+                                <Button
+                                  variant={searchParams.get("mode") === "ai" ? "default" : "outline"}
+                                  className="w-full flex flex-row items-center justify-start gap-4 h-auto p-6 hover:bg-accent/5 hover:border-accent/50 transition-all"
+                                  onClick={() => updateProcedureParams({ mode: "ai", step: "0" }, false)}
+                                >
+                                  <div className="p-3 rounded-lg bg-accent text-white">
+                                    <Bot className="h-6 w-6" />
+                                  </div>
+                                  <div className="text-left flex-1">
+                                    <div className="font-semibold text-base">AI</div>
+                                    <div className="text-xs text-muted-foreground mt-1">AI-powered generation</div>
+                                  </div>
+                                </Button>
+                                <Button
+                                  variant={searchParams.get("mode") === "hybrid" ? "default" : "outline"}
+                                  className="w-full flex flex-row items-center justify-start gap-4 h-auto p-6 hover:bg-secondary/5 hover:border-secondary/50 transition-all"
+                                  onClick={() => updateProcedureParams({ mode: "hybrid", step: "0" }, false)}
+                                >
+                                  <div className="p-3 rounded-lg bg-secondary text-white">
+                                    <Users className="h-6 w-6" />
+                                  </div>
+                                  <div className="text-left flex-1">
+                                    <div className="font-semibold text-base">Hybrid</div>
+                                    <div className="text-xs text-muted-foreground mt-1">AI + Manual control</div>
+                                  </div>
+                                </Button>
+                              </div>
                             </div>
                           ) : selectedProcedureType === "planning" ? (
                             <PlanningProcedureGeneration
