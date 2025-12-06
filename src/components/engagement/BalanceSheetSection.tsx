@@ -405,73 +405,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     console.log("  Formula:", `${retainedEarningsPriorYear} + (${netProfitAfterTaxCurrent}) = ${calculatedRetainedEarningsCurrent}`);
     console.log("  Status:", netProfitAfterTaxCurrent >= 0 ? "✓ PROFIT" : "✗ LOSS");
 
-    // Now define getGroup1Total with access to calculated retained earnings
-    const getGroup1Total = (
-      group1: string,
-      year: "current" | "prior"
-    ): number => {
-      if (!groupedData[group1]) return 0;
-
-      // Sum formatted values (not raw values) to match individual row display
-      // Round each value before summing to match displayed rounded values
-      const sum = Object.entries(groupedData[group1])
-        .filter(([group2]) => {
-          // Exclude "Current Year Profits & Losses" from Equity calculations
-          if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
-            return false;
-          }
-          return true;
-        })
-        .reduce((acc, [_, group3Map]) => {
-          const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
-            const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
-              const rowSum = rows.reduce((rowAcc, row) => {
-                // Use formatted value with preserved signs for accurate summation
-                const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-                const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-                // Sum without rounding - rounding happens at display time only
-                return rowAcc + (value || 0);
-              }, 0);
-              return g4Acc + rowSum;
-            }, 0);
-            return g3Acc + group4Sum;
-          }, 0);
-          return acc + group3Sum;
-        }, 0);
-      
-      // Assets shown naturally, Liabilities & Equity shown positive
-      if (group1 === "Assets") return sum;
-      return Math.abs(sum);
-    };
-
-    const getGroup2Total = (
-      group1: string,
-      group2: string,
-      year: "current" | "prior"
-    ): number => {
-      if (!groupedData[group1] || !groupedData[group1][group2]) return 0;
-
-      // Sum formatted values (not raw values) to match individual row display
-      // Round each value before summing to match displayed rounded values
-      const sum = Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
-        const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
-          const rowSum = rows.reduce((rowAcc, row) => {
-            // Use formatted value with preserved signs for accurate summation
-            const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-            const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-            // Sum without rounding - rounding happens at display time only
-            return rowAcc + (value || 0);
-          }, 0);
-          return g4Acc + rowSum;
-        }, 0);
-        return g3Acc + group4Sum;
-      }, 0);
-      
-      // Assets shown naturally, Liabilities & Equity shown positive
-      if (group1 === "Assets") return sum;
-      return Math.abs(sum);
-    };
-
+    // Now define getGroup3Total first (needed by getGroup1Total and getGroup2Total)
     const getGroup3Total = (
       group1: string,
       group2: string,
@@ -511,9 +445,70 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         return g4Acc + rowSum;
       }, 0);
       
-      // Assets shown naturally, Liabilities & Equity shown positive
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
       if (group1 === "Assets") return sum;
-      return Math.abs(sum);
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
+    };
+
+    // Now define getGroup1Total using getGroup3Total to ensure calculated Retained Earnings is used
+    const getGroup1Total = (
+      group1: string,
+      year: "current" | "prior"
+    ): number => {
+      if (!groupedData[group1]) return 0;
+
+      // Sum using getGroup3Total to ensure calculated Retained Earnings is used
+      const sum = Object.entries(groupedData[group1])
+        .filter(([group2]) => {
+          // Exclude "Current Year Profits & Losses" from Equity calculations
+          if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
+            return false;
+          }
+          return true;
+        })
+        .reduce((acc, [group2, group3Map]) => {
+          const group3Sum = Object.keys(group3Map).reduce((g3Acc, group3) => {
+            // Use getGroup3Total to get the sum for this group3 (includes calculated Retained Earnings)
+            const group3Total = getGroup3Total(group1, group2, group3, year);
+            return g3Acc + group3Total;
+          }, 0);
+          return acc + group3Sum;
+        }, 0);
+      
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
+    };
+
+    const getGroup2Total = (
+      group1: string,
+      group2: string,
+      year: "current" | "prior"
+    ): number => {
+      if (!groupedData[group1] || !groupedData[group1][group2]) return 0;
+
+      // Sum using getGroup3Total to ensure calculated Retained Earnings is used
+      const sum = Object.keys(groupedData[group1][group2]).reduce((g3Acc, group3) => {
+        // Use getGroup3Total to get the sum for this group3 (includes calculated Retained Earnings)
+        const group3Total = getGroup3Total(group1, group2, group3, year);
+        return g3Acc + group3Total;
+      }, 0);
+      
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
     };
 
     const getGroup4Total = (
@@ -535,10 +530,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         return acc + (value || 0);
       }, 0);
       
-      // Assets shown naturally (including negative contra-assets)
-      // Liabilities & Equity shown positive
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
       if (group1 === "Assets") return sum;
-      return Math.abs(sum);
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
     };
 
     // Helper to get raw totals (without Math.abs) for balance check
@@ -591,12 +589,12 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     const rawAssetsCurrent = getRawGroup1Total("Assets", "current");
     const rawLiabilitiesCurrent = getRawGroup1Total("Liabilities", "current");
     const rawEquityCurrent = getRawGroup1Total("Equity", "current");
-    const balanceCurrent = rawAssetsCurrent + rawLiabilitiesCurrent + rawEquityCurrent;
+    const balanceCurrent = assetsCurrent - liabilitiesCurrent - equityCurrent;
 
     const rawAssetsPrior = getRawGroup1Total("Assets", "prior");
     const rawLiabilitiesPrior = getRawGroup1Total("Liabilities", "prior");
     const rawEquityPrior = getRawGroup1Total("Equity", "prior");
-    const balancePrior = rawAssetsPrior + rawLiabilitiesPrior + rawEquityPrior;
+    const balancePrior = assetsPrior - liabilitiesCurrent + equityCurrent;
 
     return {
       getGroup1Total,
