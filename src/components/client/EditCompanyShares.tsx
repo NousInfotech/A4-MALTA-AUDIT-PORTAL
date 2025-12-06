@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { PaidUpSharesInput } from "./PaidUpSharesInput";
 
 export interface ShareValues {
   sharesA: string;
@@ -16,6 +17,8 @@ interface EditCompanySharesProps {
   onShareChange: (shareClass: "A" | "B" | "C" | "Ordinary", value: string) => void;
   error?: string;
   sharePercentage?: string;
+  paidUpSharesPercentage?: number;
+  onPaidUpSharesChange?: (value: number | "") => void;
   className?: string;
   onValidationError?: (error: string | null) => void; // Callback to notify parent of validation errors
 }
@@ -31,6 +34,8 @@ export const EditCompanyShares: React.FC<EditCompanySharesProps> = ({
   onShareChange,
   error,
   sharePercentage,
+  paidUpSharesPercentage = 0,
+  onPaidUpSharesChange,
   className = "",
   onValidationError,
 }) => {
@@ -266,6 +271,13 @@ export const EditCompanyShares: React.FC<EditCompanySharesProps> = ({
           );
         })}
       </div>
+      
+      {onPaidUpSharesChange && (
+        <PaidUpSharesInput
+          value={paidUpSharesPercentage ?? 0}
+          onChange={onPaidUpSharesChange}
+        />
+      )}
     </div>
   );
 };

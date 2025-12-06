@@ -234,30 +234,26 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   };
 
   // Helper function to format Balance Sheet values (defined before calculations for use inside)
-  // In Balance Sheets:
-  // - Assets, Liabilities, and Equity should be positive (absolute value)
-  // - Contra-assets (like Accumulated Depreciation) should be negative (they reduce asset values)
+  // Preserves raw ETB signs for proper accounting summation
+  // Only forces contra-assets to negative (they reduce asset values)
   const formatBalanceSheetValue = (value: number, accountName?: string): number => {
-    // Check if this is a contra-asset (typically has "Accumulated", "Provision", "Allowance", "Depn" in name)
-    const isContraAsset = accountName && (
-      accountName.toLowerCase().includes("accumulated") ||
-      accountName.toLowerCase().includes("provision") ||
-      accountName.toLowerCase().includes("allowance") ||
-      accountName.toLowerCase().includes("depreciation") ||
-      accountName.toLowerCase().includes("depn") || // Handle abbreviation "Depn"
-      accountName.toLowerCase().includes("prov for") // Handle "Prov for Depn" pattern
-    );
+    const v = value ?? 0;
+    const name = (accountName || "").toLowerCase();
     
-    // Contra-assets should always be negative (they reduce asset values)
-    // Convert to absolute value first, then make negative
-    if (isContraAsset) {
-      const absValue = value < 0 ? -value : value;
-      return -absValue; // Always return negative for contra-assets
-    }
+    // Detect contra-assets
+    const isContra =
+      name.includes("accumulated") ||
+      name.includes("provision") ||
+      name.includes("allowance") ||
+      name.includes("depreciation") ||
+      name.includes("depn") ||
+      name.includes("prov for");
     
-    // For all other Balance Sheet items, return absolute value
-    // This handles cases where data is stored as negative (credit balances)
-    return value < 0 ? -value : value;
+    // Contra-assets must always reduce assets (force negative)
+    if (isContra) return Math.abs(v) * -1;
+    
+    // For ALL other accounts, return raw ETB sign
+    return v;
   };
 
   // Calculate totals
@@ -311,9 +307,19 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           return g4Acc + rowSum;
         }, 0);
 
-        // Apply sign based on GROUPING_SIGNS
+        // Apply sign based on GROUPING_SIGNS - EXACT match to IncomeStatementSection.getValue
         const sign = GROUPING_SIGNS[grouping3] || "+";
-        const signedValue = sign === "+" ? sum : -sum;
+        // For Income Statement calculation:
+        // Revenue/Income items (sign = "+") should be positive: flip if negative
+        // Expense items (sign = "-") should be negative: flip if positive
+        let signedValue: number;
+        if (sign === "+") {
+          // Revenue/Income: ensure positive for calculation
+          signedValue = sum < 0 ? -sum : sum;
+        } else {
+          // Expenses: ensure negative for calculation
+          signedValue = sum > 0 ? -sum : sum;
+        }
         
         if (sum !== 0) {
           console.log(`  ${grouping3}: rawSum=${sum}, sign=${sign}, result=${signedValue}`);
@@ -322,20 +328,34 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         return signedValue;
       };
       
-      // Net Profit Before Tax section
-      const investmentIncome = getValueForGroup("Investment income");
-      const investmentLosses = getValueForGroup("Investment losses");
-      const financeCosts = getValueForGroup("Finance costs");
-      const shareOfProfit = getValueForGroup("Share of profit of subsidiary");
-      const pbtExpenses = getValueForGroup("PBT Expenses");
-      
-      // Net Profit After Tax section
-      const incomeTax = getValueForGroup("Income tax expense");
+      // Calculate Net Profit After Tax using EXACT same formula as IncomeStatementSection.tsx
+      // Gross Profit = Revenue - Cost of sales
+      // Since Cost of sales is already negative, adding is equivalent to subtracting
+      const grossProfit =
+        getValueForGroup("Revenue") + getValueForGroup("Cost of sales");
 
-      // Calculate Net Profit After Tax (sum all components)
-      const netProfitAfterTax = 
-        investmentIncome + investmentLosses + financeCosts + shareOfProfit + 
-        pbtExpenses + incomeTax;
+      // Operating Profit = Gross Profit - Operating Expenses
+      // Since expenses are already negative, adding them to Gross Profit is correct
+      const operatingProfit =
+        grossProfit +
+        getValueForGroup("Sales and marketing expenses") +
+        getValueForGroup("Administrative expenses") +
+        getValueForGroup("Other operating income");
+
+      // Net Profit Before Tax = Operating Profit + Investment income + Investment losses + Finance costs + Share of profit + PBT Expenses
+      // Since expenses are already negative, adding them is correct
+      const netProfitBeforeTax =
+        operatingProfit +
+        getValueForGroup("Investment income") +
+        getValueForGroup("Investment losses") +
+        getValueForGroup("Finance costs") +
+        getValueForGroup("Share of profit of subsidiary") +
+        getValueForGroup("PBT Expenses");
+
+      // Net Profit After Tax = Net Profit Before Tax - Income tax expense
+      // Since Income tax expense is already negative, adding it is equivalent to subtracting
+      const netProfitAfterTax =
+        netProfitBeforeTax + getValueForGroup("Income tax expense");
 
       return netProfitAfterTax;
     };
@@ -345,11 +365,11 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     const netProfitAfterTaxCurrent = calculateNetProfitAfterTax("current");
     console.log("  Total Net Profit After Tax:", netProfitAfterTaxCurrent);
 
-    // STEP 1: Get Retained Earnings from Prior Year (from the row data)
+    // STEP 1: Get Retained Earnings from Prior Year (sum all accounts under Group3 "Retained earnings")
     const getRetainedEarningsPriorYear = (): number => {
       let retainedEarningsPrior = 0;
       
-      // Search directly in etbRows for Retained Earnings
+      // Sum all accounts under "Retained earnings" group3
       // Ensure groupings are extracted from classification if missing
       etbRows
         .map(row => ensureRowGroupings(row))
@@ -357,9 +377,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           if (
             row.grouping1 === "Equity" &&
             row.grouping2 === "Equity" &&
-            isRetainedEarningsRow(row)
+            row.grouping3 === "Retained earnings"
           ) {
-            retainedEarningsPrior = row.priorYear || 0;
+            // Sum all prior year values for retained earnings accounts
+            retainedEarningsPrior += (row.priorYear || 0);
           }
         });
 
@@ -384,15 +405,63 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     console.log("  Formula:", `${retainedEarningsPriorYear} + (${netProfitAfterTaxCurrent}) = ${calculatedRetainedEarningsCurrent}`);
     console.log("  Status:", netProfitAfterTaxCurrent >= 0 ? "✓ PROFIT" : "✗ LOSS");
 
-    // Now define getGroup1Total with access to calculated retained earnings
+    // Now define getGroup3Total first (needed by getGroup1Total and getGroup2Total)
+    const getGroup3Total = (
+      group1: string,
+      group2: string,
+      group3: string,
+      year: "current" | "prior"
+    ): number => {
+      if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3]) return 0;
+
+      // Special case: Retained Earnings calculated at Group3 level
+      if (group1 === "Equity" && group2 === "Equity" && group3 === "Retained earnings") {
+        if (year === "current") {
+          // Use calculated retained earnings for current year
+          return Math.abs(calculatedRetainedEarningsCurrent);
+        } else {
+          // Sum all prior year values for retained earnings accounts
+          const priorSum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
+            const rowSum = rows.reduce((rowAcc, row) => {
+              const rawValue = row.priorYear || 0;
+              const value = formatBalanceSheetValue(rawValue, row.accountName);
+              return rowAcc + (value || 0);
+            }, 0);
+            return g4Acc + rowSum;
+          }, 0);
+          return Math.abs(priorSum);
+        }
+      }
+
+      // For all other Group3s, sum normally
+      const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
+        const rowSum = rows.reduce((rowAcc, row) => {
+          // Use formatted value with preserved signs for accurate summation
+          const rawValue = year === "current" ? row.finalBalance : row.priorYear;
+          const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+          // Sum without rounding - rounding happens at display time only
+          return rowAcc + (value || 0);
+        }, 0);
+        return g4Acc + rowSum;
+      }, 0);
+      
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
+    };
+
+    // Now define getGroup1Total using getGroup3Total to ensure calculated Retained Earnings is used
     const getGroup1Total = (
       group1: string,
       year: "current" | "prior"
     ): number => {
       if (!groupedData[group1]) return 0;
 
-      // Sum formatted values (not raw values) to match individual row display
-      // Round each value before summing to match displayed rounded values
+      // Sum using getGroup3Total to ensure calculated Retained Earnings is used
       const sum = Object.entries(groupedData[group1])
         .filter(([group2]) => {
           // Exclude "Current Year Profits & Losses" from Equity calculations
@@ -401,31 +470,22 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }
           return true;
         })
-        .reduce((acc, [_, group3Map]) => {
-          const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
-            const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
-              const rowSum = rows.reduce((rowAcc, row) => {
-                // Special case: Use calculated value for Retained Earnings current year
-                let value: number;
-                if (year === "current" && isRetainedEarningsRow(row)) {
-                  value = calculatedRetainedEarningsCurrent;
-                } else {
-                  // Use formatted value (absolute) to match row display
-                  const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-                  value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-                }
-                // Round to whole number before summing
-                return rowAcc + Math.round(value || 0);
-              }, 0);
-              return g4Acc + rowSum;
-            }, 0);
-            return g3Acc + group4Sum;
+        .reduce((acc, [group2, group3Map]) => {
+          const group3Sum = Object.keys(group3Map).reduce((g3Acc, group3) => {
+            // Use getGroup3Total to get the sum for this group3 (includes calculated Retained Earnings)
+            const group3Total = getGroup3Total(group1, group2, group3, year);
+            return g3Acc + group3Total;
           }, 0);
           return acc + group3Sum;
         }, 0);
       
-      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
-      return sum < 0 ? -sum : sum;
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
     };
 
     const getGroup2Total = (
@@ -435,61 +495,20 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     ): number => {
       if (!groupedData[group1] || !groupedData[group1][group2]) return 0;
 
-      // Sum formatted values (not raw values) to match individual row display
-      // Round each value before summing to match displayed rounded values
-      const sum = Object.values(groupedData[group1][group2]).reduce((g3Acc, group4Map) => {
-        const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
-          const rowSum = rows.reduce((rowAcc, row) => {
-            // Special case for Retained Earnings current year
-            let value: number;
-            if (year === "current" && isRetainedEarningsRow(row)) {
-              value = calculatedRetainedEarningsCurrent;
-            } else {
-              // Use formatted value (absolute) to match row display
-              const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-              value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-            }
-            // Round to whole number before summing
-            return rowAcc + Math.round(value || 0);
-          }, 0);
-          return g4Acc + rowSum;
-        }, 0);
-        return g3Acc + group4Sum;
+      // Sum using getGroup3Total to ensure calculated Retained Earnings is used
+      const sum = Object.keys(groupedData[group1][group2]).reduce((g3Acc, group3) => {
+        // Use getGroup3Total to get the sum for this group3 (includes calculated Retained Earnings)
+        const group3Total = getGroup3Total(group1, group2, group3, year);
+        return g3Acc + group3Total;
       }, 0);
       
-      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
-      return sum < 0 ? -sum : sum;
-    };
-
-    const getGroup3Total = (
-      group1: string,
-      group2: string,
-      group3: string,
-      year: "current" | "prior"
-    ): number => {
-      if (!groupedData[group1] || !groupedData[group1][group2] || !groupedData[group1][group2][group3]) return 0;
-
-      // Sum formatted values (not raw values) to match individual row display
-      // Round each value before summing to match displayed rounded values
-      const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
-        const rowSum = rows.reduce((rowAcc, row) => {
-          // Special case for Retained Earnings current year
-          let value: number;
-          if (year === "current" && isRetainedEarningsRow(row)) {
-            value = calculatedRetainedEarningsCurrent;
-          } else {
-            // Use formatted value (absolute) to match row display
-            const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-            value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-          }
-          // Round to whole number before summing
-          return rowAcc + Math.round(value || 0);
-        }, 0);
-        return g4Acc + rowSum;
-      }, 0);
-      
-      // Sum is already positive (from formatBalanceSheetValue), but ensure it's positive
-      return sum < 0 ? -sum : sum;
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
     };
 
     const getGroup4Total = (
@@ -504,34 +523,56 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Sum formatted values (not raw values) to match individual row display
       // Round each value before summing to match displayed rounded values
       const sum = groupedData[group1][group2][group3][group4].reduce((acc, row) => {
-        // Special case for Retained Earnings current year
-        let value: number;
-        if (year === "current" && isRetainedEarningsRow(row)) {
-          value = calculatedRetainedEarningsCurrent;
-        } else {
-          // Use formatted value (absolute) to match row display
-          const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-          value = formatBalanceSheetValue(rawValue || 0, row.accountName);
-        }
-        // Round to whole number before summing
-        return acc + Math.round(value || 0);
+        // Use formatted value with preserved signs for accurate summation
+        const rawValue = year === "current" ? row.finalBalance : row.priorYear;
+        const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+        // Sum without rounding - rounding happens at display time only
+        return acc + (value || 0);
       }, 0);
       
-      // Check if this is a contra-asset group4 (like "Accumulated Depreciation")
-      // If all rows are contra-assets, the sum will be negative and should remain negative
-      const isContraAssetGroup = group4.toLowerCase().includes("accumulated") ||
-                                  group4.toLowerCase().includes("depreciation") ||
-                                  group4.toLowerCase().includes("depn") ||
-                                  groupedData[group1][group2][group3][group4].every(row => {
-                                    const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-                                    return formatBalanceSheetValue(rawValue || 0, row.accountName) < 0;
-                                  });
+      // Assets shown naturally (preserve sign for contra-assets)
+      // Liabilities shown positive (absolute)
+      // Equity shown with preserved sign (can be negative, e.g., Share capital)
+      if (group1 === "Assets") return sum;
+      if (group1 === "Liabilities") return Math.abs(sum);
+      // For Equity, preserve the sign (negative values will be displayed in parentheses)
+      return sum;
+    };
+
+    // Helper to get raw totals (without Math.abs) for balance check
+    const getRawGroup1Total = (
+      group1: string,
+      year: "current" | "prior"
+    ): number => {
+      if (!groupedData[group1]) return 0;
+
+      const sum = Object.entries(groupedData[group1])
+        .filter(([group2]) => {
+          // Exclude "Current Year Profits & Losses" from Equity calculations
+          if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
+            return false;
+          }
+          return true;
+        })
+        .reduce((acc, [_, group3Map]) => {
+          const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
+            const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
+              const rowSum = rows.reduce((rowAcc, row) => {
+                // Use formatted value with preserved signs for accurate summation
+                const rawValue = year === "current" ? row.finalBalance : row.priorYear;
+                const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+                // Sum without rounding - rounding happens at display time only
+                return rowAcc + (value || 0);
+              }, 0);
+              return g4Acc + rowSum;
+            }, 0);
+            return g3Acc + group4Sum;
+          }, 0);
+          return acc + group3Sum;
+        }, 0);
       
-      // For contra-asset groups, keep negative; for others, ensure positive
-      if (isContraAssetGroup) {
-        return sum; // Keep negative for contra-asset groups
-      }
-      return sum < 0 ? -sum : sum;
+      // Return raw sum (no Math.abs) for balance check
+      return sum;
     };
 
     const assetsCurrent = getGroup1Total("Assets", "current");
@@ -543,9 +584,17 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     const equityCurrent = getGroup1Total("Equity", "current");
     const equityPrior = getGroup1Total("Equity", "prior");
 
-    // Balance check: Assets = Liabilities + Equity
-    const balanceCurrent = assetsCurrent - (liabilitiesCurrent + equityCurrent);
-    const balancePrior = assetsPrior - (liabilitiesPrior + equityPrior);
+    // Balance check: Assets + Liabilities + Equity = 0 (using raw values with proper signs)
+    // In accounting: Assets (debit/positive) + Liabilities (credit/negative) + Equity (credit/negative) = 0
+    const rawAssetsCurrent = getRawGroup1Total("Assets", "current");
+    const rawLiabilitiesCurrent = getRawGroup1Total("Liabilities", "current");
+    const rawEquityCurrent = getRawGroup1Total("Equity", "current");
+    const balanceCurrent = assetsCurrent - liabilitiesCurrent - equityCurrent;
+
+    const rawAssetsPrior = getRawGroup1Total("Assets", "prior");
+    const rawLiabilitiesPrior = getRawGroup1Total("Liabilities", "prior");
+    const rawEquityPrior = getRawGroup1Total("Equity", "prior");
+    const balancePrior = assetsPrior - liabilitiesCurrent + equityCurrent;
 
     return {
       getGroup1Total,
@@ -655,11 +704,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     return roundedValue < 0 ? `(${formatted})` : formatted;
   };
 
-  // Helper to get the display value for a row (handles Retained Earnings calculation)
+  // Helper to get the display value for a row
   const getRowCurrentYearValue = (row: ETBRow): number => {
-    if (isRetainedEarningsRow(row)) {
-      return calculations.calculatedRetainedEarningsCurrent;
-    }
     return formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
   };
 
@@ -1621,14 +1667,60 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                         </td>
                                         <td className="p-2"></td>
                                         <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Equity",
-                                              group2,
-                                              group3,
-                                              "current"
-                                            )
-                                          )}
+                                          <div className="flex items-center justify-end gap-1">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Equity",
+                                                group2,
+                                                group3,
+                                                "current"
+                                              )
+                                            )}
+                                            {group3 === "Retained earnings" && (
+                                              <Dialog>
+                                                <DialogTrigger asChild>
+                                                  <button 
+                                                    className="text-blue-600 hover:text-blue-800"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    <Info className="h-3 w-3" />
+                                                  </button>
+                                                </DialogTrigger>
+                                                <DialogContent className="max-w-md">
+                                                  <DialogHeader>
+                                                    <DialogTitle>Retained Earnings Calculation</DialogTitle>
+                                                    <DialogDescription>
+                                                      Auto-calculated for {currentYearLabel}
+                                                    </DialogDescription>
+                                                  </DialogHeader>
+                                                  <div className="space-y-3">
+                                                    <div className="flex justify-between items-center py-2 border-b">
+                                                      <span className="text-sm">Prior Year ({priorYearLabel}) Retained Earnings:</span>
+                                                      <strong className="text-sm">{formatCurrency(calculations.retainedEarningsPriorYear)}</strong>
+                                                    </div>
+                                                    <div className="flex justify-between items-center py-2 border-b">
+                                                      <span className="text-sm">Current Year Net Result:</span>
+                                                      <div className="text-right">
+                                                        <strong className={`text-sm ${calculations.netProfitAfterTaxCurrent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                          {calculations.netProfitAfterTaxCurrent >= 0 ? '✓ Profit' : '✗ Loss'}
+                                                        </strong>
+                                                        <div className="text-sm font-semibold">
+                                                          {formatCurrency(calculations.netProfitAfterTaxCurrent)}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center py-3 bg-blue-50 rounded px-3">
+                                                      <span className="font-semibold">Calculated {currentYearLabel} Retained Earnings:</span>
+                                                      <strong className="text-lg">{formatCurrency(calculations.calculatedRetainedEarningsCurrent)}</strong>
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 italic mt-2 p-2 bg-gray-50 rounded">
+                                                      <strong>Formula:</strong> {formatCurrency(calculations.retainedEarningsPriorYear)} + ({formatCurrency(calculations.netProfitAfterTaxCurrent)}) = {formatCurrency(calculations.calculatedRetainedEarningsCurrent)}
+                                                    </div>
+                                                  </div>
+                                                </DialogContent>
+                                              </Dialog>
+                                            )}
+                                          </div>
                                         </td>
                                         <td className="p-2 text-right text-sm font-medium">
                                           {formatTotalValue(
@@ -1710,53 +1802,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                                                 {row.code || ""}
                                               </td>
                                               <td className="p-2 text-right text-xs">
-                                                <div className="flex items-center justify-end gap-1">
-                                                  {formatTableRowValue(getRowCurrentYearValue(row))}
-                                                  {isRetainedEarningsRow(row) && (
-                                                    <Dialog>
-                                                      <DialogTrigger asChild>
-                                                        <button 
-                                                          className="text-blue-600 hover:text-blue-800"
-                                                          onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                          <Info className="h-3 w-3" />
-                                                        </button>
-                                                      </DialogTrigger>
-                                                      <DialogContent className="max-w-md">
-                                                        <DialogHeader>
-                                                          <DialogTitle>Retained Earnings Calculation</DialogTitle>
-                                                          <DialogDescription>
-                                                            Auto-calculated for {currentYearLabel}
-                                                          </DialogDescription>
-                                                        </DialogHeader>
-                                                        <div className="space-y-3">
-                                                          <div className="flex justify-between items-center py-2 border-b">
-                                                            <span className="text-sm">Prior Year ({priorYearLabel}) Retained Earnings:</span>
-                                                            <strong className="text-sm">{formatCurrency(calculations.retainedEarningsPriorYear)}</strong>
-                                                          </div>
-                                                          <div className="flex justify-between items-center py-2 border-b">
-                                                            <span className="text-sm">Current Year Net Result:</span>
-                                                            <div className="text-right">
-                                                              <strong className={`text-sm ${calculations.netProfitAfterTaxCurrent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                {calculations.netProfitAfterTaxCurrent >= 0 ? '✓ Profit' : '✗ Loss'}
-                                                              </strong>
-                                                              <div className="text-sm font-semibold">
-                                                                {formatCurrency(calculations.netProfitAfterTaxCurrent)}
-                                                              </div>
-                                                            </div>
-                                                          </div>
-                                                          <div className="flex justify-between items-center py-3 bg-blue-50 rounded px-3">
-                                                            <span className="font-semibold">Calculated {currentYearLabel} Retained Earnings:</span>
-                                                            <strong className="text-lg">{formatCurrency(calculations.calculatedRetainedEarningsCurrent)}</strong>
-                                                          </div>
-                                                          <div className="text-xs text-gray-600 italic mt-2 p-2 bg-gray-50 rounded">
-                                                            <strong>Formula:</strong> {formatCurrency(calculations.retainedEarningsPriorYear)} + ({formatCurrency(calculations.netProfitAfterTaxCurrent)}) = {formatCurrency(calculations.calculatedRetainedEarningsCurrent)}
-                                                          </div>
-                                                        </div>
-                                                      </DialogContent>
-                                                    </Dialog>
-                                                  )}
-                                                </div>
+                                                {formatTableRowValue(getRowCurrentYearValue(row))}
                                               </td>
                                               <td className="p-2 text-right text-xs">
                                                 {formatTableRowValue(getRowPriorYearValue(row))}

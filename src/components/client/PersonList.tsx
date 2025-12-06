@@ -144,6 +144,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   const [isAddCompanyRepresentativeModalOpen, setIsAddCompanyRepresentativeModalOpen] = useState(false);
   const [isAddPersonShareholderModalOpen, setIsAddPersonShareholderModalOpen] = useState(false);
   const [isAddCompanyShareholderModalOpen, setIsAddCompanyShareholderModalOpen] = useState(false);
+  const [editingPaidUpSharesPercentage, setEditingPaidUpSharesPercentage] = useState<number>(0);
   
   // Inline form state: tracks which form is currently shown inline
   // Format: "person-representative" | "company-representative" | "person-shareholder" | "company-shareholder" | null
@@ -187,6 +188,7 @@ export const PersonList: React.FC<PersonListProps> = ({
     }
   
     setEditingShareValues(values);
+    setEditingPaidUpSharesPercentage(share.paidUpSharesPercentage || 0);
     setEditingShareError("");
     setEditingShareValidationError(null);
   };
@@ -695,6 +697,7 @@ export const PersonList: React.FC<PersonListProps> = ({
       if (shareholderEntry && Array.isArray(shareholderEntry.sharesData)) {
         (mergedPerson as any).sharesData = shareholderEntry.sharesData;
         (mergedPerson as any).sharePercentage = shareholderEntry.sharePercentage;
+        (mergedPerson as any).paidUpSharesPercentage = shareholderEntry.paidUpSharesPercentage;
       }
     }
     
@@ -1038,6 +1041,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         updatedShareholdings[existingIndex] = {
           ...existing,
           sharesData: sharesDataArray,
+          paidUpSharesPercentage: editingPaidUpSharesPercentage || 0,
         };
       } else {
         // This shouldn't happen, but handle it anyway
@@ -1046,6 +1050,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           {
             companyId: editingCompanyIdNormalized,
             sharesData: sharesDataArray,
+            paidUpSharesPercentage: editingPaidUpSharesPercentage || 0,
           },
         ];
       }
@@ -1643,6 +1648,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           sharePercentage: getNumericPercentage(shareHolder?.sharePercentage ?? 0),
           totalShares: getNumericPercentage(totalShares),
           shareClass: shareClass,
+          paidUpSharesPercentage: shareHolder?.paidUpSharesPercentage,
           origin: "PersonShareholder",
           isShareholder: true,
         };
@@ -1973,6 +1979,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           nationality: personData.nationality,
           sharesData: [],
           totalShares: 0,
+          paidUpSharesPercentage: shareHolder.paidUpSharesPercentage,
         });
       }
       
@@ -2037,6 +2044,7 @@ export const PersonList: React.FC<PersonListProps> = ({
           clientId: companyClientId,
           sharesData: [],
           totalShares: 0,
+          paidUpSharesPercentage: typeof share.paidUpSharesPercentage === 'number' ? share.paidUpSharesPercentage : 100,
         });
       }
       
@@ -2968,28 +2976,43 @@ export const PersonList: React.FC<PersonListProps> = ({
                               
                               {/* Share Classes Display */}
                               <div className="mb-3 space-y-2">
-                                <div className="flex flex-wrap gap-2 items-center">
+                                <div className="flex flex-col gap-4">
+                                  <div className="space-x-2">
                                   {sharesData.map((sd: any, idx: number) => (
                                     <Badge
                                       key={`${entry.id}-class-${idx}`}
                                       variant="outline"
                                       className="bg-blue-50 text-blue-700 border-blue-200 rounded-lg px-3 py-1 text-sm font-medium"
                                     >
-                                      Class {sd.class}: {sd.totalShares.toLocaleString()}
+                                      {sd.class === "Ordinary"
+                                        ? `Ordinary: ${sd.totalShares.toLocaleString()}`
+                                        : `Class ${sd.class}: ${sd.totalShares.toLocaleString()}`}
                                     </Badge>
                                   ))}
+                                  </div>
+
+                                  <div className="space-x-2">
                                   <Badge
                                     variant="outline"
                                     className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
                                   >
                                     Total: {totalShares.toLocaleString()}
                                   </Badge>
+
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                  >
+                                    Share Percentage: {sharePercentage}%
+                                  </Badge>
+
                                   <Badge
                                     variant="outline"
                                     className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
                                   >
-                                    {sharePercentage}%
+                                    Paid Up: {entry.paidUpSharesPercentage}%
                                   </Badge>
+                                  </div>
                                 </div>
                               </div>
                               
@@ -3071,16 +3094,21 @@ export const PersonList: React.FC<PersonListProps> = ({
                             
                             {/* Share Classes Display */}
                             <div className="mb-3 space-y-2">
-                              <div className="flex flex-wrap gap-2 items-center">
+                              <div className="flex flex-col gap-4">
+                                <div className="space-x-2">
                                 {sharesData.map((sd: any, idx: number) => (
                                   <Badge
                                     key={`${entry.id}-class-${idx}`}
                                     variant="outline"
                                     className="bg-blue-50 text-blue-700 border-blue-200 rounded-lg px-3 py-1 text-sm font-medium"
                                   >
-                                    Class {sd.class}: {sd.totalShares.toLocaleString()}
+                                    {sd.class === "Ordinary"
+                                      ? `ordinary: ${sd.totalShares.toLocaleString()}`
+                                      : `Class ${sd.class}: ${sd.totalShares.toLocaleString()}`}
                                   </Badge>
                                 ))}
+                                </div>
+                                <div className="space-x-2">
                                 <Badge
                                   variant="outline"
                                   className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
@@ -3089,10 +3117,17 @@ export const PersonList: React.FC<PersonListProps> = ({
                                 </Badge>
                                 <Badge
                                   variant="outline"
+                                  className="bg-green-100 text-green-700 border-green-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                >
+                                  Share Percentage: {sharePercentage}%
+                                </Badge>
+                                <Badge
+                                  variant="outline"
                                   className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
                                 >
-                                  {sharePercentage}%
+                                  Paid Up: {entry.paidUpSharesPercentage}%
                                 </Badge>
+                                </div>
                               </div>
                             </div>
                             
@@ -3276,6 +3311,8 @@ export const PersonList: React.FC<PersonListProps> = ({
               onShareChange={handleCompanyShareChange}
               error={editingShareError || editingShareValidationError || undefined}
               onValidationError={setEditingShareValidationError}
+              paidUpSharesPercentage={editingPaidUpSharesPercentage}
+              onPaidUpSharesChange={(val: number | "") => setEditingPaidUpSharesPercentage(val === "" ? 0 : val)}
             />
           </div>
 
@@ -3576,4 +3613,3 @@ export const PersonList: React.FC<PersonListProps> = ({
     </>
   );
 };
-

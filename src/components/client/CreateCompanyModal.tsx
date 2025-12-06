@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorMessage } from "@/components/ui/error-message";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ShareClassInput,
+  type ShareClassValues,
+  type ShareClassErrors,
+  getDefaultShareClassValues,
+  getDefaultShareClassErrors,
+  buildTotalSharesPayload,
+  calculateTotalSharesSum,
+} from "@/components/client/ShareClassInput";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X, Plus } from "lucide-react";
@@ -38,53 +48,7 @@ const industryOptions = [
   "Other",
 ];
 
-const SHARE_CLASS_CONFIG = [
-  { key: "classA", label: "Class A", backendValue: "A" },
-  { key: "classB", label: "Class B", backendValue: "B" },
-  { key: "classC", label: "Class C", backendValue: "C" },
-  { key: "ordinary", label: "Ordinary", backendValue: "Ordinary" },
-] as const;
 
-type ShareClassKey = (typeof SHARE_CLASS_CONFIG)[number]["key"];
-
-type ShareClassValues = Record<ShareClassKey, number>;
-type ShareClassErrors = Record<ShareClassKey, string>;
-
-const DEFAULT_SHARE_TYPE = "Ordinary";
-
-const getDefaultShareClassValues = (): ShareClassValues => ({
-  classA: 0,
-  classB: 0,
-  classC: 0,
-  ordinary: 100,
-});
-
-const getDefaultShareClassErrors = (): ShareClassErrors => ({
-  classA: "",
-  classB: "",
-  classC: "",
-  ordinary: "",
-});
-
-/**
- * Builds the totalShares payload for the backend.
- * Includes all share classes: Class A, B, C, and Ordinary
- */
-const buildTotalSharesPayload = (values: ShareClassValues) => {
-  const allShares = SHARE_CLASS_CONFIG.map(({ key, backendValue }) => ({
-    totalShares: Number(values[key]) || 0,
-    class: backendValue,
-    type: DEFAULT_SHARE_TYPE,
-  }));
-  
-  // Filter out entries with totalShares <= 0 before sending to backend
-  return allShares.filter(item => item.totalShares > 0);
-};
-
-const calculateTotalSharesSum = (values: ShareClassValues) => {
-  // Sum all share classes: Class A, B, C, and Ordinary
-  return SHARE_CLASS_CONFIG.reduce((sum, { key }) => sum + (Number(values[key]) || 0), 0);
-};
 
 
 interface CreateCompanyModalProps {
@@ -117,7 +81,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     status: "active",
     timelineStart: "",
     timelineEnd: "",
-    totalShares: 100,
+    totalShares: "",
+    shareClassValues: getDefaultShareClassValues(),
     industry: "",
     customIndustry: "",
     description: "",
@@ -129,12 +94,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalSharesError, setTotalSharesError] = useState<string>("");
   const [sharePercentageError, setSharePercentageError] = useState<string>("");
-  const [shareClassValues, setShareClassValues] = useState<ShareClassValues>(
-    () => getDefaultShareClassValues()
-  );
-  const [shareClassErrors, setShareClassErrors] = useState<ShareClassErrors>(
-    () => getDefaultShareClassErrors()
-  );
+
+ const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
   const { toast } = useToast();
   const params = useParams();
   const companyId = params.companyId as string;
@@ -143,8 +104,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       ? formData.customIndustry
       : formData.industry
   ).trim();
-  const totalSharesPayload = buildTotalSharesPayload(shareClassValues);
-  const totalSharesSum = calculateTotalSharesSum(shareClassValues);
+  const totalSharesPayload = buildTotalSharesPayload(formData.shareClassValues);
+  const totalSharesSum = calculateTotalSharesSum(formData.shareClassValues);
   const hasShareClassErrors = Object.values(shareClassErrors).some(Boolean);
 
   useEffect(() => {
@@ -154,54 +115,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       setTotalSharesError("");
     }
   }, [totalSharesSum]);
+ 
 
-  const handleShareValueChange = (
-    key: ShareClassKey,
-    label: string,
-    rawValue: string
-  ) => {
-    if (rawValue === "") {
-      setShareClassValues((prev) => ({ ...prev, [key]: 0 }));
-      setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
-      return;
-    }
-
-    const parsedValue = parseInt(rawValue, 10);
-    if (Number.isNaN(parsedValue) || parsedValue < 0) {
-      setShareClassErrors((prev) => ({
-        ...prev,
-        [key]: `${label} shares must be 0 or greater`,
-      }));
-    } else {
-      setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
-      
-      // Update the value for the selected share class
-      setShareClassValues((prev) => ({
-        ...prev,
-        [key]: parsedValue,
-      }));
-    }
-  };
-
-  const handleShareValueBlur = (
-    key: ShareClassKey,
-    label: string,
-    rawValue: string
-  ) => {
-    if (rawValue === "") {
-      setShareClassErrors((prev) => ({ ...prev, [key]: "" }));
-      setShareClassValues((prev) => ({ ...prev, [key]: 0 }));
-      return;
-    }
-
-    const parsedValue = parseInt(rawValue, 10);
-    if (Number.isNaN(parsedValue) || parsedValue < 0) {
-      setShareClassErrors((prev) => ({
-        ...prev,
-        [key]: `${label} shares must be 0 or greater`,
-      }));
-    }
-  };
 
   // Reset form when modal closes
   useEffect(() => {
@@ -213,7 +128,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         status: "active",
         timelineStart: "",
         timelineEnd: "",
-        totalShares: 100,
+        totalShares: "",
+        shareClassValues: getDefaultShareClassValues(),
         industry: "",
         customIndustry: "",
         description: "",
@@ -224,7 +140,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       setShareHoldingCompanies([]);
       setTotalSharesError("");
       setSharePercentageError("");
-      setShareClassValues(getDefaultShareClassValues());
       setShareClassErrors(getDefaultShareClassErrors());
     }
   }, [isOpen]);
@@ -271,7 +186,13 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
         status: formData.status,
         timelineStart: formData.timelineStart,
         timelineEnd: formData.timelineEnd || undefined,
-        totalShares: totalSharesPayload, // Includes all share classes with values > 0
+        totalShares: totalSharesPayload,
+        authorizedShares: formData.shareClassValues?.authorizedShares,
+        issuedShares: formData.shareClassValues?.issuedShares,
+        perShareValue: {
+          value: formData.shareClassValues?.perShareValue,
+          currency: "EUR",
+        },
         industry: resolvedIndustry || undefined,
         description: formData.description.trim() || undefined,
         supportingDocuments,
@@ -390,7 +311,8 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       status: "active",
       timelineStart: "",
       timelineEnd: "",
-      totalShares: 100,
+      totalShares: "",
+      shareClassValues: getDefaultShareClassValues(),
       industry: "",
       customIndustry: "",
       description: "",
@@ -401,8 +323,10 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     setShareHoldingCompanies([]);
     setTotalSharesError("");
     setSharePercentageError("");
-    setShareClassValues(getDefaultShareClassValues());
     setShareClassErrors(getDefaultShareClassErrors());
+  };
+  const handleChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -591,58 +515,21 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
           </div>
          
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-gray-700 font-semibold">
-                Total Shares
-              </Label>
-              <span className="text-sm text-gray-600">
-                Total: {totalSharesSum.toLocaleString()}
-              </span>
-            </div>
-
-            {/* All Share Class Inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {SHARE_CLASS_CONFIG.map(({ key, label }) => {
-                const value = shareClassValues[key];
-                const error = shareClassErrors[key];
-
-                return (
-                  <div className="space-y-2" key={key}>
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor={key}
-                        className="text-gray-700 font-semibold"
-                      >
-                        {label}
-                      </Label>
-                    </div>
-                    <Input
-                      id={key}
-                      min={0}
-                      type="number"
-                      step={1}
-                      placeholder={`Enter ${label} shares`}
-                      value={value === 0 ? "" : value}
-                      onChange={(e) =>
-                        handleShareValueChange(key, label, e.target.value)
-                      }
-                      onBlur={(e) =>
-                        handleShareValueBlur(key, label, e.target.value)
-                      }
-                      className={`rounded-xl border-gray-200 ${
-                        error ? "border-red-500" : ""
-                      }`}
-                    />
-                    {error && (
-                      <p className="text-sm text-red-500 mt-1">{error}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {totalSharesError && (
-              <p className="text-sm text-red-500">{totalSharesError}</p>
-            )}
+         
+           {/* General company share inputs */}
+            <ShareClassInput
+              values={formData.shareClassValues}
+              errors={shareClassErrors}
+              onValuesChange={(values) => {
+                            handleChange("shareClassValues", values);
+                          }}
+              onErrorChange={(errs) => setShareClassErrors(errs)}
+                label="Company Total Shares *"
+                className="mt-2"
+            />
+            {/* {totalSharesError && (
+              <ErrorMessage message={totalSharesError} />
+            )} */}
           </div>
            {isShareholdingCompany && (
             <>
@@ -834,8 +721,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                 !formData.name ||
                 !formData.registrationNumber ||
                 !formData.address ||
-                totalSharesSum <= 0 ||
-                !!totalSharesError ||
                 hasShareClassErrors ||
                 (isShareholdingCompany && (!formData.sharePercentage || !!sharePercentageError))
               }

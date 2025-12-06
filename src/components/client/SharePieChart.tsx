@@ -17,6 +17,11 @@ type Person = {
   sharePercentage?: number;
 };
 
+type PerShareValue = {
+  value: number;
+  currency: string;
+};
+
 type ShareholdingCompany = {
   companyId: string | {
     _id: string;
@@ -26,6 +31,9 @@ type ShareholdingCompany = {
   // sharePercentage at the shareHoldingCompany level
   sharePercentage?: number;
   // sharesData is now an array
+  authroizedShares?: number;
+  issuedShares?: number;
+  perShareValue?: PerShareValue;
   sharesData?: Array<{
     totalShares: number;
     class: string;
@@ -40,6 +48,8 @@ interface SharePieChartProps {
   dateRangeLabel?: string;
   companyTotalShares?: number; // Total shares of the company for percentage calculation
   companyTotalSharesArray?: Array<{ totalShares: number; class: string; type: string }>; // Array to determine share class structure
+  authorizedShares?: number;
+  issuedShares?: number;
 }
 
 const COLORS = [
@@ -73,6 +83,8 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
   dateRangeLabel = "",
   companyTotalShares = 0,
   companyTotalSharesArray = [],
+  authorizedShares = 0,
+  issuedShares = 0,
 }) => {
   // Get total shares for a specific class from companyTotalSharesArray
   const getClassTotal = (shareClass: string): number => {
@@ -481,6 +493,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
   const getClassButtonLabel = (shareClass: string): string => {
     if (shareClass === "Ordinary") return "Ordinary";
     if (shareClass === "total") return "Total";
+    if (shareClass === "authorized") return "Authorized Share";
     return `Class ${shareClass}`;
   };
 
@@ -491,6 +504,50 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
         shareClass: "total",
         data: totalViewData,
         label: "Total Shares"
+      };
+    }
+    
+    if (selectedView === "authorized") {
+      // Calculate Authorized vs Issued
+      // Use explicit issuedShares if provided, otherwise fallback to companyTotalShares
+      const issued = issuedShares > 0 ? issuedShares : companyTotalShares;
+      const unissued = Math.max(0, authorizedShares - issued);
+      const total = Math.max(issued + unissued, 1); // Avoid division by zero
+      
+      const issuedPercentage = (issued / authorizedShares) * 100;
+
+      const authorizedData: ChartData = {
+        normalizedData: [],
+        totalRaw: issuedPercentage,
+        companyTotal: 0,
+        personTotal: 0,
+        personTotalShares: 0,
+        companyTotalShares: 0,
+        totalSharesSum: issued,
+        currentClassTotal: authorizedShares,
+      };
+
+      if (authorizedShares > 0) {
+        authorizedData.normalizedData = [
+          {
+            name: "Issued Shares",
+            value: (issued / authorizedShares) * 100,
+            totalShares: issued,
+            type: "Status"
+          },
+          {
+            name: "Remaining Shares",
+            value: (unissued / authorizedShares) * 100,
+            totalShares: unissued,
+            type: "Status"
+          }
+        ].filter(d => d.value > 0);
+      }
+
+      return {
+        shareClass: "authorized",
+        data: authorizedData,
+        label: "Authorized Issued Share"
       };
     }
     
@@ -525,6 +582,19 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
 
         {/* Toggle Buttons */}
         <div className="flex flex-wrap gap-2">
+
+           {/* Authorized Share Button */}
+          {authorizedShares > 0 && (
+            <Button
+              variant={selectedView === "authorized" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedView("authorized")}
+              className="rounded-lg"
+            >
+              Authorized Share
+            </Button>
+          )}
+
           {/* Total Button */}
           <Button
             variant={selectedView === "total" ? "default" : "outline"}
@@ -534,6 +604,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
           >
             Total
           </Button>
+        
           {/* Individual Class Buttons */}
           {chartsData.map(({ shareClass }) => (
             <Button
