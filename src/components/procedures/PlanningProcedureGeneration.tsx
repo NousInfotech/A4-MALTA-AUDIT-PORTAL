@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { FileText, ArrowRight, User, Bot, Users } from 'lucide-react'
-import { PlanningMaterialityStep } from "./steps/PlanningMaterialityStep"
 import { PlanningProceduresStep } from "./steps/PlanningProceduresStep"
 import { RecommendationsStep } from "./steps/RecommendationsStep"
 import { PlanningClassificationStep } from "./steps/PlanningClassificationStep"
@@ -45,7 +44,8 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
   
   const [selectedMode, setSelectedMode] = useState<GenerationMode | null>(modeFromUrl)
   const [currentStep, setCurrentStep] = useState(stepFromUrlNum !== null ? stepFromUrlNum : 0)
-  const [stepData, setStepData] = useState<StepData>({})
+  // Initialize stepData with default materiality of 0 (since materiality step is removed for planning)
+  const [stepData, setStepData] = useState<StepData>({ materiality: 0 })
   const [steps, setSteps] = useState<any[]>([])
   const [showTabsView, setShowTabsView] = useState(stepFromUrl === "tabs")
 
@@ -56,19 +56,16 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     // Build steps array based on mode (without updating URL)
     if (selectedMode === "ai") {
       setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: AIPlanningQuestionsStep },
       ])
     } else if (selectedMode === "hybrid") {
       setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: HybridPlanningProceduresStep },
       ])
     } else {
       setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Planning Procedures", component: PlanningProceduresStep },
         { title: "Recommendations", component: PlanningRecommendationsStep },
@@ -150,7 +147,6 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     setSelectedMode(mode)
     if (mode ==="ai") {
       setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: AIPlanningQuestionsStep },
       ])
@@ -158,21 +154,20 @@ export const PlanningProcedureGeneration: React.FC<PlanningProcedureGenerationPr
     else if(mode==="hybrid")
     {
        setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Generate Procedures", component: HybridPlanningProceduresStep },
       ])
     }
     else {
       setSteps([
-        { title: "Set Materiality", component: PlanningMaterialityStep },
         { title: "Select Classifications", component: PlanningClassificationStep },
         { title: "Planning Procedures", component: PlanningProceduresStep },
         { title: "Recommendations", component: PlanningRecommendationsStep },
       ])
     }
     setCurrentStep(0)
-    setStepData({})
+    // Initialize stepData with default materiality of 0 (since materiality step is removed)
+    setStepData({ materiality: 0 })
     // Update URL with selected mode and reset step (create new history entry)
     if (updateUrl && updateProcedureParams) {
       updateProcedureParams({ mode: mode, step: "0" }, false)
@@ -206,9 +201,9 @@ const handleStepComplete = async (data: any) => {
   const updatedData = { ...stepData, ...data, recommendations: combinedRecommendations }
   setStepData(updatedData)
   
-  // When "Proceed to Procedures" is clicked (moving from step 1 to step 2)
-  // Switch to View tab immediately and skip showing step 2 UI
-  if (currentStep === 1) {
+  // When "Proceed to Procedures" is clicked (moving from step 0 to step 1)
+  // Switch to View tab immediately and skip showing step 1 UI
+  if (currentStep === 0) {
     // Create minimal procedure structure from selectedSections for View components
     const sectionTitles: Record<string, string> = {
       "engagement_setup_acceptance_independence": "Engagement Setup, Acceptance & Independence",
@@ -252,13 +247,13 @@ const handleStepComplete = async (data: any) => {
     return
   }
   
-   // After questions/procedures are generated (step 2 for AI/Hybrid, after Materiality + Classifications), show tabs view
+   // After questions/procedures are generated (step 1 for AI/Hybrid, after Classifications), show tabs view
    // Check if procedures have fields (questions)
    const hasQuestions = updatedData.procedures && 
      Array.isArray(updatedData.procedures) && 
      updatedData.procedures.some((proc: any) => proc.fields && proc.fields.length > 0)
    
-   if (hasQuestions && (selectedMode === "ai" || selectedMode === "hybrid") && currentStep === 2) {
+   if (hasQuestions && (selectedMode === "ai" || selectedMode === "hybrid") && currentStep === 1) {
      setShowTabsView(true)
      if (updateProcedureParams) {
        updateProcedureParams({ step: "tabs", procedureTab: "view" }, false)
@@ -389,9 +384,9 @@ const handleStepComplete = async (data: any) => {
          }}
          onBack={() => {
            setShowTabsView(false)
-           setCurrentStep(2) // Go back to questions step (after Materiality + Classifications)
+           setCurrentStep(1) // Go back to questions step (after Classifications)
            if (updateProcedureParams) {
-             updateProcedureParams({ step: "2" }, false)
+             updateProcedureParams({ step: "1" }, false)
            }
          }}
          updateProcedureParams={updateProcedureParams}
