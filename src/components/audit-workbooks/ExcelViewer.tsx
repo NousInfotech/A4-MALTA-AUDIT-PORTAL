@@ -5358,7 +5358,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     const container = spreadsheetContainerRef.current;
     const edgeThreshold = 50; // pixels from edge to trigger scrolling
     const maxScrollSpeed = 25; // maximum pixels per frame
-    const minScrollSpeed = 1; // minimum pixels per frame
+    const minScrollSpeed = 2; // minimum pixels per frame (slightly increased)
     
     // Smooth scrolling function using requestAnimationFrame
     const smoothScroll = () => {
@@ -5374,8 +5374,6 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       
       // Get container's position and dimensions relative to viewport
       const containerRect = container.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
       
       // Check if container can scroll in each direction
       const canScrollHorizontally = container.scrollWidth > container.clientWidth;
@@ -5385,92 +5383,77 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       let scrollY = 0;
       let needsScroll = false;
 
-      // ✅ IMPROVED HORIZONTAL SCROLLING: Check if mouse is over the container area
+      // ✅ FIXED HORIZONTAL SCROLLING: Logic now handles dragging outside container
       if (canScrollHorizontally) {
-        // Check if mouse is within the vertical bounds of the container
-        const isMouseOverContainerVertically = 
-          mouseY >= containerRect.top && 
-          mouseY <= containerRect.bottom;
+        // Check right edge (Distance is positive if inside, negative if outside)
+        const distRight = containerRect.right - mouseX;
         
-        if (isMouseOverContainerVertically) {
-          // Check right edge - only if mouse is over the container or within edge threshold of viewport
-          const distanceFromRight = viewportWidth - mouseX;
-          const isOverContainerRight = mouseX >= containerRect.right - edgeThreshold;
+        // Scroll if we are within the threshold distance OR outside (negative distance)
+        if (distRight < edgeThreshold) {
+          // Calculate speed: Closer to edge (or further outside) = Faster
+          // If distRight is negative (outside), max(0, distRight) becomes 0, resulting in max speed
+          const normalizedDist = Math.max(0, distRight) / edgeThreshold;
+          const speedFactor = Math.pow(1 - normalizedDist, 2); // Quadratic easing
           
-          if ((distanceFromRight < edgeThreshold || isOverContainerRight) && distanceFromRight > 0) {
-            // Calculate scroll speed based on proximity to edge (closer = faster)
-            const normalizedDistance = Math.min(distanceFromRight, edgeThreshold) / edgeThreshold;
-            const speedFactor = Math.pow(1 - normalizedDistance, 2); // Quadratic easing for smooth acceleration
-            scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
-            needsScroll = true;
-            console.log('Scrolling right', { scrollX, mouseX, containerRect });
-          }
+          scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+          needsScroll = true;
+        }
+        
+        // Check left edge
+        const distLeft = mouseX - containerRect.left;
+        
+        if (distLeft < edgeThreshold) {
+          const normalizedDist = Math.max(0, distLeft) / edgeThreshold;
+          const speedFactor = Math.pow(1 - normalizedDist, 2);
           
-          // Check left edge
-          const distanceFromLeft = mouseX;
-          const isOverContainerLeft = mouseX <= containerRect.left + edgeThreshold;
-          
-          if ((distanceFromLeft < edgeThreshold || isOverContainerLeft) && distanceFromLeft > 0) {
-            const normalizedDistance = Math.min(distanceFromLeft, edgeThreshold) / edgeThreshold;
-            const speedFactor = Math.pow(1 - normalizedDistance, 2);
-            scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
-            needsScroll = true;
-            console.log('Scrolling left', { scrollX, mouseX, containerRect });
-          }
+          scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+          needsScroll = true;
         }
       }
 
-      // ✅ IMPROVED VERTICAL SCROLLING: Check if mouse is over the container area
+      // ✅ FIXED VERTICAL SCROLLING: Logic now handles dragging outside container
       if (canScrollVertically) {
-        // Check if mouse is within the horizontal bounds of the container
-        const isMouseOverContainerHorizontally = 
-          mouseX >= containerRect.left && 
-          mouseX <= containerRect.right;
+        // Check bottom edge
+        const distBottom = containerRect.bottom - mouseY;
         
-        if (isMouseOverContainerHorizontally) {
-          // Check bottom edge
-          const distanceFromBottom = viewportHeight - mouseY;
-          const isOverContainerBottom = mouseY >= containerRect.bottom - edgeThreshold;
+        if (distBottom < edgeThreshold) {
+          const normalizedDist = Math.max(0, distBottom) / edgeThreshold;
+          const speedFactor = Math.pow(1 - normalizedDist, 2);
           
-          if ((distanceFromBottom < edgeThreshold || isOverContainerBottom) && distanceFromBottom > 0) {
-            const normalizedDistance = Math.min(distanceFromBottom, edgeThreshold) / edgeThreshold;
-            const speedFactor = Math.pow(1 - normalizedDistance, 2);
-            scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
-            needsScroll = true;
-          }
+          scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+          needsScroll = true;
+        }
+        
+        // Check top edge
+        const distTop = mouseY - containerRect.top;
+        
+        if (distTop < edgeThreshold) {
+          const normalizedDist = Math.max(0, distTop) / edgeThreshold;
+          const speedFactor = Math.pow(1 - normalizedDist, 2);
           
-          // Check top edge
-          const distanceFromTop = mouseY;
-          const isOverContainerTop = mouseY <= containerRect.top + edgeThreshold;
-          
-          if ((distanceFromTop < edgeThreshold || isOverContainerTop) && distanceFromTop > 0) {
-            const normalizedDistance = Math.min(distanceFromTop, edgeThreshold) / edgeThreshold;
-            const speedFactor = Math.pow(1 - normalizedDistance, 2);
-            scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
-            needsScroll = true;
-          }
+          scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+          needsScroll = true;
         }
       }
 
       // Apply smooth scrolling
       if (needsScroll) {
-        // Check scroll limits before scrolling to prevent unnecessary operations
+        // Check scroll limits before scrolling
         const maxScrollLeft = container.scrollWidth - container.clientWidth;
         const maxScrollTop = container.scrollHeight - container.clientHeight;
         
-        // Only scroll if we haven't reached the limits
+        // Allow scrolling if not at boundaries
         const canScrollRight = scrollX > 0 && container.scrollLeft < maxScrollLeft;
         const canScrollLeft = scrollX < 0 && container.scrollLeft > 0;
         const canScrollDown = scrollY > 0 && container.scrollTop < maxScrollTop;
         const canScrollUp = scrollY < 0 && container.scrollTop > 0;
         
-        // Apply scrolling only if we can actually scroll in that direction
         if ((scrollX !== 0 && (canScrollRight || canScrollLeft)) || 
             (scrollY !== 0 && (canScrollDown || canScrollUp))) {
           container.scrollBy({
             left: scrollX,
             top: scrollY,
-            behavior: 'auto' // Use 'auto' for instant but smooth scrolling
+            behavior: 'auto'
           });
         }
       }
@@ -5480,7 +5463,6 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     };
 
     // Start the smooth scrolling loop when selecting
-    // The loop will check mouse position and only scroll if near edges
     if (isSelecting) {
       autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
     }
