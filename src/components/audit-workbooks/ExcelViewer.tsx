@@ -5393,29 +5393,27 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           mouseY <= containerRect.bottom;
         
         if (isMouseOverContainerVertically) {
-          // Check right edge - only if mouse is over the container or within edge threshold of viewport
-          const distanceFromRight = viewportWidth - mouseX;
-          const isOverContainerRight = mouseX >= containerRect.right - edgeThreshold;
+          // Check right edge - use container edge, not viewport edge
+          const distanceFromContainerRight = containerRect.right - mouseX;
+          const isOverContainerRight = distanceFromContainerRight <= edgeThreshold && distanceFromContainerRight > 0;
           
-          if ((distanceFromRight < edgeThreshold || isOverContainerRight) && distanceFromRight > 0) {
+          if (isOverContainerRight) {
             // Calculate scroll speed based on proximity to edge (closer = faster)
-            const normalizedDistance = Math.min(distanceFromRight, edgeThreshold) / edgeThreshold;
+            const normalizedDistance = Math.min(distanceFromContainerRight, edgeThreshold) / edgeThreshold;
             const speedFactor = Math.pow(1 - normalizedDistance, 2); // Quadratic easing for smooth acceleration
             scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
             needsScroll = true;
-            console.log('Scrolling right', { scrollX, mouseX, containerRect });
           }
           
-          // Check left edge
-          const distanceFromLeft = mouseX;
-          const isOverContainerLeft = mouseX <= containerRect.left + edgeThreshold;
+          // Check left edge - use container edge, not viewport edge
+          const distanceFromContainerLeft = mouseX - containerRect.left;
+          const isOverContainerLeft = distanceFromContainerLeft <= edgeThreshold && distanceFromContainerLeft > 0;
           
-          if ((distanceFromLeft < edgeThreshold || isOverContainerLeft) && distanceFromLeft > 0) {
-            const normalizedDistance = Math.min(distanceFromLeft, edgeThreshold) / edgeThreshold;
+          if (isOverContainerLeft) {
+            const normalizedDistance = Math.min(distanceFromContainerLeft, edgeThreshold) / edgeThreshold;
             const speedFactor = Math.pow(1 - normalizedDistance, 2);
             scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
             needsScroll = true;
-            console.log('Scrolling left', { scrollX, mouseX, containerRect });
           }
         }
       }
@@ -5428,23 +5426,23 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           mouseX <= containerRect.right;
         
         if (isMouseOverContainerHorizontally) {
-          // Check bottom edge
-          const distanceFromBottom = viewportHeight - mouseY;
-          const isOverContainerBottom = mouseY >= containerRect.bottom - edgeThreshold;
+          // Check bottom edge - use container edge, not viewport edge
+          const distanceFromContainerBottom = containerRect.bottom - mouseY;
+          const isOverContainerBottom = distanceFromContainerBottom <= edgeThreshold && distanceFromContainerBottom > 0;
           
-          if ((distanceFromBottom < edgeThreshold || isOverContainerBottom) && distanceFromBottom > 0) {
-            const normalizedDistance = Math.min(distanceFromBottom, edgeThreshold) / edgeThreshold;
+          if (isOverContainerBottom) {
+            const normalizedDistance = Math.min(distanceFromContainerBottom, edgeThreshold) / edgeThreshold;
             const speedFactor = Math.pow(1 - normalizedDistance, 2);
             scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
             needsScroll = true;
           }
           
-          // Check top edge
-          const distanceFromTop = mouseY;
-          const isOverContainerTop = mouseY <= containerRect.top + edgeThreshold;
+          // Check top edge - use container edge, not viewport edge
+          const distanceFromContainerTop = mouseY - containerRect.top;
+          const isOverContainerTop = distanceFromContainerTop <= edgeThreshold && distanceFromContainerTop > 0;
           
-          if ((distanceFromTop < edgeThreshold || isOverContainerTop) && distanceFromTop > 0) {
-            const normalizedDistance = Math.min(distanceFromTop, edgeThreshold) / edgeThreshold;
+          if (isOverContainerTop) {
+            const normalizedDistance = Math.min(distanceFromContainerTop, edgeThreshold) / edgeThreshold;
             const speedFactor = Math.pow(1 - normalizedDistance, 2);
             scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
             needsScroll = true;
