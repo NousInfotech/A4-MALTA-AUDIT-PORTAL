@@ -35,7 +35,8 @@ interface UploadedFile {
 
 interface ManualUploadModalProps {
   kycId: string;
-  engagementId: string;
+  engagementId?: string;
+  companyId?: string;
   clientId: string;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
@@ -44,6 +45,7 @@ interface ManualUploadModalProps {
 export function ManualUploadModal({
   kycId,
   engagementId,
+  companyId,
   clientId,
   onSuccess,
   trigger
@@ -90,7 +92,9 @@ export function ManualUploadModal({
     const originalFilename = file.name;
     const ext = originalFilename.split(".").pop();
     const uniqueFilename = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${ext}`;
-    const path = `${engagementId}/${categoryFolder}${uniqueFilename}`;
+    // Use engagementId or companyId for folder path
+    const contextId = engagementId || companyId || 'unknown';
+    const path = `${contextId}/${categoryFolder}${uniqueFilename}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(bucket)
@@ -174,7 +178,8 @@ export function ManualUploadModal({
 
       // Step 2: Create DocumentRequest with pending documents first
       const documentRequestData = {
-        engagementId: engagementId,
+        engagementId: engagementId || undefined,
+        companyId: companyId || undefined,
         clientId: clientId,
         name: 'Manual Uploading',
         category: 'kyc',

@@ -88,7 +88,8 @@ interface MultipleDocument {
 }
 
 interface KYCDocumentRequestModalProps {
-  engagementId: string;
+  engagementId?: string;
+  companyId?: string;
   clientId: string;
   engagementName?: string;
   company?: any;
@@ -96,8 +97,10 @@ interface KYCDocumentRequestModalProps {
   trigger?: React.ReactNode;
 }
 
+
 export function KYCDocumentRequestModal({
   engagementId,
+  companyId,
   clientId,
   engagementName,
   company,
@@ -129,10 +132,10 @@ export function KYCDocumentRequestModal({
 
 
   const handleSubmit = async () => {
-    if (!engagementId?.trim()) {
+    if (!engagementId?.trim() && !companyId?.trim()) {
       toast({
         title: "Error",
-        description: "Engagement ID missing",
+        description: "Engagement ID or Company ID missing",
         variant: "destructive"
       });
       return;
@@ -200,9 +203,11 @@ export function KYCDocumentRequestModal({
       }));
 
       const kycData = {
-        engagementId,
+        engagementId: engagementId || undefined,
+        companyId: companyId || undefined,
         clientId,
-        documentRequests:processedDocumentRequests
+        documentRequests:processedDocumentRequests,
+        companyName: company?.name
       };
 
       console.log("KYC Data: ", kycData);
@@ -345,20 +350,20 @@ export function KYCDocumentRequestModal({
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="engagementDisplay">Engagement</Label>
+                <Label htmlFor="contextDisplay">{engagementId ? "Engagement" : "Company"}</Label>
                 <Input
-                  id="engagementDisplay"
-                  value={engagementName || 'Current Engagement'}
+                  id="contextDisplay"
+                  value={engagementName || company?.name || 'Current Context'}
                   disabled
                   className="bg-gray-50"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  KYC documents will be created for this engagement
+                  KYC documents will be created for this {engagementId ? "engagement" : "company"}
                 </p>
 
-                {(!engagementId || engagementId.trim() === '') && (
+                {(!engagementId || engagementId.trim() === '') && (!companyId || companyId.trim() === '') && (
                   <p className="text-xs text-red-600 mt-1">
-                    ⚠️ Engagement ID is missing. Please ensure you're accessing this from an engagement page.
+                    ⚠️ Context ID is missing. Please ensure you're accessing this from a valid page.
                   </p>
                 )}
               </div>

@@ -74,11 +74,16 @@ import { AddDocumentRequestModal } from "./AddDocumentRequestModal";
 
 interface KYCWorkflow {
   _id: string;
-  engagement: {
+  engagement?: {
     _id: string;
     title: string;
     yearEndDate: string;
     clientId: string;
+  };
+  company?: {
+    _id: string;
+    name: string;
+    registrationNumber: string;
   };
   clientId: string;
   auditorId: string;
@@ -230,8 +235,9 @@ export const KYCEnhancedManagement = ({
   };
 
   const filteredWorkflows = kycWorkflows.filter(workflow => {
+    const title = workflow.engagement?.title || workflow.company?.name || "Untitled";
     const matchesSearch = 
-      workflow.engagement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflow.clientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (workflow.documentRequests?.[0]?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     
@@ -562,7 +568,7 @@ export const KYCEnhancedManagement = ({
                       <FileText className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl text-gray-900">{workflow.engagement.title}</CardTitle>
+                      <CardTitle className="text-xl text-gray-900">{workflow.engagement?.title || workflow.company?.name || "Untitled Workflow"}</CardTitle>
                       <p className="text-sm text-gray-700">
                         Client: {workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
                       </p>
@@ -590,7 +596,7 @@ export const KYCEnhancedManagement = ({
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Calendar className="h-4 w-4 text-gray-500" />
-                        <span>Year End: {format(new Date(workflow.engagement.yearEndDate), "MMM dd, yyyy")}</span>
+                        <span>Year End: {workflow.engagement?.yearEndDate ? format(new Date(workflow.engagement.yearEndDate), "MMM dd, yyyy") : "N/A"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Building2 className="h-4 w-4 text-gray-500" />
@@ -732,7 +738,8 @@ export const KYCEnhancedManagement = ({
                       {userRole === 'auditor' && (
                         <AddDocumentRequestModal
                           kycId={selectedKYC._id}
-                          engagementId={selectedKYC.engagement._id}
+                          engagementId={selectedKYC.engagement?._id}
+                          companyId={selectedKYC.company?._id}
                           clientId={selectedKYC.clientId}
                           onSuccess={async () => {
                             // Refresh the workflows list

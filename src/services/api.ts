@@ -186,7 +186,8 @@ export const engagementApi = {
 // Document Requests API
 export const documentRequestApi = {
   create: async (data: {
-    engagementId: string;
+    engagementId?: string;
+    companyId?: string;
     clientId: string;
     name?: string;
     category: string;
@@ -493,6 +494,7 @@ export const checklistApi = {
 export const kycApi = {
   create: async (data: {
     engagementId?: string;
+    companyId?: string;
     clientId?: string;
     companyName?: string;
     auditorId?: string;
@@ -530,6 +532,18 @@ export const kycApi = {
       return result;
     } catch (error) {
       console.error('❌ KYC API: Error getting KYC by engagement:', error);
+      throw error;
+    }
+  },
+
+  getByCompany: async (companyId: string) => {
+    console.log('🌐 KYC API: Getting KYC by company...');
+    try {
+      const result = await apiCall(`/api/kyc/company/${companyId}`);
+      console.log('✅ KYC API: KYC retrieved successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ KYC API: Error getting KYC by company:', error);
       throw error;
     }
   },
