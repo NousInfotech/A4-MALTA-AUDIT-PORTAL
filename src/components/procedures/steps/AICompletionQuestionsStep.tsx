@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client"
 import { EnhancedLoader } from "@/components/ui/enhanced-loader"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Loader2, ChevronUp, ChevronDown } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -360,81 +361,85 @@ export const AICompletionQuestionsStep: React.FC<{
         </div>
      
 
-      <div className="space-y-4 h-[60vh] overflow-y-scroll">
+      <Accordion type="multiple" className="space-y-4 h-[60vh] overflow-y-scroll">
         {COMPLETION_SECTIONS.map((section, index) => {
           const sectionData = procedures.find(s => s.sectionId === section.sectionId);
           const hasQuestions = sectionData?.fields?.length > 0;
 
           return (
-            <Card
+            <AccordionItem
               key={section.sectionId}
-              className="border rounded-md p-4 space-y-3"
+              value={section.sectionId}
+              className="border rounded-md px-4"
               ref={el => sectionRefs.current[section.sectionId] = el}
               data-section-id={section.sectionId}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-heading text-lg">{section.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center justify-between w-full pr-4">
+                  <div className="text-left">
+                    <div className="font-heading text-lg">{section.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {sectionData?.standards?.length ? `Standards: ${sectionData.standards.join(", ")}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      onClick={() => handleGenerateSectionQuestions(section.sectionId)}
+                      disabled={generatingSections.has(section.sectionId)}
+                      className="flex items-center justify-center"
+                    >
+                      {generatingSections.has(section.sectionId) ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
+                      {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex justify-between gap-2">
-                  <Button
-                    onClick={() => handleGenerateSectionQuestions(section.sectionId)}
-                    disabled={generatingSections.has(section.sectionId)}
-                    className="flex items-center justify-center"
-                  >
-                    {generatingSections.has(section.sectionId) ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
-                    {hasQuestions ? "Regenerate Questions" : "Generate Questions"}
-                  </Button>
-                </div>
-              </div>
-
-              {hasQuestions ? (
-                <div className="space-y-3">
-                  {(sectionData.fields || []).map((f: any) => (
-                    <div key={f.__uid} className="border rounded p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">Question</div>
-                        <Button size="sm" variant="ghost" onClick={() => {
-                          const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
-                          if (secIdx >= 0) removeQuestion(secIdx, f.__uid);
-                        }}>Remove</Button>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 pb-4">
+                {hasQuestions ? (
+                  <div className="space-y-3">
+                    {(sectionData.fields || []).map((f: any) => (
+                      <div key={f.__uid} className="border rounded p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium">Question</div>
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                            if (secIdx >= 0) removeQuestion(secIdx, f.__uid);
+                          }}>Remove</Button>
+                        </div>
+                        {editorForField(
+                          procedures.findIndex(s => s.sectionId === section.sectionId),
+                          f
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          <code>type:</code> {normalizeType(f.type)}
+                          {Array.isArray(f.options) && f.options.length ? <> · <code>options:</code> {f.options.join(", ")}</> : null}
+                          {Array.isArray(f.columns) && f.columns.length ? <> · <code>columns:</code> {f.columns.join(", ")}</> : null}
+                        </div>
                       </div>
-                      {editorForField(
-                        procedures.findIndex(s => s.sectionId === section.sectionId),
-                        f
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        <code>type:</code> {normalizeType(f.type)}
-                        {Array.isArray(f.options) && f.options.length ? <> · <code>options:</code> {f.options.join(", ")}</> : null}
-                        {Array.isArray(f.columns) && f.columns.length ? <> · <code>columns:</code> {f.columns.join(", ")}</> : null}
-                      </div>
-                    </div>
-                  ))}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
-                      if (secIdx >= 0) addQuestion(secIdx);
-                    }}
-                  >
-                    + Add Question
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-muted-foreground py-4 text-center">
-                  No questions generated yet. Click "Generate Questions" to create questions for this section.
-                </div>
-              )}
-            </Card>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const secIdx = procedures.findIndex(s => s.sectionId === section.sectionId);
+                        if (secIdx >= 0) addQuestion(secIdx);
+                      }}
+                    >
+                      + Add Question
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground py-4 text-center">
+                    No questions generated yet. Click "Generate Questions" to create questions for this section.
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
           );
         })}
-      </div>
+      </Accordion>
 
       <div className="flex gap-2">
         <Button

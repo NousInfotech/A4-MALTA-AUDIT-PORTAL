@@ -23,6 +23,12 @@ import {
 import { kycApi, engagementApi, documentRequestApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import DocumentRequest from "@/components/document-request/DocumentRequest";
+import type {
+  DocumentRequest as DocumentRequestType,
+  DocumentRequestDocumentSingle,
+  DocumentRequestDocumentMultiple,
+} from "@/components/document-request/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,15 +114,24 @@ export function EngagementKYC() {
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [kycWorkflows, setKycWorkflows] = useState<KYCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [documentRequestsMap, setDocumentRequestsMap] = useState<Record<string, any>>({});
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
+    type?: 'document' | 'multipleItem' | 'multipleGroup' | 'request';
     documentRequestId?: string;
     documentIndex?: number;
+    multipleDocumentId?: string;
+    itemIndex?: number;
     documentName?: string;
   }>({ open: false });
   const [uploadingDocument, setUploadingDocument] = useState<{
     documentRequestId?: string;
     documentIndex?: number;
+  } | null>(null);
+  const [uploadingMultiple, setUploadingMultiple] = useState<{
+    documentRequestId?: string;
+    multipleDocumentId?: string;
+    itemIndex?: number;
   } | null>(null);
   const { toast } = useToast();
 
@@ -150,6 +165,7 @@ export function EngagementKYC() {
       for (const workflow of kycWorkflows) {
         if (workflow.documentRequests) {
           for (const item of workflow.documentRequests) {
+            if (!item.documentRequest) continue;
             const calculatedStatus = calculateDocumentRequestStatus(item.documentRequest);
             if (item.documentRequest.status !== calculatedStatus) {
               hasUpdates = true;
@@ -213,18 +229,38 @@ export function EngagementKYC() {
         setTimeout(() => reject(new Error('Request timeout')), 10000)
       );
       
-      const workflows = await Promise.race([
+      const workflowsResult = await Promise.race([
         kycApi.getByEngagement(engagementId),
         timeoutPromise
       ]);
       
-      console.log('KYC workflows response:', workflows);
+      console.log('KYC workflows response:', workflowsResult);
       
       // Handle different response formats
-      if (workflows) {
-        setKycWorkflows(Array.isArray(workflows) ? workflows : [workflows]);
+      const normalizedWorkflows = workflowsResult
+        ? (Array.isArray(workflowsResult) ? workflowsResult : [workflowsResult])
+        : [];
+      setKycWorkflows(normalizedWorkflows);
+
+      // Also fetch up-to-date document requests for this engagement
+      // so we always show the latest documents/multipleDocuments in the KYC view
+      try {
+        const docRequests = await documentRequestApi.getByEngagement(engagementId);
+        if (Array.isArray(docRequests)) {
+          const map: Record<string, any> = {};
+          docRequests.forEach((dr: any) => {
+            if (dr && dr._id) {
+              map[dr._id] = dr;
+            }
+          });
+          setDocumentRequestsMap(map);
       } else {
-        setKycWorkflows([]);
+          setDocumentRequestsMap({});
+        }
+      } catch (docErr: any) {
+        console.error('Error fetching document requests for KYC view:', docErr);
+        // Don't fail the whole KYC fetch if this call fails
+        setDocumentRequestsMap({});
       }
     } catch (error: any) {
       console.error('Error fetching KYC workflows:', error);
@@ -380,15 +416,105 @@ export function EngagementKYC() {
     }
   };
 
+  // Delete entire document request
+  const handleDeleteRequest = async (documentRequestId: string) => {
+    try {
+      await documentRequestApi.deleteRequest(documentRequestId);
+      await fetchKYCWorkflows();
+      toast({
+        title: "Request Deleted",
+        description: "Document request has been deleted successfully",
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error("Error deleting document request:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document request",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete a specific item from a multiple document group
+  const handleDeleteMultipleItem = async () => {
+    if (
+      !deleteDialog.documentRequestId ||
+      !deleteDialog.multipleDocumentId ||
+      deleteDialog.itemIndex === undefined
+    )
+      return;
+
+    try {
+      await documentRequestApi.deleteMultipleDocumentItem(
+        deleteDialog.documentRequestId,
+        deleteDialog.multipleDocumentId,
+        deleteDialog.itemIndex
+      );
+      await fetchKYCWorkflows();
+      toast({
+        title: "Document Item Deleted",
+        description: "Document item has been deleted successfully",
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error("Error deleting multiple document item:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Delete entire multiple document group
+  const handleDeleteMultipleGroup = async () => {
+    if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId) return;
+
+    try {
+      await documentRequestApi.deleteMultipleDocumentGroup(
+        deleteDialog.documentRequestId,
+        deleteDialog.multipleDocumentId
+      );
+      await fetchKYCWorkflows();
+      toast({
+        title: "Document Group Deleted",
+        description:
+          `"${deleteDialog.documentName || "Group"}" has been deleted successfully`,
+      });
+      setDeleteDialog({ open: false });
+    } catch (error: any) {
+      console.error("Error deleting multiple document group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete document group",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteFromDialog = async () => {
+    if (deleteDialog.type === "request") {
+      if (!deleteDialog.documentRequestId) return;
+      await handleDeleteRequest(deleteDialog.documentRequestId);
+    } else if (deleteDialog.type === "multipleItem") {
+      await handleDeleteMultipleItem();
+    } else if (deleteDialog.type === "multipleGroup") {
+      await handleDeleteMultipleGroup();
+    } else {
+      await handleDeleteDocument();
+    }
+  };
+
   // Calculate document request status based on document completion
   const calculateDocumentRequestStatus = (docRequest: any): string => {
-    if (!docRequest.documents || docRequest.documents.length === 0) {
+    if (!docRequest || !Array.isArray(docRequest.documents) || docRequest.documents.length === 0) {
       return 'pending';
     }
     
     const totalDocuments = docRequest.documents.length;
     const completedDocuments = docRequest.documents.filter((doc: any) => 
-      doc.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
+      doc?.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
     ).length;
     
     if (completedDocuments === 0) {
@@ -472,6 +598,171 @@ export function EngagementKYC() {
       });
     } finally {
       setUploadingDocument(null);
+    }
+  };
+
+  // Handle upload for multiple-document groups
+  const handleUploadMultiple = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    files: FileList,
+    itemIndex?: number
+  ) => {
+    try {
+      setUploadingMultiple({ documentRequestId, multipleDocumentId, itemIndex });
+
+      const formData = new FormData();
+      Array.from(files).forEach((file) => {
+        formData.append("files", file);
+      });
+
+      await documentRequestApi.uploadMultipleDocuments(
+        documentRequestId,
+        multipleDocumentId,
+        formData,
+        itemIndex
+      );
+
+      await fetchKYCWorkflows();
+
+      toast({
+        title: "Documents Uploaded",
+        description: `${files.length} file(s) uploaded successfully`,
+      });
+    } catch (error: any) {
+      console.error("Error uploading multiple documents:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to upload documents",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingMultiple(null);
+    }
+  };
+
+  // Clear only the uploaded file for a single-document requirement
+  const handleClearSingleDocument = async (
+    documentRequestId: string,
+    documentIndex: number,
+    _documentName: string
+  ) => {
+    try {
+      await documentRequestApi.clearSingleDocument(documentRequestId, documentIndex);
+      await fetchKYCWorkflows();
+
+      toast({
+        title: "File Cleared",
+        description: "The uploaded file has been cleared.",
+      });
+    } catch (error: any) {
+      console.error("Error clearing document:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear document",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Clear only the uploaded file for a multiple document item
+  const handleClearMultipleItem = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    itemIndex: number,
+    _itemLabel: string
+  ) => {
+    try {
+      await documentRequestApi.clearMultipleDocumentItem(
+        documentRequestId,
+        multipleDocumentId,
+        itemIndex
+      );
+      await fetchKYCWorkflows();
+
+      toast({
+        title: "File Cleared",
+        description: "The uploaded file has been cleared.",
+      });
+    } catch (error: any) {
+      console.error("Error clearing multiple document item:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear document item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Clear all uploaded files in a multiple document group
+  const handleClearMultipleGroup = async (
+    documentRequestId: string,
+    multipleDocumentId: string,
+    _groupName: string
+  ) => {
+    try {
+      await documentRequestApi.clearMultipleDocumentGroup(
+        documentRequestId,
+        multipleDocumentId
+      );
+      await fetchKYCWorkflows();
+
+      toast({
+        title: "Files Cleared",
+        description: "All uploaded files in this group have been cleared.",
+      });
+    } catch (error: any) {
+      console.error("Error clearing multiple document group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to clear group",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Download all files in a multiple document group
+  const handleDownloadMultipleGroup = async (
+    _documentRequestId: string,
+    _multipleDocumentId: string,
+    _groupName: string,
+    items: any[]
+  ) => {
+    try {
+      const downloadableItems = items.filter((item) => item.url);
+
+      if (downloadableItems.length === 0) {
+        toast({
+          title: "No Files",
+          description: "No uploaded files found in this group.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      for (const item of downloadableItems) {
+        try {
+          const response = await fetch(item.url);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = item.uploadedFileName || item.label || "document";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error("Download error:", err);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error downloading multiple group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to download files",
+        variant: "destructive",
+      });
     }
   };
 
@@ -642,298 +933,261 @@ export function EngagementKYC() {
           <CardContent className="p-6 space-y-6">
             {kycWorkflows.map((workflow) => (
               <div key={workflow._id} className="space-y-4">
-                {/* Status Management */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900">Status Management</h3>
-                    {getStatusBadge(workflow.status)}
+                {/* Status Management – only show when there are document requests */}
+                {workflow.documentRequests && workflow.documentRequests.length > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    
+                    <div className="flex items-center justify-between mb-3">
+                      
+                      <h3 className="font-semibold text-gray-900">Status Management</h3>
+                      {getStatusBadge(workflow.status)}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* {workflow.status !== 'active' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStatusUpdate(workflow._id, 'active')}
+                          className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          Set Active
+                        </Button>
+                      )}
+                      {workflow.status !== 'in-review' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStatusUpdate(workflow._id, 'in-review')}
+                          className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Set In Review
+                        </Button>
+                      )} */}
+                      {workflow.status !== 'completed' && (
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                          onClick={() => handleStatusUpdate(workflow._id, 'completed')}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Mark Completed
+                        </Button>
+                      )}
+                      {workflow.status === 'completed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReopenKYC(workflow._id)}
+                          className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                          Reopen KYC
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {workflow.status !== 'active' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleStatusUpdate(workflow._id, 'active')}
-                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-                      >
-                        <Play className="h-4 w-4 mr-1" />
-                        Set Active
-                      </Button>
-                    )}
-                    {workflow.status !== 'in-review' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleStatusUpdate(workflow._id, 'in-review')}
-                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Set In Review
-                      </Button>
-                    )}
-                    {workflow.status !== 'completed' && (
-                      <Button
-                        size="sm"
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                        onClick={() => handleStatusUpdate(workflow._id, 'completed')}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Mark Completed
-                      </Button>
-                    )}
-                    {workflow.status === 'completed' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReopenKYC(workflow._id)}
-                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-                      >
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        Reopen KYC
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                )}
 
-                {/* Document Requests */}
-                {workflow.documentRequests && workflow.documentRequests.length > 0 ? (
-                  <div>
-                    {(() => {
-                      const requestsWithDocuments = workflow.documentRequests.filter((item) => 
-                        item.documentRequest?.documents && item.documentRequest.documents.length > 0
-                      );
-                      console.log(workflow.documentRequests);
+                {/* Document Requests - using shared DocumentRequest component */}
+                {workflow.documentRequests && workflow.documentRequests.length > 0 ? (() => {
+                  // Guard against null/undefined documentRequest entries
+                  const validRequests = workflow.documentRequests.filter(
+                    (item) => item.documentRequest
+                  );
+
+                  if (validRequests.length === 0) {
                       return (
-                        <>
+                      <div className="text-center py-8 text-gray-500">
+                        No document requests yet
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div>
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">Document Requests</h3>
-                            <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                              {requestsWithDocuments.length} Request{requestsWithDocuments.length !== 1 ? 's' : ''}
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Document Requests
+                        </h3>
+                        <Badge
+                          variant="outline"
+                          className="text-gray-600 border-gray-300 bg-gray-50"
+                        >
+                          {validRequests.length} Request
+                          {validRequests.length !== 1 ? "s" : ""}
                             </Badge>
                           </div>
                           <div className="space-y-4">
-                            {requestsWithDocuments.map((item, index) => {
-                              const docRequest = item.documentRequest;
-                              const person = item.person;
-                              
-                              // Calculate progress
-                              const totalDocs = docRequest.documents?.length || 0;
-                              const completedDocs = docRequest.documents?.filter((doc: any) => 
-                                doc.url && (doc.status === 'completed' || doc.status === 'uploaded' || doc.status === 'approved')
-                              ).length || 0;
-                              const progressPercentage = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
-                              const calculatedStatus = calculateDocumentRequestStatus(docRequest);
+                        {validRequests.map((item, index) => {
+                          const populated =
+                            (item.documentRequest &&
+                              documentRequestsMap[item.documentRequest._id]) ||
+                            null;
+                          const baseRequest = (populated ||
+                            item.documentRequest) as any;
+                          // Progress calculation: include single and multiple documents
+                          const singleDocs = baseRequest?.documents || [];
+                          const multipleGroups = baseRequest?.multipleDocuments || [];
+                          const multipleItems = multipleGroups.flatMap(
+                            (g: any) => g.multiple || []
+                          );
+                          const totalDocs =
+                            singleDocs.length + multipleItems.length;
+                          const completedSingle = singleDocs.filter(
+                            (doc: any) =>
+                              doc.url &&
+                              doc.status &&
+                              doc.status !== "rejected"
+                          ).length;
+                          const completedMultiple = multipleItems.filter(
+                            (item: any) =>
+                              item.url &&
+                              item.status &&
+                              item.status !== "rejected"
+                          ).length;
+                          const completedDocs =
+                            completedSingle + completedMultiple;
+                          const progressPercentage =
+                            totalDocs > 0
+                              ? (completedDocs / totalDocs) * 100
+                              : 0;
+                          const request: DocumentRequestType = {
+                            // Provide safe fallbacks for optional fields
+                            documents: baseRequest?.documents || [],
+                            multipleDocuments: baseRequest?.multipleDocuments || [],
+                            _id: baseRequest?._id,
+                            engagement: baseRequest?.engagement,
+                            clientId: baseRequest?.clientId,
+                            name: baseRequest?.name,
+                            category: baseRequest?.category ?? "",
+                            description: baseRequest?.description ?? "",
+                            comment: baseRequest?.comment,
+                            status: baseRequest?.status,
+                            requestedAt: baseRequest?.requestedAt ?? new Date(),
+                            completedAt: baseRequest?.completedAt,
+                          };
                               
                               return (
-                        <div key={item._id || index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3 flex-1">
+                            <div
+                              key={item._id || index}
+                              className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                            >
+                              <div className="mb-3 flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-1">
                               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                                 <span className="text-lg font-semibold text-blue-700">
-                                  {person?.name?.charAt(0).toUpperCase() || 'U'}
+                                      {item.person?.name?.charAt(0).toUpperCase() || "U"}
                                 </span>
                               </div>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold text-gray-900 text-lg">{person?.name || 'Unknown Person'}</h4>
-                                  <Badge variant="outline" className="text-xs text-blue-700 border-blue-300 bg-blue-50">
-                                    {totalDocs} Document{totalDocs !== 1 ? 's' : ''} Required
+                                      <h4 className="font-semibold text-gray-900 text-lg">
+                                        {item.person?.name || "Unknown Person"}
+                                      </h4>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs text-blue-700 border-blue-300 bg-blue-50"
+                                      >
+                                        {(request.documents?.length || 0) +
+                                          (request.multipleDocuments?.length || 0)}{" "}
+                                        Document
+                                        {(request.documents?.length || 0) +
+                                          (request.multipleDocuments?.length || 0) !==
+                                        1
+                                          ? "s"
+                                          : ""}{" "}
+                                        Required
                                   </Badge>
                                 </div>
-                                {person?.nationality && (
+                                    {item.person?.nationality && (
                                   <p className="text-xs text-gray-500 mt-0.5">
-                                    {person.nationality} • {person.address?.split('\n')[0] || 'No address'}
+                                        {item.person.nationality} •{" "}
+                                        {item.person.address?.split("\n")[0] ||
+                                          "No address"}
                                   </p>
                                 )}
-                                {docRequest.description && (
-                                  <p className="text-sm text-gray-600 mt-1">{docRequest.description}</p>
-                                )}
-                                {/* Progress Bar */}
-                                <div className="mt-3 space-y-1">
-                                  <div className="flex items-center justify-between text-xs text-gray-600">
-                                    <span className="font-medium">Progress: {completedDocs} / {totalDocs} documents</span>
-                                    <span className="font-semibold">{Math.round(progressPercentage)}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                    <div 
-                                      className={`h-2.5 rounded-full transition-all ${
-                                        progressPercentage === 100 
-                                          ? 'bg-green-600' 
-                                          : progressPercentage > 0 
-                                          ? 'bg-blue-600' 
-                                          : 'bg-gray-300'
-                                      }`}
-                                      style={{ width: `${progressPercentage}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <Badge variant="outline" className={`ml-4 ${
-                              calculatedStatus === 'completed' 
-                                ? 'text-green-700 border-green-600 bg-green-50' 
-                                : calculatedStatus === 'submitted'
-                                ? 'text-blue-700 border-blue-600 bg-blue-50'
-                                : 'text-gray-600 border-gray-600 bg-white'
-                            }`}>
-                              {calculatedStatus}
-                            </Badge>
-                          </div>
-                          
-                          {docRequest.documents && docRequest.documents.length > 0 ? (
-                            <div className="space-y-2">
-                              {docRequest.documents.map((doc, docIndex) => (
-                                <div key={docIndex} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                  <div className="flex items-center gap-3">
-                                    {doc.type === 'template' ? (
-                                      <FileEdit className="h-5 w-5 text-gray-600" />
-                                    ) : (
-                                      <FileUp className="h-5 w-5 text-gray-600" />
+                                    {request.description && (
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        {request.description}
+                                      </p>
                                     )}
-                                    <div>
-                                      <p className="font-medium text-gray-900">{doc.name}</p>
-                                      {doc.description && (
-                                        <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
-                                      )}
-                                      <div className="flex items-center gap-2 mt-1">
-                                        {doc.type === 'template' ? (
-                                          <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                            Template
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                            Direct
-                                          </Badge>
-                                        )}
-                                        <Badge variant="outline" className="text-gray-600 border-gray-300">
-                                          {typeof doc.status === 'string' ? doc.status : String(doc.status || 'pending')}
-                                        </Badge>
-                                        {doc.uploadedAt && (
-                                          <span className="text-xs text-gray-500">
-                                            Uploaded: {(() => {
-                                              const date = new Date(doc.uploadedAt);
-                                              return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy HH:mm");
-                                            })()}
+                                    {totalDocs > 0 && (
+                                      <div className="mt-3 space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-gray-600">
+                                          <span className="font-medium">
+                                            Progress: {completedDocs} / {totalDocs} documents
                                           </span>
-                                        )}
+                                          <span className="font-semibold">
+                                            {Math.round(progressPercentage)}%
+                                          </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                          <div
+                                            className={`h-2.5 rounded-full transition-all ${
+                                              progressPercentage === 100
+                                                ? "bg-green-600"
+                                                : progressPercentage > 0
+                                                ? "bg-blue-600"
+                                                : "bg-gray-300"
+                                            }`}
+                                            style={{ width: `${progressPercentage}%` }}
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {!doc.url ? (
-                                      <label className="cursor-pointer">
-                                        <input
-                                          type="file"
-                                          className="hidden"
-                                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              handleDocumentUpload(docRequest._id, docIndex, file);
-                                            }
-                                            e.target.value = ''; // Reset input
-                                          }}
-                                          disabled={uploadingDocument?.documentRequestId === docRequest._id && 
-                                                   uploadingDocument?.documentIndex === docIndex}
-                                        />
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 px-3"
-                                          title="Upload Document"
-                                          disabled={uploadingDocument?.documentRequestId === docRequest._id && 
-                                                   uploadingDocument?.documentIndex === docIndex}
-                                          asChild
-                                        >
-                                          <span>
-                                            {uploadingDocument?.documentRequestId === docRequest._id && 
-                                             uploadingDocument?.documentIndex === docIndex ? (
-                                              <RefreshCw className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                              <>
-                                                <Upload className="h-4 w-4 mr-1" />
-                                                Upload
-                                              </>
-                                            )}
-                                          </span>
-                                        </Button>
-                                      </label>
-                                    ) : (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => window.open(doc.url, '_blank')}
-                                          className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 w-8 p-0"
-                                          title="View Document"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={async () => {
-                                            try {
-                                              const response = await fetch(doc.url!);
-                                              const blob = await response.blob();
-                                              const url = window.URL.createObjectURL(blob);
-                                              const link = document.createElement('a');
-                                              link.href = url;
-                                              link.download = doc.name;
-                                              document.body.appendChild(link);
-                                              link.click();
-                                              document.body.removeChild(link);
-                                              window.URL.revokeObjectURL(url);
-                                            } catch (error) {
-                                              console.error('Download error:', error);
-                                              toast({
-                                                title: "Error",
-                                                description: "Failed to download document",
-                                                variant: "destructive",
-                                              });
-                                            }
-                                          }}
-                                          className="border-green-300 hover:bg-green-50 hover:text-green-800 text-green-700 h-8 w-8 p-0"
-                                          title="Download Document"
-                                        >
-                                          <Download className="h-4 w-4" />
-                                        </Button>
-                                      </>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setDeleteDialog({
-                                          open: true,
-                                          documentRequestId: docRequest._id,
-                                          documentIndex: docIndex,
-                                          documentName: doc.name,
-                                        });
-                                      }}
-                                      className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 h-8 w-8 p-0"
-                                      title="Delete Document"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
                                   </div>
+                                  </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setDeleteDialog({
+                                        open: true,
+                                        type: "request",
+                                        documentRequestId: request._id,
+                                        documentName:
+                                          request.category || "this document request",
+                                      })
+                                    }
+                                    className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 text-xs"
+                                    title="Delete Document Request"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete Request
+                                  </Button>
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-center py-4 text-gray-500 text-sm bg-white rounded-lg">
-                              No documents in this request yet
-                            </div>
-                          )}
+                                 </div>
+                          
+                              <DocumentRequest
+                                request={request}
+                                uploadingSingle={uploadingDocument}
+                                uploadingMultiple={uploadingMultiple}
+                                onUploadSingle={handleDocumentUpload}
+                                onUploadMultiple={handleUploadMultiple}
+                                onClearDocument={handleClearSingleDocument}
+                                onClearMultipleItem={handleClearMultipleItem}
+                                onClearMultipleGroup={handleClearMultipleGroup}
+                                onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                                onRequestDeleteDialog={(payload) =>
+                                  setDeleteDialog({
+                                    open: true,
+                                    ...payload,
+                                  })
+                                }
+                                engagementId={engagementId || undefined}
+                                clientId={workflow.clientId}
+                                onDocumentsAdded={fetchKYCWorkflows}
+                              />
                         </div>
                       );
                       })}
                             </div>
-                          </>
-                        );
-                      })()}
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div className="text-center py-8 text-gray-500">
                     No document requests yet
                   </div>
@@ -979,16 +1233,26 @@ export function EngagementKYC() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-600" />
-              Delete Document
+              {deleteDialog.type === 'request' 
+                ? 'Delete Document Request'
+                : deleteDialog.type === 'multipleItem'
+                ? 'Delete Document Item'
+                : deleteDialog.type === 'multipleGroup'
+                ? 'Delete Document Group'
+                : 'Delete Document'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDialog.documentName}"? This action cannot be undone.
+              {deleteDialog.type === 'request'
+                ? 'Are you sure you want to delete this entire document request? This action cannot be undone.'
+                : deleteDialog.type === 'multipleGroup'
+                ? `Are you sure you want to delete the entire document group "${deleteDialog.documentName}"? This will delete all items in the group. This action cannot be undone.`
+                : `Are you sure you want to delete "${deleteDialog.documentName}"? This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteDocument}
+              onClick={handleDeleteFromDialog}
               className="bg-red-600 hover:bg-red-700 text-white hover:text-white"
             >
               Delete

@@ -202,6 +202,19 @@ export const documentRequestApi = {
       };
       status: 'pending';
     }>;
+    multipleDocuments?: Array<{
+      name: string;
+      type: 'direct' | 'template';
+      instruction?: string;
+      multiple: Array<{
+        label: string;
+        template?: {
+          url?: string;
+          instruction?: string;
+        };
+        status: 'pending';
+      }>;
+    }>;
   }) => {
     console.log('📄 Creating Document Request...');
     console.log('📋 Document Request Data:', data);

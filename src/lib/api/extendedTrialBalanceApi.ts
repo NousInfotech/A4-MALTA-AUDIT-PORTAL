@@ -17,6 +17,13 @@ export interface Workbook {
   updatedAt: string;
 }
 
+export interface MappingReferenceFile {
+  fileName: string;
+  fileUrl: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+}
+
 export interface ETBMapping {
   _id: string;
   workbookId: Workbook;
@@ -33,6 +40,7 @@ export interface ETBMapping {
     };
   };
   isActive: boolean;
+  referenceFiles?: MappingReferenceFile[];
 }
 
 export interface ETBRow {
@@ -71,6 +79,7 @@ export interface CreateMappingRequest {
       col: number;
     };
   };
+  referenceFiles?: MappingReferenceFile[];
 }
 
 export interface UpdateMappingRequest {

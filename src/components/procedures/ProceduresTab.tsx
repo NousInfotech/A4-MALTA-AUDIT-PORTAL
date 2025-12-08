@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { CompletionProcedureGeneration } from "./CompletionProcedureGeneration"
 import { CompletionProcedureView } from "./CompletionProcedureView"
+import { PlanningProcedureTabsView } from "./PlanningProcedureTabsView"
+import { ProcedureTabsView } from "./ProcedureTabsView"
+import { CompletionProcedureTabsView } from "./CompletionProcedureTabsView"
 
 // Keep your authFetch helper
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -40,6 +43,9 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   // Format: ?section=procedures&procedureTab=generate&procedureType=planning&mode=ai&step=2
   const activeTab = searchParams.get("procedureTab") || "generate"
   const selectedProcedureType = (searchParams.get("procedureType") as "planning" | "fieldwork" | "completion") || null
+  const currentStep = searchParams.get("step")
+  const selectedMode = (searchParams.get("mode") as "manual" | "ai" | "hybrid") || null
+  const showTabsView = currentStep === "tabs"
   
   const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null)
   const [completionProcedure, setCompletionProcedure] = useState<any>(null)
@@ -256,12 +262,16 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           {!selectedProcedureType ? (
             <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (
-            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+            planningProcedure ? (
+              <PlanningProcedureView procedure={planningProcedure} engagement={engagement} />
+            ) : <div className="text-muted-foreground">No Planning procedures found.</div>
           ) : selectedProcedureType === "fieldwork" ? (
-            fieldworkProcedure && fieldworkProcedure.status === "completed"
-              ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
-              : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
-          ) : completionProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
+            fieldworkProcedure ? (
+              <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+            ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+          ) : completionProcedure ? (
+            <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+          ) : <div className="text-muted-foreground">No Completion procedures found.</div>}
         </TabsContent>
       </Tabs>
     </div>

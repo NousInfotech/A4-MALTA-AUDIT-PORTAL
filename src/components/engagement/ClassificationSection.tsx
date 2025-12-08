@@ -222,12 +222,16 @@ import { getWorkingPaperWithLinkedFiles, updateLinkedExcelFilesInWP } from "@/li
 
 
 import ProcedureView from "../procedures/ProcedureView";
+import NotebookInterface from "../procedures/NotebookInterface";
+import FloatingNotesButton from "../procedures/FloatingNotesButton";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
 import { ExcelViewerWithFullscreen } from "../audit-workbooks/ExcelViewer";
 import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
 import { AdjustmentManager } from "../adjustments/AdjustmentManager";
 
 import { ReclassificationManager } from "../reclassification/ReclassificationManager";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 
 
@@ -773,6 +777,51 @@ function replaceClassificationQuestions(all: any[], classification: string, upda
 
 }
 
+// Helper function to split recommendations by classification (similar to ProcedureView)
+function splitRecommendationsByClassification(markdown?: string) {
+  const map: Record<string, string> = {};
+  if (!markdown) return map;
+
+  const lines = markdown.split(/\r?\n/);
+  let currentKey: string | null = null;
+  let bucket: string[] = [];
+
+  const flush = () => {
+    if (currentKey && bucket.length > 0) {
+      map[currentKey] = bucket.join("\n").trim();
+    }
+    bucket = [];
+  };
+
+  for (const raw of lines) {
+    // Match both formats: *classification* and plain classification headers
+    const asteriskMatch = raw.match(/^\s*\*([^*]+)\*\s*$/);
+    const plainHeaderMatch = raw.match(/^([A-Za-z][^•\-].*[^:\-])\s*$/); // Match lines that look like headers
+
+    if (asteriskMatch || plainHeaderMatch) {
+      // New classification section starts
+      flush();
+      currentKey = asteriskMatch ? asteriskMatch[1].trim() : plainHeaderMatch[1].trim();
+      continue;
+    }
+
+    // Skip bullet points that might be mistaken as headers
+    const isBulletPoint = /^\s*[-•*]\s+/.test(raw);
+
+    if (!currentKey) {
+      // Ignore prelude text or attach it to a special key if needed
+      continue;
+    }
+
+    // Add content lines (including bullet points) to the current bucket
+    if (raw.trim().length > 0) {
+      bucket.push(raw);
+    }
+  }
+  flush();
+  return map;
+}
+
 export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
@@ -821,6 +870,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [procedure, setProcedure] = useState<any | null>(null);
 
   const [procedureLoading, setProcedureLoading] = useState(false);
+
+  // Sub-tab state for Procedures tab
+  const [procedureSubTab, setProcedureSubTab] = useState<"questions" | "answers" | "procedures">("questions");
+  
+  // Question filter state
+  const [questionFilter, setQuestionFilter] = useState<"all" | "unanswered">("all");
+  
+  // Editing states for questions/answers
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editQuestionText, setEditQuestionText] = useState("");
+  const [editAnswerText, setEditAnswerText] = useState("");
+  
+  // Notebook state for Audit Recommendations
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+  
+  // Generating states
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [generatingProcedures, setGeneratingProcedures] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [etbId, setEtbId] = useState<string>("");
 
@@ -1795,6 +1863,435 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
 
   }, [procedure, classification]);
+
+  // Get filtered questions for current classification
+  const classificationQuestions = useMemo(() => {
+    if (!procedure?.questions) return [];
+    const filtered = procedure.questions.filter((q: any) => q.classification === classification);
+    if (questionFilter === "unanswered") {
+      return filtered.filter((q: any) => !q.answer || q.answer.trim() === "");
+    }
+    return filtered;
+  }, [procedure, classification, questionFilter]);
+
+  // Get questions with answers
+  const questionsWithAnswers = useMemo(() => {
+    if (!procedure?.questions) return [];
+    return procedure.questions.filter(
+      (q: any) => q.classification === classification && q.answer && q.answer.trim() !== ""
+    );
+  }, [procedure, classification]);
+
+  // Get unanswered questions
+  const unansweredQuestions = useMemo(() => {
+    if (!procedure?.questions) return [];
+    return procedure.questions.filter(
+      (q: any) => q.classification === classification && (!q.answer || q.answer.trim() === "")
+    );
+  }, [procedure, classification]);
+
+  // Handle add question
+  const handleAddQuestion = () => {
+    if (!procedure || !engagement?._id) return;
+    const newQuestion = {
+      id: `new-${Date.now()}`,
+      question: "New question",
+      answer: "",
+      classification: classification,
+      isValid: false
+    };
+    const updatedQuestions = [...(procedure.questions || []), newQuestion];
+    setProcedure({ ...procedure, questions: updatedQuestions });
+    setEditingQuestionId(newQuestion.id);
+    setEditQuestionText(newQuestion.question);
+    setEditAnswerText("");
+  };
+
+  // Handle edit question
+  const handleEditQuestion = (question: any) => {
+    setEditingQuestionId(question.id);
+    setEditQuestionText(question.question || "");
+    setEditAnswerText(question.answer || "");
+  };
+
+  // Handle save question
+  const handleSaveQuestion = async () => {
+    if (!editingQuestionId || !procedure) return;
+    const updatedQuestions = procedure.questions.map((q: any) =>
+      q.id === editingQuestionId
+        ? { ...q, question: editQuestionText, answer: editAnswerText }
+        : q
+    );
+    setProcedure({ ...procedure, questions: updatedQuestions });
+    setEditingQuestionId(null);
+    setEditQuestionText("");
+    setEditAnswerText("");
+    
+    // Save to backend
+    try {
+      const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...procedure,
+          questions: updatedQuestions,
+        }),
+      });
+      toast.success("Question saved successfully");
+    } catch (error: any) {
+      toast.error(`Failed to save: ${error.message}`);
+    }
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setEditingQuestionId(null);
+    setEditQuestionText("");
+    setEditAnswerText("");
+  };
+
+  // Handle delete question
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!procedure) return;
+    const updatedQuestions = procedure.questions.filter((q: any) => q.id !== questionId);
+    setProcedure({ ...procedure, questions: updatedQuestions });
+    
+    // Save to backend
+    try {
+      const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...procedure,
+          questions: updatedQuestions,
+        }),
+      });
+      toast.success("Question deleted successfully");
+    } catch (error: any) {
+      toast.error(`Failed to delete: ${error.message}`);
+    }
+  };
+
+  // Handle add answer for a specific question
+  const handleAddAnswer = async (questionId: string) => {
+    if (!procedure || !engagement?._id) return;
+    
+    setGeneratingAnswers(true);
+    try {
+      const question = procedure.questions.find((q: any) => q.id === questionId);
+      if (!question) return;
+
+      const res = await authFetch(
+        `${import.meta.env.VITE_APIURL}/api/procedures/ai/classification-answers/separate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            engagementId: engagement._id,
+            questions: [{ ...question, answer: undefined }],
+            classification: classification,
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to generate answer");
+
+      const data = await res.json();
+      const updatedQuestions = procedure.questions.map((q: any) => {
+        if (q.id === questionId) {
+          const aiAnswer = Array.isArray(data?.aiAnswers) 
+            ? data.aiAnswers.find((a: any) => a.key === q.key)?.answer 
+            : null;
+          return { ...q, answer: aiAnswer || q.answer || "" };
+        }
+        return q;
+      });
+
+      setProcedure({ ...procedure, questions: updatedQuestions });
+      toast.success("Answer generated successfully");
+    } catch (error: any) {
+      toast.error(`Failed to generate answer: ${error.message}`);
+    } finally {
+      setGeneratingAnswers(false);
+    }
+  };
+
+  // Generate/Regenerate questions for classification
+  const handleGenerateQuestions = async () => {
+    if (!engagement?._id) return;
+    
+    setGeneratingQuestions(true);
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      const res = await authFetch(`${base}/api/procedures/${engagement._id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "ai",
+          materiality: procedure?.materiality || engagement?.materiality,
+          selectedClassifications: [classification],
+          validitySelections: {},
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate questions");
+
+      const result = await res.json();
+      const generatedQuestions = result?.procedure?.questions || result?.questions || [];
+      
+      // Normalize and merge with existing questions
+      const normalizedQuestions = normalize(generatedQuestions);
+      
+      // Replace questions for this classification
+      let updatedQuestions = procedure?.questions || [];
+      const otherQuestions = updatedQuestions.filter((q: any) => q.classification !== classification);
+      const newQuestions = normalizedQuestions.map((q: any) => ({
+        ...q,
+        classification: classification,
+      }));
+      
+      updatedQuestions = [...otherQuestions, ...newQuestions];
+      
+      setProcedure({
+        ...procedure,
+        questions: updatedQuestions,
+        materiality: procedure?.materiality || engagement?.materiality,
+      });
+      
+      toast.success(`Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}`);
+    } catch (error: any) {
+      toast.error(`Failed to generate questions: ${error.message}`);
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
+
+  // Save answers for classification
+  const handleSaveAnswers = async () => {
+    if (!procedure || !engagement?._id) return;
+    
+    setIsSaving(true);
+    try {
+      const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      
+      // Preserve existing status or use "draft" (valid enum values: "draft" or "completed")
+      const currentStatus = procedure.status === "completed" ? "completed" : "draft";
+      
+      const response = await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...procedure,
+          questions: procedure.questions,
+          status: currentStatus,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedData = await response.json();
+        const updatedProcedure = updatedData.procedure || updatedData;
+        setProcedure(updatedProcedure);
+        toast.success("Answers saved successfully");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to save answers");
+      }
+    } catch (error: any) {
+      toast.error(`Failed to save: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Generate/Regenerate procedures (questions + answers + recommendations)
+  const handleGenerateProcedures = async () => {
+    if (!procedure || !engagement?._id) return;
+    
+    setGeneratingProcedures(true);
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      
+      // First ensure we have questions
+      const classificationQuestions = procedure.questions?.filter(
+        (q: any) => q.classification === classification
+      ) || [];
+      
+      if (classificationQuestions.length === 0) {
+        toast.error("Please generate questions first");
+        setGeneratingProcedures(false);
+        return;
+      }
+
+      // Generate answers if not already present
+      const questionsWithoutAnswers = classificationQuestions.filter(
+        (q: any) => !q.answer || q.answer.trim() === ""
+      );
+      
+      let updatedQuestions = procedure.questions;
+      
+      if (questionsWithoutAnswers.length > 0) {
+        // Generate answers first
+        const res = await authFetch(
+          `${base}/api/procedures/ai/classification-answers/separate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              engagementId: engagement._id,
+              questions: questionsWithoutAnswers.map(({ answer, ...rest }) => rest),
+              classification: classification,
+            }),
+          }
+        );
+
+        if (!res.ok) throw new Error("Failed to generate answers");
+        const answerData = await res.json();
+        
+        // Merge answers
+        const updatedClassificationQs = mergeAiAnswers(questionsWithoutAnswers, answerData.aiAnswers || []);
+        updatedQuestions = replaceClassificationQuestions(
+          procedure.questions,
+          classification,
+          updatedClassificationQs
+        );
+      }
+
+      // Get questions with answers for recommendations
+      const questionsWithAnswers = updatedQuestions.filter(
+        (q: any) => q.classification === classification && q.answer && q.answer.trim() !== ""
+      );
+      
+      // Recommendations are typically generated along with answers
+      // If the answer generation returned recommendations, use them
+      let finalRecommendations = procedure?.recommendations || [];
+      
+      // Update procedure with new questions
+      const updatedProcedure = {
+        ...procedure,
+        questions: updatedQuestions,
+        recommendations: finalRecommendations,
+        status: "completed",
+      };
+      
+      setProcedure(updatedProcedure);
+
+      // Save everything
+      const saveUrl = `${base}/api/procedures/${engagement._id}/section`;
+      await authFetch(saveUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedProcedure),
+      });
+
+      toast.success("Procedures generated and saved successfully");
+    } catch (error: any) {
+      toast.error(`Failed to generate procedures: ${error.message}`);
+    } finally {
+      setGeneratingProcedures(false);
+    }
+  };
+
+  // Get recommendations for current classification
+  const recommendationsForClass = useMemo(() => {
+    if (!procedure?.recommendations) return [];
+
+    // If recommendations is already an array of checklist items, use it directly
+    if (Array.isArray(procedure.recommendations)) {
+      return procedure.recommendations.filter((item: any) => 
+        item.classification === classification
+      );
+    }
+
+    // Handle legacy string format
+    const text = typeof procedure.recommendations === "string" ? procedure.recommendations : "";
+    const byClassFromServer = splitRecommendationsByClassification(text);
+
+    if (!classification) {
+      // If no current classification, return empty array
+      return [];
+    }
+
+    // Normalize classification for matching
+    const normalizeClassification = (s: string) => s.toLowerCase().trim();
+
+    let content = "";
+    
+    // 1) Exact match on full classification path
+    if (byClassFromServer[classification]) {
+      content = byClassFromServer[classification];
+    } else {
+      // 2) Try matching even with minor variations
+      for (const key of Object.keys(byClassFromServer)) {
+        if (normalizeClassification(key) === normalizeClassification(classification)) {
+          content = byClassFromServer[key];
+          break;
+        }
+      }
+      
+      // 3) Last resort: Try suffix match for deeper parts of the classification
+      if (!content) {
+        const leaf = classification.split(">").pop()?.trim() || "";
+        const wantLeaf = normalizeClassification(leaf);
+        for (const key of Object.keys(byClassFromServer)) {
+          const keyLeaf = normalizeClassification(key.split(">").pop() || key);
+          if (keyLeaf === wantLeaf) {
+            content = byClassFromServer[key];
+            break;
+          }
+        }
+      }
+    }
+
+    // Convert content to checklist items
+    if (content) {
+      return content.split('\n')
+        .filter(line => line.trim())
+        .map((line, index) => ({
+          id: `item-${Date.now()}-${index}`,
+          text: line.trim(),
+          checked: false,
+          classification: classification
+        }));
+    }
+
+    return [];
+  }, [procedure?.recommendations, classification]);
+
+  // Handle save recommendations
+  const handleSaveRecommendations = async (content: any) => {
+    if (!procedure || !engagement?._id) return;
+    
+    let finalRecommendations = content;
+    
+    if (Array.isArray(procedure?.recommendations)) {
+      const otherClassificationRecommendations = procedure.recommendations.filter(
+        (item: any) => item.classification !== classification
+      );
+      finalRecommendations = [
+        ...otherClassificationRecommendations,
+        ...(Array.isArray(content) ? content : [])
+      ];
+    }
+    
+    try {
+      const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...procedure,
+          recommendations: finalRecommendations,
+        }),
+      });
+      
+      setProcedure({ ...procedure, recommendations: finalRecommendations });
+      toast.success("Recommendations saved successfully");
+    } catch (error: any) {
+      toast.error(`Failed to save: ${error.message}`);
+    }
+  };
 
 
 
@@ -3978,49 +4475,675 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-                  <ProcedureView
+                  <div className="flex flex-col h-full">
 
-                    procedure={procedure}
+                    {/* Header with classification name */}
 
-                    engagement={engagement}
+                    <div className="mb-4">
 
-                    currentClassification={classification}
+                      <h3 className="text-xl font-bold">{formatClassificationForDisplay(classification)}</h3>
 
-                    onProcedureUpdate={setProcedure} // Pass your state setter here
+                      <div className="text-sm text-muted-foreground">
 
-                  />
+                        <Badge variant="outline">{classificationQuestions.length} procedures</Badge>
 
-                  {procedure && procedure.questions && procedure.questions.some((q: any) => q.classification === classification) && (
-
-                    <div className="my-4 flex justify-end">
-
-                      <Button
-
-                        onClick={generateAnswersForClassification}
-
-                        disabled={generatingAnswers}
-
-                        className="flex items-center gap-2"
-
-                      >
-
-                        {generatingAnswers ? (
-
-                          <Loader2 className="h-4 w-4 animate-spin" />
-
-                        ) : (
-
-                          <FileText className="h-4 w-4" />
-
-                        )}
-
-                        {hasAnswersForClassification ? 'Regenerate Answers' : 'Generate Answers'}
-
-                      </Button>
+                      </div>
 
                     </div>
 
-                  )}
+
+
+                    {/* Sub-tabs */}
+
+                    <Tabs value={procedureSubTab} onValueChange={(v) => setProcedureSubTab(v as any)} className="flex-1 flex flex-col">
+
+                      <TabsList className="grid w-full grid-cols-3">
+
+                        <TabsTrigger value="questions">Questions</TabsTrigger>
+
+                        <TabsTrigger value="answers">Answers</TabsTrigger>
+
+                        <TabsTrigger value="procedures">Procedures</TabsTrigger>
+
+                      </TabsList>
+
+
+
+                      {/* Questions Sub-tab */}
+
+                      <TabsContent value="questions" className="flex-1 flex flex-col mt-4">
+
+                        <div className="flex items-center justify-between mb-4">
+
+                          <div className="flex items-center gap-2">
+
+                            <Button
+
+                              variant={questionFilter === "all" ? "default" : "outline"}
+
+                              size="sm"
+
+                              onClick={() => setQuestionFilter("all")}
+
+                            >
+
+                              All Questions
+
+                            </Button>
+
+                            <Button
+
+                              variant={questionFilter === "unanswered" ? "default" : "outline"}
+
+                              size="sm"
+
+                              onClick={() => setQuestionFilter("unanswered")}
+
+                            >
+
+                              Unanswered Questions
+
+                            </Button>
+
+                          </div>
+
+                          <div className="flex items-center gap-2">
+
+                            <Button variant="outline" size="sm" onClick={handleAddQuestion}>
+
+                              <Plus className="h-4 w-4 mr-2" />
+
+                              Add Question
+
+                            </Button>
+
+                            <Button
+
+                              variant="outline"
+
+                              size="sm"
+
+                              onClick={handleGenerateQuestions}
+
+                              disabled={generatingQuestions}
+
+                            >
+
+                              {generatingQuestions ? (
+
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                              ) : (
+
+                                <RefreshCw className="h-4 w-4 mr-2" />
+
+                              )}
+
+                              {classificationQuestions.length > 0 ? "Regenerate Questions" : "Generate Questions"}
+
+                            </Button>
+
+                          </div>
+
+                        </div>
+
+
+
+                        <ScrollArea className="flex-1">
+
+                          <div className="space-y-4">
+
+                            {classificationQuestions.length === 0 ? (
+
+                              <div className="text-center py-8 text-muted-foreground">
+
+                                {questionFilter === "unanswered" 
+
+                                  ? "All questions have been answered." 
+
+                                  : "No questions available. Click 'Add Question' to create one."}
+
+                              </div>
+
+                            ) : (
+
+                              classificationQuestions.map((q: any, idx: number) => (
+
+                                <Card key={q.id || idx}>
+
+                                  <CardContent className="pt-6">
+
+                                    {editingQuestionId === q.id ? (
+
+                                      <div className="space-y-3">
+
+                                        <div className="flex justify-between items-center">
+
+                                          <div className="font-medium">{idx + 1}.</div>
+
+                                          <div className="flex gap-2">
+
+                                            <Button size="sm" onClick={handleSaveQuestion}>
+
+                                              <Save className="h-4 w-4 mr-1" />
+
+                                              Save
+
+                                            </Button>
+
+                                            <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+
+                                              <X className="h-4 w-4 mr-1" />
+
+                                              Cancel
+
+                                            </Button>
+
+                                          </div>
+
+                                        </div>
+
+                                        <Input
+
+                                          value={editQuestionText}
+
+                                          onChange={(e) => setEditQuestionText(e.target.value)}
+
+                                          placeholder="Question"
+
+                                        />
+
+                                      </div>
+
+                                    ) : (
+
+                                      <>
+
+                                        <div className="flex justify-between items-start">
+
+                                          <div className="font-medium mb-1">
+
+                                            {idx + 1}. {q.question || "—"}
+
+                                          </div>
+
+                                          <div className="flex gap-2">
+
+                                            <Button
+
+                                              variant="ghost"
+
+                                              size="sm"
+
+                                              onClick={() => handleEditQuestion(q)}
+
+                                            >
+
+                                              <Edit2 className="h-4 w-4" />
+
+                                            </Button>
+
+                                            <Button
+
+                                              variant="ghost"
+
+                                              size="sm"
+
+                                              onClick={() => handleDeleteQuestion(q.id)}
+
+                                            >
+
+                                              <Trash2 className="h-4 w-4" />
+
+                                            </Button>
+
+                                          </div>
+
+                                        </div>
+
+                                        {q.framework && (
+
+                                          <Badge className="mr-2" variant="default">{q.framework}</Badge>
+
+                                        )}
+
+                                        {q.reference && (
+
+                                          <Badge variant="default">{q.reference}</Badge>
+
+                                        )}
+
+                                      </>
+
+                                    )}
+
+                                  </CardContent>
+
+                                </Card>
+
+                              ))
+
+                            )}
+
+                          </div>
+
+                        </ScrollArea>
+
+                      </TabsContent>
+
+
+
+                      {/* Answers Sub-tab */}
+
+                      <TabsContent value="answers" className="flex-1 flex flex-col mt-4">
+
+                        <div className="flex items-center justify-between mb-4">
+
+                          <div className="text-sm text-muted-foreground">
+
+                            {questionsWithAnswers.length} answered • {unansweredQuestions.length} unanswered
+
+                          </div>
+
+                          <div className="flex items-center gap-2">
+
+                            {unansweredQuestions.length > 0 && (
+
+                              <Button
+
+                                variant="default"
+
+                                size="sm"
+
+                                onClick={generateAnswersForClassification}
+
+                                disabled={generatingAnswers}
+
+                              >
+
+                                {generatingAnswers ? (
+
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                                ) : (
+
+                                  <FileText className="h-4 w-4 mr-2" />
+
+                                )}
+
+                                Generate Answers
+
+                              </Button>
+
+                            )}
+
+                            {questionsWithAnswers.length > 0 && (
+
+                              <Button
+
+                                variant="outline"
+
+                                size="sm"
+
+                                onClick={generateAnswersForClassification}
+
+                                disabled={generatingAnswers}
+
+                              >
+
+                                {generatingAnswers ? (
+
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                                ) : (
+
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+
+                                )}
+
+                                Regenerate Answers
+
+                              </Button>
+
+                            )}
+
+                            {(questionsWithAnswers.length > 0 || unansweredQuestions.length > 0) && (
+
+                              <Button
+
+                                variant="default"
+
+                                size="sm"
+
+                                onClick={handleSaveAnswers}
+
+                                disabled={isSaving}
+
+                              >
+
+                                {isSaving ? (
+
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                                ) : (
+
+                                  <Save className="h-4 w-4 mr-2" />
+
+                                )}
+
+                                Save Answers
+
+                              </Button>
+
+                            )}
+
+                          </div>
+
+                        </div>
+
+
+
+                        <ScrollArea className="flex-1">
+
+                          <div className="space-y-4">
+
+                            {questionsWithAnswers.length === 0 && unansweredQuestions.length === 0 ? (
+
+                              <div className="text-center py-8 text-muted-foreground">
+
+                                No questions available. Go to Questions tab to add questions.
+
+                              </div>
+
+                            ) : (
+
+                              <>
+
+                                {/* Answered Questions */}
+
+                                {questionsWithAnswers.map((q: any, idx: number) => (
+
+                                  <Card key={q.id || idx}>
+
+                                    <CardContent className="pt-6">
+
+                                      <div className="font-medium mb-2">
+
+                                        {idx + 1}. {q.question || "—"}
+
+                                      </div>
+
+                                      <div className="text-sm text-muted-foreground mb-3">
+
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+
+                                          {String(q.answer || "No answer.")}
+
+                                        </ReactMarkdown>
+
+                                      </div>
+
+                                      <div className="flex gap-2">
+
+                                        {q.framework && (
+
+                                          <Badge variant="default">{q.framework}</Badge>
+
+                                        )}
+
+                                        {q.reference && (
+
+                                          <Badge variant="default">{q.reference}</Badge>
+
+                                        )}
+
+                                      </div>
+
+                                    </CardContent>
+
+                                  </Card>
+
+                                ))}
+
+
+
+                                {/* Unanswered Questions */}
+
+                                {unansweredQuestions.length > 0 && (
+
+                                  <div className="mt-6">
+
+                                    <h4 className="text-lg font-semibold mb-4">Unanswered Questions</h4>
+
+                                    {unansweredQuestions.map((q: any, idx: number) => (
+
+                                      <Card key={q.id || idx} className="mb-4">
+
+                                        <CardContent className="pt-6">
+
+                                          <div className="font-medium mb-2">
+
+                                            {questionsWithAnswers.length + idx + 1}. {q.question || "—"}
+
+                                          </div>
+
+                                          <div className="text-sm text-muted-foreground italic mb-3">
+
+                                            No answer.
+
+                                          </div>
+
+                                          <Button
+
+                                            variant="outline"
+
+                                            size="sm"
+
+                                            onClick={() => handleAddAnswer(q.id)}
+
+                                            disabled={generatingAnswers}
+
+                                          >
+
+                                            {generatingAnswers ? (
+
+                                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                                            ) : (
+
+                                              <Plus className="h-4 w-4 mr-2" />
+
+                                            )}
+
+                                            Add Answer
+
+                                          </Button>
+
+                                        </CardContent>
+
+                                      </Card>
+
+                                    ))}
+
+                                  </div>
+
+                                )}
+
+                              </>
+
+                            )}
+
+                          </div>
+
+                        </ScrollArea>
+
+                      </TabsContent>
+
+
+
+                      {/* Procedures Sub-tab */}
+
+                      <TabsContent value="procedures" className="flex-1 flex flex-col mt-4">
+
+                        <div className="flex items-center justify-between mb-4">
+
+                          <h4 className="text-lg font-semibold">Audit Procedures & Recommendations</h4>
+
+                          <div className="flex items-center gap-2">
+
+                            <Button
+
+                              variant="outline"
+
+                              size="sm"
+
+                              onClick={handleGenerateProcedures}
+
+                              disabled={generatingProcedures}
+
+                            >
+
+                              {generatingProcedures ? (
+
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+
+                              ) : (
+
+                                <RefreshCw className="h-4 w-4 mr-2" />
+
+                              )}
+
+                              {questionsWithAnswers.length > 0 ? "Regenerate Procedures" : "Generate Procedures"}
+
+                            </Button>
+
+                          </div>
+
+                        </div>
+
+
+
+                        <div className="flex-1 flex flex-col gap-6 overflow-auto">
+
+                          {/* Audit Procedures Section (Questions + Answers) */}
+
+                          {classificationQuestions.length > 0 && (
+
+                            <div className="space-y-4">
+
+                              <h5 className="text-md font-semibold">Audit Procedures</h5>
+
+                              <Card>
+
+                                <CardContent className="pt-6">
+
+                                  <ScrollArea className="h-[400px]">
+
+                                    <div className="space-y-4">
+
+                                      {classificationQuestions.map((q: any, idx: number) => (
+
+                                        <div key={q.id || idx} className="border-b pb-4 last:border-b-0">
+
+                                          <div className="font-medium mb-2">
+
+                                            {idx + 1}. {q.question || "—"}
+
+                                          </div>
+
+                                          {q.answer ? (
+
+                                            <div className="text-sm text-muted-foreground mb-2">
+
+                                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+
+                                                {String(q.answer)}
+
+                                              </ReactMarkdown>
+
+                                            </div>
+
+                                          ) : (
+
+                                            <div className="text-sm text-muted-foreground italic mb-2">
+
+                                              No answer.
+
+                                            </div>
+
+                                          )}
+
+                                          <div className="flex gap-2">
+
+                                            {q.framework && (
+
+                                              <Badge variant="default">{q.framework}</Badge>
+
+                                            )}
+
+                                            {q.reference && (
+
+                                              <Badge variant="default">{q.reference}</Badge>
+
+                                            )}
+
+                                          </div>
+
+                                        </div>
+
+                                      ))}
+
+                                    </div>
+
+                                  </ScrollArea>
+
+                                </CardContent>
+
+                              </Card>
+
+                            </div>
+
+                          )}
+
+
+
+                          {/* Audit Recommendations Section */}
+
+                          <div className="space-y-4">
+
+                            <h5 className="text-md font-semibold">Audit Recommendations</h5>
+
+                            <div className="flex-1 relative min-h-[400px]">
+
+                              <NotebookInterface
+
+                                isOpen={true}
+
+                                isEditable={true}
+
+                                isPlanning={false}
+
+                                onClose={() => {}}
+
+                                recommendations={recommendationsForClass}
+
+                                onSave={handleSaveRecommendations}
+
+                                dismissible={false}
+
+                              />
+
+                            </div>
+
+                          </div>
+
+                        </div>
+
+                      </TabsContent>
+
+                    </Tabs>
+
+                  </div>
 
                 </>
 

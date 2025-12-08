@@ -56,6 +56,7 @@ import {
   buildTotalSharesPayload,
   calculateTotalSharesSum,
 } from "@/components/client/ShareClassInput";
+import { PaidUpSharesInput } from "@/components/client/PaidUpSharesInput";
 
 const industries = [
   "Technology",
@@ -108,6 +109,7 @@ export const AddClient = () => {
     visibleShareClasses: [] as string[],
     selectedRoles: [] as string[],
     sharesData: [] as Array<{ totalShares: string; class: string }>,
+    paidUpSharesPercentage: 0,
   });
   const [showPassword, setShowPassword] = useState(true);
   const [showCompanyDialog, setShowCompanyDialog] = useState(false);
@@ -259,7 +261,7 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
-    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData } =
+    const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData, paidUpSharesPercentage } =
       formData;
 
     const industry =
@@ -283,18 +285,24 @@ export const AddClient = () => {
         role: "client",
         isCreateCompany,
         isNewCompany: formData.isNewCompany,
+        authorizedShares: formData.shareClassValues?.authorizedShares,
+        issuedShares: formData.shareClassValues?.issuedShares,
+        perShareValue: {
+          value: formData.shareClassValues?.perShareValue,
+          currency: "EUR",
+        },
       };
 
       // Add company creation data if enabled
       if (isCreateCompany) {
         // Build totalShares payload using ShareClassInput data
-        const totalSharesPayload = formData.shareClassValues && formData.useClassShares !== undefined
-          ? buildTotalSharesPayload(formData.shareClassValues, formData.useClassShares)
+        const totalSharesPayload = formData.shareClassValues
+          ? buildTotalSharesPayload(formData.shareClassValues)
           : undefined;
 
         // Calculate total shares sum (as a number) for backend validation
-        const totalSharesSum = formData.shareClassValues && formData.useClassShares !== undefined
-          ? calculateTotalSharesSum(formData.shareClassValues, formData.useClassShares)
+        const totalSharesSum = formData.shareClassValues
+          ? calculateTotalSharesSum(formData.shareClassValues)
           : 0;
 
         // Add shareHolderData if totalShares is provided or sharesData exists
@@ -313,6 +321,7 @@ export const AddClient = () => {
             // Send the array format for the company's totalShares field
             totalSharesArray: totalSharesPayload && totalSharesPayload.length > 0 ? totalSharesPayload : undefined,
             shares: validShares.length > 0 ? validShares : undefined,
+            paidUpSharesPercentage: paidUpSharesPercentage,
           };
         }
 
@@ -375,90 +384,47 @@ export const AddClient = () => {
     });
   };
 
-  // Get available share classes based on company structure
+  // Get all available share classes (always show all: A, B, C, Ordinary)
   const getAvailableShareClasses = (): Array<"A" | "B" | "C" | "Ordinary"> => {
-    if (!formData.useClassShares) {
-      // Company uses Ordinary shares
-      return ["Ordinary"];
-    } else {
-      // Company uses Share Classes (A, B, C)
-      const classes: Array<"A" | "B" | "C"> = [];
-      if (formData.shareClassValues.classA > 0) classes.push("A");
-      if (formData.shareClassValues.classB > 0) classes.push("B");
-      if (formData.shareClassValues.classC > 0) classes.push("C");
-      return classes.length > 0 ? classes : ["A", "B", "C"]; // Default fallback
-    }
+    return ["A", "B", "C", "Ordinary"];
   };
 
-  // Calculate available shares per class from company totalShares
+  // Calculate available shares per class from company totalShares (all classes)
   const getAvailableSharesPerClass = (): Record<string, number> => {
     const available: Record<string, number> = {};
     
-    if (!formData.useClassShares) {
-      // Ordinary mode: get Ordinary shares
-      const ordinaryTotal = formData.shareClassValues.ordinary || 0;
-      const allocatedOrdinary = formData.sharesData
-        .filter((s) => s.class === "Ordinary")
-        .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
-      available["Ordinary"] = Math.max(0, ordinaryTotal - allocatedOrdinary);
-    } else {
-      // Share Classes mode: get A, B, C shares
-      const classA = formData.shareClassValues.classA || 0;
-      const classB = formData.shareClassValues.classB || 0;
-      const classC = formData.shareClassValues.classC || 0;
-      
-      const allocatedA = formData.sharesData
-        .filter((s) => s.class === "A")
-        .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
-      const allocatedB = formData.sharesData
-        .filter((s) => s.class === "B")
-        .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
-      const allocatedC = formData.sharesData
-        .filter((s) => s.class === "C")
-        .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
-      
-      available["A"] = Math.max(0, classA - allocatedA);
-      available["B"] = Math.max(0, classB - allocatedB);
-      available["C"] = Math.max(0, classC - allocatedC);
-    }
+    // Get all share classes
+    const classA = formData.shareClassValues.classA || 0;
+    const classB = formData.shareClassValues.classB || 0;
+    const classC = formData.shareClassValues.classC || 0;
+    const ordinary = formData.shareClassValues.ordinary || 0;
+    
+    // Calculate allocated shares for each class
+    const allocatedA = formData.sharesData
+      .filter((s) => s.class === "A")
+      .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
+    const allocatedB = formData.sharesData
+      .filter((s) => s.class === "B")
+      .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
+    const allocatedC = formData.sharesData
+      .filter((s) => s.class === "C")
+      .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
+    const allocatedOrdinary = formData.sharesData
+      .filter((s) => s.class === "Ordinary")
+      .reduce((sum, s) => sum + (Number(s.totalShares) || 0), 0);
+    
+    // Calculate remaining shares
+    available["A"] = Math.max(0, classA - allocatedA);
+    available["B"] = Math.max(0, classB - allocatedB);
+    available["C"] = Math.max(0, classC - allocatedC);
+    available["Ordinary"] = Math.max(0, ordinary - allocatedOrdinary);
     
     return available;
   };
 
 
 
-  // Update share classes when company structure changes
-  useEffect(() => {
-    setFormData((prev) => {
-      // Determine available classes based on current form state
-      let availableClasses: Array<"A" | "B" | "C" | "Ordinary"> = [];
-      if (!prev.useClassShares) {
-        availableClasses = ["Ordinary"];
-      } else {
-        const classes: Array<"A" | "B" | "C"> = [];
-        if (prev.shareClassValues.classA > 0) classes.push("A");
-        if (prev.shareClassValues.classB > 0) classes.push("B");
-        if (prev.shareClassValues.classC > 0) classes.push("C");
-        availableClasses = classes.length > 0 ? classes : ["A", "B", "C"];
-      }
-      
-      const defaultClass = availableClasses[0] || "A";
-      
-      // Update all shares to match available classes
-      const updatedSharesData = prev.sharesData.map((share) => {
-        // If current class is not available, set to default
-        if (!availableClasses.includes(share.class as any)) {
-          return { ...share, class: defaultClass };
-        }
-        return share;
-      });
-      
-      return {
-        ...prev,
-        sharesData: updatedSharesData,
-      };
-    });
-  }, [formData.useClassShares, formData.shareClassValues.classA, formData.shareClassValues.classB, formData.shareClassValues.classC, formData.shareClassValues.ordinary]);
+  // All share classes are always available now, no need for conditional updates
 
   const isShareholderSelected = formData.selectedRoles.includes("Shareholder");
 
@@ -467,13 +433,14 @@ export const AddClient = () => {
       setFormData((prev) => ({
         ...prev,
         sharesData: [],
-        shareClassValues: getDefaultShareClassValues(),
         useClassShares: false,
         visibleShareClasses: [],
       }));
     }
   }, [formData.selectedRoles]);
   
+
+  const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
 
   return (
     <div className="w-full bg-brand-body p-4 sm:p-6 box-border">
@@ -956,6 +923,37 @@ export const AddClient = () => {
                     </div>
                   </div>
 
+                  {/* Share Information: Company Total Shares (moved above Roles) */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                        <Sparkles className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Share Information
+                      </h3>
+                    </div>
+
+                    <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                      <div className="space-y-3">
+                        <ShareClassInput
+                          values={formData.shareClassValues}
+                          errors={shareClassErrors}
+                          onValuesChange={(values) => {
+                            handleChange("shareClassValues", values);
+                          }}
+                          onErrorChange={(errs) => setShareClassErrors(errs)}
+                          showTotal={true}
+                          label="Company Total Shares *"
+                          className="mt-2"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Total number of shares issued by the company
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Roles */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -994,44 +992,10 @@ export const AddClient = () => {
                     </div>
                   </div>
 
-                  {/* Share Data */}
+                  {/* Client Share Holdings: only shown when Shareholder is selected */}
                   {isShareholderSelected && (
                   <div className="space-y-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
-                        <Sparkles className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Share Information
-                      </h3>
-                    </div>
-
                     <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
-                      {/* Company Total Shares */}
-                      <div className="space-y-3">
-                        <ShareClassInput
-                          values={formData.shareClassValues}
-                          errors={getDefaultShareClassErrors()}
-                          useClassShares={formData.useClassShares}
-                          visibleShareClasses={formData.visibleShareClasses}
-                          onValuesChange={(values) => {
-                            handleChange("shareClassValues", values);
-                          }}
-                          onUseClassSharesChange={(useClassShares) => {
-                            handleChange("useClassShares", useClassShares);
-                          }}
-                          onVisibleShareClassesChange={(visibleShareClasses) => {
-                            handleChange("visibleShareClasses", visibleShareClasses);
-                          }}
-                          showTotal={true}
-                          label="Company Total Shares *"
-                          className="mt-2"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Total number of shares issued by the company
-                        </p>
-                      </div>
-
                       {/* Client Share Holdings */}
                       <div className="space-y-3 pt-4 border-t border-gray-200">
                         <div className="flex items-center justify-between">
@@ -1043,28 +1007,202 @@ export const AddClient = () => {
                           Total shares the client holds and their class
                         </p>
 
-                        {!formData.useClassShares ? (
-                          // Ordinary mode: show single input
-                          <div className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
+                        {/* Show all share class inputs together: Class A, B, C, and Ordinary */}
+                        <div className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Class A */}
                             {(() => {
-                              const ordinaryTotal = formData.shareClassValues.ordinary || 0;
-                              const ordinaryShare = formData.sharesData.find((s) => s.class === "Ordinary");
-                              const currentValue = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
-                              const remaining = Math.max(0, ordinaryTotal - currentValue);
-                              const hasError = currentValue > ordinaryTotal;
-                              const errorKey = "class_Ordinary";
+                              const available = formData.shareClassValues.classA || 0;
+                              const shareItem = formData.sharesData.find((s) => s.class === "A");
+                              const currentValue = shareItem ? Number(shareItem.totalShares) || 0 : 0;
+                              const remaining = Math.max(0, available - currentValue);
+                              const hasError = currentValue > available;
                               
                               return (
-                                <div className="space-y-2">
+                                <div key="A" className="space-y-2">
                                   <Label className="text-xs font-medium text-gray-600">
-                                    Ordinary Shares *
+                                    Class A Shares
                                   </Label>
                                   <Input
                                     type="number"
                                     min="0"
                                     step="1"
                                     placeholder="0"
-                                    value={ordinaryShare?.totalShares || ""}
+                                    value={shareItem?.totalShares || ""}
+                                    onChange={(e) => {
+                                      const newValue = e.target.value;
+                                      const existingIndex = formData.sharesData.findIndex((s) => s.class === "A");
+                                      
+                                      if (newValue && Number(newValue) > 0) {
+                                        const updatedShares = [...formData.sharesData];
+                                        if (existingIndex >= 0) {
+                                          updatedShares[existingIndex] = { totalShares: newValue, class: "A" };
+                                        } else {
+                                          updatedShares.push({ totalShares: newValue, class: "A" });
+                                        }
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      } else {
+                                        const updatedShares = formData.sharesData.filter((_, i) => i !== existingIndex);
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      }
+                                    }}
+                                    className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {available > 0 ? (
+                                      currentValue > 0 ? (
+                                        <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
+                                      ) : (
+                                        <>Available: {available.toLocaleString()} shares</>
+                                      )
+                                    ) : (
+                                      <>No Class A shares available</>
+                                    )}
+                                  </p>
+                                  {hasError && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Shares cannot exceed available shares ({available.toLocaleString()})
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            
+                            {/* Class B */}
+                            {(() => {
+                              const available = formData.shareClassValues.classB || 0;
+                              const shareItem = formData.sharesData.find((s) => s.class === "B");
+                              const currentValue = shareItem ? Number(shareItem.totalShares) || 0 : 0;
+                              const remaining = Math.max(0, available - currentValue);
+                              const hasError = currentValue > available;
+                              
+                              return (
+                                <div key="B" className="space-y-2">
+                                  <Label className="text-xs font-medium text-gray-600">
+                                    Class B Shares
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="0"
+                                    value={shareItem?.totalShares || ""}
+                                    onChange={(e) => {
+                                      const newValue = e.target.value;
+                                      const existingIndex = formData.sharesData.findIndex((s) => s.class === "B");
+                                      
+                                      if (newValue && Number(newValue) > 0) {
+                                        const updatedShares = [...formData.sharesData];
+                                        if (existingIndex >= 0) {
+                                          updatedShares[existingIndex] = { totalShares: newValue, class: "B" };
+                                        } else {
+                                          updatedShares.push({ totalShares: newValue, class: "B" });
+                                        }
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      } else {
+                                        const updatedShares = formData.sharesData.filter((_, i) => i !== existingIndex);
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      }
+                                    }}
+                                    className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {available > 0 ? (
+                                      currentValue > 0 ? (
+                                        <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
+                                      ) : (
+                                        <>Available: {available.toLocaleString()} shares</>
+                                      )
+                                    ) : (
+                                      <>No Class B shares available</>
+                                    )}
+                                  </p>
+                                  {hasError && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Shares cannot exceed available shares ({available.toLocaleString()})
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            
+                            {/* Class C */}
+                            {(() => {
+                              const available = formData.shareClassValues.classC || 0;
+                              const shareItem = formData.sharesData.find((s) => s.class === "C");
+                              const currentValue = shareItem ? Number(shareItem.totalShares) || 0 : 0;
+                              const remaining = Math.max(0, available - currentValue);
+                              const hasError = currentValue > available;
+                              
+                              return (
+                                <div key="C" className="space-y-2">
+                                  <Label className="text-xs font-medium text-gray-600">
+                                    Class C Shares
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="0"
+                                    value={shareItem?.totalShares || ""}
+                                    onChange={(e) => {
+                                      const newValue = e.target.value;
+                                      const existingIndex = formData.sharesData.findIndex((s) => s.class === "C");
+                                      
+                                      if (newValue && Number(newValue) > 0) {
+                                        const updatedShares = [...formData.sharesData];
+                                        if (existingIndex >= 0) {
+                                          updatedShares[existingIndex] = { totalShares: newValue, class: "C" };
+                                        } else {
+                                          updatedShares.push({ totalShares: newValue, class: "C" });
+                                        }
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      } else {
+                                        const updatedShares = formData.sharesData.filter((_, i) => i !== existingIndex);
+                                        setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
+                                      }
+                                    }}
+                                    className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                  />
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {available > 0 ? (
+                                      currentValue > 0 ? (
+                                        <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
+                                      ) : (
+                                        <>Available: {available.toLocaleString()} shares</>
+                                      )
+                                    ) : (
+                                      <>No Class C shares available</>
+                                    )}
+                                  </p>
+                                  {hasError && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Shares cannot exceed available shares ({available.toLocaleString()})
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                            
+                            {/* Ordinary */}
+                            {(() => {
+                              const available = formData.shareClassValues.ordinary || 0;
+                              const shareItem = formData.sharesData.find((s) => s.class === "Ordinary");
+                              const currentValue = shareItem ? Number(shareItem.totalShares) || 0 : 0;
+                              const remaining = Math.max(0, available - currentValue);
+                              const hasError = currentValue > available;
+                              
+                              return (
+                                <div key="Ordinary" className="space-y-2">
+                                  <Label className="text-xs font-medium text-gray-600">
+                                    Ordinary Shares
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="0"
+                                    value={shareItem?.totalShares || ""}
                                     onChange={(e) => {
                                       const newValue = e.target.value;
                                       const existingIndex = formData.sharesData.findIndex((s) => s.class === "Ordinary");
@@ -1085,93 +1223,38 @@ export const AddClient = () => {
                                     className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
                                   />
                                   <p className="text-xs text-gray-500 mt-1">
-                                    {currentValue > 0 ? (
-                                      <>Remaining: {remaining.toLocaleString()} shares (Total: {ordinaryTotal.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
+                                    {available > 0 ? (
+                                      currentValue > 0 ? (
+                                        <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
+                                      ) : (
+                                        <>Available: {available.toLocaleString()} shares</>
+                                      )
                                     ) : (
-                                      <>Available: {ordinaryTotal.toLocaleString()} shares</>
+                                      <>No Ordinary shares available</>
                                     )}
                                   </p>
                                   {hasError && (
                                     <p className="text-xs text-red-600 mt-1">
-                                      Shares cannot exceed available shares ({ordinaryTotal.toLocaleString()})
+                                      Shares cannot exceed available shares ({available.toLocaleString()})
                                     </p>
                                   )}
                                 </div>
                               );
                             })()}
-                          </div>
-                        ) : (
-                          // Share Classes mode: show separate inputs for each class
-                          <div className="p-4 border border-gray-200 rounded-xl bg-white space-y-3">
-                            <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                              {getAvailableShareClasses().map((shareClass) => {
-                                // Calculate available and allocated shares
-                                let available = 0;
-                                if (shareClass === "A") {
-                                  available = formData.shareClassValues.classA || 0;
-                                } else if (shareClass === "B") {
-                                  available = formData.shareClassValues.classB || 0;
-                                } else if (shareClass === "C") {
-                                  available = formData.shareClassValues.classC || 0;
-                                }
-                                
-                                const shareItem = formData.sharesData.find((s) => s.class === shareClass);
-                                const currentValue = shareItem ? Number(shareItem.totalShares) || 0 : 0;
-                                const remaining = Math.max(0, available - currentValue);
-                                const hasError = currentValue > available;
-                                
-                                return (
-                                  <div key={shareClass}>
-                                    <Label className="text-xs font-medium text-gray-600">
-                                      {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
-                                    </Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="1"
-                                      placeholder="0"
-                                      value={shareItem?.totalShares || ""}
-                                      onChange={(e) => {
-                                        const newValue = e.target.value;
-                                        const existingIndex = formData.sharesData.findIndex((s) => s.class === shareClass);
-                                        
-                                        if (newValue && Number(newValue) > 0) {
-                                          const updatedShares = [...formData.sharesData];
-                                          if (existingIndex >= 0) {
-                                            updatedShares[existingIndex] = { totalShares: newValue, class: shareClass };
-                                          } else {
-                                            updatedShares.push({ totalShares: newValue, class: shareClass });
-                                          }
-                                          setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
-                                        } else {
-                                          const updatedShares = formData.sharesData.filter((_, i) => i !== existingIndex);
-                                          setFormData((prev) => ({ ...prev, sharesData: updatedShares }));
-                                        }
-                                      }}
-                                      className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {currentValue > 0 ? (
-                                        <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {currentValue.toLocaleString()})</>
-                                      ) : (
-                                        <>Available: {available.toLocaleString()} shares</>
-                                      )}
-                                    </p>
-                                    {hasError && (
-                                      <p className="text-xs text-red-600 mt-1">
-                                        Shares cannot exceed available shares ({available.toLocaleString()})
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })}
+
+                            {/* Paid Up Shares Percentage */}
+                            <div className="md:col-span-2">
+                              <PaidUpSharesInput
+                                value={formData.paidUpSharesPercentage}
+                                onChange={(val) => handleChange("paidUpSharesPercentage", val)}
+                              />
                             </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
+                  )}
                 </>
               )}
 
@@ -1179,7 +1262,7 @@ export const AddClient = () => {
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || Object.values(shareClassErrors).some(Boolean)}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
                 >
                   {isSubmitting && (

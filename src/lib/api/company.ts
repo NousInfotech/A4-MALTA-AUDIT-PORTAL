@@ -42,15 +42,18 @@ export interface ShareDataItem {
 export interface AddShareHolderPersonPayload {
   personId: string;
   sharesData: ShareDataItem[];
+  paidUpSharesPercentage?: number;
 }
 
 export interface AddShareHolderCompanyPayload {
   companyId: string;
   sharesData: ShareDataItem[];
+  paidUpSharesPercentage?: number;
 }
 
 export interface UpdateShareHolderPayload {
   sharesData: ShareDataItem[];
+  paidUpSharesPercentage?: number;
 }
 
 export interface AddRepresentationPersonPayload {

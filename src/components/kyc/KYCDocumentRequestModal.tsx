@@ -35,6 +35,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { DefaultDocumentRequestPreview } from "./DefaultDocumentRequestPreview";
 // import { DefaultDocument } from "@/data/defaultDocumentRequests";
 import { DocumentRequestTemplate } from '@/lib/api/documentRequestTemplate';
+import { SingleDocumentForm } from '@/components/document-request/AddDocumentDialog/SingleDocumentForm';
+import { MultipleDocumentForm } from '@/components/document-request/AddDocumentDialog/MultipleDocumentForm';
 
 /* ✅ personsData with address */
 // const personsData = [
@@ -69,6 +71,22 @@ interface Document {
   status: 'pending';
 }
 
+interface MultipleDocumentItem {
+  label: string;
+  status: "pending";
+  template?: {
+    url?: string;
+    instruction?: string;
+  };
+}
+
+interface MultipleDocument {
+  name: string;
+  type: "direct" | "template";
+  instruction?: string;
+  multiple: MultipleDocumentItem[];
+}
+
 interface KYCDocumentRequestModalProps {
   engagementId: string;
   clientId: string;
@@ -89,15 +107,8 @@ export function KYCDocumentRequestModal({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [newDocument, setNewDocument] = useState<Partial<Document>>({
-    name: '',
-    type: 'direct',
-    description: '',
-    template: {
-      instruction: ''
-    }
-  });
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [multipleDocuments, setMultipleDocuments] = useState<MultipleDocument[]>([]);
+  const [documentMode, setDocumentMode] = useState<"new" | "new-multiple">("new");
   const { toast } = useToast();
 
   /* ✅ checkbox state */
@@ -116,69 +127,6 @@ export function KYCDocumentRequestModal({
   useState<"shareholders" | "involvements">("shareholders");
 
 
-  const handleAddDocument = () => {
-    if (!newDocument.name?.trim()) {
-      toast({
-        title: "Error",
-        description: "Document name is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const document: Document = {
-      name: newDocument.name.trim(),
-      type: newDocument.type || 'direct',
-      description: newDocument.description?.trim() || '',
-      template: newDocument.type === 'template' ? {
-        instruction: newDocument.template?.instruction?.trim() || ''
-      } : undefined,
-      status: 'pending'
-    };
-
-    setDocuments(prev => [...prev, document]);
-    setNewDocument({
-      name: '',
-      type: 'direct',
-      description: '',
-      template: {
-        instruction: ''
-      }
-    });
-    setTemplateFile(null);
-  };
-
-  const handleRemoveDocument = (index: number) => {
-    setDocuments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleTemplateUpload = async (file: File) => {
-    try {
-      setLoading(true);
-      // Upload template file to get URL
-      const formData = new FormData();
-      formData.append('file', file);
-            // Get auth token
-      const { data } = await supabase.auth.getSession();
-      const API_URL = import.meta.env.VITE_APIURL || 'http://localhost:8000';
-
-
-      const uploadResponse = await fetch(`${API_URL}/api/document-requests/template/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${data.session?.access_token}`
-        },
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) throw new Error('Failed to upload template');
-
-      const { url } = await uploadResponse.json();
-      return url;
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!engagementId?.trim()) {
@@ -199,7 +147,7 @@ export function KYCDocumentRequestModal({
       return;
     }
 
-    if (documents.length === 0) {
+    if (documents.length === 0 && multipleDocuments.length === 0) {
       toast({
         title: "Error",
         description: "Add at least one document",
@@ -211,18 +159,34 @@ export function KYCDocumentRequestModal({
     try {
       setLoading(true);
 
-      const processedDocuments = await Promise.all(
-        documents.map(async (doc) => {
-          if (doc.type === 'template' && templateFile) {
-            const url = await handleTemplateUpload(templateFile);
-            return {
-              ...doc,
-              template: { ...doc.template, url }
-            };
-          }
-          return doc;
-        })
-      );
+      // Process documents (form components handle template uploads)
+      const processedDocuments = documents.map((doc: any) => {
+        const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+        return {
+          ...doc,
+          type: docType
+        };
+      });
+
+      // Process multiple documents if any
+      const processedMultipleDocuments = multipleDocuments.map((doc: MultipleDocument) => {
+        const docType = typeof doc.type === 'string' ? doc.type : (doc.type as any)?.type || 'direct';
+        return {
+          name: doc.name,
+          type: docType === "template" ? "template" : "direct",
+          instruction: doc.instruction || "",
+          multiple: doc.multiple.map((m: any) => ({
+            label: m.label,
+            status: "pending",
+            template: docType === "template" && m.template?.url 
+              ? { 
+                  url: m.template.url, 
+                  instruction: m.template.instruction || "" 
+                } 
+              : undefined,
+          })),
+        };
+      });
 
       const processedDocumentRequests = selectedPersonIds.map((personId:string) => ({
         documentRequest: processedDocuments.map((doc:any) => ({
@@ -231,6 +195,7 @@ export function KYCDocumentRequestModal({
           description: doc.description || "",
           templateUrl: doc.type === "template" ? doc.template?.url : undefined,
         })),
+        multipleDocuments: processedMultipleDocuments, // Add multiple documents separately
         person: personId
       }));
 
@@ -250,13 +215,8 @@ export function KYCDocumentRequestModal({
       });
 
       setDocuments([]);
-      setNewDocument({
-        name: '',
-        type: 'direct',
-        description: '',
-        template: { instruction: '' }
-      });
-      setTemplateFile(null);
+      setMultipleDocuments([]);
+      setDocumentMode("new");
       setOpen(false);
 
       setTimeout(() => onSuccess?.(), 500);
@@ -566,139 +526,112 @@ export function KYCDocumentRequestModal({
           {/* ✅ Default Document Request Preview */}
           <DefaultDocumentRequestPreview
             onAddDocuments={(selectedDocuments: DocumentRequestTemplate[]) => {
-              const newDocs: Document[] = selectedDocuments.map(doc => ({
-                name: doc.name,
-                type: doc.type as 'direct' | 'template',
-                description: doc.description,
-                template: doc.type === 'template'
-                  ? { url: doc.template?.url, instruction: doc.template?.instructions }
-                  : undefined,
-                status: 'pending' as const
-              }));
+              const newDocs: Document[] = [];
+              const newMultipleDocs: MultipleDocument[] = [];
               
-              setDocuments(prev => [...prev, ...newDocs]);
+              selectedDocuments.forEach(doc => {
+                // Check if this is a multiple copy template
+                const isMultiple = doc.multiple && doc.multiple.length > 0;
+                const docType = typeof doc.type === 'string' ? doc.type : (doc.type as any)?.type || 'direct';
+                
+                if (isMultiple) {
+                  // Create multiple document entry
+                  const multipleDoc: MultipleDocument = {
+                    name: doc.name,
+                    type: docType as "direct" | "template",
+                    instruction: undefined,
+                    multiple: doc.multiple.map((item: any) => {
+                      // Combine item.instruction and template.instructions into template.instruction
+                      let combinedInstruction = '';
+                      if (item.instruction) {
+                        combinedInstruction = item.instruction;
+                      }
+                      if (item.template?.instructions) {
+                        combinedInstruction = combinedInstruction 
+                          ? `${combinedInstruction}\n\nTemplate Instructions: ${item.template.instructions}`
+                          : item.template.instructions;
+                      }
+                      const templateInstruction = combinedInstruction || undefined;
+                      
+                      return {
+                        label: item.label,
+                        template: docType === 'template' && item.template?.url
+                          ? {
+                              url: item.template.url,
+                              instruction: templateInstruction,
+                            }
+                          : undefined,
+                        status: 'pending' as const
+                      };
+                    })
+                  };
+                  newMultipleDocs.push(multipleDoc);
+                } else {
+                  // Create regular document entry
+                  const regularDoc: Document = {
+                    name: doc.name,
+                    type: docType as 'direct' | 'template',
+                    description: doc.description,
+                    template: docType === 'template'
+                      ? { url: doc.template?.url, instruction: doc.template?.instructions }
+                      : undefined,
+                    status: 'pending' as const
+                  };
+                  newDocs.push(regularDoc);
+                }
+              });
+              
+              if (newDocs.length > 0) {
+                setDocuments(prev => [...prev, ...newDocs]);
+              }
+              if (newMultipleDocs.length > 0) {
+                setMultipleDocuments(prev => [...prev, ...newMultipleDocs]);
+              }
 
               toast({
                 title: "Documents Added",
-                description: `${selectedDocuments.length} documents added.`,
+                description: `${selectedDocuments.length} document(s) added (${newDocs.length} single, ${newMultipleDocs.length} multiple).`,
               });
             }}
             engagementId={engagementId}
             clientId={clientId}
           />
 
-          {/* ✅ Add Document */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Add Document</CardTitle>
-            </CardHeader>
+          {/* Add New Document */}
+          {documentMode === "new" && (
+            <SingleDocumentForm
+              documents={documents}
+              setDocuments={setDocuments}
+              mode="new"
+              setMode={setDocumentMode}
+              loading={loading}
+              handleClose={() => {}}
+              handleSubmit={() => {}}
+              showBackButton={false}
+            />
+          )}
 
-            <CardContent className="space-y-4">
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Document Name *</Label>
-                  <Input
-                    value={newDocument.name || ''}
-                    onChange={(e) =>
-                      setNewDocument(prev => ({ ...prev, name: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div>
-                  <Label>Request Type *</Label>
-                  <Select
-                    value={newDocument.type || 'direct'}
-                    onValueChange={(value: 'direct' | 'template') =>
-                      setNewDocument(prev => ({ ...prev, type: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      <SelectItem value="direct">
-                        <div className="flex items-center gap-2">
-                          <FileUp className="h-4 w-4 text-green-600" />
-                          Direct Upload
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="template">
-                        <div className="flex items-center gap-2">
-                          <FileEdit className="h-4 w-4 text-blue-600" />
-                          Template-based
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={newDocument.description || ''}
-                  onChange={(e) =>
-                    setNewDocument(prev => ({ ...prev, description: e.target.value }))
-                  }
-                  rows={2}
-                />
-              </div>
-
-              {newDocument.type === 'template' && (
-                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-800">
-                      Template-based Workflow
-                    </span>
-                  </div>
-
-                  <Label>Template File</Label>
-                  <Input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
-                  />
-
-                  <Label>Instructions for Client</Label>
-                  <Textarea
-                    value={newDocument.template?.instruction || ''}
-                    onChange={(e) =>
-                      setNewDocument(prev => ({
-                        ...prev,
-                        template: { ...prev.template, instruction: e.target.value }
-                      }))
-                    }
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              <Button
-                onClick={handleAddDocument}
-                disabled={!newDocument.name?.trim()}
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Document
-              </Button>
-
-            </CardContent>
-          </Card>
+          {documentMode === "new-multiple" && (
+            <MultipleDocumentForm
+              multipleDocuments={multipleDocuments}
+              setMultipleDocuments={setMultipleDocuments}
+              mode="new-multiple"
+              setMode={setDocumentMode}
+              loading={loading}
+              handleClose={() => {}}
+              handleSubmit={() => {}}
+              showBackButton={false}
+            />
+          )}
 
           {/* ✅ Documents List */}
-          {documents.length > 0 && (
+          {(documents.length > 0 || multipleDocuments.length > 0) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">
-                  Documents to Request ({documents.length})
+                  Documents to Request ({documents.length + multipleDocuments.length})
                 </CardTitle>
               </CardHeader>
-
               <CardContent>
                 <div className="space-y-3">
                   {documents.map((doc, index) => (
@@ -713,32 +646,74 @@ export function KYCDocumentRequestModal({
                             <span className="font-medium">{doc.name}</span>
                             {getDocumentTypeBadge(doc.type)}
                           </div>
-
                           {doc.description && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              {doc.description}
-                            </p>
+                            <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
                           )}
-
-                          {doc.type === 'template' && doc.template?.instruction && (
+                          {(() => {
+                            const docType: string = typeof (doc as any).type === 'string' 
+                              ? (doc as any).type 
+                              : (typeof ((doc as any).type as any)?.type === 'string' ? ((doc as any).type as any).type : 'direct');
+                            return docType === 'template' && doc.template?.instruction;
+                          })() && (
                             <p className="text-xs text-blue-600 mt-1">
                               Instructions: {doc.template.instruction}
                             </p>
                           )}
                         </div>
                       </div>
-
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleRemoveDocument(index)}
+                        onClick={() => setDocuments(prev => prev.filter((_, i) => i !== index))}
                         className="text-red-600 hover:text-red-700"
                       >
                         <X className="h-4 w-4" />
                       </Button>
-
                     </div>
                   ))}
+                  {multipleDocuments.map((doc, index) => {
+                    const docType = typeof doc.type === 'string' ? doc.type : (doc.type as any)?.type || 'direct';
+                    return (
+                      <div
+                        key={`multiple-${index}`}
+                        className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border"
+                      >
+                        <div className="flex items-start gap-3 flex-1">
+                          {getDocumentTypeIcon(docType)}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium">{doc.name}</span>
+                              {getDocumentTypeBadge(docType)}
+                              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                                {doc.multiple.length} {doc.multiple.length === 1 ? 'item' : 'items'}
+                              </Badge>
+                            </div>
+                            <div className="space-y-1 mt-2">
+                              {doc.multiple.map((item: any, itemIdx: number) => (
+                                <div key={itemIdx} className="text-xs text-gray-600 bg-white p-2 rounded border border-gray-200">
+                                  <span className="font-medium">{itemIdx + 1}. {item.label}</span>
+                                  {docType === 'template' && item.template?.url && (
+                                    <p className="text-blue-600 mt-1">Template URL: Available</p>
+                                  )}
+                                  {docType === 'template' && item.template?.instruction && (
+                                    <p className="text-gray-500 mt-1">Instructions: {item.template.instruction}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setMultipleDocuments(prev => prev.filter((_, i) => i !== index))}
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -790,7 +765,7 @@ export function KYCDocumentRequestModal({
 
             <Button
               onClick={handleSubmit}
-              disabled={loading || documents.length === 0}
+              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0)}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

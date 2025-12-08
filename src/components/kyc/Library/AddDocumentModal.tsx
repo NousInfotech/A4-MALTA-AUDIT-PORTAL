@@ -21,7 +21,8 @@ import { Plus, FileEdit, FileUp, Info, Loader2, Link as LinkIcon, Trash2 } from 
 import { useToast } from "@/hooks/use-toast";
 import { uploadTemplate, uploadMultipleTemplates } from "@/lib/api/documentRequestTemplate";
 
-type DocumentType = 'Template' | 'Direct' | 'Multiple';
+type DocumentType = 'Template' | 'Direct';
+type CopyType = 'single' | 'multiple';
 const CATEGORY_OPTIONS = [
   "Planning",
   "Capital & Reserves",
@@ -43,6 +44,7 @@ const CATEGORY_OPTIONS = [
 
 export interface TemplateItem {
   label: string;
+  instruction?: string;
   templateFile?: File | null;
   templateUrl?: string;
   templateInstructions?: string;
@@ -58,6 +60,7 @@ export interface DocumentFormValues {
   templateUrl?: string;
   multiple?: Array<{
     label: string;
+    instruction?: string;
     template?: {
       url?: string;
       instructions?: string;
@@ -82,6 +85,7 @@ export function AddDocumentModal({
 }: AddDocumentModalProps) {
   const [documentName, setDocumentName] = useState('');
   const [description, setDescription] = useState('');
+  const [copyType, setCopyType] = useState<CopyType>('single');
   const [type, setType] = useState<DocumentType>('Direct');
   const [category, setCategory] = useState<string>('Planning');
   const [customCategory, setCustomCategory] = useState<string>('');
@@ -89,7 +93,7 @@ export function AddDocumentModal({
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templateUrl, setTemplateUrl] = useState<string | undefined>(undefined);
   const [multipleItems, setMultipleItems] = useState<TemplateItem[]>([
-    { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }
+    { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
@@ -99,13 +103,14 @@ export function AddDocumentModal({
   const resetForm = () => {
     setDocumentName('');
     setDescription('');
+    setCopyType('single');
     setType('Direct');
     setCategory('Planning');
     setCustomCategory('');
     setTemplateInstructions('');
     setTemplateFile(null);
     setTemplateUrl(undefined);
-    setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
+    setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '', instruction: '' }]);
     setSubmitting(false);
     setUploadingTemplate(false);
   };
@@ -114,7 +119,30 @@ export function AddDocumentModal({
     if (open && initialData) {
       setDocumentName(initialData.documentName || '');
       setDescription(initialData.description || '');
-      setType(initialData.type || 'Direct');
+      
+      // Determine if it's single or multiple based on whether multiple array exists
+      if (initialData.multiple && initialData.multiple.length > 0) {
+        setCopyType('multiple');
+        // Determine type from the multiple items - if any has template, it's Template type
+        const hasTemplate = initialData.multiple.some(item => item.template);
+        setType(hasTemplate ? 'Template' : 'Direct');
+        setMultipleItems(
+          initialData.multiple.map((item) => ({
+            label: item.label || '',
+            instruction: item.instruction || '',
+            templateUrl: item.template?.url,
+            templateInstructions: item.template?.instructions || '',
+            templateFile: null,
+          }))
+        );
+      } else {
+        setCopyType('single');
+        setType(initialData.type || 'Direct');
+        setTemplateInstructions(initialData.templateInstructions || '');
+        setTemplateUrl(initialData.templateUrl);
+        setTemplateFile(null);
+      }
+      
       const existingCategory = initialData.category || 'Planning';
       // If the existing category is one of the predefined options, use it directly.
       // Otherwise, treat it as a custom category under "Others".
@@ -124,21 +152,6 @@ export function AddDocumentModal({
       } else {
         setCategory('Others');
         setCustomCategory(existingCategory);
-      }
-      setTemplateInstructions(initialData.templateInstructions || '');
-      setTemplateUrl(initialData.templateUrl);
-      setTemplateFile(null);
-      
-      // Handle multiple type
-      if (initialData.type === 'Multiple' && initialData.multiple) {
-        setMultipleItems(
-          initialData.multiple.map((item) => ({
-            label: item.label || '',
-            templateUrl: item.template?.url,
-            templateInstructions: item.template?.instructions || '',
-            templateFile: null,
-          }))
-        );
       }
     }
 
@@ -185,39 +198,6 @@ export function AddDocumentModal({
       return;
     }
 
-    if (type === 'Template' && !templateFile && !templateUrl) {
-      toast({
-        title: "Template file required",
-        description: "Please upload a template file before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === 'Multiple') {
-      // Validate multiple items
-      const validItems = multipleItems.filter(item => item.label.trim());
-      if (validItems.length === 0) {
-        toast({
-          title: "At least one item required",
-          description: "Please add at least one template item with a label.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check if all items have labels
-      const itemsWithoutLabels = multipleItems.filter(item => !item.label.trim());
-      if (itemsWithoutLabels.length > 0) {
-        toast({
-          title: "Labels required",
-          description: "All template items must have a label.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     // Require a custom category name when "Others" is selected
     if (category === 'Others' && !customCategory.trim()) {
       toast({
@@ -228,31 +208,106 @@ export function AddDocumentModal({
       return;
     }
 
-    try {
-      setSubmitting(true);
-      const effectiveCategory =
-        category === 'Others'
-          ? customCategory.trim()
-          : category;
-      
-      if (type === 'Template') {
-        let finalTemplateUrl = templateUrl;
-        if (templateFile) {
-          finalTemplateUrl = await handleTemplateUpload();
-          if (!finalTemplateUrl) return;
+    const effectiveCategory =
+      category === 'Others'
+        ? customCategory.trim()
+        : category;
+
+    if (copyType === 'single') {
+      // Single copy validation
+      if (type === 'Template' && !templateFile && !templateUrl) {
+        toast({
+          title: "Template file required",
+          description: "Please upload a template file before saving.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+        
+        if (type === 'Template') {
+          let finalTemplateUrl = templateUrl;
+          if (templateFile) {
+            finalTemplateUrl = await handleTemplateUpload();
+            if (!finalTemplateUrl) return;
+          }
+
+          await onSubmit({
+            id: initialData?.id,
+            documentName: documentName.trim(),
+            description: description.trim(),
+            type,
+            category: effectiveCategory,
+            templateInstructions: templateInstructions.trim() || undefined,
+            templateUrl: finalTemplateUrl,
+          });
+        } else {
+          // Direct type
+          await onSubmit({
+            id: initialData?.id,
+            documentName: documentName.trim(),
+            description: description.trim(),
+            type,
+            category: effectiveCategory,
+          });
         }
 
-        await onSubmit({
-          id: initialData?.id,
-          documentName: documentName.trim(),
-          description: description.trim(),
-          type,
-          category: effectiveCategory,
-          templateInstructions: templateInstructions.trim() || undefined,
-          templateUrl: finalTemplateUrl,
+        resetForm();
+      } catch (error) {
+        console.error("Failed to submit document:", error);
+        toast({
+          title: "Unable to save",
+          description: "Something went wrong while saving the document.",
+          variant: "destructive",
         });
-      } else if (type === 'Multiple') {
-        // Upload multiple template files
+      } finally {
+        setSubmitting(false);
+        setUploadingTemplate(false);
+      }
+    } else {
+      // Multiple copies validation
+      const validItems = multipleItems.filter(item => item.label.trim());
+      if (validItems.length === 0) {
+        toast({
+          title: "At least one item required",
+          description: "Please add at least one item with a label.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if all items have labels
+      const itemsWithoutLabels = multipleItems.filter(item => !item.label.trim());
+      if (itemsWithoutLabels.length > 0) {
+        toast({
+          title: "Labels required",
+          description: "All items must have a label.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // For Template type in multiple, validate template files
+      if (type === 'Template') {
+        const itemsWithoutTemplate = multipleItems.filter(
+          item => item.label.trim() && !item.templateFile && !item.templateUrl
+        );
+        if (itemsWithoutTemplate.length > 0) {
+          toast({
+            title: "Template files required",
+            description: "All template items must have a template file.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      try {
+        setSubmitting(true);
+        
+        // Upload multiple template files if needed
         const itemsToUpload = multipleItems.filter(item => item.templateFile);
         let uploadedUrls: string[] = [];
         
@@ -274,47 +329,48 @@ export function AddDocumentModal({
               urlIndex++;
             }
 
-            return {
-              label: item.label.trim(),
-              template: itemUrl || item.templateInstructions
-                ? {
-                    url: itemUrl,
-                    instructions: item.templateInstructions?.trim() || undefined,
-                  }
-                : undefined,
-            };
+            // For Direct type: only label (no instruction field)
+            // For Template type: label, instruction (outside), and template with instructions (inside)
+            if (type === 'Direct') {
+              return {
+                label: item.label.trim(),
+              };
+            } else {
+              // Template type - include template object only if we have a URL
+              return {
+                label: item.label.trim(),
+                instruction: item.instruction?.trim() || undefined,
+                template: itemUrl
+                  ? {
+                      url: itemUrl,
+                      instructions: item.templateInstructions?.trim() || undefined,
+                    }
+                  : undefined,
+              };
+            }
           });
 
         await onSubmit({
           id: initialData?.id,
           documentName: documentName.trim(),
           description: description.trim(),
-          type: 'Multiple',
+          type,
           category: effectiveCategory,
           multiple: multipleData,
         });
-      } else {
-        // Direct type
-        await onSubmit({
-          id: initialData?.id,
-          documentName: documentName.trim(),
-          description: description.trim(),
-          type,
-          category: effectiveCategory,
-        });
-      }
 
-      resetForm();
-    } catch (error) {
-      console.error("Failed to submit document:", error);
-      toast({
-        title: "Unable to save",
-        description: "Something went wrong while saving the document.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-      setUploadingTemplate(false);
+        resetForm();
+      } catch (error) {
+        console.error("Failed to submit document:", error);
+        toast({
+          title: "Unable to save",
+          description: "Something went wrong while saving the document.",
+          variant: "destructive",
+        });
+      } finally {
+        setSubmitting(false);
+        setUploadingTemplate(false);
+      }
     }
   };
 
@@ -325,358 +381,413 @@ export function AddDocumentModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {isEditMode ? <FileEdit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-            {isEditMode ? "Edit Document" : "Add Document to Library"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditMode
-              ? "Update the details of this document template in the KYC library"
-              : "Add a new document template or direct upload document to the KYC library"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="documentName">Document Name <span className="text-red-500">*</span></Label>
-            <Input
-              id="documentName"
-              placeholder="e.g., Bank Statement Template"
-              value={documentName}
-              onChange={(e) => setDocumentName(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-
-      
-
-          <div>
-            <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
-            <Textarea
-              id="description"
-              placeholder="Describe what this document is for..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="mt-1"
-            />
-          </div>
-
-         {/* Category */}
+    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-lg p-6">
+      <DialogHeader className="pb-4 border-b">
+        <DialogTitle className="flex items-center gap-3 text-lg font-semibold">
+          {isEditMode ? <FileEdit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+          {isEditMode ? "Edit Document" : "Add Document to Library"}
+        </DialogTitle>
+        <DialogDescription className="text-sm text-gray-600">
+          {isEditMode
+            ? "Update the details of this document template in the KYC library"
+            : "Add a new document template or direct upload document to the KYC library"}
+        </DialogDescription>
+      </DialogHeader>
+  
+      <div className="space-y-6 py-4">
+  
+        {/* Document Name */}
         <div className="space-y-2">
-        <Label htmlFor="category">
-        Category <span className="text-red-500">*</span>
-        </Label>
-
-        <Select
-        value={category}
-        onValueChange={(value) => {
-        setCategory(value);
-        if (value !== "Others") setCustomCategory(""); // reset custom
-        }}
-        >
-        <SelectTrigger id="category">
-        <SelectValue placeholder="Select a category" />
-        </SelectTrigger>
-
-        <SelectContent>
-        {CATEGORY_OPTIONS.map((item) => (
-        <SelectItem key={item} value={item}>
-        {item}
-        </SelectItem>
-        ))}
-        <SelectItem value="Others">Others</SelectItem>
-        </SelectContent>
-        </Select>
+          <Label htmlFor="documentName">
+            Document Name <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="documentName"
+            placeholder="e.g., Bank Statement Template"
+            value={documentName}
+            onChange={(e) => setDocumentName(e.target.value)}
+            className="mt-1 h-10"
+          />
         </div>
-
-          {/* Custom Category (only when Others selected) */}
-          {category === "Others" && (
-            <div className="space-y-2">
-              <Label htmlFor="customCategory">
-                Custom Category <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="customCategory"
-                placeholder="Enter custom category name"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                className="mt-1"
-              />
+  
+        {/* Description */}
+        <div className="space-y-2">
+          <Label htmlFor="description">Description <span className="text-red-500">*</span></Label>
+          <Textarea
+            id="description"
+            placeholder="Describe what this document is for..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="mt-1"
+          />
+        </div>
+  
+        {/* Category */}
+        <div className="space-y-2">
+          <Label htmlFor="category">
+            Category <span className="text-red-500">*</span>
+          </Label>
+  
+          <Select
+            value={category}
+            onValueChange={(value) => {
+              setCategory(value);
+              if (value !== "Others") setCustomCategory("");
+            }}
+          >
+            <SelectTrigger id="category" className="h-10">
+              <SelectValue placeholder="Select a category" />
+            </SelectTrigger>
+  
+            <SelectContent>
+              {CATEGORY_OPTIONS.map((item) => (
+                <SelectItem key={item} value={item}>{item}</SelectItem>
+              ))}
+              {/* <SelectItem value="Others">Others</SelectItem> */}
+            </SelectContent>
+          </Select>
+        </div>
+  
+        {/* Custom Category */}
+        {category === "Others" && (
+          <div className="space-y-2">
+            <Label htmlFor="customCategory">
+              Custom Category <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="customCategory"
+              placeholder="Enter custom category name"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              className="mt-1 h-10"
+            />
+          </div>
+        )}
+  
+        {/* Copy Type */}
+        <div className="space-y-2">
+          <Label htmlFor="copyType">Copy Type <span className="text-red-500">*</span></Label>
+          <Select
+            value={copyType}
+            onValueChange={(value) => {
+              setCopyType(value as CopyType);
+              if (value === "single") {
+                setMultipleItems([{ label: "", templateFile: null, templateUrl: undefined, templateInstructions: "", instruction: "" }]);
+              } else if (value === "multiple" && multipleItems.length === 0) {
+                setMultipleItems([{ label: "", templateFile: null, templateUrl: undefined, templateInstructions: "", instruction: "" }]);
+              }
+            }}
+          >
+            <SelectTrigger id="copyType" className="mt-1 h-10">
+              <SelectValue />
+            </SelectTrigger>
+  
+            <SelectContent>
+              <SelectItem value="single">Single Copy</SelectItem>
+              <SelectItem value="multiple">Multiple Copies</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+  
+        {/* Type Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="type">Type <span className="text-red-500">*</span></Label>
+  
+          <Select
+            value={type}
+            onValueChange={(value: DocumentType) => {
+              setType(value);
+              if (value === "Direct") {
+                setTemplateFile(null);
+                setTemplateUrl(undefined);
+              }
+            }}
+          >
+            <SelectTrigger id="type" className="mt-1 h-10">
+              <SelectValue />
+            </SelectTrigger>
+  
+            <SelectContent>
+              <SelectItem value="Template">
+                <div className="flex items-center gap-2">
+                  <FileEdit className="h-4 w-4" />
+                  Template
+                </div>
+              </SelectItem>
+  
+              <SelectItem value="Direct">
+                <div className="flex items-center gap-2">
+                  <FileUp className="h-4 w-4" />
+                  Direct
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+  
+          {/* SINGLE COPY TEMPLATE */}
+          {copyType === "single" && type === "Template" && (
+            <div className="mt-4 space-y-4 p-5 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">Template-based Workflow</span>
+              </div>
+  
+              <div className="space-y-2">
+                <Label>Template File</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setTemplateFile(file);
+  
+                    if (file) {
+                      setTemplateUrl(undefined);
+  
+                      if (!documentName.trim()) {
+                        const cleanName = file.name
+                          .replace(/\.[^/.]+$/, "")
+                          .replace(/[-_]/g, " ")
+                          .replace(/\b\w/g, (l) => l.toUpperCase());
+                        setDocumentName(cleanName);
+                      }
+                    }
+                  }}
+                  className="text-sm"
+                />
+  
+                {(templateFile || templateUrl) && (
+                  <p className="text-xs text-gray-700">
+                    {templateFile ? (
+                      `Selected: ${templateFile.name}`
+                    ) : (
+                      <a
+                        href={templateUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-700 underline"
+                      >
+                        <LinkIcon className="h-3 w-3" />
+                        Download existing template
+                      </a>
+                    )}
+                  </p>
+                )}
+  
+                <p className="text-xs text-gray-600">Upload a template file that clients will download and fill</p>
+              </div>
+  
+              <div>
+                <Label>Instructions for Client</Label>
+                <Textarea
+                  placeholder="Provide clear instructions..."
+                  value={templateInstructions}
+                  onChange={(e) => setTemplateInstructions(e.target.value)}
+                  rows={3}
+                  className="text-sm"
+                />
+              </div>
             </div>
           )}
-          
-          <div>
-            <Label htmlFor="type">Type <span className="text-red-500">*</span></Label>
-            <Select
-              value={type}
-              onValueChange={(value: DocumentType) => {
-                setType(value);
-                if (value === 'Direct') {
-                  setTemplateFile(null);
-                } else if (value === 'Multiple' && multipleItems.length === 0) {
-                  setMultipleItems([{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
-                }
-              }}
-            >
-              <SelectTrigger id="type" className="mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Template">
-                  <div className="flex items-center gap-2">
-                    <FileEdit className="h-4 w-4 text-blue-600" />
-                    Template
-                  </div>
-                </SelectItem>
-                <SelectItem value="Direct">
-                  <div className="flex items-center gap-2">
-                    <FileUp className="h-4 w-4 text-green-600" />
-                    Direct
-                  </div>
-                </SelectItem>
-                <SelectItem value="Multiple">
-                  <div className="flex items-center gap-2">
-                    <FileEdit className="h-4 w-4 text-purple-600" />
-                    Multiple
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            {type === 'Template' && (
-              <div className="mt-4 space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+  
+          {/* MULTIPLE COPIES */}
+          {copyType === "multiple" && (
+            <div className="mt-4 space-y-4 p-5 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">
-                    Template-based Workflow
+                  <Info className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">
+                    Multiple Copies – {type === "Direct" ? "Direct Upload" : "Template"}
                   </span>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="templateFile">Template File</Label>
-                  <Input
-                    id="templateFile"
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setTemplateFile(file);
-                      if (file) {
-                        setTemplateUrl(undefined);
-                        if (!documentName.trim()) {
-                          const cleanName = file.name
-                            .replace(/\.[^/.]+$/, "")
-                            .replace(/[-_]/g, " ")
-                            .replace(/\b\w/g, (l) => l.toUpperCase());
-                          setDocumentName(cleanName);
-                        }
-                      }
-                    }}
-                  />
-                  {(templateFile || templateUrl) && (
-                    <p className="text-xs text-gray-700">
-                      {templateFile
-                        ? `Selected: ${templateFile.name}`
-                        : templateUrl && (
-                            <a
-                              href={templateUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900"
-                            >
-                              <LinkIcon className="h-3 w-3" />
-                              Download existing template
-                            </a>
-                          )}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-600">
-                    Upload a template file that clients will download and fill out
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="templateInstructions">Instructions for Client</Label>
-                  <Textarea
-                    id="templateInstructions"
-                    placeholder="Provide clear instructions on how to fill the template..."
-                    value={templateInstructions}
-                    onChange={(e) => setTemplateInstructions(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+  
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setMultipleItems([
+                      ...multipleItems,
+                      { label: "", templateFile: null, templateUrl: undefined, templateInstructions: "", instruction: "" },
+                    ])
+                  }
+                  className="h-8"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Item
+                </Button>
               </div>
-            )}
-
-            {type === 'Multiple' && (
-              <div className="mt-4 space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-purple-600" />
-                    <span className="text-sm font-medium text-purple-800">
-                      Multiple Template Items
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setMultipleItems([
-                        ...multipleItems,
-                        { label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }
-                      ]);
-                    }}
-                    className="h-8"
+  
+              {/* MULTIPLE ITEM LIST */}
+              <div className="space-y-4">
+                {multipleItems.map((item, index) => (
+                  <div
+                    key={index}
+                    className="p-4 bg-white rounded-lg border border-purple-100 shadow-sm space-y-4"
                   >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Item
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {multipleItems.map((item, index) => (
-                    <div key={index} className="p-3 bg-white rounded border border-purple-100">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1">
-                          <Label htmlFor={`item-label-${index}`} className="text-xs">
-                            Item Label <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            id={`item-label-${index}`}
-                            placeholder="e.g., Front Page, Page 1"
-                            value={item.label}
-                            onChange={(e) => {
-                              const updated = [...multipleItems];
-                              updated[index].label = e.target.value;
-                              setMultipleItems(updated);
-                            }}
-                            className="mt-1"
-                          />
-                        </div>
-                        {multipleItems.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const updated = multipleItems.filter((_, i) => i !== index);
-                              setMultipleItems(updated.length > 0 ? updated : [{ label: '', templateFile: null, templateUrl: undefined, templateInstructions: '' }]);
-                            }}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="space-y-2 mt-3">
-                        <Label htmlFor={`item-file-${index}`} className="text-xs">
-                          Template File <span className="text-red-500">*</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-xs">
+                          Label <span className="text-red-500">*</span>
                         </Label>
                         <Input
-                          id={`item-file-${index}`}
-                          type="file"
-                          accept=".pdf,.doc,.docx,.xls,.xlsx"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            const updated = [...multipleItems];
-                            updated[index].templateFile = file;
-                            if (file) {
-                              updated[index].templateUrl = undefined;
-                            }
-                            setMultipleItems(updated);
-                          }}
-                          className="text-xs"
-                          required
-                        />
-                        {(item.templateFile || item.templateUrl) && (
-                          <p className="text-xs text-gray-700">
-                            {item.templateFile
-                              ? `Selected: ${item.templateFile.name}`
-                              : item.templateUrl && (
-                                  <a
-                                    href={item.templateUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900"
-                                  >
-                                    <LinkIcon className="h-3 w-3" />
-                                    Download existing template
-                                  </a>
-                                )}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="mt-3">
-                        <Label htmlFor={`item-instructions-${index}`} className="text-xs">
-                          Instructions <span className="text-red-500">*</span>    
-                        </Label>
-                        <Textarea
-                          id={`item-instructions-${index}`}
-                          placeholder="Instructions for this template item..."
-                          value={item.templateInstructions || ''}
+                          placeholder="e.g., Page 1, Copy A"
+                          value={item.label}
                           onChange={(e) => {
                             const updated = [...multipleItems];
-                            updated[index].templateInstructions = e.target.value;
+                            updated[index].label = e.target.value;
                             setMultipleItems(updated);
                           }}
-                          rows={2}
-                          className="mt-1 text-xs"
-                          required
+                          className="h-9 text-sm"
                         />
                       </div>
+  
+                      {multipleItems.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const updated = multipleItems.filter((_, i) => i !== index);
+                            setMultipleItems(
+                              updated.length
+                                ? updated
+                                : [{ label: "", templateFile: null, templateUrl: undefined, templateInstructions: "", instruction: "" }]
+                            );
+                          }}
+                          className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                  ))}
-                </div>
-
-                <p className="text-xs text-gray-600">
-                  Add multiple template items for documents that require multiple pages or files (e.g., Passport front/back, Form16 pages)
-                </p>
+  
+                    {/* Instructions (Template only) */}
+                    {type === "Template" && (
+                      <>
+                        <div>
+                          <Label className="text-xs">Instructions (Optional)</Label>
+                          <Textarea
+                            placeholder="Item-specific instructions…"
+                            value={item.instruction || ""}
+                            onChange={(e) => {
+                              const updated = [...multipleItems];
+                              updated[index].instruction = e.target.value;
+                              setMultipleItems(updated);
+                            }}
+                            rows={2}
+                            className="text-xs mt-1"
+                          />
+                        </div>
+  
+                        {/* File upload */}
+                        <div className="space-y-1">
+                          <Label className="text-xs">
+                            Template File <span className="text-red-500">*</span>
+                          </Label>
+  
+                          <Input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              const updated = [...multipleItems];
+                              updated[index].templateFile = file;
+                              if (file) updated[index].templateUrl = undefined;
+                              setMultipleItems(updated);
+                            }}
+                            className="text-xs h-9"
+                            required
+                          />
+  
+                          {(item.templateFile || item.templateUrl) && (
+                            <p className="text-xs text-gray-700">
+                              {item.templateFile ? (
+                                `Selected: ${item.templateFile.name}`
+                              ) : (
+                                <a
+                                  href={item.templateUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-700 underline"
+                                >
+                                  <LinkIcon className="h-3 w-3" />
+                                  Download existing template
+                                </a>
+                              )}
+                            </p>
+                          )}
+                        </div>
+  
+                        {/* Template instructions */}
+                        <div>
+                          <Label className="text-xs">Template Instructions (Optional)</Label>
+                          <Textarea
+                            placeholder="Instructions for filling this template…"
+                            value={item.templateInstructions || ""}
+                            onChange={(e) => {
+                              const updated = [...multipleItems];
+                              updated[index].templateInstructions = e.target.value;
+                              setMultipleItems(updated);
+                            }}
+                            rows={2}
+                            className="text-xs"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-
+  
+              <p className="text-xs text-gray-600">
+                {type === "Direct"
+                  ? "Add multiple items if this document requires multiple uploads or parts."
+                  : "Add multiple template files/pages as needed for this document."}
+              </p>
+            </div>
+          )}
         </div>
-
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={handleClose}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              !documentName.trim() || 
-              submitting || 
-              uploadingTemplate ||
-              (type === 'Multiple' && multipleItems.filter(item => item.label.trim()).length === 0)
-            }
-            className="bg-brand-hover hover:bg-brand-sidebar text-white"
-          >
-            {submitting || uploadingTemplate ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : isEditMode ? (
-              <FileEdit className="h-4 w-4 mr-2" />
-            ) : (
-              <Plus className="h-4 w-4 mr-2" />
-            )}
-            {submitting
-              ? "Saving..."
-              : uploadingTemplate
-                ? "Uploading..."
-                : isEditMode
-                  ? "Save Changes"
-                  : "Add Document"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+  
+      {/* FOOTER */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={handleClose} className="h-10 px-6">
+          Cancel
+        </Button>
+  
+        <Button
+          onClick={handleSubmit}
+          disabled={
+            !documentName.trim() ||
+            submitting ||
+            uploadingTemplate ||
+            (copyType === "multiple" && multipleItems.filter((i) => i.label.trim()).length === 0) ||
+            (copyType === "multiple" && type === "Template" && multipleItems.some((i) => i.label.trim() && !i.templateFile && !i.templateUrl))
+          }
+          className="h-10 px-6 bg-brand-hover hover:bg-brand-sidebar text-white"
+        >
+          {submitting || uploadingTemplate ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : isEditMode ? (
+            <FileEdit className="h-4 w-4 mr-2" />
+          ) : (
+            <Plus className="h-4 w-4 mr-2" />
+          )}
+  
+          {submitting
+            ? "Saving..."
+            : uploadingTemplate
+            ? "Uploading..."
+            : isEditMode
+            ? "Save Changes"
+            : "Add Document"}
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+  
   );
 }
 

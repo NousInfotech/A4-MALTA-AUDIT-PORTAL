@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { getUserSettings, updateUserSettings, getOrgSettings } from "@/services/settingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 interface ClientProfileSettings {
   contactName: string;
@@ -169,6 +171,49 @@ export const ClientSettingsPage = () => {
     }
   };
 
+  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+
+  const handleChangePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      toast({ title: "Error", description: "New passwords do not match.", variant: "destructive" });
+      return;
+    }
+    if (passwords.new.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.email) throw new Error("User not found");
+
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwords.current,
+      });
+
+      if (signInError) {
+        throw new Error("Incorrect current password.");
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwords.new
+      });
+
+      if (updateError) throw updateError;
+
+      toast({ title: "Success", description: "Password updated successfully." });
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update password.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveNotifications = async () => {
     setSaving(true);
     try {
@@ -237,7 +282,68 @@ export const ClientSettingsPage = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <Separator className="my-4" />
+
+              <div className="space-y-4">
+                <Label>Change Password</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwords.current}
+                      onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                      placeholder="Current password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={passwords.new}
+                        onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                        placeholder="New password"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={passwords.confirm}
+                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setPasswords({ current: '', new: '', confirm: '' });
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={saving || !passwords.current || !passwords.new}
+                    onClick={handleChangePassword}
+                  >
+                    {saving ? "Updating..." : "Update Password"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If you forgot your password, you can <Link to="/auth/forgot-password" className="underline text-primary">reset it via email</Link>.
+                </p>
+              </div>
+
+              <div className="flex justify-end mt-4">
                 <Button onClick={handleSaveProfile} disabled={saving}>
                   {saving ? "Saving..." : "Save profile"}
                 </Button>

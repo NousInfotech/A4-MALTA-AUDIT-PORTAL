@@ -16,6 +16,8 @@ export const MultipleDocumentForm = ({
   loading,
   handleClose,
   handleSubmit,
+  showBackButton = true,
+  documentResult = true
 }: any) => {
   const [newMultipleDocument, setNewMultipleDocument] = useState<any>({
     name: "",
@@ -26,6 +28,7 @@ export const MultipleDocumentForm = ({
 
   const [newMultipleItem, setNewMultipleItem] = useState("");
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
+  const [currentItemInstruction, setCurrentItemInstruction] = useState("");
 
   const { toast } = useToast();
 
@@ -39,12 +42,37 @@ export const MultipleDocumentForm = ({
       return;
     }
 
+    if (newMultipleDocument.type === "template" && !currentTemplateFile) {
+      toast({
+        title: "Template file required",
+        description: "Please upload a template file for this item",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newItem: any = {
+      label: newMultipleItem.trim(),
+      status: "pending",
+    };
+
+    // If template-based, include template file and instruction with the item
+    if (newMultipleDocument.type === "template" && currentTemplateFile) {
+      newItem.templateFile = currentTemplateFile;
+      newItem.template = {
+        instruction: currentItemInstruction.trim() || newMultipleDocument.template?.instruction || "",
+      };
+    }
+
     setNewMultipleDocument((prev: any) => ({
       ...prev,
-      multiple: [...prev.multiple, { label: newMultipleItem.trim(), status: "pending" }],
+      multiple: [...prev.multiple, newItem],
     }));
 
+    // Reset form for next item
     setNewMultipleItem("");
+    setCurrentTemplateFile(null);
+    setCurrentItemInstruction("");
   };
 
   const handleAddMultipleDocument = () => {
@@ -66,25 +94,36 @@ export const MultipleDocumentForm = ({
       return;
     }
 
-    if (newMultipleDocument.type === "template" && !currentTemplateFile) {
-      toast({
-        title: "Template file required",
-        description: "Must upload a template file",
-        variant: "destructive",
-      });
-      return;
+    // Validate that each template-based item has its own template file
+    if (newMultipleDocument.type === "template") {
+      const itemsWithoutTemplate = newMultipleDocument.multiple.filter(
+        (item: any) => !item.templateFile
+      );
+      
+      if (itemsWithoutTemplate.length > 0) {
+        toast({
+          title: "Template file required",
+          description: `Please upload a template file for: ${itemsWithoutTemplate.map((item: any) => item.label).join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
+
+    // Process items to extract template files
+    const processedMultiple = newMultipleDocument.multiple.map((item: any) => {
+      const { templateFile, ...itemWithoutFile } = item;
+      return {
+        ...itemWithoutFile,
+        templateFile: item.templateFile || undefined,
+      };
+    });
 
     setMultipleDocuments((prev: any) => [
       ...prev,
       {
         ...newMultipleDocument,
-        template:
-          newMultipleDocument.type === "template"
-            ? { instruction: newMultipleDocument.template?.instruction || "" }
-            : undefined,
-        templateFile:
-          newMultipleDocument.type === "template" ? currentTemplateFile || undefined : undefined,
+        multiple: processedMultiple,
       },
     ]);
 
@@ -96,16 +135,19 @@ export const MultipleDocumentForm = ({
     });
 
     setCurrentTemplateFile(null);
+    setCurrentItemInstruction("");
+    setNewMultipleItem("");
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => setMode("select")}>
-          ← Back
-        </Button>
-
-        <div className="flex gap-2">
+      <div className={`flex items-center ${showBackButton ? 'justify-between' : 'justify-end'}`}>
+        {showBackButton && (
+          <Button variant="default" onClick={() => setMode("select")}>
+            Back
+          </Button>
+        )}
+        <div className="flex gap-2 border-2 border-gray-300 p-1 rounded-2xl">
           <Button variant="outline" onClick={() => setMode("new")}>
             Single Copy
           </Button>
@@ -177,54 +219,74 @@ export const MultipleDocumentForm = ({
                 <span className="text-sm font-medium text-blue-800">Template-based Workflow</span>
               </div>
 
-              <div>
-                <Label>Template File</Label>
-                <Input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setCurrentTemplateFile(file);
-                  }}
-                />
-              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label>Label *</Label>
+                  <Input
+                    placeholder="e.g., Director 1 – ID proof"
+                    value={newMultipleItem}
+                    onChange={(e) => setNewMultipleItem(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") handleAddMultipleItem();
+                    }}
+                    required
+                  />
+                </div>
 
-              <div>
-                <Label>Instructions for Client</Label>
-                <Textarea
-                  rows={3}
-                  placeholder="Provide clear instructions..."
-                  value={newMultipleDocument.template?.instruction}
-                  onChange={(e) =>
-                    setNewMultipleDocument((p: any) => ({
-                      ...p,
-                      template: { instruction: e.target.value },
-                    }))
-                  }
-                />
+                <div>
+                  <Label>Template File *</Label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setCurrentTemplateFile(file);
+                    }}
+                  />
+                  {currentTemplateFile && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      Selected: {currentTemplateFile.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label>Instructions for Client (Optional)</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder="Provide instructions specific to this item..."
+                    value={currentItemInstruction}
+                    onChange={(e) => setCurrentItemInstruction(e.target.value)}
+                  />
+                </div>
+
+                <Button onClick={handleAddMultipleItem} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
               </div>
             </div>
           )}
 
-          <div>
-            <Label>Label *</Label>
-
-            <div className="flex gap-2">
-              <Input
-                placeholder="e.g., Director 1 – ID proof"
-                value={newMultipleItem}
-                onChange={(e) => setNewMultipleItem(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") handleAddMultipleItem();
-                }}
-                required
-              />
-
-              <Button onClick={handleAddMultipleItem}>
-                <Plus className="h-4 w-4" />
-              </Button>
+          {newMultipleDocument.type === "direct" && (
+            <div className="space-y-3">
+              <Label>Add Items:</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g., Director 1 – ID proof"
+                  value={newMultipleItem}
+                  onChange={(e) => setNewMultipleItem(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") handleAddMultipleItem();
+                  }}
+                />
+                <Button onClick={handleAddMultipleItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {newMultipleDocument.multiple.length > 0 && (
             <div className="space-y-2">
@@ -233,9 +295,21 @@ export const MultipleDocumentForm = ({
               {newMultipleDocument.multiple.map((item: any, index: number) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                  className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border"
                 >
-                  <span>{item.label}</span>
+                  <div className="flex-1">
+                    <p className="font-medium">{item.label}</p>
+                    {newMultipleDocument.type === "template" && item.templateFile && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Template: {item.templateFile.name}
+                      </p>
+                    )}
+                    {newMultipleDocument.type === "template" && item.template?.instruction && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Instructions: {item.template.instruction}
+                      </p>
+                    )}
+                  </div>
 
                   <Button
                     variant="ghost"
@@ -260,8 +334,8 @@ export const MultipleDocumentForm = ({
           </Button>
         </CardContent>
       </Card>
-
-      {multipleDocuments.length > 0 && (
+        
+      {documentResult && multipleDocuments.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
@@ -299,7 +373,7 @@ export const MultipleDocumentForm = ({
         </Card>
       )}
 
-      {multipleDocuments.length > 0 && (
+      {documentResult && multipleDocuments.length > 0 && (
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={handleClose}>
             Cancel
@@ -310,6 +384,7 @@ export const MultipleDocumentForm = ({
             </Button>
         </div>
       )}
+
     </div>
   );
 };

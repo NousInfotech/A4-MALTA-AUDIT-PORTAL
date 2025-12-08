@@ -61,17 +61,22 @@ const GROUPING_ORDER = [
 ];
 
 const GROUPING_SIGNS: { [key: string]: "+" | "-" } = {
-  Revenue: "+",
+  "Revenue": "+",
   "Cost of sales": "-",
+  // Gross Profit = Revenue - Cost of sales
   "Sales and marketing expenses": "-",
   "Administrative expenses": "-",
   "Other operating income": "+",
+  // Operating Expenses = Sales and marketing expenses + Administrative expenses - Other operating income
+  // Operating Profit = Gross Profit - Operating Expenses
   "Investment income": "+",
   "Investment losses": "-",
   "Finance costs": "-",
   "Share of profit of subsidiary": "+",
   "PBT Expenses": "-",
+  // Net Profit Before Tax = Operating Profit + Investment income - Investment losses - Finance costs + Share of profit of subsidiary - PBT Expenses
   "Income tax expense": "-",
+  // Net Profit or Loss After Tax = Net Profit Before Tax - Income tax expense
 };
 
 export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({

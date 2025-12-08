@@ -6,6 +6,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { PaidUpSharesInput } from "@/components/client/PaidUpSharesInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Building2, Plus, X, ChevronDown, ChevronUp, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +32,6 @@ import {
   buildTotalSharesPayload,
   calculateTotalSharesSum,
   parseTotalSharesArray,
-  OPTIONAL_SHARE_CLASS_LABELS,
   DEFAULT_SHARE_TYPE,
 } from "./ShareClassInput";
 
@@ -51,7 +50,7 @@ const industryOptions = [
   "Hospitality",
   "Other",
 ];
-
+ 
 import {
   addShareHolderPersonNew,
   updateShareHolderPersonExisting,
@@ -84,6 +83,7 @@ interface ExistingEntity {
   classBShares?: number;
   classCShares?: number;
   expanded?: boolean;
+  paidUpSharesPercentage?: number;
 }
 
 interface NewEntityForm {
@@ -101,13 +101,12 @@ interface NewEntityForm {
   companyStartedAt?: string;
   // Company's own totalShares (for new companies only) - uses share class logic
   shareClassValues?: ShareClassValues;
-  useClassShares?: boolean;
-  visibleShareClasses?: string[];
   // Shareholder shares (for the shares this entity holds in the parent company)
   classAShares: number;
   classBShares: number;
   classCShares: number;
   sharesData: ShareDataItem[];
+  paidUpSharesPercentage: number;
 }
 
 export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
@@ -136,11 +135,10 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       // Only initialize shareClassValues for companies (for their own totalShares)
       ...(entityType === "company" && {
         shareClassValues: getDefaultShareClassValues(),
-        useClassShares: false,
-        visibleShareClasses: [],
         industry: "",
         customIndustry: "",
       }),
+      paidUpSharesPercentage: 0,
     },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,7 +164,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     total: 0,
     totalPages: 0,
   });
-  
+  const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
   const { toast } = useToast();
 
   // Reset global search mode when switching to person mode, enable for companies
@@ -544,6 +542,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           classBShares: 0,
           classCShares: 0,
           expanded: true,
+          paidUpSharesPercentage: 0,
         },
       ]);
       setExpandedEntities((prev) => new Set(prev).add(entityId));
@@ -711,11 +710,10 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         // Only initialize shareClassValues for companies (for their own totalShares)
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
+        paidUpSharesPercentage: 100,
       },
     ]);
   };
@@ -862,12 +860,14 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                 // Update existing shareholder
                 await updateShareHolderCompanyExisting(clientId, companyId, entity.id, {
                   sharesData: validSharesData,
+                  paidUpSharesPercentage: entity.paidUpSharesPercentage ?? 100,
                 });
               } else {
                 // Add new shareholder
                 await addShareHolderCompanyNew("non-primary", companyId, {
                   companyId: entity.id,
                   sharesData: validSharesData,
+                  paidUpSharesPercentage: entity.paidUpSharesPercentage ?? 100,
                 });
               }
             }
@@ -921,6 +921,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               await addShareHolderPersonNew(clientId, companyId, {
                 personId,
                 sharesData: validSharesData,
+                paidUpSharesPercentage: entity.paidUpSharesPercentage,
               });
             }
           }
@@ -928,8 +929,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           for (const entity of filledNewEntities) {
             // Create company first
             // Build totalShares payload with only the selected mode's data
-            const totalSharesPayload = entity.shareClassValues && entity.useClassShares !== undefined
-              ? buildTotalSharesPayload(entity.shareClassValues, entity.useClassShares)
+            const totalSharesPayload = entity.shareClassValues
+              ? buildTotalSharesPayload(entity.shareClassValues)
               : undefined;
 
             const companyResponse = await fetch(
@@ -944,8 +945,19 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                   name: entity.name,
                   registrationNumber: entity.registrationNumber,
                   address: entity.address,
+
+                  // 🟩 FIX: Add these fields
+                  authorizedShares: entity.shareClassValues?.authorizedShares || 0,
+                  issuedShares: entity.shareClassValues?.issuedShares || 0,
+                  perShareValue: {
+                  value: entity.shareClassValues?.perShareValue || 0,
+                  currency: "EUR"
+                  },
+
+                  // Existing total share class breakdown
                   totalShares: totalSharesPayload,
-                  industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry)?.trim() || undefined,
+
+                  industry: (entity.industry === "Other" ? entity.customIndustry : entity.industry) || undefined,
                   description: entity.description,
                   timelineStart: entity.companyStartedAt,
                 }),
@@ -967,6 +979,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               await addShareHolderCompanyNew(clientId, companyId, {
                 companyId: addingCompanyId,
                 sharesData: validSharesData,
+                paidUpSharesPercentage: entity.paidUpSharesPercentage ?? 100,
               });
             }
           }
@@ -1088,11 +1101,10 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         sharesData: [{ totalShares: 0, shareClass: "A", shareType: "Ordinary" }],
         ...(entityType === "company" && {
           shareClassValues: getDefaultShareClassValues(),
-          useClassShares: false,
-          visibleShareClasses: [],
           industry: "",
           customIndustry: "",
         }),
+        paidUpSharesPercentage: 100,
       },
     ]);
     setExpandedEntities(new Set());
@@ -1376,6 +1388,19 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                                       {shareValidationErrors.global}
                                     </p>
                                   )}
+                                  <div className="mt-3">
+                                    <PaidUpSharesInput
+                                      value={selectedEntity.paidUpSharesPercentage ?? 100}
+                                      onChange={(val) => {
+                                        const numVal = val === "" ? 0 : val;
+                                        setSelectedExistingEntities(
+                                          selectedExistingEntities.map((ent) => 
+                                            ent.id === entityId ? { ...ent, paidUpSharesPercentage: numVal } : ent
+                                          )
+                                        );
+                                      }}
+                                    />
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1590,10 +1615,36 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                                         {shareValidationErrors.global}
                                       </p>
                                     )}
+                                    <div className="mt-3">
+                                      <Label className="text-xs text-gray-600">Paid Up Percentage</Label>
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          step="1"
+                                          placeholder="100"
+                                          value={selectedEntity.paidUpSharesPercentage}
+                                          onChange={(e) => {
+                                            const val = e.target.value === "" ? 0 : Number(e.target.value);
+                                            // Update selected entity state
+                                            setSelectedExistingEntities(
+                                              selectedExistingEntities.map((ent) => 
+                                                ent.id === entityId ? { ...ent, paidUpSharesPercentage: Math.min(100, Math.max(0, val)) } : ent
+                                              )
+                                            );
+                                          }}
+                                          className="rounded-lg"
+                                        />
+                                        <span className="text-sm text-gray-700">%</span>
+                                      </div>
+                                    </div>
                                   </div>
                                 </CardContent>
                               </Card>
                             )}
+
+                            
                           </div>
                         );
                         })
@@ -1797,32 +1848,12 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           <div>
                             <ShareClassInput
                               values={entity.shareClassValues || getDefaultShareClassValues()}
-                              errors={getDefaultShareClassErrors()}
-                              useClassShares={entity.useClassShares || false}
-                              visibleShareClasses={entity.visibleShareClasses || []}
+                              errors={shareClassErrors}
+                              onErrorChange={(errs) => setShareClassErrors(errs)}
                               onValuesChange={(values) => {
                                 setNewEntities((prev) =>
                                   prev.map((e, i) =>
                                     i === entityIndex ? { ...e, shareClassValues: values } : e
-                                  )
-                                );
-                              }}
-                              onUseClassSharesChange={(useClassShares) => {
-                                setNewEntities((prev) =>
-                                  prev.map((e, i) =>
-                                    i === entityIndex
-                                      ? {
-                                          ...e,
-                                          useClassShares,
-                                        }
-                                      : e
-                                  )
-                                );
-                              }}
-                              onVisibleShareClassesChange={(visibleShareClasses) => {
-                                setNewEntities((prev) =>
-                                  prev.map((e, i) =>
-                                    i === entityIndex ? { ...e, visibleShareClasses } : e
                                   )
                                 );
                               }}
@@ -2020,7 +2051,18 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                           )}
                         </div>
                       </div>
-                      
+                        <div>
+                          <div>
+                             <PaidUpSharesInput
+                                value={entity.paidUpSharesPercentage ?? 100}
+                                onChange={(val) => {
+                                   const numVal = val === "" ? 0 : val;
+                                   handleNewEntityChange(entityIndex, "paidUpSharesPercentage", numVal);
+                                }}
+                             />
+                          </div>
+                       </div>
+
                     </div>
                   </CardContent>
                 </Card>
