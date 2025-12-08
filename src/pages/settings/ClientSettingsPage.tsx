@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getUserSettings, updateUserSettings, getOrgSettings } from "@/services/settingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { setup2FA, verifyAndEnable2FA, disable2FA } from "@/services/authService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -69,47 +72,116 @@ export const ClientSettingsPage = () => {
   const [orgCompliance, setOrgCompliance] = useState<OrgComplianceContent | null>(null);
 
   useEffect(() => {
-    try {
-      const storedSecurity = localStorage.getItem(CLIENT_SECURITY_KEY);
-      if (storedSecurity) {
-        setSecurity(JSON.parse(storedSecurity));
+    const fetchData = async () => {
+      try {
+        // Fetch User Settings
+        const userSettings = await getUserSettings();
+        if (userSettings.profile) setProfile(prev => ({ ...prev, contactName: userSettings.profile.displayName }));
+        // Note: contactName in component vs displayName in backend. Keeping them aligned locally for now.
+        if (userSettings.security) setSecurity(userSettings.security);
+        if (userSettings.reminders) setNotifications(userSettings.reminders);
+
+        // Fetch Org Settings (for compliance)
+        const orgSettings = await getOrgSettings();
+        if (orgSettings.complianceSettings) setOrgCompliance(orgSettings.complianceSettings);
+      } catch (error) {
+        console.error("Failed to load settings", error);
       }
-      const storedReminders = localStorage.getItem(CLIENT_REMINDER_KEY);
-      if (storedReminders) {
-        setNotifications(JSON.parse(storedReminders));
-      }
-      const storedCompliance = localStorage.getItem(ORG_COMPLIANCE_KEY);
-      if (storedCompliance) {
-        setOrgCompliance(JSON.parse(storedCompliance));
-      }
-    } catch {
-      // ignore parse errors
-    }
+    };
+    fetchData();
   }, []);
 
-  const handleSaveProfile = () => {
-    // Future: call client profile update API
-    toast({
-      title: "Profile saved",
-      description: "Your contact name has been updated for this portal session.",
-    });
-    localStorage.setItem(CLIENT_PROFILE_KEY, JSON.stringify(profile));
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({ profile: { displayName: profile.contactName } });
+      toast({
+        title: "Profile saved",
+        description: "Your contact name has been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save profile.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveSecurity = () => {
-    localStorage.setItem(CLIENT_SECURITY_KEY, JSON.stringify(security));
-    toast({
-      title: "Security preferences saved",
-      description: "Your 2FA preference has been stored locally. Backend enforcement is pending.",
-    });
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [setupError, setSetupError] = useState("");
+
+  const handleToggle2FA = async (checked: boolean) => {
+    if (checked) {
+      setSaving(true);
+      try {
+        const data = await setup2FA();
+        setQrCodeData(data.qrCode);
+        setShow2FASetup(true);
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to initiate 2FA setup", variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      setSaving(true);
+      try {
+        await disable2FA();
+        setSecurity(prev => ({ ...prev, twoFactorEnabled: false }));
+        toast({ title: "2FA Disabled", description: "Two-factor authentication has been turned off." });
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to disable 2FA", variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
-  const handleSaveNotifications = () => {
-    localStorage.setItem(CLIENT_REMINDER_KEY, JSON.stringify(notifications));
-    toast({
-      title: "Notification settings saved",
-      description: "Your reminder preferences have been updated.",
-    });
+  const handleVerify2FA = async () => {
+    try {
+      await verifyAndEnable2FA(verificationCode);
+      setShow2FASetup(false);
+      setSecurity(prev => ({ ...prev, twoFactorEnabled: true }));
+      setVerificationCode("");
+      toast({ title: "Success", description: "2FA is now enabled for your account." });
+    } catch (error: any) {
+      setSetupError(error.message || "Invalid code");
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    // This function is kept for the manual "Save" button if needed, 
+    // but the toggle usually acts immediately for 2FA. 
+    // We can keep it to sync other security settings if added later.
+    setSaving(true);
+    try {
+      await updateUserSettings({ security });
+      toast({
+        title: "Security preferences saved",
+        description: "Your 2FA preference has been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save security settings.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveNotifications = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({ reminders: notifications });
+      toast({
+        title: "Notification settings saved",
+        description: "Your reminder preferences have been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save notification settings.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -166,7 +238,9 @@ export const ClientSettingsPage = () => {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveProfile}>Save profile</Button>
+                <Button onClick={handleSaveProfile} disabled={saving}>
+                  {saving ? "Saving..." : "Save profile"}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -195,9 +269,8 @@ export const ClientSettingsPage = () => {
                 <Switch
                   id="twofa-client"
                   checked={security.twoFactorEnabled}
-                  onCheckedChange={(value) =>
-                    setSecurity((prev) => ({ ...prev, twoFactorEnabled: value }))
-                  }
+                  onCheckedChange={handleToggle2FA}
+                  disabled={saving}
                 />
               </div>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -206,8 +279,8 @@ export const ClientSettingsPage = () => {
               </p>
 
               <div className="flex justify-end">
-                <Button variant="outline" onClick={handleSaveSecurity}>
-                  Save security settings
+                <Button variant="outline" onClick={handleSaveSecurity} disabled={saving}>
+                  {saving ? "Saving..." : "Save security settings"}
                 </Button>
               </div>
             </CardContent>
@@ -237,9 +310,19 @@ export const ClientSettingsPage = () => {
                 <Switch
                   id="doc-reminders-client"
                   checked={notifications.documentRemindersEnabled}
-                  onCheckedChange={(value) =>
-                    setNotifications((prev) => ({ ...prev, documentRemindersEnabled: value }))
-                  }
+                  onCheckedChange={async (value) => {
+                    setNotifications(prev => ({ ...prev, documentRemindersEnabled: value }));
+                    setSaving(true);
+                    try {
+                      await updateUserSettings({ reminders: { ...notifications, documentRemindersEnabled: value } });
+                      toast({ title: "Saved", description: "Notification preference updated." });
+                    } catch {
+                      toast({ title: "Error", description: "Failed to save.", variant: "destructive" });
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
                 />
               </div>
 
@@ -273,8 +356,8 @@ export const ClientSettingsPage = () => {
               </div>
 
               <div className="flex justify-end">
-                <Button variant="outline" onClick={handleSaveNotifications}>
-                  Save notification settings
+                <Button variant="outline" onClick={handleSaveNotifications} disabled={saving}>
+                  {saving ? "Saving..." : "Save notification settings"}
                 </Button>
               </div>
             </CardContent>
@@ -357,6 +440,36 @@ export const ClientSettingsPage = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 2FA Setup Dialog */}
+      <Dialog open={show2FASetup} onOpenChange={setShow2FASetup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Setup Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Scan the QR code with your authenticator app (e.g., Google Authenticator, Authy).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrCodeData && (
+              <img src={qrCodeData} alt="2FA QR Code" className="w-48 h-48 border rounded-lg" />
+            )}
+            <Input
+              placeholder="Enter 6-digit code"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              className="text-center text-lg tracking-widest max-w-[200px]"
+            />
+            {setupError && <p className="text-red-500 text-sm">{setupError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShow2FASetup(false)}>Cancel</Button>
+            <Button onClick={handleVerify2FA} disabled={!verificationCode || verificationCode.length !== 6}>
+              Verify & Enable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

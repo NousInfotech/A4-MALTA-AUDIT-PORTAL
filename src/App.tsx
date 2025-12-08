@@ -13,9 +13,12 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { NotificationInitializer } from "@/components/notifications";
 
 // Auth pages
+// Auth pages
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { SignupPage } from "@/pages/auth/SignupPage";
 import { PendingApprovalPage } from "@/pages/auth/PendingApprovalPage";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 
 // Super Admin pages
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard.jsx";
@@ -82,122 +85,124 @@ const App = () => (
         <NotificationInitializer />
         <TourProvider>
           <DataProvider>
-          <SidebarStatsProvider>  
-          <ReviewNotesProvider>
-            <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route
-                  path="/pending-approval"
-                  element={<PendingApprovalPage />}
-                />
+            <SidebarStatsProvider>
+              <ReviewNotesProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <BrowserRouter>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/signup" element={<SignupPage />} />
+                      <Route
+                        path="/pending-approval"
+                        element={<PendingApprovalPage />}
+                      />
+                      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Super Admin Routes */}
-              <Route
-                path="/super-admin"
-                element={
-                  <ProtectedRoute allowedRoles={["super-admin"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="dashboard" element={<SuperAdminDashboard />} />
-              </Route>
+                      {/* Super Admin Routes */}
+                      <Route
+                        path="/super-admin"
+                        element={
+                          <ProtectedRoute allowedRoles={["super-admin"]}>
+                            <DashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route path="dashboard" element={<SuperAdminDashboard />} />
+                      </Route>
 
-              {/* Admin Routes */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "employee"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
+                      {/* Admin Routes */}
+                      <Route
+                        path="/admin"
+                        element={
+                          <ProtectedRoute allowedRoles={["admin", "employee"]}>
+                            <DashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
 
-                <Route index element={<AdminDashboard />} />
-                <Route path="prompts" element={<PromptManagement />} />
-                <Route path="users" element={<UserManagement />} />
-                <Route path="logs" element={<AuditorLogs />} />
-                <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
-              <Route path="branding" element={<BrandingSettings />} />
-              <Route path="notice-board" element={<NoticeBoardManagement />} />
-              <Route path="2fa" element={<Folder2FAManagement />} />
-              <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-              <Route path="settings" element={<AdminSettingsPage />} />
-              </Route>
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="prompts" element={<PromptManagement />} />
+                        <Route path="users" element={<UserManagement />} />
+                        <Route path="logs" element={<AuditorLogs />} />
+                        <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
+                        <Route path="branding" element={<BrandingSettings />} />
+                        <Route path="notice-board" element={<NoticeBoardManagement />} />
+                        <Route path="2fa" element={<Folder2FAManagement />} />
+                        <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                        <Route path="settings" element={<AdminSettingsPage />} />
+                      </Route>
 
-              {/* Employee Routes */}
-              <Route
-                path="/employee"
-                element={
-                  <ProtectedRoute allowedRoles={["employee"]}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<EmployeeDashboard />} />
-                <Route path="clients" element={<ClientManagement />} />
-                <Route path="clients/new" element={<AddClient />} />
-                <Route path="clients/edit/:id" element={<EditClient />} />
-                <Route path="clients/:clientId/company/:companyId" element={<CompanyDetail />} />
-                <Route path="clients/:id" element={<ClientDetail />} />
-                <Route path="engagements" element={<EngagementManagement />} />
-                <Route path="engagements/new" element={<CreateEngagement />} />
-                <Route path="engagements/:id" element={<EngagementDetails />} />
-                <Route path="library" element={<GlobalLibraryPage />} />
-                <Route path="2fa" element={<Folder2FAManagement />} />
-                <Route path="isqm" element={<ISQMQuestionnairePage />} />
-                <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
-                <Route path="kyc/library" element={<KYCLibrary />} />
-                <Route path="document-request-template" element={<KYCLibrary />} />
-                <Route path="kyc" element={<KYCEnhancedManagement />} />
-                <Route path="accounts" element={<RoleBasedAccountDataTab />} />
-                <Route path="salt-edge/callback" element={<CallbackPage />} />
-                <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
-                <Route path="review/" element={<ReviewPage />} />
-                <Route path="mockapideck" element={<MockApideckHome />} />
-                <Route path="audit-workbook" element={<WorkBookApp engagementId={null} classification={null} />} />
-                <Route path="analytics" element={<AnalyticalReviewSection />} />
-                <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-                <Route path="settings" element={<EmployeeSettingsPage />} />
-              </Route>
+                      {/* Employee Routes */}
+                      <Route
+                        path="/employee"
+                        element={
+                          <ProtectedRoute allowedRoles={["employee"]}>
+                            <DashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<EmployeeDashboard />} />
+                        <Route path="clients" element={<ClientManagement />} />
+                        <Route path="clients/new" element={<AddClient />} />
+                        <Route path="clients/edit/:id" element={<EditClient />} />
+                        <Route path="clients/:clientId/company/:companyId" element={<CompanyDetail />} />
+                        <Route path="clients/:id" element={<ClientDetail />} />
+                        <Route path="engagements" element={<EngagementManagement />} />
+                        <Route path="engagements/new" element={<CreateEngagement />} />
+                        <Route path="engagements/:id" element={<EngagementDetails />} />
+                        <Route path="library" element={<GlobalLibraryPage />} />
+                        <Route path="2fa" element={<Folder2FAManagement />} />
+                        <Route path="isqm" element={<ISQMQuestionnairePage />} />
+                        <Route path="kyc/:engagementId" element={<KYCEnhancedManagement />} />
+                        <Route path="kyc/library" element={<KYCLibrary />} />
+                        <Route path="document-request-template" element={<KYCLibrary />} />
+                        <Route path="kyc" element={<KYCEnhancedManagement />} />
+                        <Route path="accounts" element={<RoleBasedAccountDataTab />} />
+                        <Route path="salt-edge/callback" element={<CallbackPage />} />
+                        <Route path="review/:engagementId" element={<ReviewDetailsPage />} />
+                        <Route path="review/" element={<ReviewPage />} />
+                        <Route path="mockapideck" element={<MockApideckHome />} />
+                        <Route path="audit-workbook" element={<WorkBookApp engagementId={null} classification={null} />} />
+                        <Route path="analytics" element={<AnalyticalReviewSection />} />
+                        <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                        <Route path="settings" element={<EmployeeSettingsPage />} />
+                      </Route>
 
-                {/* Client Routes */}
-                <Route
-                  path="/client"
-                  element={
-                    <ProtectedRoute allowedRoles={["client"]}>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<ClientDashboard />} />
-                  <Route path="engagements" element={<ClientEngagements />} />
-                  <Route path="requests" element={<DocumentRequests />} />
-              
-                  <Route path="accounts" element={<RoleBasedAccountDataTab />} />
-                  <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-                  <Route path="settings" element={<ClientSettingsPage />} />
-                  
-                </Route>
+                      {/* Client Routes */}
+                      <Route
+                        path="/client"
+                        element={
+                          <ProtectedRoute allowedRoles={["client"]}>
+                            <DashboardLayout />
+                          </ProtectedRoute>
+                        }
+                      >
+                        <Route index element={<ClientDashboard />} />
+                        <Route path="engagements" element={<ClientEngagements />} />
+                        <Route path="requests" element={<DocumentRequests />} />
 
-                {/* Redirect /settings/notifications to role-based path */}
-                <Route 
-                  path="/settings/notifications" 
-                  element={<NotificationSettingsRedirect />} 
-                />
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-            </TooltipProvider>
-          </ReviewNotesProvider>
-          </SidebarStatsProvider>
+                        <Route path="accounts" element={<RoleBasedAccountDataTab />} />
+                        <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                        <Route path="settings" element={<ClientSettingsPage />} />
+
+                      </Route>
+
+                      {/* Redirect /settings/notifications to role-based path */}
+                      <Route
+                        path="/settings/notifications"
+                        element={<NotificationSettingsRedirect />}
+                      />
+
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </BrowserRouter>
+                </TooltipProvider>
+              </ReviewNotesProvider>
+            </SidebarStatsProvider>
           </DataProvider>
         </TourProvider>
       </BrandingProvider>
