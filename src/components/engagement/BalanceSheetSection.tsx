@@ -58,6 +58,8 @@ interface GroupedRows {
   };
 }
 
+
+
 export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   engagement,
   etbRows,
@@ -234,9 +236,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   };
 
   // Helper function to format Balance Sheet values (defined before calculations for use inside)
-  // Preserves raw ETB signs for proper accounting summation
+  // Reverses signs for Equity and Liabilities to get positive totals
   // Only forces contra-assets to negative (they reduce asset values)
-  const formatBalanceSheetValue = (value: number, accountName?: string): number => {
+  // Excludes "Equity > Current Year Profits & Losses" from sign reversal
+  const formatBalanceSheetValue = (value: number, group1?: string, group2?: string, accountName?: string): number => {
     const v = value ?? 0;
     const name = (accountName || "").toLowerCase();
     
@@ -252,7 +255,19 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     // Contra-assets must always reduce assets (force negative)
     if (isContra) return Math.abs(v) * -1;
     
-    // For ALL other accounts, return raw ETB sign
+    // Reverse signs for Equity and Liabilities BEFORE group-wise calculations
+    // This ensures positive integers for liabilities and equities totals
+    // EXCLUDE "Equity > Current Year Profits & Losses" from sign reversal
+    if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
+      // Don't reverse signs for income statement items
+      return v;
+    }
+    
+    if (group1 === "Equity" || group1 === "Liabilities") {
+      return -v; // Reverse the sign
+    }
+    
+    // For Assets, return raw ETB sign
     return v;
   };
 
@@ -366,6 +381,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     console.log("  Total Net Profit After Tax:", netProfitAfterTaxCurrent);
 
     // STEP 1: Get Retained Earnings from Prior Year (sum all accounts under Group3 "Retained earnings")
+    // Use reversed signs for Equity BEFORE calculation (as per requirements)
     const getRetainedEarningsPriorYear = (): number => {
       let retainedEarningsPrior = 0;
       
@@ -379,8 +395,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             row.grouping2 === "Equity" &&
             row.grouping3 === "Retained earnings"
           ) {
-            // Sum all prior year values for retained earnings accounts
-            retainedEarningsPrior += (row.priorYear || 0);
+            // Reverse sign for Equity BEFORE calculation (raw ETB value reversed)
+            const rawValue = row.priorYear || 0;
+            retainedEarningsPrior += -rawValue; // Reverse sign for Equity
           }
         });
 
@@ -417,28 +434,30 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Special case: Retained Earnings calculated at Group3 level
       if (group1 === "Equity" && group2 === "Equity" && group3 === "Retained earnings") {
         if (year === "current") {
-          // Use calculated retained earnings for current year
-          return Math.abs(calculatedRetainedEarningsCurrent);
+          // Use calculated retained earnings for current year (already has reversed sign applied)
+          // Preserve sign to show deficits as negative
+          return calculatedRetainedEarningsCurrent;
         } else {
-          // Sum all prior year values for retained earnings accounts
+          // Sum all prior year values for retained earnings accounts (with reversed signs)
           const priorSum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
             const rowSum = rows.reduce((rowAcc, row) => {
               const rawValue = row.priorYear || 0;
-              const value = formatBalanceSheetValue(rawValue, row.accountName);
+              const value = formatBalanceSheetValue(rawValue, group1, group2, row.accountName);
               return rowAcc + (value || 0);
             }, 0);
             return g4Acc + rowSum;
           }, 0);
-          return Math.abs(priorSum);
+          // Preserve sign to show deficits as negative
+          return priorSum;
         }
       }
 
       // For all other Group3s, sum normally
       const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((rowAcc, row) => {
-          // Use formatted value with preserved signs for accurate summation
+          // Use formatted value with reversed signs for Equity/Liabilities
           const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-          const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+          const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
           // Sum without rounding - rounding happens at display time only
           return rowAcc + (value || 0);
         }, 0);
@@ -523,9 +542,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Sum formatted values (not raw values) to match individual row display
       // Round each value before summing to match displayed rounded values
       const sum = groupedData[group1][group2][group3][group4].reduce((acc, row) => {
-        // Use formatted value with preserved signs for accurate summation
+        // Use formatted value with reversed signs for Equity/Liabilities
         const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-        const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+        const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
         // Sum without rounding - rounding happens at display time only
         return acc + (value || 0);
       }, 0);
@@ -554,13 +573,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }
           return true;
         })
-        .reduce((acc, [_, group3Map]) => {
+        .reduce((acc, [group2, group3Map]) => {
           const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
             const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
               const rowSum = rows.reduce((rowAcc, row) => {
-                // Use formatted value with preserved signs for accurate summation
+                // Use formatted value with reversed signs for Equity/Liabilities
                 const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-                const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+                const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
                 // Sum without rounding - rounding happens at display time only
                 return rowAcc + (value || 0);
               }, 0);
@@ -706,11 +725,15 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
 
   // Helper to get the display value for a row
   const getRowCurrentYearValue = (row: ETBRow): number => {
-    return formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
+    // Ensure groupings are extracted from classification if missing
+    const rowWithGroupings = ensureRowGroupings(row);
+    return formatBalanceSheetValue(row.finalBalance || 0, rowWithGroupings.grouping1, rowWithGroupings.grouping2, row.accountName);
   };
 
   const getRowPriorYearValue = (row: ETBRow): number => {
-    return formatBalanceSheetValue(row.priorYear || 0, row.accountName);
+    // Ensure groupings are extracted from classification if missing
+    const rowWithGroupings = ensureRowGroupings(row);
+    return formatBalanceSheetValue(row.priorYear || 0, rowWithGroupings.grouping1, rowWithGroupings.grouping2, row.accountName);
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
