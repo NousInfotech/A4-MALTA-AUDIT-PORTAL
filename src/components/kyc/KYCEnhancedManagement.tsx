@@ -235,7 +235,10 @@ export const KYCEnhancedManagement = ({
   };
 
   const filteredWorkflows = kycWorkflows.filter(workflow => {
-    const title = workflow.engagement?.title || workflow.company?.name || "Untitled";
+    // Only show Engagement KYCs
+    if (!workflow.engagement) return false;
+
+    const title = workflow.engagement?.title || "Untitled";
     const matchesSearch = 
       title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflow.clientId.toLowerCase().includes(searchTerm.toLowerCase()) ||

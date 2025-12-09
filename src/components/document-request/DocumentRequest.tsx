@@ -83,6 +83,9 @@ interface DocumentRequestProps {
     groupName: string,
     items: any[]
   ) => void | Promise<void>;
+
+  /** Optional flag to disable all actions (for when parent is updating) */
+  isDisabled?: boolean;
 }
 
 const DocumentRequest: React.FC<DocumentRequestProps> = ({
@@ -100,6 +103,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
   clientId,
   onClearMultipleGroup,
   onDownloadMultipleGroup,
+  isDisabled,
 }) => {
   const [addDocumentDialogOpen, setAddDocumentDialogOpen] = useState(false);
   const {
@@ -180,6 +184,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
                 variant="outline"
                 className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
                 onClick={() => onDeleteRequest(_id)}
+                disabled={isDisabled}
               >
                 Delete Request
               </Button>
@@ -189,13 +194,14 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
       </CardHeader> */}
 
       {/* Add Document Button */}
-      {(engagementId && clientId) && (
+      {(engagementId || clientId) && ( 
         <div className="mb-4 flex justify-end">
           <Button
             size="sm"
             variant="outline"
             onClick={() => setAddDocumentDialogOpen(true)}
             className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700"
+            disabled={isDisabled}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Document
@@ -212,6 +218,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
             onUpload={onUploadSingle}
             onRequestDeleteDialog={onRequestDeleteDialog}
             onClearDocument={onClearDocument}
+            isDisabled={isDisabled}
           />
         )}
 
@@ -226,17 +233,18 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
             onRequestDeleteDialog={onRequestDeleteDialog}
             onClearMultipleGroup={onClearMultipleGroup}
             onDownloadMultipleGroup={onDownloadMultipleGroup}
+            isDisabled={isDisabled}
           />
         )}
 
         {/* Add Document Dialog */}
-        {engagementId && clientId && (
+        {(engagementId || clientId) && (
           <AddDocumentDialog
             open={addDocumentDialogOpen}
             onOpenChange={setAddDocumentDialogOpen}
             documentRequestId={_id}
-            engagementId={engagementId}
-            clientId={clientId}
+            engagementId={engagementId || ""}
+            clientId={clientId || ""} 
             onSuccess={handleDocumentsAdded}
           />
         )}

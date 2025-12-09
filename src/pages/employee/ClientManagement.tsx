@@ -227,8 +227,8 @@ export const ClientManagement = () => {
                   
                   <div className="space-y-4">
                     <Badge 
-                      variant="secondary" 
-                      className="bg-gray-100 text-gray-700 border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold"
+                      variant="outline" 
+                      className="rounded-xl px-4 py-2 text-sm font-semibold"
                     >
                       {client.industry || 'N/A'}
                     </Badge>
