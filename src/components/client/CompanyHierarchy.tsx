@@ -256,14 +256,14 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
               backgroundColor: "#f3f4f6",
               padding: paddingSize,
               color: "#111827",
-            }}
+             }}
           >
             {/* Name */}
             <div
               style={{
-                fontWeight: 700,
+                fontWeight: 500,
                 fontSize: nameFontSize,
-                marginBottom: 8,
+                marginBottom: 5,
                 textTransform: "uppercase",
                 color: "#1f2937",
               }}

@@ -476,7 +476,7 @@ export function AddDocumentRequestModal({
                             <div className="flex flex-wrap gap-2 mt-2">
                               
                             {p.shareholder?.shareClasses.map((item: any) =>(
-                                
+                                 
                                 <Badge variant="outline">
                                   { item.class.toLowerCase() != "ordinary" ? "Class" : ""} {item.class}: {item.totalShares}
                                 </Badge>

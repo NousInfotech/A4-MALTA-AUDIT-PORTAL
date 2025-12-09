@@ -338,10 +338,10 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
               clientId={clientId}
             />
 
-            {documents.length > 0 && (
+            {(documents.length > 0 || multipleDocuments.length > 0) && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg ">
                 <p className="text-sm font-medium mb-2">
-                  {documents.length} document(s) selected
+                  {documents.length + multipleDocuments.length} document(s) selected
                 </p>
 
                 <div className="flex gap-2">
@@ -354,7 +354,10 @@ export const AddDocumentDialog: React.FC<AddDocumentDialogProps> = ({
 
                   <Button
                     variant="outline"
-                    onClick={() => setDocuments([])}
+                    onClick={() => {
+                      setDocuments([]);
+                      setMultipleDocuments([]);
+                    }}
                   >
                     Clear Selection
                   </Button>

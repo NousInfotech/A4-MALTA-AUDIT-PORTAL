@@ -31,7 +31,9 @@ interface DocumentRequestSingleProps {
   /** Called when user clicks "Delete" icon (confirm dialog handled in parent) */
   onRequestDeleteDialog?: (payload: DeleteDialogPayload) => void;
   /** Called when user clicks "Clear" button to clear file only */
+  /** Called when user clicks "Clear" button to clear file only */
   onClearDocument?: (requestId: string, documentIndex: number, documentName: string) => void | Promise<void>;
+  isDisabled?: boolean;
 }
 
 const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
@@ -41,6 +43,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
   onUpload,
   onRequestDeleteDialog,
   onClearDocument,
+  isDisabled,
 }) => {
   const { toast } = useToast();
 
@@ -115,7 +118,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
             <div className="flex items-center gap-1">
               {!doc.url ? (
                 // Single-file upload input
-                <label className="cursor-pointer">
+                <label className={`cursor-pointer ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}>
                   <input
                     type="file"
                     className="hidden"
@@ -127,14 +130,14 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                       }
                       e.target.value = "";
                     }}
-                    disabled={isUploading}
+                    disabled={isUploading || isDisabled}
                   />
                   <Button
                     size="sm"
                     variant="outline"
                     className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700"
                     title="Upload Document"
-                    disabled={isUploading}
+                    disabled={isUploading || isDisabled}
                     asChild
                   >
                     <span>
@@ -158,6 +161,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                     onClick={() => window.open(doc.url!, "_blank")}
                     className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 w-8 p-0"
                     title="View Document"
+                    disabled={isDisabled}
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -187,6 +191,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                     }}
                     className="border-green-300 hover:bg-green-50 hover:text-green-800 text-green-700 h-8 w-8 p-0"
                     title="Download Document"
+                    disabled={isDisabled}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -203,6 +208,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                   onClick={() => onClearDocument(requestId, docIndex, doc.name)}
                   className="border-yellow-300 hover:bg-yellow-50 hover:text-yellow-800 text-yellow-700 h-8 px-2 text-xs"
                   title="Clear Uploaded File"
+                  disabled={isDisabled}
                 >
                   Clear
                 </Button>
@@ -216,13 +222,14 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                   variant="outline"
                   className="border-amber-300 text-amber-700 hover:bg-amber-700/20 hover:text-amber-700"
                   title="View Template"
+                  disabled={isDisabled}
                   asChild
                 >
                   <a
                     href={(doc as any).template.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center h-8 w-8 p-0"
+                    className={`inline-flex items-center h-8 w-8 p-0 ${isDisabled ? 'pointer-events-none opacity-50' : ''}`}
                   >  
                     <span><File/></span>
                   </a>
@@ -246,6 +253,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                   }
                   className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 h-8 w-8 p-0"
                   title="Delete Document Requirement"
+                  disabled={isDisabled}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

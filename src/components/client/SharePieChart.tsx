@@ -459,7 +459,13 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
               <span className="font-bold">{totalRaw.toFixed(0)}%</span>
               {totalSharesSum > 0 && (
                 <span className="text-gray-600 ml-2">
-                  ({totalSharesSum.toLocaleString()} out of {currentClassTotal.toLocaleString()} shares)
+                  ({totalSharesSum.toLocaleString()} out of {currentClassTotal.toLocaleString()} shares
+                  {shareClass === "authorized" &&
+                    ` - ${(
+                      (totalSharesSum / currentClassTotal) *
+                      100
+                    ).toFixed(0)}% Issued`}
+                  )
                 </span>
               )}
             </p>
@@ -503,7 +509,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       return {
         shareClass: "total",
         data: totalViewData,
-        label: "Total Shares"
+        label: "Issued Shares"
       };
     }
     
@@ -518,7 +524,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
 
       const authorizedData: ChartData = {
         normalizedData: [],
-        totalRaw: issuedPercentage,
+        totalRaw: 100,
         companyTotal: 0,
         personTotal: 0,
         personTotalShares: 0,
@@ -547,7 +553,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       return {
         shareClass: "authorized",
         data: authorizedData,
-        label: "Authorized Issued Share"
+        label: "Authorized Share"
       };
     }
     
@@ -602,7 +608,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
             onClick={() => setSelectedView("total")}
             className="rounded-lg"
           >
-            Total
+            Issued Share
           </Button>
         
           {/* Individual Class Buttons */}
