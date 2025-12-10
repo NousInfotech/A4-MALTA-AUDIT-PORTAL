@@ -1559,7 +1559,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           ) : null}
                         </TabsContent>
 
-                        <TabsContent value="view" className="flex-1 mt-6">
+                        <TabsContent value="view" className="flex-1 mt-6 px-4 pb-4">
                           {!selectedProcedureType ? (
                             <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
                           ) : selectedProcedureType === "planning" ? (
