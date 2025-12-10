@@ -107,8 +107,8 @@ export const EngagementDetails = () => {
         setLoading(true);
         const engagementData = await engagementApi.getById(id);
         setEngagement(engagementData);
-       console.log(engagement);
-       
+        console.log(engagement);
+
         // Log engagement view
         logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
 
@@ -218,10 +218,10 @@ export const EngagementDetails = () => {
         clientId: engagement.clientId,
       });
       setDocumentRequest({ category: "", description: "", comment: "" });
-      
+
       // Log document request creation
       logUploadDocument(`Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`);
-      
+
       toast({
         title: "Success",
         description: "Document request sent successfully",
@@ -263,7 +263,7 @@ export const EngagementDetails = () => {
                 const procedureType = searchParams.get("procedureType");
                 const mode = searchParams.get("mode");
                 const step = searchParams.get("step");
-                
+
                 // If in tabs view (step === "tabs"), go back to questions step
                 if (procedureType && step === "tabs") {
                   const newParams = new URLSearchParams(searchParams);
@@ -271,12 +271,12 @@ export const EngagementDetails = () => {
                   setSearchParams(newParams, { replace: false });
                   return;
                 }
-                
+
                 // If in a numbered step, go back one step or to mode selection
                 if (procedureType && mode && step) {
                   const stepNum = parseInt(step, 10);
                   const newParams = new URLSearchParams(searchParams);
-                  
+
                   if (stepNum > 0) {
                     // Go back one step
                     newParams.set("step", (stepNum - 1).toString());
@@ -288,7 +288,7 @@ export const EngagementDetails = () => {
                   setSearchParams(newParams, { replace: false });
                   return;
                 }
-                
+
                 // If at mode selection (mode exists but no step), clear mode
                 if (procedureType && mode && !step) {
                   const newParams = new URLSearchParams(searchParams);
@@ -296,7 +296,7 @@ export const EngagementDetails = () => {
                   setSearchParams(newParams, { replace: false });
                   return;
                 }
-                
+
                 // If at procedure type selection (procedureType exists but no mode), clear procedureType
                 if (procedureType && !mode) {
                   const newParams = new URLSearchParams(searchParams);
@@ -304,7 +304,7 @@ export const EngagementDetails = () => {
                   setSearchParams(newParams, { replace: false });
                   return;
                 }
-                
+
                 // Otherwise, navigate back normally
                 if (window.history.length > 1) {
                   navigate(-1);
@@ -330,32 +330,32 @@ export const EngagementDetails = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-              <Button
-                onClick={() => setIsUpdateDialogOpen(true)}
-                className="rounded-xl w-full sm:w-auto"
-                size="sm"
-              > 
-              <Pencil/>
-                Update Engagement
-              </Button>
-              
-              <DeleteClientConfirmation
-                clientName={engagement.title}
-                onConfirm={() => {
-                  // No logic, just show popup
-                  console.log("Delete confirmed for:", engagement.title);
-                }}
-                isLoading={false}
-              >
                 <Button
-                  variant="default"
+                  onClick={() => setIsUpdateDialogOpen(true)}
+                  className="rounded-xl w-full sm:w-auto"
                   size="sm"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 rounded-xl w-full sm:w-auto"
                 >
-                  <Delete className="h-4 w-4 mr-2" />
-                  Delete Engagement
+                  <Pencil />
+                  Update Engagement
                 </Button>
-              </DeleteClientConfirmation>
+
+                <DeleteClientConfirmation
+                  clientName={engagement.title}
+                  onConfirm={() => {
+                    // No logic, just show popup
+                    console.log("Delete confirmed for:", engagement.title);
+                  }}
+                  isLoading={false}
+                >
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 rounded-xl w-full sm:w-auto"
+                  >
+                    <Delete className="h-4 w-4 mr-2" />
+                    Delete Engagement
+                  </Button>
+                </DeleteClientConfirmation>
               </div>
             </div>
           </div>
@@ -374,6 +374,31 @@ export const EngagementDetails = () => {
                     <BarChart3 className="h-4 w-4 mr-2" />
                     Overview
                   </TabsTrigger>
+
+                  <TabsTrigger
+                    value="checklist"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Checklist
+                  </TabsTrigger>
+
+                  <TabsTrigger
+                    value="requests"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Document Requests
+                  </TabsTrigger>
+
+                  <TabsTrigger
+                    value="procedures"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Procedures
+                  </TabsTrigger>
+
                   <TabsTrigger
                     value="trial-balance"
                     className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
@@ -381,128 +406,109 @@ export const EngagementDetails = () => {
                     <FileText className="h-4 w-4 mr-2" />
                     Audit
                   </TabsTrigger>
-                <TabsTrigger
-                  value="requests"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Document Requests
-                </TabsTrigger>
-                <TabsTrigger
-                  value="procedures"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Procedures
-                </TabsTrigger>
-                <TabsTrigger
-                  value="checklist"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Checklist
-                </TabsTrigger>
-                <TabsTrigger
-                  value="library"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <Library className="h-4 w-4 mr-2" />
-                  Library
-                </TabsTrigger>
-                <TabsTrigger
-                  value="kyc"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <Shield className="h-4 w-4 mr-2" />
-                  KYC
-                </TabsTrigger>
-                <TabsTrigger
-                  value="team"
-                  className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Team
-                </TabsTrigger>
-                
-              </TabsList>
-            </div>
-            {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary">
+
+                  <TabsTrigger
+                    value="library"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <Library className="h-4 w-4 mr-2" />
+                    Library
+                  </TabsTrigger>
+
+                  <TabsTrigger
+                    value="team"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Team
+                  </TabsTrigger>
+
+                  <TabsTrigger
+                    value="kyc"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    KYC
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary">
               See the PBC Work Flow
             </button> */}
-          </div>
+            </div>
 
-          <div className="p-6">
-            <TabsContent value="overview" className="space-y-6">
-              <PerEngagementKPIDashboard engagementId={id} />
-            </TabsContent>
+            <div className="p-6">
+              <TabsContent value="overview" className="space-y-6">
+                <PerEngagementKPIDashboard engagementId={id} />
+              </TabsContent>
 
-            <TabsContent value="library" className="space-y-6">
-              <LibraryTab engagement={engagement} requests={requests} />
-            </TabsContent>
+              <TabsContent value="library" className="space-y-6">
+                <LibraryTab engagement={engagement} requests={requests} />
+              </TabsContent>
 
-            <TabsContent value="trial-balance" className="space-y-6">
-              <TrialBalanceTab
-                engagement={engagement}
-                trialBalanceUrl={trialBalanceUrl}
-                setTrialBalanceUrl={setTrialBalanceUrl}
-                trialBalanceData={trialBalanceData}
-                setEngagement={setEngagement}
-                handleUploadTrialBalance={handleUploadTrialBalance}
-                tbLoading={tbLoading}
-              />
-            </TabsContent>
+              <TabsContent value="trial-balance" className="space-y-6">
+                <TrialBalanceTab
+                  engagement={engagement}
+                  trialBalanceUrl={trialBalanceUrl}
+                  setTrialBalanceUrl={setTrialBalanceUrl}
+                  trialBalanceData={trialBalanceData}
+                  setEngagement={setEngagement}
+                  handleUploadTrialBalance={handleUploadTrialBalance}
+                  tbLoading={tbLoading}
+                />
+              </TabsContent>
 
-            <TabsContent value="requests" className="space-y-6">
-              <DocumentRequestsTab
-                requests={requests}
-                documentRequest={documentRequest}
-                setDocumentRequest={setDocumentRequest}
-                handleSendDocumentRequest={handleSendDocumentRequest}
-                engagement={engagement}
-              />
-            </TabsContent>
+              <TabsContent value="requests" className="space-y-6">
+                <DocumentRequestsTab
+                  requests={requests}
+                  documentRequest={documentRequest}
+                  setDocumentRequest={setDocumentRequest}
+                  handleSendDocumentRequest={handleSendDocumentRequest}
+                  engagement={engagement}
+                />
+              </TabsContent>
 
-            <TabsContent value="procedures" className="space-y-6">
-              <ProceduresTab engagement={engagement} />
-            </TabsContent>
+              <TabsContent value="procedures" className="space-y-6">
+                <ProceduresTab engagement={engagement} />
+              </TabsContent>
 
-            <TabsContent value="checklist" className="space-y-6">
-              <ChecklistTab engagementId={id!} />
-            </TabsContent>
+              <TabsContent value="checklist" className="space-y-6">
+                <ChecklistTab engagementId={id!} />
+              </TabsContent>
 
-            <TabsContent value="kyc" className="space-y-6">
-              <EngagementKYC />
-            </TabsContent>
+              <TabsContent value="kyc" className="space-y-6">
+                <EngagementKYC />
+              </TabsContent>
 
-            <TabsContent value="team" className="space-y-6">
-              <TeamTab engagementId={id!} />
-            </TabsContent>
-            
-          </div>
-        </Tabs>
-      </div>
+              <TabsContent value="team" className="space-y-6">
+                <TeamTab engagementId={id!} />
+              </TabsContent>
 
-      {isPBCModalOpen && (
-        <PbcDialog
-          selectedEngagement={engagement}
-          open={isPBCModalOpen}
-          onOpenChange={setIsPBCModalOpen}
-          onClosePBC={handleClosePBC}
+            </div>
+          </Tabs>
+        </div>
+
+        {isPBCModalOpen && (
+          <PbcDialog
+            selectedEngagement={engagement}
+            open={isPBCModalOpen}
+            onOpenChange={setIsPBCModalOpen}
+            onClosePBC={handleClosePBC}
+          />
+        )}
+
+        <UpdateEngagementDialog
+          open={isUpdateDialogOpen}
+          onOpenChange={setIsUpdateDialogOpen}
+          engagement={engagement}
+          onUpdate={async (id, data) => {
+            const updated = await updateEngagement(id, data);
+            setEngagement(updated);
+            // Refetch engagement data to ensure consistency
+            const engagementData = await engagementApi.getById(id);
+            setEngagement(engagementData);
+          }}
         />
-      )}
-
-      <UpdateEngagementDialog
-        open={isUpdateDialogOpen}
-        onOpenChange={setIsUpdateDialogOpen}
-        engagement={engagement}
-        onUpdate={async (id, data) => {
-          const updated = await updateEngagement(id, data);
-          setEngagement(updated);
-          // Refetch engagement data to ensure consistency
-          const engagementData = await engagementApi.getById(id);
-          setEngagement(engagementData);
-        }}
-      />
       </div>
     </div>
   );
