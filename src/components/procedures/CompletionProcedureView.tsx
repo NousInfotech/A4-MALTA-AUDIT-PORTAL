@@ -1,6 +1,7 @@
 // File: CompletionProcedureView.tsx
 import React, { useMemo, useRef, useState, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1021,52 +1022,26 @@ export const CompletionProcedureView: React.FC<{
       </div>
 
       {Array.isArray(proc.procedures) && proc.procedures.length > 0 ? (
-        proc.procedures.map((sec: any, sIdx: number) => {
-          const answers = makeAnswers(sec)
-          const sectionId = sec.id || `section-${sIdx}`
-          const activeSectionTab = sectionTabs[sectionId] || "questions"
-          const setActiveSectionTab = (value: string) => {
-            setSectionTabs(prev => ({ ...prev, [sectionId]: value }))
-          }
-          
-          return (
-            <Card key={sec.id || sIdx} className="rounded-lg border">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="font-heading text-lg">{sec.title}</CardTitle>
+        <Accordion type="multiple" className="space-y-4">
+          {proc.procedures.map((sec: any, sIdx: number) => {
+            const answers = makeAnswers(sec)
+            const sectionId = sec.id || `section-${sIdx}`
+            const activeSectionTab = sectionTabs[sectionId] || "questions"
+            const setActiveSectionTab = (value: string) => {
+              setSectionTabs(prev => ({ ...prev, [sectionId]: value }))
+            }
+            
+            return (
+              <AccordionItem key={sec.id || sIdx} value={sectionId} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="text-left">
+                    <div className="font-heading text-lg">{sec.title}</div>
                     {sec.standards?.length ? (
                       <div className="text-xs text-muted-foreground">Standards: {sec.standards.join(", ")}</div>
                     ) : null}
                   </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => {
-                      const sectionId = sec.sectionId || sec.id
-                      if (!sectionId) {
-                        toast({ title: "Error", description: "Section ID is missing", variant: "destructive" })
-                        return
-                      }
-                      handleGenerateSectionQuestions(sectionId)
-                    }}
-                    disabled={generatingSections.has(sec.sectionId || sec.id)}
-                  >
-                    {generatingSections.has(sec.sectionId || sec.id) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate Questions
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
+                </AccordionTrigger>
+                <AccordionContent className="pt-4 pb-4">
                 <Tabs value={activeSectionTab} onValueChange={setActiveSectionTab} className="w-full">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="questions">Questions</TabsTrigger>
@@ -1593,10 +1568,11 @@ export const CompletionProcedureView: React.FC<{
                     </ScrollArea>
                   </TabsContent>
                 </Tabs>
-              </CardContent>
-            </Card>
-          )
-        })
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })}
+        </Accordion>
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">

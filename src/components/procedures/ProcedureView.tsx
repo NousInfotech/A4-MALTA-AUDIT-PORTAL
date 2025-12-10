@@ -14,6 +14,8 @@ import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { supabase } from "@/integrations/supabase/client"
 
 // Add these helpers near the top of ProcedureView.tsx (outside the component)
@@ -112,6 +114,8 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null)
   const [editQuestionText, setEditQuestionText] = useState("")
   const [editAnswerText, setEditAnswerText] = useState("")
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null)
+  const [editAnswerValue, setEditAnswerValue] = useState("")
   const [localQuestions, setLocalQuestions] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("questions")
@@ -119,6 +123,8 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [generatingQuestions, setGeneratingQuestions] = useState(false)
   const [generatingAnswers, setGeneratingAnswers] = useState(false)
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
+  const [selectedClassification, setSelectedClassification] = useState<string | null>(currentClassification || null)
+  const [classificationTabs, setClassificationTabs] = useState<Record<string, string>>({})
 
   // Initialize local questions when procedure changes
   React.useEffect(() => {
@@ -126,6 +132,37 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       setLocalQuestions([...procedure.questions])
     }
   }, [procedure?.questions])
+
+  // Update selectedClassification when currentClassification prop changes
+  React.useEffect(() => {
+    if (currentClassification) {
+      setSelectedClassification(currentClassification)
+    }
+  }, [currentClassification])
+
+  // Extract available classifications from procedure
+  const availableClassifications = useMemo(() => {
+    const classifications = new Set<string>()
+    
+    // From selectedClassifications in procedure
+    if (Array.isArray(procedure?.selectedClassifications)) {
+      procedure.selectedClassifications.forEach((c: string) => classifications.add(c))
+    }
+    
+    // From questions
+    if (Array.isArray(localQuestions)) {
+      localQuestions.forEach((q: any) => {
+        if (q.classification) {
+          classifications.add(q.classification)
+        }
+      })
+    }
+    
+    return Array.from(classifications).sort()
+  }, [procedure?.selectedClassifications, localQuestions])
+
+  // Use selectedClassification if currentClassification is not provided
+  const activeClassification = currentClassification || selectedClassification
 
   const safeTitle = (engagement?.title || "Engagement")
   const yEnd = engagement?.yearEndDate ? new Date(engagement.yearEndDate) : null
@@ -149,9 +186,9 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   // ✅ filter questions to this classification
   const filteredQuestions = useMemo(() => {
     const all = Array.isArray(localQuestions) ? localQuestions : []
-    if (!currentClassification) return all
-    return all.filter((q: any) => q.classification === currentClassification)
-  }, [localQuestions, currentClassification])
+    if (!activeClassification) return all
+    return all.filter((q: any) => q.classification === activeClassification)
+  }, [localQuestions, activeClassification])
 
   // group (even though single classification, keeps UI consistent)
   const grouped = useMemo(() => {
@@ -178,11 +215,11 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
     // If recommendations is already an array of checklist items, use it directly
     if (Array.isArray(procedure.recommendations)) {
-      if (!currentClassification) {
+      if (!activeClassification) {
         return procedure.recommendations
       }
       return procedure.recommendations.filter((item: ChecklistItem) => 
-        item.classification === currentClassification
+        item.classification === activeClassification
       )
     }
 
@@ -190,7 +227,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     const text = typeof procedure.recommendations === "string" ? procedure.recommendations : ""
     const byClassFromServer = splitRecommendationsByClassification(text)
 
-    if (!currentClassification) {
+    if (!activeClassification) {
       // If no current classification, convert entire text to checklist items
       return text.split('\n')
         .filter(line => line.trim())
@@ -208,12 +245,12 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     let content = ""
     
     // 1) Exact match on full classification path
-    if (byClassFromServer[currentClassification]) {
-      content = byClassFromServer[currentClassification]
+    if (byClassFromServer[activeClassification]) {
+      content = byClassFromServer[activeClassification]
     } else {
       // 2) Try matching even with minor variations
       for (const key of Object.keys(byClassFromServer)) {
-        if (normalizeClassification(key) === normalizeClassification(currentClassification)) {
+        if (normalizeClassification(key) === normalizeClassification(activeClassification)) {
           content = byClassFromServer[key]
           break
         }
@@ -221,7 +258,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       
       // 3) Last resort: Try suffix match for deeper parts of the classification
       if (!content) {
-        const leaf = currentClassification.split(">").pop()?.trim() || ""
+        const leaf = activeClassification.split(">").pop()?.trim() || ""
         const wantLeaf = normalizeClassification(leaf)
         for (const key of Object.keys(byClassFromServer)) {
           const keyLeaf = normalizeClassification(key.split(">").pop() || key)
@@ -241,18 +278,34 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           id: `item-${Date.now()}-${index}`,
           text: line.trim(),
           checked: false,
-          classification: currentClassification
+          classification: activeClassification
         }))
     }
 
     return []
-  }, [procedure?.recommendations, currentClassification])
+  }, [procedure?.recommendations, activeClassification])
 
   // state to allow in-place editing from the notebook - now as checklist items
-  const [recommendations, setRecommendations] = useState<ChecklistItem[]>(recommendationsForClass)
+  // For multi-classification view, initialize with all recommendations from procedure
+  const initialRecommendations = React.useMemo(() => {
+    if (!currentClassification && procedure?.recommendations && Array.isArray(procedure.recommendations)) {
+      // Multi-classification view: use all recommendations
+      return procedure.recommendations
+    }
+    // Single classification view: use filtered recommendations
+    return recommendationsForClass
+  }, [currentClassification, procedure?.recommendations, recommendationsForClass])
+  
+  const [recommendations, setRecommendations] = useState<ChecklistItem[]>(initialRecommendations)
   React.useEffect(() => {
-    setRecommendations(recommendationsForClass)
-  }, [recommendationsForClass])
+    if (currentClassification) {
+      // Single classification view: update with filtered recommendations
+      setRecommendations(recommendationsForClass)
+    } else if (procedure?.recommendations && Array.isArray(procedure.recommendations)) {
+      // Multi-classification view: update with all recommendations from procedure
+      setRecommendations(procedure.recommendations)
+    }
+  }, [currentClassification, recommendationsForClass, procedure?.recommendations])
 
   const handleEditQuestion = (question: any) => {
     setEditingQuestionId(question.id)
@@ -287,11 +340,11 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   }
 
   const handleAddQuestion = () => {
-    const newQuestion = {
+      const newQuestion = {
       id: `new-${Date.now()}`,
       question: "New question",
       answer: "",
-      classification: currentClassification || "General",
+      classification: activeClassification || "General",
       isValid: false
     }
 
@@ -306,16 +359,16 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     try {
       const base = import.meta.env.VITE_APIURL;
 
-      const url = currentClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`;
+      const url = activeClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`;
       const method = "POST";
       
       // Prepare recommendations: merge current classification with existing ones
       let finalRecommendations = recommendations;
       
-      if (currentClassification && Array.isArray(procedure?.recommendations)) {
+      if (activeClassification && Array.isArray(procedure?.recommendations)) {
         // Get existing recommendations from other classifications
         const otherClassificationRecommendations = procedure.recommendations.filter(
-          (item: ChecklistItem) => item.classification !== currentClassification
+          (item: ChecklistItem) => item.classification !== activeClassification
         );
         
         // Combine current classification recommendations with other classifications
@@ -375,12 +428,13 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   }
 
   // Generate/Regenerate questions for classification
-  const handleGenerateQuestions = async () => {
-    if (!currentClassification) {
+  const handleGenerateQuestions = async (classification?: string) => {
+    const targetClassification = classification || activeClassification
+    if (!targetClassification) {
       toast({ title: "No Classification Selected", description: "Please select a classification to generate questions.", variant: "destructive" })
       return
     }
-    setGeneratingClassification(currentClassification)
+    setGeneratingClassification(targetClassification)
     setGeneratingQuestions(true)
     try {
       const base = import.meta.env.VITE_APIURL
@@ -389,7 +443,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         body: JSON.stringify({
           engagementId: engagement?._id,
           materiality: procedure.materiality,
-          classification: currentClassification,
+          classification: targetClassification,
           validitySelections: procedure.validitySelections || [],
         }),
       })
@@ -405,17 +459,17 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         const __uid = q.__uid || q.id || q._id || `q_${Math.random().toString(36).slice(2, 10)}_${i}`
         const id = q.id ?? __uid
         const key = q.key || q.aiKey || `q${i + 1}`
-        return { ...q, __uid, id, key, classification: currentClassification }
+        return { ...q, __uid, id, key, classification: targetClassification }
       })
 
       setLocalQuestions(prev => {
-        const filtered = prev.filter(q => q.classification !== currentClassification)
+        const filtered = prev.filter(q => q.classification !== targetClassification)
         return [...filtered, ...newQuestions]
       })
 
       toast({
         title: "AI Questions Ready",
-        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(currentClassification)}.`,
+        description: `Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(targetClassification)}.`,
       })
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" })
@@ -426,19 +480,30 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   }
 
   // Generate/Regenerate answers
-  const handleGenerateAnswers = async () => {
-    if (!currentClassification) {
+  const handleGenerateAnswers = async (classification?: string) => {
+    const targetClassification = classification || activeClassification
+    if (!targetClassification) {
       toast({ title: "No Classification Selected", description: "Please select a classification to generate answers.", variant: "destructive" })
       return
     }
     setGeneratingAnswers(true)
     try {
       const base = import.meta.env.VITE_APIURL
-      const questionsWithoutAnswers = filteredQuestions
+      const questionsForClassification = localQuestions.filter((q: any) => q.classification === targetClassification)
+      
+      // Check if there are any questions at all
+      if (questionsForClassification.length === 0) {
+        toast({ title: "No Questions", description: "Please generate questions first before generating answers.", variant: "destructive" })
+        setGeneratingAnswers(false)
+        return
+      }
+      
+      const questionsWithoutAnswers = questionsForClassification
         .filter((q: any) => !q.answer || q.answer.trim() === "")
 
       if (questionsWithoutAnswers.length === 0) {
         toast({ title: "Info", description: "All questions already have answers." })
+        setGeneratingAnswers(false)
         return
       }
 
@@ -453,7 +518,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       if (!res.ok) throw new Error("Failed to generate answers")
 
       const data = await res.json()
-      let updatedQuestions = localQuestions
+      let updatedQuestions = [...localQuestions]
 
       if (Array.isArray(data?.aiAnswers)) {
         const answerMap = new Map<string, string>()
@@ -462,16 +527,23 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           if (k) answerMap.set(k, a?.answer || "")
         })
         updatedQuestions = localQuestions.map((q: any) => {
-          const k = String(q.key || "").trim().toLowerCase()
-          return answerMap.has(k) ? { ...q, answer: answerMap.get(k) || "" } : q
+          // Only update answers for questions in the target classification
+          if (q.classification === targetClassification) {
+            const k = String(q.key || "").trim().toLowerCase()
+            return answerMap.has(k) ? { ...q, answer: answerMap.get(k) || "" } : q
+          }
+          return q
         })
       } else if (Array.isArray(data?.questions)) {
-        updatedQuestions = data.questions.map((q: any, i: number) => {
+        // Replace questions for this classification with updated ones
+        const otherQuestions = localQuestions.filter((q: any) => q.classification !== targetClassification)
+        const updatedClassificationQuestions = data.questions.map((q: any, i: number) => {
           const __uid = q.__uid || q.id || q._id || `q_${Math.random().toString(36).slice(2, 10)}_${i}`
           const id = q.id ?? __uid
           const key = q.key || q.aiKey || `q${i + 1}`
-          return { ...q, __uid, id, key }
+          return { ...q, __uid, id, key, classification: targetClassification }
         })
+        updatedQuestions = [...otherQuestions, ...updatedClassificationQuestions]
       }
 
       setLocalQuestions(updatedQuestions)
@@ -509,51 +581,90 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   }
 
   // Generate/Regenerate procedures (recommendations)
-  const handleGenerateProcedures = async () => {
-    if (!currentClassification) {
+  const handleGenerateProcedures = async (classification?: string) => {
+    const targetClassification = classification || activeClassification
+    if (!targetClassification) {
       toast({ title: "No Classification Selected", description: "Please select a classification to generate procedures.", variant: "destructive" })
       return
     }
     setGeneratingProcedures(true)
-    setActiveTab("procedures")
+    if (currentClassification) {
+      setActiveTab("procedures")
+    }
     try {
       // First ensure we have answers
-      if (filteredQuestions.some((q: any) => !q.answer || q.answer.trim() === "")) {
-        await handleGenerateAnswers()
+      const questionsForClassification = localQuestions.filter((q: any) => q.classification === targetClassification)
+      if (questionsForClassification.some((q: any) => !q.answer || q.answer.trim() === "")) {
+        await handleGenerateAnswers(targetClassification)
       }
 
       // Generate recommendations
       const base = import.meta.env.VITE_APIURL
+      const questionsWithAnswersForClassification = questionsForClassification.filter((q: any) => q.answer && q.answer.trim() !== "")
       const res = await authFetch(`${base}/api/procedures/recommendations`, {
         method: "POST",
         body: JSON.stringify({
           engagementId: engagement._id,
           procedureId: procedure._id,
           framework: procedure.framework || "IFRS",
-          classifications: [currentClassification],
-          questions: questionsWithAnswers.map(({ __uid, ...rest }) => rest),
+          classifications: [targetClassification],
+          questions: questionsWithAnswersForClassification.map(({ __uid, ...rest }) => rest),
         }),
       })
 
       if (res.ok) {
         const data = await res.json()
-        const recs = Array.isArray(data.recommendations)
-          ? data.recommendations
-          : typeof data.recommendations === "string"
-          ? data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
+        let recs: ChecklistItem[] = []
+        
+        if (Array.isArray(data.recommendations)) {
+          // If it's already an array, ensure each item has the classification
+          recs = data.recommendations.map((rec: any) => {
+            if (typeof rec === 'string') {
+              return {
+                id: `rec-${Date.now()}-${Math.random()}`,
+                text: rec.trim(),
+                checked: false,
+                classification: targetClassification
+              }
+            }
+            // Ensure existing items have classification
+            return {
+              ...rec,
+              classification: rec.classification || targetClassification,
+              id: rec.id || rec.__uid || `rec-${Date.now()}-${Math.random()}`
+            }
+          })
+        } else if (typeof data.recommendations === "string") {
+          // Convert string to checklist items
+          recs = data.recommendations.split("\n")
+            .filter((l: string) => l.trim())
+            .map((text: string, idx: number) => ({
               id: `rec-${Date.now()}-${idx}`,
               text: text.trim(),
               checked: false,
-              classification: currentClassification
+              classification: targetClassification
             }))
-          : []
-        setRecommendations(recs)
+        }
+        
+        // Update recommendations - merge with existing ones for other classifications
+        if (currentClassification) {
+          // Single classification view: replace all
+          setRecommendations(recs)
+        } else {
+          // Multi-classification view: merge with existing ones
+          setRecommendations(prev => {
+            const otherRecs = prev.filter((r: any) => r.classification !== targetClassification)
+            return [...otherRecs, ...recs]
+          })
+        }
+        
         toast({
           title: "Procedures Generated",
-          description: "Recommendations have been generated successfully.",
+          description: `Generated ${recs.length} recommendations for ${formatClassificationForDisplay(targetClassification)}.`,
         })
       } else {
-        throw new Error("Failed to generate recommendations")
+        const errorText = await res.text().catch(() => "")
+        throw new Error(errorText || "Failed to generate recommendations")
       }
     } catch (error: any) {
       toast({
@@ -604,8 +715,8 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       doc.text(`Mode: ${(procedure?.mode || "").toUpperCase()||data.procedure?.mode || "N/A"}`, margin, 63)
       doc.text(`Materiality: ${formatCurrency(procedure?.materiality ||data.procedure?.materiality)}`, margin, 71)
       doc.text(`Year End: ${yearEndStr}`, margin, 79)
-      if (currentClassification) {
-        doc.text(`Classification: ${currentClassification}`, margin, 87)
+      if (activeClassification) {
+        doc.text(`Classification: ${activeClassification}`, margin, 87)
       }
 
       doc.setDrawColor(200)
@@ -625,7 +736,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       doc.setFont("helvetica", "bold")
       doc.setFontSize(14)
       doc.text(
-        `Procedures — ${currentClassification ? currentClassification : "All"}`,
+        `Procedures — ${activeClassification ? activeClassification : "All"}`,
         margin,
         20
       )
@@ -651,7 +762,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       doc.setFont("helvetica", "bold")
       doc.setFontSize(14)
       doc.text(
-        `Audit Recommendations${currentClassification ? ` — ${formatClassificationForDisplay(currentClassification)}` : ""
+        `Audit Recommendations${activeClassification ? ` — ${formatClassificationForDisplay(activeClassification)}` : ""
         }`,
         margin,
         20
@@ -738,48 +849,96 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     }
   }
 
-  return (
-    <>
-      {/* Step-1 Description */}
-      <div className="text-sm text-muted-foreground font-body mb-4">
-        Step-1: Generate questions for the classification section. You can freely edit / add / remove questions here before moving to the next step.
-      </div>
+  // Get questions for a specific classification
+  const getQuestionsForClassification = (classification: string) => {
+    return localQuestions.filter((q: any) => q.classification === classification)
+  }
 
-      {/* Classification Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xl">
-                {currentClassification || "Classification"}
-              </CardTitle>
-              <div className="text-sm text-muted-foreground mt-1">
-                {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
-                {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
+  // Get questions with answers for a specific classification
+  const getQuestionsWithAnswersForClassification = (classification: string) => {
+    return getQuestionsForClassification(classification).filter((q: any) => q.answer && q.answer.trim() !== "")
+  }
+
+  // Get recommendations for a specific classification
+  // Use local recommendations state (which includes newly generated ones) instead of procedure.recommendations
+  const getRecommendationsForClassification = (classification: string) => {
+    // First check local state (includes newly generated recommendations)
+    if (Array.isArray(recommendations) && recommendations.length > 0) {
+      const fromLocal = recommendations.filter((item: ChecklistItem) => 
+        item.classification === classification
+      )
+      if (fromLocal.length > 0) return fromLocal
+    }
+    
+    // Fallback to procedure.recommendations if local state is empty
+    if (!procedure?.recommendations) return []
+    if (Array.isArray(procedure.recommendations)) {
+      return procedure.recommendations.filter((item: ChecklistItem) => 
+        item.classification === classification
+      )
+    }
+    return []
+  }
+
+  // Handle add question for a specific classification
+  const handleAddQuestionForClassification = (classification: string) => {
+    const newQuestion = {
+      id: `new-${Date.now()}`,
+      question: "New question",
+      answer: "",
+      classification: classification,
+      isValid: false
+    }
+    setLocalQuestions(prev => [...prev, newQuestion])
+    setEditingQuestionId(newQuestion.id)
+    setEditQuestionText(newQuestion.question)
+    setEditAnswerText(newQuestion.answer)
+  }
+
+  // If currentClassification is provided, show single classification view (backward compatible)
+  if (currentClassification) {
+    return (
+      <>
+        {/* Step-1 Description */}
+        <div className="text-sm text-muted-foreground font-body mb-4">
+          Step-1: Generate questions for the classification section. You can freely edit / add / remove questions here before moving to the next step.
+        </div>
+
+        {/* Classification Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">
+                  {formatClassificationForDisplay(currentClassification)}
+                </CardTitle>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
+                  {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
+                </div>
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleGenerateQuestions(currentClassification)}
+                disabled={!!generatingClassification}
+              >
+                {generatingClassification === currentClassification ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Questions
+                  </>
+                )}
+              </Button>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleGenerateQuestions}
-              disabled={!!generatingClassification}
-            >
-              {generatingClassification ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate Questions
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="answers">Answers</TabsTrigger>
@@ -1098,7 +1257,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                       id: `rec-${Date.now()}`,
                       text: "New recommendation",
                       checked: false,
-                      classification: currentClassification
+                      classification: activeClassification
                     }
                     setRecommendations(prev => [...prev, newRec])
                   }}>
@@ -1109,7 +1268,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                     variant="default" 
                     size="sm" 
                     onClick={handleSaveAllChanges}
-                    disabled={isSaving || filteredQuestions.length === 0 || questionsWithAnswers.length === 0}
+                    disabled={isSaving || filteredQuestions.length === 0 || questionsWithAnswers.length === 0 || !activeClassification}
                   >
                     {isSaving ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1230,7 +1389,506 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         </CardContent>
       </Card>
 
-      {/* ✅ Floating button that opens a notebook showing ONLY this classification's recommendations */}
+        {/* ✅ Floating button that opens a notebook showing ONLY this classification's recommendations */}
+        <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
+        <NotebookInterface
+          isOpen={isNotesOpen}
+          isEditable={true}
+          isPlanning={false}
+          onClose={() => setIsNotesOpen(false)}
+          recommendations={recommendations}
+          onSave={(content) => {
+            setRecommendations(content as ChecklistItem[])
+          }}
+        />
+      </>
+    )
+  }
+
+  // Multi-classification view (when currentClassification is not provided)
+  return (
+    <>
+      {/* Step-1 Description */}
+      <div className="text-sm text-muted-foreground font-body mb-4">
+        Step-1: Generate questions for each classification separately. You can freely edit / add / remove questions here before moving to the next step.
+      </div>
+
+      {/* Display each classification as a separate accordion item */}
+      {availableClassifications.length > 0 ? (
+        <Accordion type="multiple" className="space-y-4">
+          {availableClassifications.map((classification) => {
+            const classificationQuestions = getQuestionsForClassification(classification)
+            const classificationQuestionsWithAnswers = getQuestionsWithAnswersForClassification(classification)
+            const classificationRecommendations = getRecommendationsForClassification(classification)
+            const activeClassificationTab = classificationTabs[classification] || "questions"
+            const setActiveClassificationTab = (value: string) => {
+              setClassificationTabs(prev => ({ ...prev, [classification]: value }))
+            }
+            // Explicitly check if there are any valid questions to display
+            // Filter out any invalid/empty questions to match what's actually displayed
+            const validQuestions = classificationQuestions.filter((q: any) => q && (q.question || q.id))
+            const hasQuestions = validQuestions.length > 0
+
+            return (
+              <AccordionItem key={classification} value={classification} className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="text-left">
+                    <div className="font-heading text-lg">
+                      {formatClassificationForDisplay(classification)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
+                      {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-4 pb-4">
+                  <Tabs value={activeClassificationTab} onValueChange={setActiveClassificationTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="questions">Questions</TabsTrigger>
+                      <TabsTrigger value="answers">Answers</TabsTrigger>
+                      <TabsTrigger value="procedures">Procedures</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="questions" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleAddQuestionForClassification(classification)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Question
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          {hasQuestions ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleGenerateQuestions(classification)}
+                              disabled={generatingClassification === classification}
+                            >
+                              {generatingClassification === classification ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Regenerate Questions
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleGenerateQuestions(classification)}
+                              disabled={generatingClassification === classification}
+                            >
+                              {generatingClassification === classification ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <FileText className="h-4 w-4 mr-2" />
+                              )}
+                              Generate Questions
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-4">
+                          {!hasQuestions ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No questions available. Click "Generate Questions" or "Add Question" to create one.
+                            </div>
+                          ) : (
+                            classificationQuestions.map((q: any, idx: number) => (
+                              <Card key={q.id || idx}>
+                                <CardContent className="pt-6">
+                                  {editingQuestionId === q.id ? (
+                                    <div className="space-y-3">
+                                      <div className="flex justify-between items-center">
+                                        <div className="font-medium">{idx + 1}.</div>
+                                        <div className="flex gap-2">
+                                          <Button size="sm" onClick={handleSaveQuestion}>
+                                            <Save className="h-4 w-4 mr-1" />
+                                            Save
+                                          </Button>
+                                          <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                            <X className="h-4 w-4 mr-1" />
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <Input
+                                        value={editQuestionText}
+                                        onChange={(e) => setEditQuestionText(e.target.value)}
+                                        placeholder="Question"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex justify-between items-start">
+                                        <div className="font-medium mb-1">
+                                          {idx + 1}. {q.question || "—"}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEditQuestion(q)}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDeleteQuestion(q.id)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      {q.framework && (
+                                        <Badge className="mr-2 mt-2" variant="default">{q.framework}</Badge>
+                                      )}
+                                      {q.reference && (
+                                        <Badge className="mt-2" variant="default">{q.reference}</Badge>
+                                      )}
+                                    </>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                    
+                    <TabsContent value="answers" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-2">
+                          {classificationQuestions.length > 0 ? (
+                            classificationQuestionsWithAnswers.length > 0 ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGenerateAnswers(classification)}
+                                disabled={generatingAnswers}
+                              >
+                                {generatingAnswers ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Regenerate Answers
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGenerateAnswers(classification)}
+                                disabled={generatingAnswers}
+                              >
+                                {generatingAnswers ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <FileText className="h-4 w-4 mr-2" />
+                                )}
+                                Generate Answers
+                              </Button>
+                            )
+                          ) : (
+                            <div className="text-muted-foreground text-sm">No questions added yet.</div>
+                          )}
+                        </div>
+                        {classificationQuestions.length > 0 && (
+                          <Button variant="default" size="sm" onClick={handleSaveAnswers} disabled={isSaving}>
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save Answers
+                          </Button>
+                        )}
+                      </div>
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-4">
+                          {classificationQuestions.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No questions available. Go to Questions tab to add questions.
+                            </div>
+                          ) : (
+                            classificationQuestions.map((q: any, idx: number) => (
+                              <Card key={q.id || idx}>
+                                <CardContent className="pt-6">
+                                  <div className="font-medium mb-2">
+                                    {idx + 1}. {q.question || "—"}
+                                  </div>
+                                  {editingAnswerId === q.id ? (
+                                    <div className="space-y-3">
+                                      <Textarea
+                                        value={editAnswerValue}
+                                        onChange={(e) => setEditAnswerValue(e.target.value)}
+                                        placeholder="Answer"
+                                        className="min-h-[100px]"
+                                      />
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => {
+                                            setLocalQuestions(prev =>
+                                              prev.map(question =>
+                                                question.id === q.id
+                                                  ? { ...question, answer: editAnswerValue }
+                                                  : question
+                                              )
+                                            )
+                                            setEditingAnswerId(null)
+                                            setEditAnswerValue("")
+                                          }}
+                                        >
+                                          <Save className="h-4 w-4 mr-1" />
+                                          Save
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setEditingAnswerId(null)
+                                            setEditAnswerValue("")
+                                          }}
+                                        >
+                                          <X className="h-4 w-4 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="text-sm text-muted-foreground mb-3">
+                                        {q.answer ? (
+                                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {String(q.answer)}
+                                          </ReactMarkdown>
+                                        ) : (
+                                          <span className="italic">No answer.</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setEditingAnswerId(q.id)
+                                            setEditAnswerValue(q.answer || "")
+                                          }}
+                                        >
+                                          <Edit className="h-4 w-4 mr-1" />
+                                          {q.answer ? "Edit Answer" : "Add Answer"}
+                                        </Button>
+                                        {q.framework && (
+                                          <Badge variant="default">{q.framework}</Badge>
+                                        )}
+                                        {q.reference && (
+                                          <Badge variant="default">{q.reference}</Badge>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                    
+                    <TabsContent value="procedures" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                        <div className="flex items-center gap-2">
+                          {classificationQuestions.length > 0 && classificationQuestionsWithAnswers.length > 0 ? (
+                            classificationRecommendations.length > 0 ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleGenerateProcedures(classification)}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Regenerate Procedures
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGenerateProcedures(classification)}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <FileText className="h-4 w-4 mr-2" />
+                                )}
+                                Generate Procedures
+                              </Button>
+                            )
+                          ) : (
+                            <div className="text-muted-foreground text-sm">
+                              {classificationQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
+                            </div>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const newRec = {
+                              id: `rec-${Date.now()}`,
+                              text: "New recommendation",
+                              checked: false,
+                              classification: classification
+                            }
+                            setRecommendations(prev => [...prev, newRec])
+                          }}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Procedures
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={handleSaveAllChanges}
+                            disabled={isSaving || classificationQuestions.length === 0 || classificationQuestionsWithAnswers.length === 0}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save & Complete
+                          </Button>
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-4">
+                          {classificationRecommendations.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No recommendations generated yet. Click "Add Recommendation" to create one.
+                            </div>
+                          ) : (
+                            classificationRecommendations.map((rec: any, idx: number) => {
+                              const recId = rec.id || rec.__uid || `rec-${idx}`
+                              const recText = typeof rec === 'string' 
+                                ? rec 
+                                : rec.text || rec.content || "—"
+                              const isEditing = editingQuestionId === `rec-${recId}`
+                              const editText = editQuestionText || recText
+                              
+                              return (
+                                <Card key={recId}>
+                                  <CardContent className="pt-6">
+                                    {isEditing ? (
+                                      <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                          <div className="font-medium">{idx + 1}.</div>
+                                          <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => {
+                                              setRecommendations(prev =>
+                                                prev.map((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  if (rId === recId) {
+                                                    if (typeof r === 'string') {
+                                                      return editText
+                                                    }
+                                                    return { ...r, text: editText }
+                                                  }
+                                                  return r
+                                                })
+                                              )
+                                              setEditingQuestionId(null)
+                                              setEditQuestionText("")
+                                            }}>
+                                              <Save className="h-4 w-4 mr-1" />
+                                              Save
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => {
+                                              setEditingQuestionId(null)
+                                              setEditQuestionText("")
+                                            }}>
+                                              <X className="h-4 w-4 mr-1" />
+                                              Cancel
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        <Textarea
+                                          value={editText}
+                                          onChange={(e) => setEditQuestionText(e.target.value)}
+                                          placeholder="Recommendation"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="flex justify-between items-start">
+                                          <div className="font-medium mb-2 text-black">
+                                            {idx + 1}. {recText}
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setEditingQuestionId(`rec-${recId}`)
+                                                setEditQuestionText(recText)
+                                              }}
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  return rId !== recId
+                                                }))
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        {rec.checked !== undefined && (
+                                          <div className="flex items-center gap-2 mt-2">
+                                            <Badge variant={rec.checked ? "default" : "secondary"}>
+                                              {rec.checked ? "Completed" : "Pending"}
+                                            </Badge>
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              )
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                  </Tabs>
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })}
+        </Accordion>
+      ) : (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8 text-muted-foreground">
+              No classifications available. Please select classifications in the previous step.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ✅ Floating button that opens a notebook showing recommendations */}
       <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
       <NotebookInterface
         isOpen={isNotesOpen}
