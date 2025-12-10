@@ -795,46 +795,113 @@ export function EngagementKYC({
 
   // Download all files in a multiple document group
   const handleDownloadMultipleGroup = async (
-    _documentRequestId: string,
-    _multipleDocumentId: string,
-    _groupName: string,
+    documentRequestId: string,
+    multipleDocumentId: string,
+    groupName: string,
     items: any[]
   ) => {
     try {
-      const downloadableItems = items.filter((item) => item.url);
-
-      if (downloadableItems.length === 0) {
-        toast({
-          title: "No Files",
-          description: "No uploaded files found in this group.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      for (const item of downloadableItems) {
-        try {
-          const response = await fetch(item.url);
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = item.uploadedFileName || item.label || "document";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        } catch (err) {
-          console.error("Download error:", err);
-        }
-      }
+      setIsUpdating(true);
+      toast({
+          title: "Download Started",
+          description: `Preparing download for "${groupName}"...`,
+      });
+      
+      const { blob, filename } = await documentRequestApi.downloadAll(engagementId, companyId, undefined, documentRequestId, multipleDocumentId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: `Downloaded "${groupName}" successfully.`,
+      });
     } catch (error: any) {
-      console.error("Error downloading multiple group:", error);
+      console.error("Error downloading multiple documents:", error);
       toast({
         title: "Error",
         description: error?.message || "Failed to download files",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      setIsUpdating(true);
+      toast({
+          title: "Download Started",
+          description: "Preparing your download, this may take a moment...",
+      });
+      
+      const { blob, filename } = await documentRequestApi.downloadAll(engagementId, companyId, 'kyc');
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: "Documents downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download documents",
+        variant: "destructive",
+      });
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
+  const handleDownloadRequest = async (requestId: string) => {
+    try {
+      setIsUpdating(true);
+      toast({
+          title: "Download Started",
+          description: "Preparing your download...",
+      });
+      
+      // We pass undefined for engagement/company/category because we target a specific requestId
+      const { blob, filename } = await documentRequestApi.downloadAll(undefined, undefined, undefined, requestId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: "Request documents downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download documents",
+        variant: "destructive",
+      });
+    } finally {
+        setIsUpdating(false);
     }
   };
 
@@ -854,99 +921,6 @@ export function EngagementKYC({
 
   return (
     <div className="space-y-6">
-      {/* Commented out top section - Global KYC Workflow Overview */}
-      {/* <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                <Shield className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-bold text-gray-900">
-                  {engagement ? `${engagement.title} - KYC Workflows` : 'KYC Workflows'}
-                </CardTitle>
-                <CardDescription className="text-gray-700">
-                  Manage Know Your Client workflows for this engagement
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => fetchKYCWorkflows()}
-                className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-6">
-          {kycWorkflows.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-8 w-8 text-gray-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
-              <p className="text-gray-600 mb-4">
-                No KYC workflows have been created for this engagement yet.
-              </p>
-              {(engagementId || companyId) && kycWorkflows.length === 0 && (
-                <KYCDocumentRequestModal
-                  engagementId={engagementId}
-                  companyId={companyId}
-                  clientId={engagement?.clientId || clientId || ''}
-                  engagementName={engagement?.title}
-                  company={engagement?.companyId}
-                  onSuccess={fetchKYCWorkflows}
-                  trigger={
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First KYC Workflow
-                    </Button>
-                  }
-                />
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {kycWorkflows.map((workflow) => (
-                <div key={workflow._id} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-primary-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">KYC Workflow</h3>
-                        <p className="text-sm text-gray-600">
-                          Client: {workflow.clientId} • Created: {(() => {
-                            if (!workflow.createdAt) return 'N/A';
-                            const date = new Date(workflow.createdAt);
-                            return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy");
-                          })()}
-                        </p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                          <span>{workflow.documentRequests?.length || 0} Document Requests</span>
-                          <span>{workflow.documentRequests?.reduce((acc, item) => acc + (item.documentRequest.documents?.length || 0), 0) || 0} Total Documents</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {getStatusBadge(workflow.status)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card> */}
-
-      {/* KYC Details Section - Shows details for all workflows */}
       {kycWorkflows.length > 0 ? (
         <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
@@ -966,11 +940,35 @@ export function EngagementKYC({
                 <Button
                   variant="outline"
                   onClick={() => fetchKYCWorkflows()}
-                  className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                  disabled={isUpdating}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
+                
+                {(engagementId || companyId) && (() => {
+                  const totalGlobalUploadedDocs = kycWorkflows.reduce((acc, workflow) => {
+                    return acc + (workflow.documentRequests?.reduce((reqAcc, item) => {
+                      const singleDocs = item.documentRequest.documents?.filter((d: any) => d.url).length || 0;
+                      const docReq = item.documentRequest as any;
+                      const multipleDocs = docReq.multipleDocuments?.reduce((mAcc: number, group: any) => {
+                        return mAcc + (group.multiple?.filter((d: any) => d.url).length || 0);
+                      }, 0) || 0;
+                      return reqAcc + singleDocs + multipleDocs;
+                    }, 0) || 0);
+                  }, 0);
+
+                  return totalGlobalUploadedDocs > 0 && (
+                    <Button
+                      variant="default"
+                      onClick={handleDownloadAll}
+                      disabled={isUpdating}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download All
+                    </Button>
+                  );
+                })()}
                 {/* {(engagementId || companyId) && (
                   <ManualUploadModal
                     kycId={kycWorkflows[0]._id}
@@ -995,7 +993,9 @@ export function EngagementKYC({
                     company={companyProp || engagement?.companyId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
-                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
+                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                      disabled={isUpdating}
+                      >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Document Request
                       </Button>
@@ -1046,6 +1046,7 @@ export function EngagementKYC({
                           size="sm"
                           className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
                           onClick={() => handleStatusUpdate(workflow._id, 'completed')}
+                          disabled={isUpdating}
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Mark Completed
@@ -1057,6 +1058,7 @@ export function EngagementKYC({
                           variant="outline"
                           onClick={() => handleReopenKYC(workflow._id)}
                           className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                          disabled={isUpdating}
                         >
                           <RotateCcw className="h-4 w-4 mr-1" />
                           Reopen KYC
@@ -1216,6 +1218,19 @@ export function EngagementKYC({
                                   </div>
                                   </div>
                                 <div className="flex items-center gap-2">
+                                  {completedDocs > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => handleDownloadRequest(request._id)}
+                                      disabled={isUpdating}
+                                      title="Download All Documents In This Request"
+                                      className='text-xs'
+                                    >
+                                      <Download className="h-4 w-4 mr-1" />
+                                      Download All
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1230,6 +1245,7 @@ export function EngagementKYC({
                                     }
                                     className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 text-xs"
                                     title="Delete Document Request"
+                                    disabled={isUpdating}
                                   >
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Delete Request

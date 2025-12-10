@@ -430,14 +430,14 @@ const Library = () => {
                   <span className="font-medium text-blue-900">
                     {selectedDocuments.length} selected
                   </span>
-                  <Button
+                  {/* <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setBulkUpdateOpen(true)}
                     className="border-blue-200 text-blue-700 hover:bg-blue-100"
                   >
                     {allFilteredSelected ? "Update All" : "Update"}
-                   </Button>
+                   </Button> */}
                   <Button
                     size="sm"
                     variant="outline"
