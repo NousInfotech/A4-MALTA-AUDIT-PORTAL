@@ -444,6 +444,53 @@ export const documentRequestApi = {
       body: JSON.stringify(data),
     });
   },
+
+  downloadAll: async (engagementId?: string, companyId?: string, category?: string, documentRequestId?: string, groupId?: string) => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    
+    const params = new URLSearchParams();
+    if (engagementId) params.append('engagementId', engagementId);
+    if (companyId) params.append('companyId', companyId);
+    if (category) params.append('category', category);
+    if (documentRequestId) params.append('documentRequestId', documentRequestId);
+    if (groupId) params.append('groupId', groupId);
+
+    const response = await fetch(`${API_URL}/api/document-requests/download-all?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${data.session?.access_token}`,
+      },
+    });
+
+    if (response.status === 429) {
+        throw new Error("Too many requests. Please try again later.");
+    }
+    
+    if (!response.ok) {
+        // Try to get error message from JSON if possible, else text
+        let errorMsg = 'Failed to download documents';
+        try {
+            const errJson = await response.json();
+            if (errJson.message) errorMsg = errJson.message;
+        } catch (e) {
+            // ignore
+        }
+      throw new Error(errorMsg);
+    }
+    
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = `documents_${new Date().toISOString().split('T')[0]}.zip`;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    return { blob: await response.blob(), filename };
+  },
 };
 
 // Procedures API

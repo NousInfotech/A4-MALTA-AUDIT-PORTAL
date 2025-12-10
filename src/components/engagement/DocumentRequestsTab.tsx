@@ -299,6 +299,7 @@ export const DocumentRequestsTab = ({
     documentRequestId?: string;
     documentIndex?: number;
   } | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [uploadingMultiple, setUploadingMultiple] = useState<{
     documentRequestId?: string;
     multipleDocumentId?: string;
@@ -317,7 +318,10 @@ export const DocumentRequestsTab = ({
     }
   });
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
+  const [isActionInProgress, setIsActionInProgress] = useState(false);
   const { toast } = useToast();
+
+  const areActionsDisabled = loading || isUpdating || isActionInProgress || !!uploadingDocument || !!uploadingMultiple;
 
   useEffect(() => {
     if (engagementId) {
@@ -350,6 +354,76 @@ export const DocumentRequestsTab = ({
       setDocumentRequests([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      setIsUpdating(true);
+      toast({
+          title: "Download Started",
+          description: "Preparing your download, this may take a moment...",
+      });
+      
+      const { blob, filename } = await documentRequestApi.downloadAll(engagementId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: "Documents downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download documents",
+        variant: "destructive",
+      });
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
+  const handleDownloadRequest = async (requestId: string) => {
+    try {
+      setIsUpdating(true);
+      toast({
+          title: "Download Started",
+          description: "Preparing your download...",
+      });
+      
+      const { blob, filename } = await documentRequestApi.downloadAll(engagementId, undefined, undefined, requestId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: "Request documents downloaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error.message || "Failed to download documents",
+        variant: "destructive",
+      });
+    } finally {
+        setIsUpdating(false);
     }
   };
 
@@ -400,6 +474,7 @@ export const DocumentRequestsTab = ({
 
   const handleStatusUpdate = async (documentRequestId: string, newStatus: string) => {
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.update(documentRequestId, {
         status: newStatus
       });
@@ -415,6 +490,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to update status",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -501,6 +578,7 @@ export const DocumentRequestsTab = ({
     if (!deleteDialog.documentRequestId || deleteDialog.documentIndex === undefined) return;
     
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.deleteDocument(
         deleteDialog.documentRequestId,
         deleteDialog.documentIndex
@@ -518,6 +596,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to delete document",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -541,6 +621,7 @@ export const DocumentRequestsTab = ({
     documentName: string
   ) => {
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.clearSingleDocument(documentRequestId, documentIndex);
       await fetchDocumentRequests();
       toast({
@@ -554,6 +635,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to clear document",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -565,6 +648,7 @@ export const DocumentRequestsTab = ({
     itemLabel: string
   ) => {
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.clearMultipleDocumentItem(documentRequestId, multipleDocumentId, itemIndex);
       await fetchDocumentRequests();
       toast({
@@ -578,6 +662,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to clear document item",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -586,6 +672,7 @@ export const DocumentRequestsTab = ({
     if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId || deleteDialog.itemIndex === undefined) return;
     
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.deleteMultipleDocumentItem(
         deleteDialog.documentRequestId,
         deleteDialog.multipleDocumentId,
@@ -604,6 +691,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to delete document item",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -612,6 +701,7 @@ export const DocumentRequestsTab = ({
     if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId) return;
     
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.deleteMultipleDocumentGroup(
         deleteDialog.documentRequestId,
         deleteDialog.multipleDocumentId
@@ -629,6 +719,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to delete document group",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -639,6 +731,7 @@ export const DocumentRequestsTab = ({
     groupName: string
   ) => {
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.clearMultipleDocumentGroup(documentRequestId, multipleDocumentId);
       await fetchDocumentRequests();
       toast({
@@ -652,6 +745,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to clear files",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -663,41 +758,26 @@ export const DocumentRequestsTab = ({
     items: any[]
   ) => {
     try {
-      const uploadedItems = items.filter((item) => item.url);
-      
-      if (uploadedItems.length === 0) {
-        toast({
-          title: "No Files to Download",
-          description: "No uploaded files found in this group",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Download each file sequentially
-      for (const item of uploadedItems) {
-        try {
-          const response = await fetch(item.url);
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = item.uploadedFileName || item.label || `document-${Date.now()}`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
-          // Small delay between downloads to avoid browser blocking
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (error) {
-          console.error(`Error downloading ${item.label}:`, error);
-        }
-      }
-
+      setIsActionInProgress(true);
       toast({
-        title: "Downloads Started",
-        description: `Downloading ${uploadedItems.length} file(s) from "${groupName}"`,
+          title: "Download Started",
+          description: `Preparing download for "${groupName}"...`,
+      });
+      
+      const { blob, filename } = await documentRequestApi.downloadAll(engagementId, undefined, undefined, documentRequestId, multipleDocumentId);
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Complete",
+        description: `Downloaded "${groupName}" successfully.`,
       });
     } catch (error: any) {
       console.error("Error downloading multiple documents:", error);
@@ -706,6 +786,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to download files",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -756,6 +838,7 @@ export const DocumentRequestsTab = ({
   // Delete entire document request
   const handleDeleteRequest = async (documentRequestId: string) => {
     try {
+      setIsActionInProgress(true);
       await documentRequestApi.deleteRequest(documentRequestId);
       await fetchDocumentRequests();
       toast({
@@ -769,6 +852,8 @@ export const DocumentRequestsTab = ({
         description: error?.message || "Failed to delete document request",
         variant: "destructive",
       });
+    } finally {
+      setIsActionInProgress(false);
     }
   };
 
@@ -1044,14 +1129,35 @@ export const DocumentRequestsTab = ({
                   <Button
                     variant="outline"
                     onClick={() => fetchDocumentRequests()}
-                    className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                    disabled={areActionsDisabled}
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
                     Refresh
                   </Button>
+                  {(() => {
+                    const totalUploadedDocs = documentRequests.reduce((acc, request) => {
+                      const singleDocs = request.documents?.filter((d: any) => d.url).length || 0;
+                      const multipleDocs = request.multipleDocuments?.reduce((mAcc: number, group: any) => {
+                        return mAcc + (group.multiple?.filter((d: any) => d.url).length || 0);
+                      }, 0) || 0;
+                      return acc + singleDocs + multipleDocs;
+                    }, 0);
+
+                    return totalUploadedDocs > 0 && (
+                      <Button
+                        variant="default"
+                        onClick={handleDownloadAll}
+                        disabled={areActionsDisabled}  
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download All
+                      </Button>
+                    );
+                  })()}
                   <Button
                     className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
                     onClick={() => setAddRequestModalOpen(true)}
+                    disabled={areActionsDisabled}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Document Request
@@ -1114,7 +1220,21 @@ export const DocumentRequestsTab = ({
                           )}
                         </div>
                       </div>
-                      <Button
+                      <div className="flex items-center gap-2">
+                        {completedDocs > 0 && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleDownloadRequest(request._id)}
+                            className="text-xs"
+                            disabled={areActionsDisabled}
+                            title="Download All Documents In This Request"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download All
+                          </Button>
+                        )}
+                        <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setDeleteDialog({
@@ -1123,21 +1243,24 @@ export const DocumentRequestsTab = ({
                           documentRequestId: request._id,
                           documentName: request.category || 'this document request'
                         })}
-                        className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700"
+                        className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 text-xs"
                         title="Delete Document Request"
+                        disabled={areActionsDisabled}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete Request
                       </Button>
                     </div>
+                  </div>
+
 
                     {/* Status Management */}
-                    <div className="bg-white rounded-xl p-3 mb-4">
+                    {/* <div className="bg-white rounded-xl p-3 mb-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-gray-900 text-sm">Status Management</h4>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* {calculatedStatus !== 'active' && (
+                        {calculatedStatus !== 'active' && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1158,7 +1281,7 @@ export const DocumentRequestsTab = ({
                             <Eye className="h-4 w-4 mr-1" />
                             Set In Review
                           </Button>
-                        )} */}
+                        )}
                         {calculatedStatus !== 'completed' && (
                           <Button
                             size="sm"
@@ -1170,7 +1293,7 @@ export const DocumentRequestsTab = ({
                           </Button>
                         )}
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Progress Bar */}
                     {totalDocs > 0 && (
@@ -1209,6 +1332,7 @@ export const DocumentRequestsTab = ({
                       clientId={engagement?.clientId || ''}
                       onClearMultipleGroup={handleClearMultipleGroup}
                       onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                      isDisabled={areActionsDisabled}
                     />
 
                   </div>
