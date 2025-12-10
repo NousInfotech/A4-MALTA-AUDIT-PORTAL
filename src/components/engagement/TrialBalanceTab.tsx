@@ -776,9 +776,30 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
 
   const handleProcedureButtonClick = (procedureType: "planning" | "fieldwork" | "completion") => {
     setSelectedClassification(""); // Clear classification selection
+    
+    // Determine default tab based on whether questions/answers exist
+    let defaultTab: "generate" | "view" = "generate";
+    
+    if (procedureType === "planning") {
+      const hasQuestions = planningProcedure?.procedures?.some((sec: any) => 
+        sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
+      );
+      defaultTab = hasQuestions ? "view" : "generate";
+    } else if (procedureType === "fieldwork") {
+      const hasQuestions = fieldworkProcedure?.questions && 
+        Array.isArray(fieldworkProcedure.questions) && 
+        fieldworkProcedure.questions.length > 0;
+      defaultTab = hasQuestions ? "view" : "generate";
+    } else if (procedureType === "completion") {
+      const hasQuestions = completionProcedure?.procedures?.some((sec: any) => 
+        sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
+      );
+      defaultTab = hasQuestions ? "view" : "generate";
+    }
+    
     updateProcedureParams({
       procedureType: procedureType,
-      procedureTab: "view",
+      procedureTab: defaultTab,
       mode: null,
       step: null
     }, false);
@@ -1460,26 +1481,22 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         <span>Loading Procedures...</span>
                       </div>
                     ) : (
-                      <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1 flex flex-col">
-                        <div className="px-4 pt-4 border-b">
-                          <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="generate" className="flex items-center gap-2">
-                              <Sparkles className="h-4 w-4" /> Generate Procedures
-                            </TabsTrigger>
-                            <TabsTrigger value="view" className="flex items-center gap-2">
-                              <Eye className="h-4 w-4" /> View Procedures
-                            </TabsTrigger>
-                          </TabsList>
-                        </div>
+                      <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="generate" className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4" /> Generate Procedures
+                          </TabsTrigger>
+                          <TabsTrigger value="view" className="flex items-center gap-2">
+                            <Eye className="h-4 w-4" /> View Procedures
+                          </TabsTrigger>
+                        </TabsList>
 
-                        <TabsContent value="generate" className="flex-1 mt-4 overflow-auto">
+                        <TabsContent value="generate" className="flex-1 mt-6">
                           {!selectedProcedureType ? (
-                            <div className="p-4">
-                              <ProcedureTypeSelection 
-                                onTypeSelect={handleProcedureTypeSelect} 
-                                title="Choose the type of audit procedures you want to generate" 
-                              />
-                            </div>
+                            <ProcedureTypeSelection 
+                              onTypeSelect={handleProcedureTypeSelect} 
+                              title="Choose the type of audit procedures you want to generate" 
+                            />
                           ) : !searchParams.get("mode") ? (
                             // Show vertical approach selection when procedure type is selected but mode is not
                             <div className="p-6">
@@ -1563,12 +1580,16 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           {!selectedProcedureType ? (
                             <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
                           ) : selectedProcedureType === "planning" ? (
-                            planningProcedure ? <PlanningProcedureView procedure={planningProcedure} engagement={engagement} /> : <div className="text-muted-foreground">No Planning procedures found.</div>
+                            planningProcedure ? (
+                              <PlanningProcedureView procedure={planningProcedure} engagement={engagement} />
+                            ) : <div className="text-muted-foreground">No Planning procedures found.</div>
                           ) : selectedProcedureType === "fieldwork" ? (
-                            fieldworkProcedure && fieldworkProcedure.status === "completed"
-                              ? <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
-                              : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
-                          ) : completionProcedure ? <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} /> : <div className="text-muted-foreground">No Completion procedures found.</div>}
+                            fieldworkProcedure ? (
+                              <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                            ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+                          ) : completionProcedure ? (
+                            <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                          ) : <div className="text-muted-foreground">No Completion procedures found.</div>}
                         </TabsContent>
                       </Tabs>
                     )}
