@@ -391,13 +391,6 @@ export const EngagementDetails = () => {
                     Document Requests
                   </TabsTrigger>
 
-                  <TabsTrigger
-                    value="procedures"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Procedures
-                  </TabsTrigger>
 
                   <TabsTrigger
                     value="trial-balance"
@@ -406,6 +399,15 @@ export const EngagementDetails = () => {
                     <FileText className="h-4 w-4 mr-2" />
                     Audit
                   </TabsTrigger>
+
+                  <TabsTrigger
+                    value="procedures"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Procedures
+                  </TabsTrigger>
+
 
                   <TabsTrigger
                     value="library"
