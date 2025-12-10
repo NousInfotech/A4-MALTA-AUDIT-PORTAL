@@ -73,7 +73,8 @@ interface MultipleDocument {
 
 interface AddDocumentRequestModalProps {
   kycId: string;
-  engagementId: string;
+  engagementId?: string;
+  companyId?: string;
   clientId: string;
   company?: any;
   onSuccess?: () => void;
@@ -83,6 +84,7 @@ interface AddDocumentRequestModalProps {
 export function AddDocumentRequestModal({
   kycId,
   engagementId,
+  companyId,
   clientId,
   company,
   onSuccess,
@@ -186,7 +188,7 @@ export function AddDocumentRequestModal({
   }, [company]);
 
   const handleSubmit = async () => {
-    if (selectedPersonIds.length === 0) {
+    if (engagementId && selectedPersonIds.length === 0) {
       toast({
         title: "Error",
         description: "Please select at least one person",
@@ -297,7 +299,10 @@ export function AddDocumentRequestModal({
       console.log('✅ All multiple document templates uploaded successfully');
 
       // Format document requests for each selected person
-      const processedDocumentRequests = selectedPersonIds.map((personId: string) => {
+      // If no person selected (Company KYC case), create one request with null person
+      const targetIds = selectedPersonIds.length > 0 ? selectedPersonIds : [null];
+      
+      const processedDocumentRequests = targetIds.map((personId: string | null) => {
         const singleDocs = processedDocuments.map((doc: any) => {
           const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
           return {
@@ -343,7 +348,7 @@ export function AddDocumentRequestModal({
 
       toast({
         title: "Success",
-        description: `Document requests added for ${selectedPersonIds.length} person(s)`,
+        description: `Document requests added${selectedPersonIds.length > 0 ? ` for ${selectedPersonIds.length} person(s)` : ''}`,
       });
 
       // Reset form
@@ -413,8 +418,8 @@ export function AddDocumentRequestModal({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Persons List */}
-          {mergedPersons.length > 0 && (
+          {/* Persons List - Only show for Engagement KYC */}
+          {engagementId && mergedPersons.length > 0 && (
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
@@ -471,7 +476,7 @@ export function AddDocumentRequestModal({
                             <div className="flex flex-wrap gap-2 mt-2">
                               
                             {p.shareholder?.shareClasses.map((item: any) =>(
-                                
+                                 
                                 <Badge variant="outline">
                                   { item.class.toLowerCase() != "ordinary" ? "Class" : ""} {item.class}: {item.totalShares}
                                 </Badge>
@@ -623,8 +628,8 @@ export function AddDocumentRequestModal({
                     description: `${selectedDocuments.length} document(s) added (${newDocs.length} single, ${newMultipleDocs.length} multiple).`,
                   });
                 }}
-                engagementId={engagementId!}
-                clientId={clientId!}
+                engagementId={engagementId}
+                clientId={clientId}
               />
 
 
@@ -797,7 +802,7 @@ export function AddDocumentRequestModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || selectedPersonIds.length === 0}
+              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || (!!engagementId && selectedPersonIds.length === 0)}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

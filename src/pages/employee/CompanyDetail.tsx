@@ -25,8 +25,9 @@ import { PersonList } from "@/components/client/PersonList";
 import { EditCompanyModal } from "@/components/client/EditCompanyModal";
 import SharePieChart from "@/components/client/SharePieChart";
 import CompanyHierarchy from "@/components/client/CompanyHierarchy";
+import { EngagementKYC } from "./EngagementKYC";
 
-const VALID_COMPANY_TABS = ["details", "persons", "pie-chart", "company-hierarchy"] as const;
+const VALID_COMPANY_TABS = ["details", "persons", "pie-chart", "company-hierarchy", "kyc"] as const;
 
 interface Person {
   _id: string;
@@ -452,6 +453,9 @@ export const CompanyDetail: React.FC = () => {
               <TabsTrigger value="company-hierarchy" className="rounded-lg">
                 Company Hierarchy
               </TabsTrigger>
+              <TabsTrigger value="kyc" className="rounded-lg">
+                KYC
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="p-6 space-y-6 mt-6">
@@ -803,6 +807,9 @@ export const CompanyDetail: React.FC = () => {
             </TabsContent>
             <TabsContent value="company-hierarchy" className="p-6 mt-6">
               <CompanyHierarchy rootData={hierarchyData} />
+            </TabsContent>
+            <TabsContent value="kyc" className="p-6 mt-6">
+              <EngagementKYC companyId={companyId} clientId={clientId} company={company} />
             </TabsContent>
           </Tabs>
         </div>

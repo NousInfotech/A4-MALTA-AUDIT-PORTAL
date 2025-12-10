@@ -58,6 +58,8 @@ interface GroupedRows {
   };
 }
 
+
+
 export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   engagement,
   etbRows,
@@ -115,10 +117,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           const adjustments = Math.abs(row.adjustments || 0);
           const finalBalance = Math.abs(row.finalBalance || 0);
           const priorYear = Math.abs(row.priorYear || 0);
-          
+
           // Filter out if all fields are zero
-          if (currentYear === 0 && reclassification === 0 && adjustments === 0 && 
-              finalBalance === 0 && priorYear === 0) {
+          if (currentYear === 0 && reclassification === 0 && adjustments === 0 &&
+            finalBalance === 0 && priorYear === 0) {
             return false;
           }
           return true;
@@ -234,13 +236,28 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   };
 
   // Helper function to format Balance Sheet values (defined before calculations for use inside)
-  // Preserves raw ETB signs for proper accounting summation
+  // Reverses signs for Equity and Liabilities to get positive totals
   // Only forces contra-assets to negative (they reduce asset values)
-  const formatBalanceSheetValue = (value: number, accountName?: string): number => {
+  // Excludes "Equity > Current Year Profits & Losses" from sign reversal
+  const formatBalanceSheetValue = (value: number, group1?: string, group2?: string, accountName?: string): number => {
     const v = value ?? 0;
     const name = (accountName || "").toLowerCase();
-    
-    // Detect contra-assets
+
+    // EXCLUDE "Equity > Current Year Profits & Losses" from sign reversal
+    if (group1 === "Equity" && group2 === "Current Year Profits & Losses") {
+      // Don't reverse signs for income statement items
+      return v;
+    }
+
+    // Reverse signs for Equity and Liabilities BEFORE group-wise calculations
+    // This ensures positive integers for liabilities and equities totals
+    // This must be checked BEFORE contra-asset logic to avoid forcing Equity items negative
+    if (group1 === "Equity" || group1 === "Liabilities") {
+      return -v; // Reverse the sign
+    }
+
+    // Detect contra-assets (only for Assets)
+    // Contra-assets must always reduce assets (force negative)
     const isContra =
       name.includes("accumulated") ||
       name.includes("provision") ||
@@ -248,11 +265,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       name.includes("depreciation") ||
       name.includes("depn") ||
       name.includes("prov for");
-    
-    // Contra-assets must always reduce assets (force negative)
+
     if (isContra) return Math.abs(v) * -1;
-    
-    // For ALL other accounts, return raw ETB sign
+
+    // For Assets (non-contra), return raw ETB sign
     return v;
   };
 
@@ -320,14 +336,14 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           // Expenses: ensure negative for calculation
           signedValue = sum > 0 ? -sum : sum;
         }
-        
+
         if (sum !== 0) {
           console.log(`  ${grouping3}: rawSum=${sum}, sign=${sign}, result=${signedValue}`);
         }
-        
+
         return signedValue;
       };
-      
+
       // Calculate Net Profit After Tax using EXACT same formula as IncomeStatementSection.tsx
       // Gross Profit = Revenue - Cost of sales
       // Since Cost of sales is already negative, adding is equivalent to subtracting
@@ -366,9 +382,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     console.log("  Total Net Profit After Tax:", netProfitAfterTaxCurrent);
 
     // STEP 1: Get Retained Earnings from Prior Year (sum all accounts under Group3 "Retained earnings")
+    // Use reversed signs for Equity BEFORE calculation (as per requirements)
     const getRetainedEarningsPriorYear = (): number => {
       let retainedEarningsPrior = 0;
-      
+
       // Sum all accounts under "Retained earnings" group3
       // Ensure groupings are extracted from classification if missing
       etbRows
@@ -379,8 +396,9 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
             row.grouping2 === "Equity" &&
             row.grouping3 === "Retained earnings"
           ) {
-            // Sum all prior year values for retained earnings accounts
-            retainedEarningsPrior += (row.priorYear || 0);
+            // Reverse sign for Equity BEFORE calculation (raw ETB value reversed)
+            const rawValue = row.priorYear || 0;
+            retainedEarningsPrior += -rawValue; // Reverse sign for Equity
           }
         });
 
@@ -388,7 +406,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     };
 
     const retainedEarningsPriorYear = getRetainedEarningsPriorYear();
-    
+
     // STEP 3: Calculate Current Year Retained Earnings
     // Formula: Current Retained Earnings = Prior Retained Earnings + Net Profit After Tax
     // Example: Prior RE = €3,000 + Net Profit = €1,000 → Current RE = €4,000
@@ -417,34 +435,29 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Special case: Retained Earnings calculated at Group3 level
       if (group1 === "Equity" && group2 === "Equity" && group3 === "Retained earnings") {
         if (year === "current") {
-          // Use calculated retained earnings for current year
-          return Math.abs(calculatedRetainedEarningsCurrent);
+          // Use calculated retained earnings for current year (already has reversed sign applied)
+          // Preserve sign to show deficits as negative
+          return calculatedRetainedEarningsCurrent;
         } else {
-          // Sum all prior year values for retained earnings accounts
-          const priorSum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
-            const rowSum = rows.reduce((rowAcc, row) => {
-              const rawValue = row.priorYear || 0;
-              const value = formatBalanceSheetValue(rawValue, row.accountName);
-              return rowAcc + (value || 0);
-            }, 0);
-            return g4Acc + rowSum;
-          }, 0);
-          return Math.abs(priorSum);
+          // Use the already-calculated prior year retained earnings (with reversed sign already applied)
+          // This ensures consistency with the calculation used for current year
+          // Preserve sign to show deficits as negative
+          return retainedEarningsPriorYear;
         }
       }
 
       // For all other Group3s, sum normally
       const sum = Object.values(groupedData[group1][group2][group3]).reduce((g4Acc, rows) => {
         const rowSum = rows.reduce((rowAcc, row) => {
-          // Use formatted value with preserved signs for accurate summation
+          // Use formatted value with reversed signs for Equity/Liabilities
           const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-          const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+          const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
           // Sum without rounding - rounding happens at display time only
           return rowAcc + (value || 0);
         }, 0);
         return g4Acc + rowSum;
       }, 0);
-      
+
       // Assets shown naturally (preserve sign for contra-assets)
       // Liabilities shown positive (absolute)
       // Equity shown with preserved sign (can be negative, e.g., Share capital)
@@ -478,7 +491,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }, 0);
           return acc + group3Sum;
         }, 0);
-      
+
       // Assets shown naturally (preserve sign for contra-assets)
       // Liabilities shown positive (absolute)
       // Equity shown with preserved sign (can be negative, e.g., Share capital)
@@ -501,7 +514,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
         const group3Total = getGroup3Total(group1, group2, group3, year);
         return g3Acc + group3Total;
       }, 0);
-      
+
       // Assets shown naturally (preserve sign for contra-assets)
       // Liabilities shown positive (absolute)
       // Equity shown with preserved sign (can be negative, e.g., Share capital)
@@ -523,13 +536,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       // Sum formatted values (not raw values) to match individual row display
       // Round each value before summing to match displayed rounded values
       const sum = groupedData[group1][group2][group3][group4].reduce((acc, row) => {
-        // Use formatted value with preserved signs for accurate summation
+        // Use formatted value with reversed signs for Equity/Liabilities
         const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-        const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+        const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
         // Sum without rounding - rounding happens at display time only
         return acc + (value || 0);
       }, 0);
-      
+
       // Assets shown naturally (preserve sign for contra-assets)
       // Liabilities shown positive (absolute)
       // Equity shown with preserved sign (can be negative, e.g., Share capital)
@@ -554,13 +567,13 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }
           return true;
         })
-        .reduce((acc, [_, group3Map]) => {
+        .reduce((acc, [group2, group3Map]) => {
           const group3Sum = Object.values(group3Map).reduce((g3Acc, group4Map) => {
             const group4Sum = Object.values(group4Map).reduce((g4Acc, rows) => {
               const rowSum = rows.reduce((rowAcc, row) => {
-                // Use formatted value with preserved signs for accurate summation
+                // Use formatted value with reversed signs for Equity/Liabilities
                 const rawValue = year === "current" ? row.finalBalance : row.priorYear;
-                const value = formatBalanceSheetValue(rawValue || 0, row.accountName);
+                const value = formatBalanceSheetValue(rawValue || 0, group1, group2, row.accountName);
                 // Sum without rounding - rounding happens at display time only
                 return rowAcc + (value || 0);
               }, 0);
@@ -570,7 +583,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           }, 0);
           return acc + group3Sum;
         }, 0);
-      
+
       // Return raw sum (no Math.abs) for balance check
       return sum;
     };
@@ -594,7 +607,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     const rawAssetsPrior = getRawGroup1Total("Assets", "prior");
     const rawLiabilitiesPrior = getRawGroup1Total("Liabilities", "prior");
     const rawEquityPrior = getRawGroup1Total("Equity", "prior");
-    const balancePrior = assetsPrior - liabilitiesCurrent + equityCurrent;
+    const balancePrior = assetsPrior - liabilitiesPrior - equityPrior;
 
     return {
       getGroup1Total,
@@ -627,12 +640,12 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   const formatCurrencyForPDF = (value: number): string => {
     // Round to whole number first
     const roundedValue = Math.round(value);
-    
+
     // Return "-" if value is zero
     if (roundedValue === 0) {
       return "-";
     }
-    
+
     // Format with commas, no decimal places (like reference PDF)
     return new Intl.NumberFormat("en-US", {
       style: "decimal",
@@ -645,19 +658,19 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   const formatValueForPDF = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
-    
+
     // Return "-" if value is zero
     if (roundedValue === 0) {
       return "-";
     }
-    
+
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
       style: "decimal",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Math.abs(roundedValue));
-    
+
     // Show negative values in parentheses
     return roundedValue < 0 ? `(${formatted})` : formatted;
   };
@@ -666,19 +679,19 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   const formatTableRowValue = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
-    
+
     // Return "-" if value is zero
     if (roundedValue === 0) {
       return "-";
     }
-    
+
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
       style: "decimal",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Math.abs(roundedValue));
-    
+
     // Show negative values in parentheses
     return roundedValue < 0 ? `(${formatted})` : formatted;
   };
@@ -687,30 +700,34 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   const formatTotalValue = (value: number): string => {
     // Round to whole number
     const roundedValue = Math.round(value);
-    
+
     // Return "-" if value is zero
-    if (roundedValue === 0) {
-      return "-";
-    }
-    
+    // if (roundedValue === 0) {
+    //   return "-";
+    // }
+
     // Format with commas, no decimal places
     const formatted = new Intl.NumberFormat("en-US", {
       style: "decimal",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Math.abs(roundedValue));
-    
+
     // Show negative values in parentheses
     return roundedValue < 0 ? `(${formatted})` : formatted;
   };
 
   // Helper to get the display value for a row
   const getRowCurrentYearValue = (row: ETBRow): number => {
-    return formatBalanceSheetValue(row.finalBalance || 0, row.accountName);
+    // Ensure groupings are extracted from classification if missing
+    const rowWithGroupings = ensureRowGroupings(row);
+    return formatBalanceSheetValue(row.finalBalance || 0, rowWithGroupings.grouping1, rowWithGroupings.grouping2, row.accountName);
   };
 
   const getRowPriorYearValue = (row: ETBRow): number => {
-    return formatBalanceSheetValue(row.priorYear || 0, row.accountName);
+    // Ensure groupings are extracted from classification if missing
+    const rowWithGroupings = ensureRowGroupings(row);
+    return formatBalanceSheetValue(row.priorYear || 0, rowWithGroupings.grouping1, rowWithGroupings.grouping2, row.accountName);
   };
 
   const downloadPDF = (includeDetailRows: boolean = true) => {
@@ -752,7 +769,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           if (hasGroup3 && includeDetailRows) {
             const group3CurrentTotal = calculations.getGroup3Total(group1, group2, group3, "current");
             const group3PriorTotal = calculations.getGroup3Total(group1, group2, group3, "prior");
-            
+
             // Find the note number from the first row in this group3
             let noteNumber = "";
             for (const rows of Object.values(group4Map)) {
@@ -761,7 +778,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                 break;
               }
             }
-            
+
             tableData.push([
               { content: `  ${group3}`, styles: { textColor: [0, 0, 0] } },
               { content: noteNumber || "", styles: { halign: "center", textColor: [0, 0, 0] } },
@@ -1012,7 +1029,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       const fileName = includeDetailRows
         ? `Balance_Sheet_Detailed_${client?.company_name || engagement?.clientName || "Client"}_${currentYearLabel}.pdf`
         : `Balance_Sheet_Summary_${client?.company_name || engagement?.clientName || "Client"}_${currentYearLabel}.pdf`;
-      
+
       doc.save(fileName);
 
       toast({
@@ -1084,7 +1101,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
               <ChevronsUp className="h-3 w-3 mr-1" />
               Collapse All
             </Button>
-            
+
             {/* PDF Download Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1115,16 +1132,16 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
           {/* Balance Check Alert */}
           {(Math.abs(calculations.balanceCurrent) > 0.01 ||
             Math.abs(calculations.balancePrior) > 0.01) && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="font-semibold text-red-800">
-                ⚠️ Balance Sheet does not balance!
-              </p>
-              <p className="text-sm text-red-700 mt-1">
-                The accounting equation (Assets = Liabilities + Equity) is not
-                satisfied. Please review your classifications.
-              </p>
-            </div>
-          )}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="font-semibold text-red-800">
+                  ⚠️ Balance Sheet does not balance!
+                </p>
+                <p className="text-sm text-red-700 mt-1">
+                  The accounting equation (Assets = Liabilities + Equity) is not
+                  satisfied. Please review your classifications.
+                </p>
+              </div>
+            )}
 
           {Math.abs(calculations.balanceCurrent) <= 0.01 &&
             Math.abs(calculations.balancePrior) <= 0.01 && (
@@ -1176,178 +1193,179 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           ([group2, group3Map]) => {
                             const group2Key = `Assets-${group2}`;
                             const isGroup2Expanded = expandedSections[group2Key];
-                            
+
                             return (
-                            <React.Fragment key={group2}>
-                              {/* Group2 Header with Toggle */}
-                              <tr 
-                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                onClick={() => toggleSection(group2Key)}
-                              >
-                                <td className="p-3 font-semibold">
-                                  <div className="flex items-center gap-2">
-                                    {isGroup2Expanded ? (
-                                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                              <React.Fragment key={group2}>
+                                {/* Group2 Header with Toggle */}
+                                <tr
+                                  className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                  onClick={() => toggleSection(group2Key)}
+                                >
+                                  <td className="p-3 font-semibold">
+                                    <div className="flex items-center gap-2">
+                                      {isGroup2Expanded ? (
+                                        <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                                      )}
+                                      <span>{group2}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3"></td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Assets",
+                                        group2,
+                                        "current"
+                                      )
                                     )}
-                                    <span>{group2}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3"></td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Assets",
-                                      group2,
-                                      "current"
-                                    )
-                                  )}
-                                </td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Assets",
-                                      group2,
-                                      "prior"
-                                    )
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Assets",
+                                        group2,
+                                        "prior"
+                                      )
+                                    )}
+                                  </td>
+                                </tr>
 
-                              {/* Group3 and Group4 levels */}
-                              {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
-                                const hasGroup3 = group3 !== "_direct_";
-                                const group3Key = `Assets-${group2}-${group3}`;
-                                const isGroup3Expanded = expandedSections[group3Key];
+                                {/* Group3 and Group4 levels */}
+                                {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
+                                  const hasGroup3 = group3 !== "_direct_";
+                                  const group3Key = `Assets-${group2}-${group3}`;
+                                  const isGroup3Expanded = expandedSections[group3Key];
 
-                                return (
-                                  <React.Fragment key={group3}>
-                                    {/* Group3 Header (only if not direct) */}
-                                    {hasGroup3 && (
-                                      <tr 
-                                        className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleSection(group3Key);
-                                        }}
-                                      >
-                                        <td className="p-2 pl-8 font-medium text-sm">
-                                          <div className="flex items-center gap-2">
-                                            {isGroup3Expanded ? (
-                                              <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                            ) : (
-                                              <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                  return (
+                                    <React.Fragment key={group3}>
+                                      {/* Group3 Header (only if not direct) */}
+                                      {hasGroup3 && (
+                                        <tr
+                                          className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleSection(group3Key);
+                                          }}
+                                        >
+                                          <td className="p-2 pl-8 font-medium text-sm">
+                                            <div className="flex items-center gap-2">
+                                              {isGroup3Expanded ? (
+                                                <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                              ) : (
+                                                <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                              )}
+                                              <span>{group3}</span>
+                                            </div>
+                                          </td>
+                                          <td className="p-2"></td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Assets",
+                                                group2,
+                                                group3,
+                                                "current"
+                                              )
                                             )}
-                                            <span>{group3}</span>
-                                          </div>
-                                        </td>
-                                        <td className="p-2"></td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Assets",
-                                              group2,
-                                              group3,
-                                              "current"
-                                            )
-                                          )}
-                                        </td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Assets",
-                                              group2,
-                                              group3,
-                                              "prior"
-                                            )
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )}
+                                          </td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Assets",
+                                                group2,
+                                                group3,
+                                                "prior"
+                                              )
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )}
 
-                                    {/* Group4 level and rows */}
-                                    {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
-                                      const hasGroup4 = group4 !== "_direct_";
-                                      const group4Key = `Assets-${group2}-${group3}-${group4}`;
-                                      const isGroup4Expanded = expandedSections[group4Key];
-                                      const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
+                                      {/* Group4 level and rows */}
+                                      {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
+                                        const hasGroup4 = group4 !== "_direct_";
+                                        const group4Key = `Assets-${group2}-${group3}-${group4}`;
+                                        const isGroup4Expanded = expandedSections[group4Key];
+                                        const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
 
-                                      return (
-                                        <React.Fragment key={group4}>
-                                          {/* Group4 Header (only if not direct) */}
-                                          {hasGroup4 && (
-                                            <tr 
-                                              className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSection(group4Key);
-                                              }}
-                                            >
-                                              <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
-                                                <div className="flex items-center gap-2">
-                                                  {isGroup4Expanded ? (
-                                                    <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                                  ) : (
-                                                    <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                        return (
+                                          <React.Fragment key={group4}>
+                                            {/* Group4 Header (only if not direct) */}
+                                            {hasGroup4 && (
+                                              <tr
+                                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleSection(group4Key);
+                                                }}
+                                              >
+                                                <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
+                                                  <div className="flex items-center gap-2">
+                                                    {isGroup4Expanded ? (
+                                                      <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                                    ) : (
+                                                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                                    )}
+                                                    <span>{group4}</span>
+                                                  </div>
+                                                </td>
+                                                <td className="p-2"></td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Assets",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "current"
+                                                    )
                                                   )}
-                                                  <span>{group4}</span>
-                                                </div>
-                                              </td>
-                                              <td className="p-2"></td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Assets",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "current"
-                                                  )
-                                                )}
-                                              </td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Assets",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "prior"
-                                                  )
-                                                )}
-                                              </td>
-                                            </tr>
-                                          )}
+                                                </td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Assets",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "prior"
+                                                    )
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            )}
 
-                                          {/* Detail Rows */}
-                                          {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
-                                            <tr
-                                              key={row.id}
-                                              className="border-b hover:bg-gray-50"
-                                            >
-                                              <td className={`p-2 pl-${indentLevel} text-xs`}>
-                                                {row.accountName}
-                                              </td>
-                                              <td className="p-2 text-xs text-gray-600">
-                                                {row.code || ""}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowCurrentYearValue(row))}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowPriorYearValue(row))}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </React.Fragment>
-                                      );
-                                    })}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </React.Fragment>
-                          )}
+                                            {/* Detail Rows */}
+                                            {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
+                                              <tr
+                                                key={row.id}
+                                                className="border-b hover:bg-gray-50"
+                                              >
+                                                <td className={`p-2 pl-${indentLevel} text-xs`}>
+                                                  {row.accountName}
+                                                </td>
+                                                <td className="p-2 text-xs text-gray-600">
+                                                  {row.code || ""}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowCurrentYearValue(row))}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowPriorYearValue(row))}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            )
+                          }
                         )}
 
                         {/* Total Assets */}
@@ -1363,6 +1381,277 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                             {formatTotalValue(calculations.assetsPrior)}
                           </td>
                         </tr>
+                      </>
+                    )}
+
+                    {/* Spacing */}
+                    <tr>
+                      <td colSpan={4} className="p-2"></td>
+                    </tr>
+
+                    <tr className="bg-gray-200">
+                      <td
+                        colSpan={4}
+                        className="p-3 font-bold text-lg uppercase"
+                      >
+                        Equity and liabilities
+                      </td>
+                    </tr>
+
+
+                    {/* Equity Section */}
+                    {groupedData["Equity"] && (
+                      <>
+                        <tr className="bg-gray-200">
+                          <td
+                            colSpan={4}
+                            className="p-3 font-bold text-lg uppercase"
+                          >
+                            Equity
+                          </td>
+                        </tr>
+
+                        {Object.entries(groupedData["Equity"])
+                          .filter(([group2]) => group2 !== "Current Year Profits & Losses")
+                          .map(([group2, group3Map]) => {
+                            const group2Key = `Equity-${group2}`;
+                            const isGroup2Expanded = expandedSections[group2Key];
+
+                            return (
+                              <React.Fragment key={group2}>
+                                {/* Group2 Header with Toggle */}
+                                <tr
+                                  className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                  onClick={() => toggleSection(group2Key)}
+                                >
+                                  <td className="p-3 font-semibold">
+                                    <div className="flex items-center gap-2">
+                                      {isGroup2Expanded ? (
+                                        <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                                      )}
+                                      <span>{group2}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3"></td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Equity",
+                                        group2,
+                                        "current"
+                                      )
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Equity",
+                                        group2,
+                                        "prior"
+                                      )
+                                    )}
+                                  </td>
+                                </tr>
+
+                                {/* Group3 and Group4 levels */}
+                                {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
+                                  const hasGroup3 = group3 !== "_direct_";
+                                  const group3Key = `Equity-${group2}-${group3}`;
+                                  const isGroup3Expanded = expandedSections[group3Key];
+
+                                  return (
+                                    <React.Fragment key={group3}>
+                                      {/* Group3 Header */}
+                                      {hasGroup3 && (
+                                        <tr
+                                          className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleSection(group3Key);
+                                          }}
+                                        >
+                                          <td className="p-2 pl-8 font-medium text-sm">
+                                            <div className="flex items-center gap-2">
+                                              {isGroup3Expanded ? (
+                                                <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                              ) : (
+                                                <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                              )}
+                                              <span>{group3}</span>
+                                            </div>
+                                          </td>
+                                          <td className="p-2"></td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            <div className="flex items-center justify-end gap-1">
+                                              {formatTotalValue(
+                                                calculations.getGroup3Total(
+                                                  "Equity",
+                                                  group2,
+                                                  group3,
+                                                  "current"
+                                                )
+                                              )}
+                                              {group3 === "Retained earnings" && (
+                                                <Dialog>
+                                                  <DialogTrigger asChild>
+                                                    <button
+                                                      className="text-blue-600 hover:text-blue-800"
+                                                      onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                      <Info className="h-3 w-3" />
+                                                    </button>
+                                                  </DialogTrigger>
+                                                  <DialogContent className="max-w-md">
+                                                    <DialogHeader>
+                                                      <DialogTitle>Retained Earnings Calculation</DialogTitle>
+                                                      <DialogDescription>
+                                                        Auto-calculated for {currentYearLabel}
+                                                      </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="space-y-3">
+                                                      <div className="flex justify-between items-center py-2 border-b">
+                                                        <span className="text-sm">Prior Year ({priorYearLabel}) Retained Earnings:</span>
+                                                        <strong className="text-sm">{formatCurrency(calculations.retainedEarningsPriorYear)}</strong>
+                                                      </div>
+                                                      <div className="flex justify-between items-center py-2 border-b">
+                                                        <span className="text-sm">Current Year Net Result:</span>
+                                                        <div className="text-right">
+                                                          <strong className={`text-sm ${calculations.netProfitAfterTaxCurrent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {calculations.netProfitAfterTaxCurrent >= 0 ? '✓ Profit' : '✗ Loss'}
+                                                          </strong>
+                                                          <div className="text-sm font-semibold">
+                                                            {formatCurrency(calculations.netProfitAfterTaxCurrent)}
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                      <div className="flex justify-between items-center py-3 bg-blue-50 rounded px-3">
+                                                        <span className="font-semibold">Calculated {currentYearLabel} Retained Earnings:</span>
+                                                        <strong className="text-lg">{formatCurrency(calculations.calculatedRetainedEarningsCurrent)}</strong>
+                                                      </div>
+                                                      <div className="text-xs text-gray-600 italic mt-2 p-2 bg-gray-50 rounded">
+                                                        <strong>Formula:</strong> {formatCurrency(calculations.retainedEarningsPriorYear)} + ({formatCurrency(calculations.netProfitAfterTaxCurrent)}) = {formatCurrency(calculations.calculatedRetainedEarningsCurrent)}
+                                                      </div>
+                                                    </div>
+                                                  </DialogContent>
+                                                </Dialog>
+                                              )}
+                                            </div>
+                                          </td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Equity",
+                                                group2,
+                                                group3,
+                                                "prior"
+                                              )
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )}
+
+                                      {/* Group4 level and rows */}
+                                      {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
+                                        const hasGroup4 = group4 !== "_direct_";
+                                        const group4Key = `Equity-${group2}-${group3}-${group4}`;
+                                        const isGroup4Expanded = expandedSections[group4Key];
+                                        const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
+
+                                        return (
+                                          <React.Fragment key={group4}>
+                                            {/* Group4 Header */}
+                                            {hasGroup4 && (
+                                              <tr
+                                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleSection(group4Key);
+                                                }}
+                                              >
+                                                <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
+                                                  <div className="flex items-center gap-2">
+                                                    {isGroup4Expanded ? (
+                                                      <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                                    ) : (
+                                                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                                    )}
+                                                    <span>{group4}</span>
+                                                  </div>
+                                                </td>
+                                                <td className="p-2"></td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Equity",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "current"
+                                                    )
+                                                  )}
+                                                </td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Equity",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "prior"
+                                                    )
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            )}
+
+                                            {/* Detail Rows */}
+                                            {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
+                                              <tr
+                                                key={row.id}
+                                                className="border-b hover:bg-gray-50"
+                                              >
+                                                <td className={`p-2 pl-${indentLevel} text-xs`}>
+                                                  {row.accountName}
+                                                </td>
+                                                <td className="p-2 text-xs text-gray-600">
+                                                  {row.code || ""}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowCurrentYearValue(row))}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowPriorYearValue(row))}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            )
+                          }
+                          )}
+
+                        {/* Total Equity */}
+                        <tr className="bg-amber-100 border-t-2 border-amber-300">
+                          <td className="p-3 font-bold text-lg">
+                            Total Equity
+                          </td>
+                          <td className="p-3"></td>
+                          <td className="p-3 text-right font-bold text-lg">
+                            {formatTotalValue(calculations.equityCurrent)}
+                          </td>
+                          <td className="p-3 text-right font-bold text-lg">
+                            {formatTotalValue(calculations.equityPrior)}
+                          </td>
+                        </tr>
+
+
                       </>
                     )}
 
@@ -1387,178 +1676,179 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                           ([group2, group3Map]) => {
                             const group2Key = `Liabilities-${group2}`;
                             const isGroup2Expanded = expandedSections[group2Key];
-                            
+
                             return (
-                            <React.Fragment key={group2}>
-                              {/* Group2 Header with Toggle */}
-                              <tr 
-                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                onClick={() => toggleSection(group2Key)}
-                              >
-                                <td className="p-3 font-semibold">
-                                  <div className="flex items-center gap-2">
-                                    {isGroup2Expanded ? (
-                                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                              <React.Fragment key={group2}>
+                                {/* Group2 Header with Toggle */}
+                                <tr
+                                  className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                  onClick={() => toggleSection(group2Key)}
+                                >
+                                  <td className="p-3 font-semibold">
+                                    <div className="flex items-center gap-2">
+                                      {isGroup2Expanded ? (
+                                        <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                                      )}
+                                      <span>{group2}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3"></td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Liabilities",
+                                        group2,
+                                        "current"
+                                      )
                                     )}
-                                    <span>{group2}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3"></td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Liabilities",
-                                      group2,
-                                      "current"
-                                    )
-                                  )}
-                                </td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Liabilities",
-                                      group2,
-                                      "prior"
-                                    )
-                                  )}
-                                </td>
-                              </tr>
+                                  </td>
+                                  <td className="p-3 text-right font-semibold">
+                                    {formatTotalValue(
+                                      calculations.getGroup2Total(
+                                        "Liabilities",
+                                        group2,
+                                        "prior"
+                                      )
+                                    )}
+                                  </td>
+                                </tr>
 
-                              {/* Group3 and Group4 levels */}
-                              {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
-                                const hasGroup3 = group3 !== "_direct_";
-                                const group3Key = `Liabilities-${group2}-${group3}`;
-                                const isGroup3Expanded = expandedSections[group3Key];
+                                {/* Group3 and Group4 levels */}
+                                {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
+                                  const hasGroup3 = group3 !== "_direct_";
+                                  const group3Key = `Liabilities-${group2}-${group3}`;
+                                  const isGroup3Expanded = expandedSections[group3Key];
 
-                                return (
-                                  <React.Fragment key={group3}>
-                                    {/* Group3 Header */}
-                                    {hasGroup3 && (
-                                      <tr 
-                                        className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleSection(group3Key);
-                                        }}
-                                      >
-                                        <td className="p-2 pl-8 font-medium text-sm">
-                                          <div className="flex items-center gap-2">
-                                            {isGroup3Expanded ? (
-                                              <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                            ) : (
-                                              <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                  return (
+                                    <React.Fragment key={group3}>
+                                      {/* Group3 Header */}
+                                      {hasGroup3 && (
+                                        <tr
+                                          className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleSection(group3Key);
+                                          }}
+                                        >
+                                          <td className="p-2 pl-8 font-medium text-sm">
+                                            <div className="flex items-center gap-2">
+                                              {isGroup3Expanded ? (
+                                                <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                              ) : (
+                                                <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                              )}
+                                              <span>{group3}</span>
+                                            </div>
+                                          </td>
+                                          <td className="p-2"></td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Liabilities",
+                                                group2,
+                                                group3,
+                                                "current"
+                                              )
                                             )}
-                                            <span>{group3}</span>
-                                          </div>
-                                        </td>
-                                        <td className="p-2"></td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Liabilities",
-                                              group2,
-                                              group3,
-                                              "current"
-                                            )
-                                          )}
-                                        </td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Liabilities",
-                                              group2,
-                                              group3,
-                                              "prior"
-                                            )
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )}
+                                          </td>
+                                          <td className="p-2 text-right text-sm font-medium">
+                                            {formatTotalValue(
+                                              calculations.getGroup3Total(
+                                                "Liabilities",
+                                                group2,
+                                                group3,
+                                                "prior"
+                                              )
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )}
 
-                                    {/* Group4 level and rows */}
-                                    {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
-                                      const hasGroup4 = group4 !== "_direct_";
-                                      const group4Key = `Liabilities-${group2}-${group3}-${group4}`;
-                                      const isGroup4Expanded = expandedSections[group4Key];
-                                      const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
+                                      {/* Group4 level and rows */}
+                                      {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
+                                        const hasGroup4 = group4 !== "_direct_";
+                                        const group4Key = `Liabilities-${group2}-${group3}-${group4}`;
+                                        const isGroup4Expanded = expandedSections[group4Key];
+                                        const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
 
-                                      return (
-                                        <React.Fragment key={group4}>
-                                          {/* Group4 Header */}
-                                          {hasGroup4 && (
-                                            <tr 
-                                              className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSection(group4Key);
-                                              }}
-                                            >
-                                              <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
-                                                <div className="flex items-center gap-2">
-                                                  {isGroup4Expanded ? (
-                                                    <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                                  ) : (
-                                                    <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                        return (
+                                          <React.Fragment key={group4}>
+                                            {/* Group4 Header */}
+                                            {hasGroup4 && (
+                                              <tr
+                                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleSection(group4Key);
+                                                }}
+                                              >
+                                                <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
+                                                  <div className="flex items-center gap-2">
+                                                    {isGroup4Expanded ? (
+                                                      <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                                    ) : (
+                                                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                                                    )}
+                                                    <span>{group4}</span>
+                                                  </div>
+                                                </td>
+                                                <td className="p-2"></td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Liabilities",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "current"
+                                                    )
                                                   )}
-                                                  <span>{group4}</span>
-                                                </div>
-                                              </td>
-                                              <td className="p-2"></td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Liabilities",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "current"
-                                                  )
-                                                )}
-                                              </td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Liabilities",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "prior"
-                                                  )
-                                                )}
-                                              </td>
-                                            </tr>
-                                          )}
+                                                </td>
+                                                <td className="p-2 text-right text-sm">
+                                                  {formatTotalValue(
+                                                    calculations.getGroup4Total(
+                                                      "Liabilities",
+                                                      group2,
+                                                      group3,
+                                                      group4,
+                                                      "prior"
+                                                    )
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            )}
 
-                                          {/* Detail Rows */}
-                                          {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
-                                            <tr
-                                              key={row.id}
-                                              className="border-b hover:bg-gray-50"
-                                            >
-                                              <td className={`p-2 pl-${indentLevel} text-xs`}>
-                                                {row.accountName}
-                                              </td>
-                                              <td className="p-2 text-xs text-gray-600">
-                                                {row.code || ""}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowCurrentYearValue(row))}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowPriorYearValue(row))}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </React.Fragment>
-                                      );
-                                    })}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </React.Fragment>
-                          )}
+                                            {/* Detail Rows */}
+                                            {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
+                                              <tr
+                                                key={row.id}
+                                                className="border-b hover:bg-gray-50"
+                                              >
+                                                <td className={`p-2 pl-${indentLevel} text-xs`}>
+                                                  {row.accountName}
+                                                </td>
+                                                <td className="p-2 text-xs text-gray-600">
+                                                  {row.code || ""}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowCurrentYearValue(row))}
+                                                </td>
+                                                <td className="p-2 text-right text-xs">
+                                                  {formatTableRowValue(getRowPriorYearValue(row))}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            )
+                          }
                         )}
 
                         {/* Total Liabilities */}
@@ -1577,292 +1867,35 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
                       </>
                     )}
 
-                    {/* Spacing */}
-                    <tr>
-                      <td colSpan={4} className="p-2"></td>
+                    {/* Total Liabilities + Equity */}
+                    <tr className="bg-amber-200 border-t-2 border-amber-400">
+                      <td className="p-3 font-bold text-lg">
+                        Total Equity and Liabilities
+                      </td>
+                      <td className="p-3"></td>
+                      <td className="p-3 text-right font-bold text-lg">
+                        {formatTotalValue(
+                          calculations.liabilitiesCurrent +
+                          calculations.equityCurrent
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-bold text-lg">
+                        {formatTotalValue(
+                          calculations.liabilitiesPrior +
+                          calculations.equityPrior
+                        )}
+                      </td>
                     </tr>
 
-                    {/* Equity Section */}
-                    {groupedData["Equity"] && (
-                      <>
-                        <tr className="bg-gray-200">
-                          <td
-                            colSpan={4}
-                            className="p-3 font-bold text-lg uppercase"
-                          >
-                            Equity
-                          </td>
-                        </tr>
 
-                        {Object.entries(groupedData["Equity"])
-                          .filter(([group2]) => group2 !== "Current Year Profits & Losses")
-                          .map(([group2, group3Map]) => {
-                            const group2Key = `Equity-${group2}`;
-                            const isGroup2Expanded = expandedSections[group2Key];
-                            
-                            return (
-                            <React.Fragment key={group2}>
-                              {/* Group2 Header with Toggle */}
-                              <tr 
-                                className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                onClick={() => toggleSection(group2Key)}
-                              >
-                                <td className="p-3 font-semibold">
-                                  <div className="flex items-center gap-2">
-                                    {isGroup2Expanded ? (
-                                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                                    )}
-                                    <span>{group2}</span>
-                                  </div>
-                                </td>
-                                <td className="p-3"></td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Equity",
-                                      group2,
-                                      "current"
-                                    )
-                                  )}
-                                </td>
-                                <td className="p-3 text-right font-semibold">
-                                  {formatTotalValue(
-                                    calculations.getGroup2Total(
-                                      "Equity",
-                                      group2,
-                                      "prior"
-                                    )
-                                  )}
-                                </td>
-                              </tr>
-
-                              {/* Group3 and Group4 levels */}
-                              {isGroup2Expanded && Object.entries(group3Map).map(([group3, group4Map]) => {
-                                const hasGroup3 = group3 !== "_direct_";
-                                const group3Key = `Equity-${group2}-${group3}`;
-                                const isGroup3Expanded = expandedSections[group3Key];
-
-                                return (
-                                  <React.Fragment key={group3}>
-                                    {/* Group3 Header */}
-                                    {hasGroup3 && (
-                                      <tr 
-                                        className="bg-gray-100 border-t cursor-pointer hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleSection(group3Key);
-                                        }}
-                                      >
-                                        <td className="p-2 pl-8 font-medium text-sm">
-                                          <div className="flex items-center gap-2">
-                                            {isGroup3Expanded ? (
-                                              <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                            ) : (
-                                              <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                                            )}
-                                            <span>{group3}</span>
-                                          </div>
-                                        </td>
-                                        <td className="p-2"></td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          <div className="flex items-center justify-end gap-1">
-                                            {formatTotalValue(
-                                              calculations.getGroup3Total(
-                                                "Equity",
-                                                group2,
-                                                group3,
-                                                "current"
-                                              )
-                                            )}
-                                            {group3 === "Retained earnings" && (
-                                              <Dialog>
-                                                <DialogTrigger asChild>
-                                                  <button 
-                                                    className="text-blue-600 hover:text-blue-800"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                  >
-                                                    <Info className="h-3 w-3" />
-                                                  </button>
-                                                </DialogTrigger>
-                                                <DialogContent className="max-w-md">
-                                                  <DialogHeader>
-                                                    <DialogTitle>Retained Earnings Calculation</DialogTitle>
-                                                    <DialogDescription>
-                                                      Auto-calculated for {currentYearLabel}
-                                                    </DialogDescription>
-                                                  </DialogHeader>
-                                                  <div className="space-y-3">
-                                                    <div className="flex justify-between items-center py-2 border-b">
-                                                      <span className="text-sm">Prior Year ({priorYearLabel}) Retained Earnings:</span>
-                                                      <strong className="text-sm">{formatCurrency(calculations.retainedEarningsPriorYear)}</strong>
-                                                    </div>
-                                                    <div className="flex justify-between items-center py-2 border-b">
-                                                      <span className="text-sm">Current Year Net Result:</span>
-                                                      <div className="text-right">
-                                                        <strong className={`text-sm ${calculations.netProfitAfterTaxCurrent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                          {calculations.netProfitAfterTaxCurrent >= 0 ? '✓ Profit' : '✗ Loss'}
-                                                        </strong>
-                                                        <div className="text-sm font-semibold">
-                                                          {formatCurrency(calculations.netProfitAfterTaxCurrent)}
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                    <div className="flex justify-between items-center py-3 bg-blue-50 rounded px-3">
-                                                      <span className="font-semibold">Calculated {currentYearLabel} Retained Earnings:</span>
-                                                      <strong className="text-lg">{formatCurrency(calculations.calculatedRetainedEarningsCurrent)}</strong>
-                                                    </div>
-                                                    <div className="text-xs text-gray-600 italic mt-2 p-2 bg-gray-50 rounded">
-                                                      <strong>Formula:</strong> {formatCurrency(calculations.retainedEarningsPriorYear)} + ({formatCurrency(calculations.netProfitAfterTaxCurrent)}) = {formatCurrency(calculations.calculatedRetainedEarningsCurrent)}
-                                                    </div>
-                                                  </div>
-                                                </DialogContent>
-                                              </Dialog>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className="p-2 text-right text-sm font-medium">
-                                          {formatTotalValue(
-                                            calculations.getGroup3Total(
-                                              "Equity",
-                                              group2,
-                                              group3,
-                                              "prior"
-                                            )
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )}
-
-                                    {/* Group4 level and rows */}
-                                    {(!hasGroup3 || isGroup3Expanded) && Object.entries(group4Map).map(([group4, rows]) => {
-                                      const hasGroup4 = group4 !== "_direct_";
-                                      const group4Key = `Equity-${group2}-${group3}-${group4}`;
-                                      const isGroup4Expanded = expandedSections[group4Key];
-                                      const indentLevel = hasGroup3 && hasGroup4 ? 16 : hasGroup3 || hasGroup4 ? 12 : 8;
-
-                                      return (
-                                        <React.Fragment key={group4}>
-                                          {/* Group4 Header */}
-                                          {hasGroup4 && (
-                                            <tr 
-                                              className="bg-gray-50 border-t cursor-pointer hover:bg-gray-100"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSection(group4Key);
-                                              }}
-                                            >
-                                              <td className={`p-2 pl-${hasGroup3 ? '12' : '10'} text-sm`}>
-                                                <div className="flex items-center gap-2">
-                                                  {isGroup4Expanded ? (
-                                                    <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                                  ) : (
-                                                    <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                                                  )}
-                                                  <span>{group4}</span>
-                                                </div>
-                                              </td>
-                                              <td className="p-2"></td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Equity",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "current"
-                                                  )
-                                                )}
-                                              </td>
-                                              <td className="p-2 text-right text-sm">
-                                                {formatTotalValue(
-                                                  calculations.getGroup4Total(
-                                                    "Equity",
-                                                    group2,
-                                                    group3,
-                                                    group4,
-                                                    "prior"
-                                                  )
-                                                )}
-                                              </td>
-                                            </tr>
-                                          )}
-
-                                          {/* Detail Rows */}
-                                          {(!hasGroup4 || isGroup4Expanded) && rows.map((row) => (
-                                            <tr
-                                              key={row.id}
-                                              className="border-b hover:bg-gray-50"
-                                            >
-                                              <td className={`p-2 pl-${indentLevel} text-xs`}>
-                                                {row.accountName}
-                                              </td>
-                                              <td className="p-2 text-xs text-gray-600">
-                                                {row.code || ""}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowCurrentYearValue(row))}
-                                              </td>
-                                              <td className="p-2 text-right text-xs">
-                                                {formatTableRowValue(getRowPriorYearValue(row))}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </React.Fragment>
-                                      );
-                                    })}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </React.Fragment>
-                          )}
-                        )}
-
-                        {/* Total Equity */}
-                        <tr className="bg-amber-100 border-t-2 border-amber-300">
-                          <td className="p-3 font-bold text-lg">
-                            Total Equity
-                          </td>
-                          <td className="p-3"></td>
-                          <td className="p-3 text-right font-bold text-lg">
-                            {formatTotalValue(calculations.equityCurrent)}
-                          </td>
-                          <td className="p-3 text-right font-bold text-lg">
-                            {formatTotalValue(calculations.equityPrior)}
-                          </td>
-                        </tr>
-
-                        {/* Total Liabilities + Equity */}
-                        <tr className="bg-amber-200 border-t-2 border-amber-400">
-                          <td className="p-3 font-bold text-lg">
-                            Total Liabilities + Equity
-                          </td>
-                          <td className="p-3"></td>
-                          <td className="p-3 text-right font-bold text-lg">
-                            {formatTotalValue(
-                              calculations.liabilitiesCurrent +
-                                calculations.equityCurrent
-                            )}
-                          </td>
-                          <td className="p-3 text-right font-bold text-lg">
-                            {formatTotalValue(
-                              calculations.liabilitiesPrior +
-                                calculations.equityPrior
-                            )}
-                          </td>
-                        </tr>
-                      </>
-                    )}
 
                     {/* Balance Check Row */}
                     <tr
-                      className={`border-t-4 ${
-                        Math.abs(calculations.balanceCurrent) <= 0.01 &&
+                      className={`border-t-4 ${Math.abs(calculations.balanceCurrent) <= 0.01 &&
                         Math.abs(calculations.balancePrior) <= 0.01
-                          ? "bg-green-100 border-green-500"
-                          : "bg-red-100 border-red-500"
-                      }`}
+                        ? "bg-green-100 border-green-500"
+                        : "bg-red-100 border-red-500"
+                        }`}
                     >
                       <td className="p-4 font-bold text-lg">
                         Balance Check (Assets = Liabilities + Equity)

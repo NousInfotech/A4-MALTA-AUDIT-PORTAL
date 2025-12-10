@@ -88,7 +88,8 @@ interface MultipleDocument {
 }
 
 interface KYCDocumentRequestModalProps {
-  engagementId: string;
+  engagementId?: string;
+  companyId?: string;
   clientId: string;
   engagementName?: string;
   company?: any;
@@ -96,8 +97,10 @@ interface KYCDocumentRequestModalProps {
   trigger?: React.ReactNode;
 }
 
+
 export function KYCDocumentRequestModal({
   engagementId,
+  companyId,
   clientId,
   engagementName,
   company,
@@ -129,10 +132,10 @@ export function KYCDocumentRequestModal({
 
 
   const handleSubmit = async () => {
-    if (!engagementId?.trim()) {
+    if (!engagementId?.trim() && !companyId?.trim()) {
       toast({
         title: "Error",
-        description: "Engagement ID missing",
+        description: "Engagement ID or Company ID missing",
         variant: "destructive"
       });
       return;
@@ -188,7 +191,12 @@ export function KYCDocumentRequestModal({
         };
       });
 
-      const processedDocumentRequests = selectedPersonIds.map((personId:string) => ({
+      // Process document requests
+      // If no person selected (e.g. Company KYC), create one request with null person
+      // This ensures we don't send an empty documentRequests array which results in "No document requests yet"
+      const targetIds = selectedPersonIds.length > 0 ? selectedPersonIds : [null];
+
+      const processedDocumentRequests = targetIds.map((personId: string | null) => ({
         documentRequest: processedDocuments.map((doc:any) => ({
           name: doc.name,
           type: (doc.type === "template" || doc.type === "required" ? "required" : "optional") as "required" | "optional",
@@ -196,13 +204,15 @@ export function KYCDocumentRequestModal({
           templateUrl: doc.type === "template" ? doc.template?.url : undefined,
         })),
         multipleDocuments: processedMultipleDocuments, // Add multiple documents separately
-        person: personId
+        person: personId // null for Company KYC
       }));
 
       const kycData = {
-        engagementId,
+        engagementId: engagementId || undefined,
+        companyId: companyId || undefined,
         clientId,
-        documentRequests:processedDocumentRequests
+        documentRequests:processedDocumentRequests,
+        companyName: company?.name
       };
 
       console.log("KYC Data: ", kycData);
@@ -273,10 +283,17 @@ export function KYCDocumentRequestModal({
     }
 
     const totalShares = sh.sharesData?.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0);
-    const percentage = totalShares > 0 ? (totalShares / company?.totalShares) * 100 : 0;
+    const companyTotalShares = Array.isArray(company?.totalShares) 
+      ? company.totalShares.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0)
+      : Number(company?.totalShares) || 0;
+      
+    const percentage = companyTotalShares > 0 ? (totalShares / companyTotalShares) * 100 : 0;
 
     personsMap[p._id].shareholder = {
-      // class: sh.sharesData?,
+      shareClasses: sh.sharesData?.map((data: any) => ({
+        class: data.class,
+        totalShares: data.totalShares
+      })) || [],
       percentage: percentage,
       totalShares: totalShares,
     };
@@ -332,7 +349,7 @@ export function KYCDocumentRequestModal({
           </DialogTitle>
 
           <DialogDescription>
-            Create a KYC workflow for this engagement. Add documents that clients need to provide.
+            Create a KYC workflow for this {engagementId ? "engagement" : "company"}. Add documents that clients need to provide.
           </DialogDescription>
         </DialogHeader>
 
@@ -345,20 +362,20 @@ export function KYCDocumentRequestModal({
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="engagementDisplay">Engagement</Label>
+                <Label htmlFor="contextDisplay">{engagementId ? "Engagement" : "Company"}</Label>
                 <Input
-                  id="engagementDisplay"
-                  value={engagementName || 'Current Engagement'}
+                  id="contextDisplay"
+                  value={engagementName || company?.name || 'Current Context'}
                   disabled
                   className="bg-gray-50"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  KYC documents will be created for this engagement
+                  KYC documents will be created for this {engagementId ? "engagement" : "company"}
                 </p>
 
-                {(!engagementId || engagementId.trim() === '') && (
+                {(!engagementId || engagementId.trim() === '') && (!companyId || companyId.trim() === '') && (
                   <p className="text-xs text-red-600 mt-1">
-                    ⚠️ Engagement ID is missing. Please ensure you're accessing this from an engagement page.
+                    ⚠️ Context ID is missing. Please ensure you're accessing this from a valid page.
                   </p>
                 )}
               </div>
@@ -432,21 +449,27 @@ export function KYCDocumentRequestModal({
               </p>
             )}
 
-            <div className="flex flex-wrap gap-2 mt-2">
-              {p.shareholder?.class && (
-                <Badge variant="outline">Class: {p.shareholder.class}</Badge>
-              )}
-              {typeof p.shareholder?.percentage === "number" && (
-                <Badge variant="outline">
-                  {p.shareholder.percentage}%
-                </Badge>
-              )}
-              {typeof p.shareholder?.percentage === "number" && (
-                <Badge variant="outline">
-                   {p.shareholder.totalShares} shares
-                </Badge>
-              )}
-            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              
+                            {p.shareholder?.shareClasses?.map((item: any) =>(
+                                 
+                                <Badge variant="outline" key={item.class}>
+                                  { item.class.toLowerCase() != "ordinary" ? "Class" : ""} {item.class}: {item.totalShares}
+                                </Badge>
+                              ))}
+
+                             {p.shareholder?.totalShares != null && (
+                                <Badge variant="outline">
+                                  Shares: {String(Number(p.shareholder.totalShares) || 0)}/{String(Number(company?.totalShares?.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0)) || 0)}
+                                </Badge>
+                              )}
+                                  
+                              
+                              {typeof p.shareholder?.percentage === "number" && !isNaN(p.shareholder.percentage) && (
+                                <Badge variant="outline">{p.shareholder.percentage.toFixed(2)}%</Badge>
+                              )}
+                            </div>
+
           </div>
 
               <input
@@ -608,8 +631,9 @@ export function KYCDocumentRequestModal({
               handleClose={() => {}}
               handleSubmit={() => {}}
               showBackButton={false}
+              documentResult={false}
             />
-          )}
+          )}  
 
           {documentMode === "new-multiple" && (
             <MultipleDocumentForm
@@ -621,6 +645,7 @@ export function KYCDocumentRequestModal({
               handleClose={() => {}}
               handleSubmit={() => {}}
               showBackButton={false}
+              documentResult={false}
             />
           )}
 

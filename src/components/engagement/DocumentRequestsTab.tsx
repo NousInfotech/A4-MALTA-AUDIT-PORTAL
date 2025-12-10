@@ -1024,116 +1024,7 @@ export const DocumentRequestsTab = ({
   return (
     <>
       <div className="space-y-6">
-        {/* Send Document Request Form */}
-        <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-            <CardTitle className="text-xl font-bold text-gray-900">
-              Send Document Request
-            </CardTitle>
-            <CardDescription className="text-gray-700">
-              Request specific documents from the client
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="category" className="text-sm font-medium text-gray-700">Category *</Label>
-              <SearchableSelect
-                value={documentRequest.category}
-                onChange={(value) =>
-                  setDocumentRequest((prev: any) => ({
-                    ...prev,
-                    category: value,
-                  }))
-                }
-                options={categories}
-                placeholder="Search or select category"
-                widthClass="w-full"
-              />
-              <p className="text-xs text-gray-500">
-                Start typing to filter categories.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="description" className="text-sm font-medium text-gray-700">Request Description *</Label>
-                <span className={cn("text-xs font-medium", descLen > DESC_MAX ? "text-red-600" : "text-gray-500")}>
-                  {descLen}/{DESC_MAX}
-                </span>
-              </div>
-              <Textarea
-                id="description"
-                value={documentRequest.description}
-                onChange={(e) =>
-                  setDocumentRequest((prev: any) => ({
-                    ...prev,
-                    description: e.target.value.slice(0, DESC_MAX),
-                  }))
-                }
-                placeholder="Describe the documents you need from the client..."
-                rows={4}
-                className="resize-y border-gray-300 focus:border-gray-500 focus:ring-gray-500"
-              />
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                  Tip: include date range
-                </Badge>
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                  Specify format (PDF/XLSX)
-                </Badge>
-                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
-                  Add due date
-                </Badge>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="comment" className="text-sm font-medium text-gray-700">Additional Comments (Optional)</Label>
-              <Textarea
-                id="comment"
-                value={documentRequest.comment || ""}
-                onChange={(e) =>
-                  setDocumentRequest((prev: any) => ({
-                    ...prev,
-                    comment: e.target.value,
-                  }))
-                }
-                placeholder="Add any additional notes or instructions for the client..."
-                rows={3}
-                className="resize-y border-gray-300 focus:border-gray-500 focus:ring-gray-500"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              {/* <Button
-                variant="outline"
-                onClick={() => setKycModalOpen(true)}
-                className="bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-xl"
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Setup KYC
-              </Button> */}
-              <Button
-                variant="outline"
-                onClick={() => setAddRequestModalOpen(true)}
-                className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 rounded-xl"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create with Documents
-              </Button>
-              {/* <Button
-                onClick={handleSendDocumentRequest}
-                disabled={!canSend}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground rounded-xl flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Send Request
-              </Button> */}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Document Requests History - KYC Style */}
+        {/* Document Requests List */}
         {documentRequests.length > 0 ? (
           <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
             <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
@@ -1157,6 +1048,13 @@ export const DocumentRequestsTab = ({
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Refresh
+                  </Button>
+                  <Button
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                    onClick={() => setAddRequestModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Document Request
                   </Button>
                 </div>
               </div>
@@ -1296,160 +1194,6 @@ export const DocumentRequestsTab = ({
                       </div>
                     )}
 
-                    {/* Documents List */}
-                    {/* {request.documents && request.documents.length > 0 ? (
-                      <div className="space-y-2">
-                        {request.documents.map((doc: any, docIndex: number) => (
-                          <div key={docIndex} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                            <div className="flex items-center gap-3">
-                              {(() => {
-                                const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
-                                return docType === 'template' ? (
-                                  <FileEdit className="h-5 w-5 text-gray-600" />
-                                ) : (
-                                  <FileUp className="h-5 w-5 text-gray-600" />
-                                );
-                              })()}
-                              <div>
-                                <p className="font-medium text-gray-900">{doc.name}</p>
-                                {doc.description && (
-                                  <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
-                                )}
-                                <div className="flex items-center gap-2 mt-1">
-                                  {(() => {
-                                    const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
-                                    return docType === 'template' ? (
-                                      <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                        Template
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-gray-600 border-gray-300 bg-gray-50">
-                                        Direct
-                                      </Badge>
-                                    );
-                                  })()}
-                                  <Badge variant="outline" className="text-gray-600 border-gray-300">
-                                    {typeof doc.status === 'string' ? doc.status : String(doc.status || 'pending')}
-                                  </Badge>
-                                  {doc.uploadedAt && (
-                                    <span className="text-xs text-gray-500">
-                                      Uploaded: {(() => {
-                                        const date = new Date(doc.uploadedAt);
-                                        return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy HH:mm");
-                                      })()}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {!doc.url ? (
-                                <label className="cursor-pointer">
-                                  <input
-                                    type="file"
-                                    className="hidden"
-                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        handleDocumentUpload(request._id, docIndex, file);
-                                      }
-                                      e.target.value = '';
-                                    }}
-                                    disabled={uploadingDocument?.documentRequestId === request._id && 
-                                             uploadingDocument?.documentIndex === docIndex}
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 px-3"
-                                    title="Upload Document"
-                                    disabled={uploadingDocument?.documentRequestId === request._id && 
-                                             uploadingDocument?.documentIndex === docIndex}
-                                    asChild
-                                  >
-                                    <span>
-                                      {uploadingDocument?.documentRequestId === request._id && 
-                                       uploadingDocument?.documentIndex === docIndex ? (
-                                        <RefreshCw className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Upload className="h-4 w-4 mr-1" />
-                                          Upload
-                                        </>
-                                      )}
-                                    </span>
-                                  </Button>
-                                </label>
-                              ) : (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => window.open(doc.url, '_blank')}
-                                    className="border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700 h-8 w-8 p-0"
-                                    title="View Document"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={async () => {
-                                      try {
-                                        const response = await fetch(doc.url);
-                                        const blob = await response.blob();
-                                        const url = window.URL.createObjectURL(blob);
-                                        const link = document.createElement('a');
-                                        link.href = url;
-                                        link.download = doc.name;
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-                                        window.URL.revokeObjectURL(url);
-                                      } catch (error) {
-                                        console.error('Download error:', error);
-                                        toast({
-                                          title: "Error",
-                                          description: "Failed to download document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }}
-                                    className="border-green-300 hover:bg-green-50 hover:text-green-800 text-green-700 h-8 w-8 p-0"
-                                    title="Download Document"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setDeleteDialog({
-                                    open: true,
-                                    type: 'document',
-                                    documentRequestId: request._id,
-                                    documentIndex: docIndex,
-                                    documentName: doc.name,
-                                  });
-                                }}
-                                className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 h-8 w-8 p-0"
-                                title="Delete Document"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 text-gray-500 text-sm bg-white rounded-lg">
-                        No documents in this request yet
-                      </div>
-                    )} */}
-
                     <DocumentRequest
                       request={request}
                       uploadingSingle={uploadingDocument}
@@ -1480,9 +1224,15 @@ export const DocumentRequestsTab = ({
                 <p className="text-gray-500 text-sm">
                   No document requests sent yet
                 </p>
-                <p className="text-gray-400 text-xs mt-1">
-                  Send your first request using the form above
-                </p>
+                <div className="mt-6">
+                  <Button
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                    onClick={() => setAddRequestModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Document Request
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1518,18 +1268,26 @@ export const DocumentRequestsTab = ({
                 <CardContent className="space-y-4">
                   <div>
                     <Label htmlFor="modalCategory">Category *</Label>
-                    <SearchableSelect
+                    <Select
                       value={documentRequest.category}
-                      onChange={(value) =>
+                      onValueChange={(value) =>
                         setDocumentRequest((prev: any) => ({
                           ...prev,
                           category: value,
                         }))
                       }
-                      options={categories}
-                      placeholder="Search or select category"
-                      widthClass="w-full"
-                    />
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="modalDescription">Description *</Label>

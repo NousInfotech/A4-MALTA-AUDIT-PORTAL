@@ -109,8 +109,32 @@ interface KYCWorkflow {
   updatedAt: string;
 }
 
-export function EngagementKYC() {
-  const { id: engagementId } = useParams<{ id: string }>();
+interface EngagementKYCProps {
+  engagementId?: string;
+  companyId?: string;
+  clientId?: string;
+  company?: any;
+}
+
+export function EngagementKYC({ 
+  engagementId: engagementIdProp, 
+  companyId: companyIdProp,
+  clientId: clientIdProp,
+  company: companyProp
+}: EngagementKYCProps = {}) {
+  const params = useParams<{ id: string; clientId?: string; companyId?: string }>();
+  
+  // Prioritize props, then try to verify params
+  // Logic: 
+  // 1. If engagementIdProp provided -> use it
+  // 2. If params.id is available AND we are in engagement context (hard to tell 100% just from id, but usually id=engagementId in this route) -> use it
+  // But wait, if we are in company detail, there is no :id param strictly for engagement. 
+  // CompanyDetail route: /client/:clientId/company/:companyId
+  
+  const companyId = companyIdProp || params.companyId;
+  const engagementId = engagementIdProp || (!companyId ? params.id : undefined); 
+  const clientId = clientIdProp || params.clientId;
+
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [kycWorkflows, setKycWorkflows] = useState<KYCWorkflow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +148,7 @@ export function EngagementKYC() {
     itemIndex?: number;
     documentName?: string;
   }>({ open: false });
+  const [isUpdating, setIsUpdating] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState<{
     documentRequestId?: string;
     documentIndex?: number;
@@ -136,16 +161,19 @@ export function EngagementKYC() {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('EngagementKYC: useEffect triggered, engagementId:', engagementId);
+    console.log('EngagementKYC: useEffect triggered, engagementId:', engagementId, 'companyId:', companyId);
     if (engagementId) {
-      console.log('EngagementKYC: engagementId changed to:', engagementId);
+      console.log('EngagementKYC: engagementId present:', engagementId);
       fetchEngagementDetails();
       fetchKYCWorkflows();
+    } else if (companyId) {
+      console.log('EngagementKYC: companyId present:', companyId);
+      fetchKYCWorkflows();
     } else {
-      console.log('EngagementKYC: No engagementId provided');
+      console.log('EngagementKYC: No ID provided');
       setLoading(false);
     }
-  }, [engagementId]);
+  }, [engagementId, companyId]);
 
   // Auto-update document request statuses after workflows are fetched (only once per workflow load)
   useEffect(() => {
@@ -213,24 +241,32 @@ export function EngagementKYC() {
     }
   };
 
-  const fetchKYCWorkflows = async (retryCount = 0) => {
-    if (!engagementId) {
-      console.error('No engagement ID provided');
+  const fetchKYCWorkflows = async (retryCount = 0, silent = false) => {
+    if (!engagementId && !companyId) {
+      console.error('No engagement ID or Company ID provided');
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-      console.log('Fetching KYC workflows for engagement:', engagementId);
+      if (!silent) setLoading(true);
       
       // Add timeout to prevent infinite loading
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timeout')), 10000)
       );
       
+      let fetchPromise;
+      if (engagementId) {
+        console.log('Fetching KYC workflows for engagement:', engagementId);
+        fetchPromise = kycApi.getByEngagement(engagementId);
+      } else {
+        console.log('Fetching KYC workflows for company:', companyId);
+        fetchPromise = kycApi.getByCompany(companyId!);
+      }
+      
       const workflowsResult = await Promise.race([
-        kycApi.getByEngagement(engagementId),
+        fetchPromise,
         timeoutPromise
       ]);
       
@@ -242,10 +278,16 @@ export function EngagementKYC() {
         : [];
       setKycWorkflows(normalizedWorkflows);
 
-      // Also fetch up-to-date document requests for this engagement
+      // Also fetch up-to-date document requests
       // so we always show the latest documents/multipleDocuments in the KYC view
       try {
-        const docRequests = await documentRequestApi.getByEngagement(engagementId);
+        let docRequests = [];
+        if (engagementId) {
+          docRequests = await documentRequestApi.getByEngagement(engagementId);
+        }
+        // If companyId, we might need a similar API or filter relevant ones. 
+        // For now, only for engagement we reliably have this endpoint.
+        
         if (Array.isArray(docRequests)) {
           const map: Record<string, any> = {};
           docRequests.forEach((dr: any) => {
@@ -358,8 +400,9 @@ export function EngagementKYC() {
 
   const handleStatusUpdate = async (kycId: string, newStatus: string) => {
     try {
+      setIsUpdating(true);
       await kycApi.updateStatus(kycId, newStatus);
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "Status Updated",
         description: `KYC workflow status updated to ${newStatus}`,
@@ -371,13 +414,16 @@ export function EngagementKYC() {
         description: error?.message || "Failed to update KYC status",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleReopenKYC = async (kycId: string) => {
     try {
+      setIsUpdating(true);
       await kycApi.updateStatus(kycId, 'reopened');
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "KYC Reopened",
         description: "KYC workflow has been reopened for additional document requests",
@@ -389,6 +435,8 @@ export function EngagementKYC() {
         description: error?.message || "Failed to reopen KYC",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -396,11 +444,12 @@ export function EngagementKYC() {
     if (!deleteDialog.documentRequestId || deleteDialog.documentIndex === undefined) return;
     
     try {
+      setIsUpdating(true);
       await documentRequestApi.deleteDocument(
         deleteDialog.documentRequestId,
         deleteDialog.documentIndex
       );
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "Document Deleted",
         description: "Document has been deleted successfully",
@@ -413,14 +462,17 @@ export function EngagementKYC() {
         description: error?.message || "Failed to delete document",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   // Delete entire document request
   const handleDeleteRequest = async (documentRequestId: string) => {
     try {
+      setIsUpdating(true);
       await documentRequestApi.deleteRequest(documentRequestId);
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "Request Deleted",
         description: "Document request has been deleted successfully",
@@ -433,6 +485,8 @@ export function EngagementKYC() {
         description: error?.message || "Failed to delete document request",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -446,12 +500,13 @@ export function EngagementKYC() {
       return;
 
     try {
+      setIsUpdating(true);
       await documentRequestApi.deleteMultipleDocumentItem(
         deleteDialog.documentRequestId,
         deleteDialog.multipleDocumentId,
         deleteDialog.itemIndex
       );
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "Document Item Deleted",
         description: "Document item has been deleted successfully",
@@ -464,6 +519,8 @@ export function EngagementKYC() {
         description: error?.message || "Failed to delete document item",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -472,11 +529,12 @@ export function EngagementKYC() {
     if (!deleteDialog.documentRequestId || !deleteDialog.multipleDocumentId) return;
 
     try {
+      setIsUpdating(true);
       await documentRequestApi.deleteMultipleDocumentGroup(
         deleteDialog.documentRequestId,
         deleteDialog.multipleDocumentId
       );
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       toast({
         title: "Document Group Deleted",
         description:
@@ -490,6 +548,8 @@ export function EngagementKYC() {
         description: error?.message || "Failed to delete document group",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -543,7 +603,7 @@ export function EngagementKYC() {
         await documentRequestApi.update(documentRequestId, {
           status: newStatus
         });
-        await fetchKYCWorkflows();
+        await fetchKYCWorkflows(0, true);
       }
     } catch (error: any) {
       console.error('Error updating document request status:', error);
@@ -558,6 +618,7 @@ export function EngagementKYC() {
     file: File
   ) => {
     try {
+      setIsUpdating(true);
       setUploadingDocument({ documentRequestId, documentIndex });
       
       const formData = new FormData();
@@ -567,7 +628,7 @@ export function EngagementKYC() {
       await documentRequestApi.uploadSingleDocument(documentRequestId, formData);
       
       // Refresh workflows to get the updated document with URL
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
       
       // Wait a bit for the backend to process, then update status
       setTimeout(async () => {
@@ -576,7 +637,7 @@ export function EngagementKYC() {
           await documentRequestApi.updateDocumentStatus(documentRequestId, documentIndex, 'uploaded');
           
           // Refresh again and update document request status
-          await fetchKYCWorkflows();
+          await fetchKYCWorkflows(0, true);
           
           // Update document request status
           await updateDocumentRequestStatus(documentRequestId);
@@ -598,6 +659,7 @@ export function EngagementKYC() {
       });
     } finally {
       setUploadingDocument(null);
+      setIsUpdating(false);
     }
   };
 
@@ -609,6 +671,7 @@ export function EngagementKYC() {
     itemIndex?: number
   ) => {
     try {
+      setIsUpdating(true);
       setUploadingMultiple({ documentRequestId, multipleDocumentId, itemIndex });
 
       const formData = new FormData();
@@ -623,7 +686,8 @@ export function EngagementKYC() {
         itemIndex
       );
 
-      await fetchKYCWorkflows();
+      
+      await fetchKYCWorkflows(0, true);
 
       toast({
         title: "Documents Uploaded",
@@ -638,6 +702,7 @@ export function EngagementKYC() {
       });
     } finally {
       setUploadingMultiple(null);
+      setIsUpdating(false);
     }
   };
 
@@ -648,8 +713,9 @@ export function EngagementKYC() {
     _documentName: string
   ) => {
     try {
+      setIsUpdating(true);
       await documentRequestApi.clearSingleDocument(documentRequestId, documentIndex);
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
 
       toast({
         title: "File Cleared",
@@ -659,9 +725,10 @@ export function EngagementKYC() {
       console.error("Error clearing document:", error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to clear document",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -673,12 +740,13 @@ export function EngagementKYC() {
     _itemLabel: string
   ) => {
     try {
+      setIsUpdating(true);
       await documentRequestApi.clearMultipleDocumentItem(
         documentRequestId,
         multipleDocumentId,
         itemIndex
       );
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
 
       toast({
         title: "File Cleared",
@@ -688,9 +756,10 @@ export function EngagementKYC() {
       console.error("Error clearing multiple document item:", error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to clear document item",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -701,11 +770,12 @@ export function EngagementKYC() {
     _groupName: string
   ) => {
     try {
+      setIsUpdating(true);
       await documentRequestApi.clearMultipleDocumentGroup(
         documentRequestId,
         multipleDocumentId
       );
-      await fetchKYCWorkflows();
+      await fetchKYCWorkflows(0, true);
 
       toast({
         title: "Files Cleared",
@@ -718,6 +788,8 @@ export function EngagementKYC() {
         description: error?.message || "Failed to clear group",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -822,11 +894,13 @@ export function EngagementKYC() {
               <p className="text-gray-600 mb-4">
                 No KYC workflows have been created for this engagement yet.
               </p>
-              {engagementId && kycWorkflows.length === 0 && (
+              {(engagementId || companyId) && kycWorkflows.length === 0 && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
-                  clientId={engagement?.clientId || ''}
+                  companyId={companyId}
+                  clientId={engagement?.clientId || clientId || ''}
                   engagementName={engagement?.title}
+                  company={engagement?.companyId}
                   onSuccess={fetchKYCWorkflows}
                   trigger={
                     <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
@@ -897,10 +971,11 @@ export function EngagementKYC() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
-                {engagementId && (
+                {/* {(engagementId || companyId) && (
                   <ManualUploadModal
                     kycId={kycWorkflows[0]._id}
                     engagementId={engagementId}
+                    companyId={companyId}
                     clientId={kycWorkflows[0].clientId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
@@ -910,13 +985,14 @@ export function EngagementKYC() {
                       </Button>
                     }
                   />
-                )}
-                {engagementId && (
+                )} */}
+                {(engagementId || companyId) && (
                   <AddDocumentRequestModal
                     kycId={kycWorkflows[0]._id}
                     engagementId={engagementId}
+                    companyId={companyId}
                     clientId={kycWorkflows[0].clientId}
-                    company={engagement?.companyId}
+                    company={companyProp || engagement?.companyId}
                     onSuccess={fetchKYCWorkflows}
                     trigger={
                       <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
@@ -1078,13 +1154,13 @@ export function EngagementKYC() {
                                 <div className="flex items-center gap-3 flex-1">
                               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                                 <span className="text-lg font-semibold text-blue-700">
-                                      {item.person?.name?.charAt(0).toUpperCase() || "U"}
+                                      {item.person?.name?.charAt(0).toUpperCase() || (engagementId ? "U" : (workflow as any).company?.name?.charAt(0).toUpperCase() || "C")}
                                 </span>
                               </div>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                       <h4 className="font-semibold text-gray-900 text-lg">
-                                        {item.person?.name || "Unknown Person"}
+                                        {item.person?.name || (engagementId ? "Unknown Person" : (workflow as any).company?.name || "Company Request")}
                                       </h4>
                                       <Badge
                                         variant="outline"
@@ -1177,9 +1253,9 @@ export function EngagementKYC() {
                                     ...payload,
                                   })
                                 }
-                                engagementId={engagementId || undefined}
                                 clientId={workflow.clientId}
                                 onDocumentsAdded={fetchKYCWorkflows}
+                                isDisabled={loading || isUpdating}
                               />
                         </div>
                       );
@@ -1205,12 +1281,13 @@ export function EngagementKYC() {
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
               <p className="text-gray-600 mb-4">
-                No KYC workflows have been created for this engagement yet.
+                No KYC workflows have been created for this {engagementId ? "engagement" : "company"} yet.
               </p>
-              {engagementId && (
+              {(engagementId || companyId) && (
                 <KYCDocumentRequestModal
                   engagementId={engagementId}
-                  clientId={engagement?.clientId || ''}
+                  companyId={companyId}
+                  clientId={engagement?.clientId || clientId || ''}
                   engagementName={engagement?.title}
                   company={engagement?.companyId}
                   onSuccess={fetchKYCWorkflows}

@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { getUserSettings, updateUserSettings, getOrgSettings } from "@/services/settingsService";
+import { setup2FA, verifyAndEnable2FA, disable2FA } from "@/services/authService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertCircle,
   Bell,
@@ -55,7 +59,7 @@ const EMPLOYEE_PROFILE_KEY = "employee-settings-profile";
 const SECURITY_KEY = "employee-settings-security";
 const REMINDER_KEY = "employee-settings-reminders";
 const ORG_COMPLIANCE_KEY = "admin-settings-org-compliance";
-const ORG_INTEGRATIONS_KEY = "admin-settings-org-integrations";
+
 
 export const EmployeeSettingsPage = () => {
   const { user } = useAuth();
@@ -84,52 +88,162 @@ export const EmployeeSettingsPage = () => {
   const [orgIntegrations, setOrgIntegrations] = useState<OrgIntegrationSettings | null>(null);
 
   useEffect(() => {
-    try {
-      const storedSecurity = localStorage.getItem(SECURITY_KEY);
-      if (storedSecurity) {
-        setSecurity(JSON.parse(storedSecurity));
+    const fetchData = async () => {
+      try {
+        const userSettings = await getUserSettings();
+        if (userSettings.profile) {
+          setProfile({
+            displayName: userSettings.profile.displayName || "",
+            phone: userSettings.profile.phone || ""
+          });
+        }
+        if (userSettings.security) setSecurity(userSettings.security);
+        if (userSettings.reminders) setReminders(userSettings.reminders);
+
+        const orgSettings = await getOrgSettings();
+        if (orgSettings.complianceSettings) setOrgCompliance(orgSettings.complianceSettings);
+        // Integrations logic was removed, but if you want org integrations (e.g. knowing if MBR is enabled), 
+        // you would need that in the backend. Currently removed as requested.
+      } catch (error) {
+        console.error("Failed to fetch settings", error);
       }
-      const storedReminders = localStorage.getItem(REMINDER_KEY);
-      if (storedReminders) {
-        setReminders(JSON.parse(storedReminders));
-      }
-      const storedCompliance = localStorage.getItem(ORG_COMPLIANCE_KEY);
-      if (storedCompliance) {
-        setOrgCompliance(JSON.parse(storedCompliance));
-      }
-      const storedIntegrations = localStorage.getItem(ORG_INTEGRATIONS_KEY);
-      if (storedIntegrations) {
-        setOrgIntegrations(JSON.parse(storedIntegrations));
-      }
-    } catch {
-      // ignore corrupt localStorage
-    }
+    };
+    fetchData();
   }, []);
 
-  const handleSaveProfile = () => {
-    localStorage.setItem(EMPLOYEE_PROFILE_KEY, JSON.stringify(profile));
-    toast({
-      title: "Profile saved",
-      description: "Your profile has been updated locally. Contact admin to change email.",
-    });
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({ profile });
+      toast({
+        title: "Profile saved",
+        description: "Your profile has been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save profile.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveSecurity = () => {
-    localStorage.setItem(SECURITY_KEY, JSON.stringify(security));
-    toast({
-      title: "Security preferences saved",
-      description: "Your 2FA preference has been stored for this device.",
-    });
+  const handleSaveSecurity = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({ security });
+      toast({
+        title: "Security preferences saved",
+        description: "Your 2FA preference has been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save security settings.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveReminders = () => {
-    localStorage.setItem(REMINDER_KEY, JSON.stringify(reminders));
-    toast({
-      title: "Reminder settings saved",
-      description: "Document reminder preferences have been updated.",
-    });
+  const [show2FASetup, setShow2FASetup] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [setupError, setSetupError] = useState("");
+
+  const handleToggle2FA = async (checked: boolean) => {
+    if (checked) {
+      // Start Setup
+      setSaving(true);
+      try {
+        const data = await setup2FA();
+        setQrCodeData(data.qrCode);
+        setShow2FASetup(true);
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to initiate 2FA setup", variant: "destructive" });
+      } finally {
+        setSaving(false); // Stop loading, but don't toggle yet until verified
+      }
+    } else {
+      // Disable 2FA
+      setSaving(true);
+      try {
+        await disable2FA();
+        setSecurity(prev => ({ ...prev, twoFactorEnabled: false }));
+        toast({ title: "2FA Disabled", description: "Two-factor authentication has been turned off." });
+      } catch (error) {
+        toast({ title: "Error", description: "Failed to disable 2FA", variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
+  const handleVerify2FA = async () => {
+    try {
+      await verifyAndEnable2FA(verificationCode);
+      setShow2FASetup(false);
+      setSecurity(prev => ({ ...prev, twoFactorEnabled: true }));
+      setVerificationCode("");
+      toast({ title: "Success", description: "2FA is now enabled for your account." });
+    } catch (error: any) {
+      setSetupError(error.message || "Invalid code");
+    }
+  };
+  const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
+
+  const handleChangePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      toast({ title: "Error", description: "New passwords do not match.", variant: "destructive" });
+      return;
+    }
+    if (passwords.new.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.email) throw new Error("User not found");
+
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwords.current,
+      });
+
+      if (signInError) {
+        throw new Error("Incorrect current password.");
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwords.new
+      });
+
+      if (updateError) throw updateError;
+
+      toast({ title: "Success", description: "Password updated successfully." });
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update password.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveReminders = async () => {
+    setSaving(true);
+    try {
+      await updateUserSettings({ reminders });
+      toast({
+        title: "Reminder settings saved",
+        description: "Document reminder preferences have been updated.",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to save reminder settings.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="container max-w-5xl py-8 space-y-6">
       <div className="flex flex-col gap-2">
@@ -144,7 +258,7 @@ export const EmployeeSettingsPage = () => {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+
           <TabsTrigger value="legal">Help & Legal</TabsTrigger>
         </TabsList>
 
@@ -159,67 +273,118 @@ export const EmployeeSettingsPage = () => {
               <CardDescription>Update your basic profile information.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Name</Label>
-              <Input
-                id="displayName"
-                value={profile.displayName}
-                onChange={(e) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    displayName: e.target.value,
-                  }))
-                }
-                placeholder="Your name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={user?.email || ""} disabled />
-              <p className="text-xs text-muted-foreground mt-1">
-                Email is managed by your firm administrator.
-              </p>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Name</Label>
+                  <Input
+                    id="displayName"
+                    value={profile.displayName}
+                    onChange={(e) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        displayName: e.target.value,
+                      }))
+                    }
+                    placeholder="Your name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" value={user?.email || ""} disabled />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Email is managed by your firm administrator.
+                  </p>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone (optional)</Label>
-              <Input
-                id="phone"
-                value={profile.phone || ""}
-                onChange={(e) =>
-                  setProfile((prev) => ({
-                    ...prev,
-                    phone: e.target.value,
-                  }))
-                }
-                placeholder="+356 0000 0000"
-              />
-              <p className="text-xs text-muted-foreground">
-                Used for future SMS or phone‑based notifications if enabled by your firm.
-              </p>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone (optional)</Label>
+                  <Input
+                    id="phone"
+                    value={profile.phone || ""}
+                    onChange={(e) =>
+                      setProfile((prev) => ({
+                        ...prev,
+                        phone: e.target.value,
+                      }))
+                    }
+                    placeholder="+356 0000 0000"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used for future SMS or phone‑based notifications if enabled by your firm.
+                  </p>
+                </div>
+              </div>
 
-          <Separator className="my-4" />
+              <Separator className="my-4" />
 
-          <div className="space-y-2">
-            <Label>Password</Label>
-            <p className="text-sm text-muted-foreground">
-              For security reasons, password changes are handled via the{" "}
-              <Link to="/auth/reset-password" className="underline">
-                password reset flow
-              </Link>
-              .
-            </p>
-          </div>
+              <div className="space-y-4">
+                <Label>Change Password</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwords.current}
+                      onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                      placeholder="Current password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={passwords.new}
+                        onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                        placeholder="New password"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={passwords.confirm}
+                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                        placeholder="Confirm new password"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      // Clear fields
+                      setPasswords({ current: '', new: '', confirm: '' });
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={saving || !passwords.current || !passwords.new}
+                    onClick={handleChangePassword}
+                  >
+                    {saving ? "Updating..." : "Update Password"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If you forgot your password, you can <Link to="/auth/forgot-password" className="underline text-primary">reset it via email</Link>.
+                </p>
+              </div>
 
-          <div className="flex justify-end">
-            <Button onClick={handleSaveProfile}>Save profile</Button>
-          </div>
-        </CardContent>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveProfile} disabled={saving}>
+                  {saving ? "Saving..." : "Save details"}
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -236,33 +401,32 @@ export const EmployeeSettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1 max-w-md">
-              <Label htmlFor="twofa">Two‑factor authentication</Label>
-              <p className="text-sm text-muted-foreground">
-                Require a second step (email or authenticator app) when signing in.
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 max-w-md">
+                  <Label htmlFor="twofa">Two‑factor authentication</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Require a second step (email or authenticator app) when signing in.
+                  </p>
+                </div>
+                <Switch
+                  id="twofa"
+                  checked={security.twoFactorEnabled}
+                  onCheckedChange={handleToggle2FA}
+                  disabled={saving}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                This toggle controls your preference only. Your firm admin can still enforce 2FA
+                globally.
               </p>
-            </div>
-            <Switch
-              id="twofa"
-              checked={security.twoFactorEnabled}
-              onCheckedChange={(value) =>
-                setSecurity((prev) => ({ ...prev, twoFactorEnabled: value }))
-              }
-            />
-          </div>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            This toggle controls your preference only. Your firm admin can still enforce 2FA
-            globally.
-          </p>
 
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={handleSaveSecurity}>
-              Save security settings
-            </Button>
-          </div>
-        </CardContent>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={handleSaveSecurity} disabled={saving}>
+                  {saving ? "Saving..." : "Save security settings"}
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -279,136 +443,72 @@ export const EmployeeSettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1 max-w-md">
-              <Label htmlFor="document-reminders">Document reminders</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive reminders when documents or requests are pending or approaching their due
-                date.
-              </p>
-            </div>
-            <Switch
-              id="document-reminders"
-              checked={reminders.documentRemindersEnabled}
-              onCheckedChange={(value) =>
-                setReminders((prev) => ({ ...prev, documentRemindersEnabled: value }))
-              }
-            />
-          </div>
-
-          <div className="space-y-2 max-w-xs">
-            <Label htmlFor="reminder-days">Remind me before due date (days)</Label>
-            <Input
-              id="reminder-days"
-              type="number"
-              min={1}
-              max={30}
-              value={reminders.reminderDaysBeforeDue}
-              onChange={(e) =>
-                setReminders((prev) => ({
-                  ...prev,
-                  reminderDaysBeforeDue: Number(e.target.value) || 1,
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Used for future document‑reminder features across the portal.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
-            <div className="text-sm text-muted-foreground">
-              For channel‑level settings (email, push, sound), use the advanced notification page.
-            </div>
-            <Button variant="outline" asChild>
-              <Link to="/settings/notifications">Open advanced notification settings</Link>
-            </Button>
-          </div>
-
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={handleSaveReminders}>
-              Save reminder settings
-            </Button>
-          </div>
-        </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Integrations & External Links */}
-        <TabsContent value="integrations" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                Integrations & External Services
-              </CardTitle>
-              <CardDescription>
-                Manage personal connections to external tools used in your engagements.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Label>Organization integrations</Label>
-              <p className="text-sm text-muted-foreground">
-                These settings are configured by your admin. You can see what is currently enabled for
-                your firm.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1 border rounded-xl p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Accounting APIs</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">
-                    {orgIntegrations?.accountingEnabled ? "Enabled" : "Disabled"}
-                  </span>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 max-w-md">
+                  <Label htmlFor="document-reminders">Document reminders</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive reminders when documents or requests are pending or approaching their due
+                    date.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {orgIntegrations?.accountingNotes ||
-                    "Connect accounting systems like Xero or QuickBooks when your admin enables them."}
+                <Switch
+                  id="doc-reminders"
+                  checked={reminders.documentRemindersEnabled}
+                  onCheckedChange={async (value) => {
+                    setReminders(prev => ({ ...prev, documentRemindersEnabled: value }));
+                    setSaving(true);
+                    try {
+                      await updateUserSettings({ reminders: { ...reminders, documentRemindersEnabled: value } });
+                      toast({ title: "Saved", description: "Notification preference updated." });
+                    } catch {
+                      toast({ title: "Error", description: "Failed to save.", variant: "destructive" });
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                />
+              </div>
+
+              <div className="space-y-2 max-w-xs">
+                <Label htmlFor="reminder-days">Remind me before due date (days)</Label>
+                <Input
+                  id="reminder-days"
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={reminders.reminderDaysBeforeDue}
+                  onChange={(e) =>
+                    setReminders((prev) => ({
+                      ...prev,
+                      reminderDaysBeforeDue: Number(e.target.value) || 1,
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for future document‑reminder features across the portal.
                 </p>
               </div>
 
-              <div className="space-y-1 border rounded-xl p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">MBR integration</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">
-                    {orgIntegrations?.mbrEnabled ? "Enabled" : "Optional"}
-                  </span>
+              <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
+                <div className="text-sm text-muted-foreground">
+                  For channel‑level settings (email, push, sound), use the advanced notification page.
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Open the Malta Business Registry in a new tab to search for company records.
-                </p>
-                <Button variant="outline" asChild size="sm" className="mt-2">
-                  <a
-                    href={orgIntegrations?.mbrUrl || "https://mbr.mt"}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open MBR website
-                  </a>
+                <Button variant="outline" asChild>
+                  <Link to="/settings/notifications">Open advanced notification settings</Link>
                 </Button>
               </div>
 
-              <div className="space-y-1 border rounded-xl p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">E‑signature</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100">
-                    {orgIntegrations?.eSignatureEnabled ? "Enabled" : "Disabled"}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {orgIntegrations?.eSignatureProvider
-                    ? `Provider: ${orgIntegrations.eSignatureProvider}`
-                    : "Your firm can configure providers like DocuSign or Adobe Sign."}
-                </p>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={handleSaveReminders} disabled={saving}>
+                  {saving ? "Saving..." : "Save reminder settings"}
+                </Button>
               </div>
-            </div>
-          </div>
-        </CardContent>
+            </CardContent>
           </Card>
         </TabsContent>
+
+
 
         {/* Help, FAQs, Legal */}
         <TabsContent value="legal" className="mt-4">
@@ -423,60 +523,90 @@ export const EmployeeSettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>FAQs & Support</Label>
-              <Textarea
-                className="min-h-[80px]"
-                readOnly
-                value={
-                  orgCompliance?.faqsMarkdown ||
-                  "Your firm can publish FAQs here to explain conventions (naming, review process, deadlines, etc.).\n\nFor now, contact your firm administrator for help."
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Legal & Privacy</Label>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>
-                  •{" "}
-                  {orgCompliance?.termsUrl ? (
-                    <a href={orgCompliance.termsUrl} target="_blank" rel="noreferrer" className="underline">
-                      Terms of Use
-                    </a>
-                  ) : (
-                    <Link to="/legal/terms" className="underline">
-                      Terms of Use
-                    </Link>
-                  )}
-                </p>
-                <p>
-                  •{" "}
-                  {orgCompliance?.privacyUrl ? (
-                    <a href={orgCompliance.privacyUrl} target="_blank" rel="noreferrer" className="underline">
-                      Privacy Policy
-                    </a>
-                  ) : (
-                    <Link to="/legal/privacy" className="underline">
-                      Privacy Policy
-                    </Link>
-                  )}
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>FAQs & Support</Label>
+                  <Textarea
+                    className="min-h-[80px]"
+                    readOnly
+                    value={
+                      orgCompliance?.faqsMarkdown ||
+                      "Your firm can publish FAQs here to explain conventions (naming, review process, deadlines, etc.).\n\nFor now, contact your firm administrator for help."
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Legal & Privacy</Label>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <p>
+                      •{" "}
+                      {orgCompliance?.termsUrl ? (
+                        <a href={orgCompliance.termsUrl} target="_blank" rel="noreferrer" className="underline">
+                          Terms of Use
+                        </a>
+                      ) : (
+                        <Link to="/legal/terms" className="underline">
+                          Terms of Use
+                        </Link>
+                      )}
+                    </p>
+                    <p>
+                      •{" "}
+                      {orgCompliance?.privacyUrl ? (
+                        <a href={orgCompliance.privacyUrl} target="_blank" rel="noreferrer" className="underline">
+                          Privacy Policy
+                        </a>
+                      ) : (
+                        <Link to="/legal/privacy" className="underline">
+                          Privacy Policy
+                        </Link>
+                      )}
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-            <FileText className="h-3 w-3" />
-            <span>
-              These settings affect only your personal account. Firm‑wide defaults are managed in the
-              Admin Portal.
-            </span>
-          </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                <FileText className="h-3 w-3" />
+                <span>
+                  These settings affect only your personal account. Firm‑wide defaults are managed in the
+                  Admin Portal.
+                </span>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 2FA Setup Dialog */}
+      <Dialog open={show2FASetup} onOpenChange={setShow2FASetup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Setup Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Scan the QR code with your authenticator app (e.g., Google Authenticator, Authy).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrCodeData && (
+              <img src={qrCodeData} alt="2FA QR Code" className="w-48 h-48 border rounded-lg" />
+            )}
+            <Input
+              placeholder="Enter 6-digit code"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              className="text-center text-lg tracking-widest max-w-[200px]"
+            />
+            {setupError && <p className="text-red-500 text-sm">{setupError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShow2FASetup(false)}>Cancel</Button>
+            <Button onClick={handleVerify2FA} disabled={!verificationCode || verificationCode.length !== 6}>
+              Verify & Enable
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

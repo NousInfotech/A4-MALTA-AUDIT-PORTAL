@@ -12,6 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, Sparkles, ArrowRight, Lock, Mail, Key, Users, CheckCircle, Shield, Smartphone, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { getUserSettings } from '@/services/settingsService';
+import { validate2FA } from '@/services/authService';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -20,12 +22,9 @@ export const LoginPage = () => {
   const [error, setError] = useState('');
   const [show2FA, setShow2FA] = useState(false);
   const [twoFactorToken, setTwoFactorToken] = useState('');
-  const [twoFactorMethod, setTwoFactorMethod] = useState<'email' | 'totp'>('email');
-  const [sendingOTP, setSendingOTP] = useState(false);
   const [verifying2FA, setVerifying2FA] = useState(false);
   const [sessionWarning, setSessionWarning] = useState<{ show: boolean; minutesLeft: number }>({ show: false, minutesLeft: 0 });
-  const [sessionCheckInterval, setSessionCheckInterval] = useState<NodeJS.Timeout | null>(null);
-  
+
   const { login, isLoading } = useAuth();
   const { branding } = useBranding();
   const navigate = useNavigate();
@@ -43,10 +42,10 @@ export const LoginPage = () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now() + 30 * 60 * 1000; // Default 30 min
+          const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now() + 30 * 60 * 1000;
           const now = Date.now();
           const minutesLeft = Math.max(0, Math.floor((expiresAt - now) / 60000));
-          
+
           if (minutesLeft <= 5 && minutesLeft > 0) {
             setSessionWarning({ show: true, minutesLeft });
           } else if (minutesLeft <= 0) {
@@ -65,35 +64,10 @@ export const LoginPage = () => {
       }
     };
 
-    // Check every minute
     const interval = setInterval(checkSessionTimeout, 60000);
-    checkSessionTimeout(); // Initial check
-    setSessionCheckInterval(interval);
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    checkSessionTimeout();
+    return () => clearInterval(interval);
   }, [toast]);
-
-  const handleSendOTP = async () => {
-    setSendingOTP(true);
-    try {
-      // In a real implementation, this would call your backend API
-      // For now, we'll simulate it
-      toast({
-        title: "OTP Sent",
-        description: "Check your email for the verification code",
-      });
-    } catch (e: any) {
-      toast({
-        title: "Error",
-        description: e.message || "Failed to send OTP",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingOTP(false);
-    }
-  };
 
   const handleVerify2FA = async () => {
     if (!twoFactorToken.trim() || twoFactorToken.length !== 6) {
@@ -107,17 +81,19 @@ export const LoginPage = () => {
 
     setVerifying2FA(true);
     try {
-      // In a real implementation, verify 2FA token with backend
-      // For now, we'll simulate verification
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: "Verified",
-        description: "2FA verification successful",
-      });
-      setShow2FA(false);
-      setTwoFactorToken('');
-      navigate(from, { replace: true });
+      const result = await validate2FA(twoFactorToken);
+
+      if (result.valid) {
+        toast({
+          title: "Verified",
+          description: "2FA verification successful",
+        });
+        setShow2FA(false);
+        setTwoFactorToken('');
+        navigate(from, { replace: true });
+      } else {
+        throw new Error("Invalid code");
+      }
     } catch (e: any) {
       toast({
         title: "Verification Failed",
@@ -154,16 +130,19 @@ export const LoginPage = () => {
     setError('');
 
     const success = await login(email, password);
-    
+
     if (success) {
-      // 2FA Authentication - COMMENTED OUT FOR NOW
-      // Check if user has 2FA enabled (in a real app, this would come from user profile)
-      // For now, we'll show 2FA dialog for all users
-      // setShow2FA(true);
-      // handleSendOTP(); // Automatically send OTP
-      
-      // Direct navigation without 2FA
-      navigate(from, { replace: true });
+      try {
+        const settings = await getUserSettings();
+        if (settings.security && settings.security.twoFactorEnabled) {
+          setShow2FA(true);
+        } else {
+          navigate(from, { replace: true });
+        }
+      } catch (err) {
+        // Fallback or safe enter
+        navigate(from, { replace: true });
+      }
     } else {
       setError('Invalid credentials or account not approved');
     }
@@ -173,10 +152,9 @@ export const LoginPage = () => {
     <div className="min-h-screen bg-gray-100 flex">
       {/* Left Sidebar - Dark Theme */}
       <div className="hidden lg:flex w-1/2 bg-brand-sidebar relative overflow-hidden">
-        {/* Content */}
         <div className="relative z-10 flex items-center justify-center h-full p-12">
           <div className="text-center text-white space-y-8 max-w-lg">
-            {/* Logo */}
+
             <div className="flex items-center justify-center space-x-4 mb-8">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30">
                 <img src={logoUrl} alt="Logo" className="h-14 w-14 object-cover rounded" />
@@ -185,20 +163,16 @@ export const LoginPage = () => {
                 <span className="text-3xl font-bold block">{orgName}</span>
                 <span className="text-xs font-medium uppercase tracking-wider opacity-70 block">{orgSubname}</span>
               </div>
-        </div>
+            </div>
 
             <h1 className="text-5xl font-bold leading-tight">
-              Welcome to
-              <span className="block text-gray-300">
-                {orgName}
-              </span>
+              Welcome to <span className="block text-gray-300">{orgName}</span>
             </h1>
-            
+
             <p className="text-xl text-gray-300 leading-relaxed">
               Streamline your audit processes with our modern platform designed for professionals.
             </p>
-            
-            {/* Feature Cards */}
+
             <div className="grid grid-cols-1 gap-4 mt-12">
               <div className="bg-white/10 rounded-2xl p-4 border border-white/20">
                 <div className="flex items-center space-x-3">
@@ -209,9 +183,9 @@ export const LoginPage = () => {
                     <h3 className="font-semibold text-white">Smart Automation</h3>
                     <p className="text-gray-300 text-sm">AI-powered audit procedures</p>
                   </div>
-                    </div>
-                  </div>
-                  
+                </div>
+              </div>
+
               <div className="bg-white/10 rounded-2xl p-4 border border-white/20">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gray-700 rounded-xl flex items-center justify-center">
@@ -224,6 +198,7 @@ export const LoginPage = () => {
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -231,7 +206,7 @@ export const LoginPage = () => {
       {/* Right Section - Light Theme */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-16">
         <div className="relative w-full max-w-md space-y-8">
-          {/* Header */}
+
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex items-center justify-center lg:justify-start space-x-3">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
@@ -242,122 +217,100 @@ export const LoginPage = () => {
                 <span className="text-xs font-medium uppercase tracking-wider text-gray-600">{orgSubname}</span>
               </div>
             </div>
-            
+
             <div className="space-y-3">
-              <h1 className="text-4xl font-bold text-brand-body leading-tight">
-                Welcome back
-              </h1>
-              <p className="text-gray-600 text-lg">
-                Sign in to your account
-              </p>
+              <h1 className="text-4xl font-bold text-brand-body leading-tight">Welcome back</h1>
+              <p className="text-gray-600 text-lg">Sign in to your account</p>
             </div>
           </div>
 
           {/* Form */}
           <div className="bg-white border border-gray-200 rounded-2xl shadow-lg p-8">
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    {error && (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <p className="text-red-800 font-medium">{error}</p>
                 </div>
-                    )}
-                    
-                    <div className="space-y-3">
-                      <Label htmlFor="email" className="text-sm font-semibold text-gray-700">Email Address</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-600" />
-                        <Input
-                          id="email"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="Enter your email"
-                    className="h-12 pl-12 border-gray-200 focus:border-gray-400 rounded-lg"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <Label htmlFor="password" className="text-sm font-semibold text-gray-700">Password</Label>
-                      <div className="relative">
-                        <Key className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-600" />
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Enter your password"
-                    className="h-12 pl-12 pr-12 border-gray-200 focus:border-gray-400 rounded-lg"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      type="submit" 
-                className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-semibold" 
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : (
-                        <Lock className="mr-2 h-5 w-5" />
-                      )}
-                      Sign In
-                    </Button>
-                  </form>
-                  
-            {/* <div className="text-center pt-6 border-t border-gray-200">
-                    <p className="text-gray-600">
-                      Don't have an account?{' '}
-                <Link to="/signup" className="text-gray-800 font-semibold hover:text-gray-900">
-                        Sign up
-                      </Link>
-              </p>
-            </div> */}
+              )}
+
+              <div className="space-y-3">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-600" />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="h-12 pl-12 rounded-lg"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-600" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="h-12 pl-12 pr-12 rounded-lg"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end">
+                <Link to="/auth/forgot-password" className="text-sm font-medium text-primary hover:text-primary/90">
+                  Forgot password?
+                </Link>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 rounded-lg font-semibold"
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Lock className="mr-2 h-5 w-5" />}
+                Sign In
+              </Button>
+            </form>
           </div>
 
-
-          {/* Session Timeout Warning */}
           {sessionWarning.show && (
             <Alert className="mt-4 border-yellow-200 bg-yellow-50">
               <AlertTriangle className="h-4 w-4 text-yellow-600" />
               <AlertTitle className="text-yellow-800">Session Timeout Warning</AlertTitle>
               <AlertDescription className="text-yellow-700">
                 {sessionWarning.minutesLeft > 0 ? (
-                  <>
-                    Your session will expire in {sessionWarning.minutesLeft} minute{sessionWarning.minutesLeft !== 1 ? "s" : ""}.
-                    Click refresh to extend your session.
-                  </>
-                ) : (
-                  "Your session has expired. Please log in again."
-                )}
+                  <>Your session will expire in {sessionWarning.minutesLeft} minute{sessionWarning.minutesLeft !== 1 ? "s" : ""}. Click refresh to extend.</>
+                ) : "Your session has expired."}
               </AlertDescription>
               {sessionWarning.minutesLeft > 0 && (
-                <Button
-                  size="sm"
-                  onClick={handleRefreshSession}
-                  className="mt-2"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh Session
+                <Button size="sm" onClick={handleRefreshSession} className="mt-2">
+                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh Session
                 </Button>
               )}
             </Alert>
           )}
+
         </div>
       </div>
 
-      {/* 2FA Dialog - COMMENTED OUT FOR NOW */}
-      {/* <Dialog open={show2FA} onOpenChange={setShow2FA}>
+      {/* 2FA Dialog */}
+      <Dialog open={show2FA} onOpenChange={setShow2FA}>
         <DialogContent className="max-w-md bg-white">
           <DialogHeader>
             <div className="flex items-center gap-2">
@@ -370,88 +323,35 @@ export const LoginPage = () => {
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            <div className="flex gap-2">
-              <Button
-                variant={twoFactorMethod === "email" ? "default" : "outline"}
-                onClick={() => setTwoFactorMethod("email")}
-                className="flex-1"
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Email
-              </Button>
-              <Button
-                variant={twoFactorMethod === "totp" ? "default" : "outline"}
-                onClick={() => setTwoFactorMethod("totp")}
-                className="flex-1"
-              >
-                <Smartphone className="h-4 w-4 mr-2" />
-                Authenticator App
-              </Button>
+            <Button variant="default" className="w-full flex justify-between items-center" disabled>
+              <span className="flex items-center"><Smartphone className="h-4 w-4 mr-2" /> Authenticator App</span>
+              <CheckCircle className="h-4 w-4" />
+            </Button>
+
+            <div className="space-y-2">
+              <Label>Verification Code</Label>
+              <Input
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={twoFactorToken}
+                onChange={(e) => setTwoFactorToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={6}
+                className="text-center tracking-widest text-lg"
+              />
             </div>
-
-            {twoFactorMethod === "email" && (
-              <div className="space-y-4">
-                <div>
-                  <Label>Verification Code</Label>
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={twoFactorToken}
-                    onChange={(e) => setTwoFactorToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    maxLength={6}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    A verification code has been sent to your email
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={handleSendOTP}
-                  disabled={sendingOTP}
-                  className="w-full"
-                >
-                  {sendingOTP ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Mail className="h-4 w-4 mr-2" />
-                  )}
-                  Resend Code
-                </Button>
-              </div>
-            )}
-
-            {twoFactorMethod === "totp" && (
-              <div className="space-y-4">
-                <div>
-                  <Label>Verification Code</Label>
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit code from app"
-                    value={twoFactorToken}
-                    onChange={(e) => setTwoFactorToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    maxLength={6}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            )}
 
             <Button
               onClick={handleVerify2FA}
-              disabled={verifying2FA || !twoFactorToken.trim() || twoFactorToken.length !== 6}
+              disabled={verifying2FA || twoFactorToken.length !== 6}
               className="w-full"
             >
-              {verifying2FA ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Shield className="h-4 w-4 mr-2" />
-              )}
+              {verifying2FA ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
               Verify
             </Button>
           </div>
         </DialogContent>
-      </Dialog> */}
+      </Dialog>
+
     </div>
   );
 };
