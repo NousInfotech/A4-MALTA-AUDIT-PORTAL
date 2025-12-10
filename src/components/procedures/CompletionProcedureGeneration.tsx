@@ -202,8 +202,9 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
     // When "Proceed to Procedures" is clicked (moving from step 1 to step 2)
     // Switch to View tab immediately and skip showing step 2 UI
     if (currentStep === 1) {
-      // Create minimal procedure structure from selectedClassifications (which are section IDs) for View components
-      const sectionTitles: Record<string, string> = {
+      // Completion procedures always use all 7 fixed sections (P1-P7), not classifications
+      // Map to completion section IDs regardless of what was selected in classification step
+      const completionSectionMap: Record<string, string> = {
         "initial_completion": "P1: Initial Completion",
         "audit_highlights_report": "P2: Audit Highlights Report",
         "final_analytical_review": "P3: Final Analytical Review",
@@ -213,11 +214,12 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
         "reappointment_schedule": "P7: Reappointment Schedule"
       }
       
-      const selectedSections = updatedData.selectedClassifications || []
-      const initialProcedures = selectedSections.map((sectionId: string) => ({
+      // Always use all completion sections (P1-P7) - these are fixed, not based on classifications
+      const allCompletionSectionIds = Object.keys(completionSectionMap)
+      const initialProcedures = allCompletionSectionIds.map((sectionId: string) => ({
         id: sectionId,
         sectionId: sectionId,
-        title: sectionTitles[sectionId] || sectionId,
+        title: completionSectionMap[sectionId],
         fields: [] // Empty initially, will be populated when questions are generated
       }))
       
@@ -230,7 +232,7 @@ export const CompletionProcedureGeneration: React.FC<CompletionProcedureGenerati
         procedures: initialProcedures,
         recommendations: [],
         status: "in-progress",
-        selectedClassifications: updatedData.selectedClassifications || [],
+        selectedSections: allCompletionSectionIds, // Use selectedSections to match Planning Procedures pattern
       }
       
       // Switch to View tab
