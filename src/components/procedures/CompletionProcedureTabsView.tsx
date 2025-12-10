@@ -142,10 +142,35 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
   
   // Initialize procedures from stepData
   const [procedures, setProcedures] = useState<any[]>(() => {
+    // Valid completion section IDs (P1-P7)
+    const validSectionIds = new Set(COMPLETION_SECTIONS.map(s => s.sectionId))
+    
     if (stepData.procedures && stepData.procedures.length > 0) {
-      return stepData.procedures
+      // Filter out any procedures with invalid sectionIds (e.g., classifications)
+      // and ensure we have all valid completion sections
+      const validProcedures = stepData.procedures.filter((proc: any) => 
+        proc.sectionId && validSectionIds.has(proc.sectionId)
+      )
+      
+      // If we have valid procedures, use them; otherwise fall back to all sections
+      if (validProcedures.length > 0) {
+        // Ensure all completion sections are present
+        const existingSectionIds = new Set(validProcedures.map((p: any) => p.sectionId))
+        const missingSections = COMPLETION_SECTIONS.filter(s => !existingSectionIds.has(s.sectionId))
+        
+        return [
+          ...validProcedures,
+          ...missingSections.map(section => ({
+            id: section.sectionId,
+            sectionId: section.sectionId,
+            title: section.title,
+            fields: []
+          }))
+        ]
+      }
     }
-    // Create empty sections
+    
+    // Create empty sections for all completion sections (P1-P7)
     return COMPLETION_SECTIONS.map(section => ({
       id: section.sectionId,
       sectionId: section.sectionId,
@@ -275,36 +300,124 @@ export const CompletionProcedureTabsView: React.FC<CompletionProcedureTabsViewPr
       
       if (sectionId) {
         // Generate for specific section
+        if (!engagement?._id) {
+          throw new Error("Engagement ID is missing")
+        }
+        if (!sectionId || sectionId.trim() === "") {
+          throw new Error("Section ID is missing")
+        }
+        
         const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}/generate/section-questions`, {
           method: "POST",
           body: JSON.stringify({ sectionId }),
         })
         
-        if (!res.ok) throw new Error("Failed to generate questions")
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "")
+          let errorMessage = `Failed to generate questions (HTTP ${res.status})`
+          
+          if (res.status === 404) {
+            try {
+              const errorData = JSON.parse(errorText)
+              errorMessage = errorData.message || `Section "${sectionId}" not found. Please check if the section ID is valid.`
+            } catch {
+              errorMessage = `Route or section not found. Please verify the section ID "${sectionId}" is correct.`
+            }
+          } else if (errorText) {
+            try {
+              const errorData = JSON.parse(errorText)
+              errorMessage = errorData.message || errorData.error || errorMessage
+            } catch {
+              errorMessage = errorText || errorMessage
+            }
+          }
+          
+          throw new Error(errorMessage)
+        }
         const data = await res.json()
         
+        if (!data.fields || !Array.isArray(data.fields)) {
+          throw new Error("Invalid response format: missing fields array")
+        }
+        
+        // Ensure fields have __uid for proper display
+        const fieldsWithUids = (data.fields || []).map((f: any) => ({
+          ...f,
+          __uid: f.__uid || f.key || `field_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+        }))
+        
         setProcedures(prev => prev.map(section =>
-          section.sectionId === sectionId ? { ...section, fields: data.fields } : section
+          section.sectionId === sectionId ? { ...section, fields: fieldsWithUids } : section
         ))
         
         toast({ title: "Questions Generated", description: `Questions for section generated successfully.` })
       } else {
-        // Generate for all sections
-        for (const section of COMPLETION_SECTIONS) {
-          const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}/generate/section-questions`, {
-            method: "POST",
-            body: JSON.stringify({ sectionId: section.sectionId }),
-          })
+        // Generate for all selected sections (use procedures, not COMPLETION_SECTIONS)
+        if (!procedures || procedures.length === 0) {
+          throw new Error("No sections selected. Please select sections first.")
+        }
+        
+        if (!engagement?._id) {
+          throw new Error("Engagement ID is missing")
+        }
+        
+        const sectionsToGenerate = procedures.filter(proc => proc.sectionId)
+        let successCount = 0
+        let failCount = 0
+        const errors: string[] = []
+        
+        for (const section of sectionsToGenerate) {
+          if (!section.sectionId || section.sectionId.trim() === "") {
+            errors.push(`Section "${section.title || 'Unknown'}" has invalid sectionId`)
+            failCount++
+            continue
+          }
           
-          if (res.ok) {
-            const data = await res.json()
-            setProcedures(prev => prev.map(sec =>
-              sec.sectionId === section.sectionId ? { ...sec, fields: data.fields } : sec
-            ))
+          try {
+            const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}/generate/section-questions`, {
+              method: "POST",
+              body: JSON.stringify({ sectionId: section.sectionId }),
+            })
+            
+            if (res.ok) {
+              const data = await res.json()
+              if (data.fields && Array.isArray(data.fields)) {
+                // Ensure fields have __uid for proper display
+                const fieldsWithUids = data.fields.map((f: any) => ({
+                  ...f,
+                  __uid: f.__uid || f.key || `field_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+                }))
+                
+                setProcedures(prev => prev.map(sec =>
+                  sec.sectionId === section.sectionId ? { ...sec, fields: fieldsWithUids } : sec
+                ))
+                successCount++
+              } else {
+                errors.push(`Section "${section.title}" returned invalid data format`)
+                failCount++
+              }
+            } else {
+              const errorText = await res.text().catch(() => "")
+              errors.push(`Section "${section.title}": ${errorText || `HTTP ${res.status}`}`)
+              failCount++
+            }
+          } catch (err: any) {
+            errors.push(`Section "${section.title}": ${err.message || "Unknown error"}`)
+            failCount++
           }
         }
         
-        toast({ title: "Questions Generated", description: "Questions for all sections generated successfully." })
+        if (successCount > 0) {
+          toast({ 
+            title: "Questions Generated", 
+            description: `Successfully generated questions for ${successCount} section(s).${failCount > 0 ? ` ${failCount} section(s) failed.` : ""}`,
+            variant: failCount > 0 ? "default" : undefined
+          })
+        }
+        
+        if (failCount > 0 && successCount === 0) {
+          throw new Error(`Failed to generate questions for all sections. Errors: ${errors.join("; ")}`)
+        }
       }
     } catch (error: any) {
       toast({
