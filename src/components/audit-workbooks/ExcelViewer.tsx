@@ -2490,7 +2490,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 style={{ zIndex: 9999, position: 'fixed' }}
               >
                 {sheetNames && sheetNames.length > 0 ? (
-                  sheetNames.map((sheet) => (
+                  sheetNames.sort().map((sheet) => (
                     <SelectItem
                       key={sheet}
                       value={sheet}
@@ -2558,7 +2558,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
                 {/* Sheet List with Checkboxes */}
                 {sheetNames && sheetNames.length > 0 ? (
-                  sheetNames.map((sheet) => (
+                  sheetNames.sort().map((sheet) => (
                     <div
                       key={sheet}
                       className="px-2 py-1.5 flex items-center space-x-2 hover:bg-accent rounded-sm cursor-pointer"
