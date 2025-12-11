@@ -1025,7 +1025,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </span>
                     </Button>
 
-                    <Button
+                    {/* <Button
                       variant={selectedProcedureType === "fieldwork" ? "default" : "outline"}
                       className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       onClick={() => handleProcedureButtonClick("fieldwork")}
@@ -1037,7 +1037,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         </span>
                         <span className="sm:hidden">Field Work</span>
                       </span>
-                    </Button>
+                    </Button> */}
 
                     <Button
                       variant={selectedProcedureType === "completion" ? "default" : "outline"}
