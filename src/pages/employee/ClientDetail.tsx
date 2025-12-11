@@ -392,8 +392,8 @@ export const ClientDetail: React.FC = () => {
                   >
                     <div className="p-6">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-4">
-                        <div className="flex items-center gap-4 w-full">
-                          <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
                             <Briefcase className="h-7 w-7 text-primary-foreground" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -401,14 +401,14 @@ export const ClientDetail: React.FC = () => {
                               {engagement.title}
                             </h3>
                             <p className="text-sm text-gray-600 flex items-center gap-2 mt-1">
-                              <Building2 className="h-4 w-4" />
-                              {client?.companyName || "Unknown Client"}
+                              <Building2 className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{client?.companyName || "Unknown Client"}</span>
                             </p>
                           </div>
                         </div>
                         <Badge
                           variant="outline"
-                          className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                          className={`rounded-xl px-4 py-2 text-sm font-semibold shrink-0 ${
                             engagement.status === "active"
                               ? "bg-primary text-primary-foreground border-gray-800"
                               : engagement.status === "completed"

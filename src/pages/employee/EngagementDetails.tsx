@@ -42,6 +42,8 @@ import WorkBookApp from "@/components/audit-workbooks/WorkBookApp";
 import { UpdateEngagementDialog } from "@/components/engagement/UpdateEngagementDialog";
 import { useEngagements } from "@/hooks/useEngagements";
 import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
+import { IconReport } from "@tabler/icons-react";
+import FinancialStatusReport from "@/components/engagement/FinancialStatusReport";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -331,6 +333,21 @@ export const EngagementDetails = () => {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
                 <Button
+                  variant="default"
+                  size="sm"
+                  asChild
+                >
+                  <Link to={`/employee/clients/${engagement.clientId}/company/${
+                    typeof engagement.companyId === 'object' 
+                      ? engagement.companyId?._id 
+                      : engagement.companyId
+                  }`}>
+                     <Building2 className="h-4 w-4 mr-2" />
+                     View Company
+                  </Link>
+                </Button>
+
+                <Button
                   onClick={() => setIsUpdateDialogOpen(true)}
                   className="rounded-xl w-full sm:w-auto"
                   size="sm"
@@ -426,6 +443,14 @@ export const EngagementDetails = () => {
                   </TabsTrigger>
 
                   <TabsTrigger
+                    value="financial-status-report"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                  >
+                    <IconReport className="h-4 w-4 mr-2" />
+                    Financial Status Report
+                  </TabsTrigger>
+
+                  <TabsTrigger
                     value="kyc"
                     className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
@@ -476,6 +501,10 @@ export const EngagementDetails = () => {
 
               <TabsContent value="checklist" className="space-y-6">
                 <ChecklistTab engagementId={id!} />
+              </TabsContent>
+
+              <TabsContent value="financial-status-report" className="space-y-6">
+                <FinancialStatusReport />
               </TabsContent>
 
               <TabsContent value="kyc" className="space-y-6">
