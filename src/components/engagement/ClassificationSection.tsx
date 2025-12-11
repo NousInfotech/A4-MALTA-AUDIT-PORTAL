@@ -123,6 +123,18 @@ import {
   RotateCcw,
 
   Info,
+
+  ArrowLeft,
+
+  CheckCircle,
+
+  Sparkles,
+
+  User,
+
+  Bot,
+
+  Users,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -224,6 +236,12 @@ import { getWorkingPaperWithLinkedFiles, updateLinkedExcelFilesInWP } from "@/li
 import ProcedureView from "../procedures/ProcedureView";
 import NotebookInterface from "../procedures/NotebookInterface";
 import FloatingNotesButton from "../procedures/FloatingNotesButton";
+import { PlanningProcedureView } from "../procedures/PlanningProcedureView";
+import { CompletionProcedureView } from "../procedures/CompletionProcedureView";
+import { ProcedureTypeSelection } from "../procedures/ProcedureTypeSelection";
+import { ProcedureGeneration } from "../procedures/ProcedureGeneration";
+import { PlanningProcedureGeneration } from "../procedures/PlanningProcedureGeneration";
+import { CompletionProcedureGeneration } from "../procedures/CompletionProcedureGeneration";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
 import { ExcelViewerWithFullscreen } from "../audit-workbooks/ExcelViewer";
 import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
@@ -871,8 +889,25 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const [procedureLoading, setProcedureLoading] = useState(false);
 
-  // Sub-tab state for Procedures tab
-  const [procedureSubTab, setProcedureSubTab] = useState<"questions" | "answers" | "procedures">("questions");
+  // Procedure type selection state (for Procedures tab) - default to "fieldwork" with "hybrid" mode
+  const [selectedProcedureType, setSelectedProcedureType] = useState<"planning" | "fieldwork" | "completion" | null>("fieldwork");
+  const [procedureTab, setProcedureTab] = useState<"generate" | "view">("generate");
+  const [procedureMode, setProcedureMode] = useState<"manual" | "ai" | "hybrid" | null>("hybrid");
+  const [procedureStep, setProcedureStep] = useState<string | null>(null);
+  const [planningProcedure, setPlanningProcedure] = useState<any>(null);
+  const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null);
+  const [completionProcedure, setCompletionProcedure] = useState<any>(null);
+  const [procedureTypeLoading, setProcedureTypeLoading] = useState(false);
+  
+  // Create a mock URLSearchParams object that syncs with local state for procedure components
+  const procedureSearchParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedProcedureType) params.set("procedureType", selectedProcedureType);
+    if (procedureTab) params.set("procedureTab", procedureTab);
+    if (procedureMode) params.set("mode", procedureMode);
+    if (procedureStep) params.set("step", procedureStep);
+    return params;
+  }, [selectedProcedureType, procedureTab, procedureMode, procedureStep]);
   
   // Question filter state
   const [questionFilter, setQuestionFilter] = useState<"all" | "unanswered">("all");
@@ -1716,6 +1751,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   }, [activeTab, engagement?._id]);
 
+  // Load fieldwork procedure when Procedures tab is opened and set default mode to "hybrid"
+  useEffect(() => {
+    if (activeTab === "procedures" && selectedProcedureType === "fieldwork") {
+      // Set default mode to "hybrid" if not already set
+      if (!procedureMode) {
+        setProcedureMode("hybrid");
+        setProcedureStep("0");
+      }
+      // Load procedure if not already loaded
+      if (!fieldworkProcedure && engagement?._id) {
+        loadProcedure("fieldwork");
+      }
+    }
+  }, [activeTab, selectedProcedureType, engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const generateAnswersForClassification = async () => {
 
     if (!procedure || !engagement?._id) return;
@@ -2036,7 +2086,20 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to generate questions");
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "")
+        let errorMessage = "Failed to generate questions"
+        try {
+          const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : {}
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          errorMessage = errorText?.slice(0, 200) || errorMessage
+        }
+        if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+          errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits."
+        }
+        throw new Error(errorMessage)
+      }
 
       const result = await res.json();
       const generatedQuestions = result?.procedure?.questions || result?.questions || [];
@@ -2290,6 +2353,203 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       toast.success("Recommendations saved successfully");
     } catch (error: any) {
       toast.error(`Failed to save: ${error.message}`);
+    }
+  };
+
+  // Procedure type selection handlers (for Procedures tab)
+  const updateProcedureParams = useCallback((updates: Record<string, string | null>, replace = false) => {
+    // Handle local state updates for procedure params
+    if (updates.procedureType !== undefined) {
+      setSelectedProcedureType(updates.procedureType as "planning" | "fieldwork" | "completion" | null);
+    }
+    if (updates.procedureTab !== undefined) {
+      setProcedureTab((updates.procedureTab as "generate" | "view") || "view");
+    }
+    if (updates.mode !== undefined) {
+      setProcedureMode(updates.mode as "manual" | "ai" | "hybrid" | null);
+    }
+    if (updates.step !== undefined) {
+      setProcedureStep(updates.step || null);
+    }
+  }, []);
+
+  const handleProcedureButtonClick = (procedureType: "planning" | "fieldwork" | "completion") => {
+    setSelectedProcedureType(procedureType);
+    
+    // Determine default tab based on whether procedures exist
+    let defaultTab: "generate" | "view" = "generate";
+    
+    if (procedureType === "planning") {
+      const hasQuestions = planningProcedure?.procedures?.some((sec: any) => 
+        sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
+      );
+      defaultTab = hasQuestions ? "view" : "generate";
+    } else if (procedureType === "fieldwork") {
+      const hasQuestions = fieldworkProcedure?.questions && 
+        Array.isArray(fieldworkProcedure.questions) && 
+        fieldworkProcedure.questions.length > 0;
+      defaultTab = hasQuestions ? "view" : "generate";
+    } else if (procedureType === "completion") {
+      const hasQuestions = completionProcedure?.procedures?.some((sec: any) => 
+        sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
+      );
+      defaultTab = hasQuestions ? "view" : "generate";
+    }
+    
+    setProcedureTab(defaultTab);
+    setProcedureMode(null);
+    setProcedureStep(null);
+    loadProcedure(procedureType);
+  };
+
+  const handleProcedureTypeSelect = (type: "planning" | "fieldwork" | "completion") => {
+    // Set procedure type and clear mode/step (will be set by the generation component)
+    setSelectedProcedureType(type);
+    setProcedureTab("generate");
+    setProcedureMode(null);
+    setProcedureStep(null);
+    loadProcedure(type);
+  };
+
+  const handleProcedureTypeBack = () => {
+    // Hierarchical back navigation (matching TrialBalanceTab.tsx logic)
+    // If in tabs view (step === "tabs"), go back to questions step
+    if (selectedProcedureType && procedureStep === "tabs") {
+      setProcedureTab("generate");
+      setProcedureStep("1"); // Go back to questions step (step 1)
+      return;
+    }
+    
+    // If in a numbered step, go back one step or to mode selection
+    if (selectedProcedureType && procedureMode && procedureStep) {
+      const stepNum = parseInt(procedureStep, 10);
+      
+      if (stepNum > 0) {
+        // Go back one step
+        setProcedureTab("generate");
+        setProcedureStep((stepNum - 1).toString());
+      } else {
+        // At step 0, go back to mode selection (clear step and mode)
+        setProcedureTab("generate");
+        setProcedureMode(null);
+        setProcedureStep(null);
+      }
+      return;
+    }
+    
+    // If at mode selection (mode exists but no step), clear mode
+    if (selectedProcedureType && procedureMode && !procedureStep) {
+      setProcedureTab("generate");
+      setProcedureMode(null);
+      return;
+    }
+    
+    // If at procedure type selection (procedureType exists but no mode), clear procedureType
+    if (selectedProcedureType && !procedureMode) {
+      setProcedureTab("generate");
+      setSelectedProcedureType(null);
+      return;
+    }
+    
+    // Fallback: Clear all procedure params
+    setProcedureTab("view");
+    setSelectedProcedureType(null);
+    setProcedureMode(null);
+    setProcedureStep(null);
+  };
+
+  const handleProcedureTabChange = (tab: "generate" | "view") => {
+    setProcedureTab(tab);
+  };
+
+  const handleRegenerate = () => {
+    // Hierarchical back navigation (matching TrialBalanceTab.tsx logic)
+    // If in tabs view (step === "tabs"), go back to questions step
+    if (selectedProcedureType && procedureStep === "tabs") {
+      setProcedureTab("generate");
+      setProcedureStep("1"); // Go back to questions step (step 1)
+      return;
+    }
+    
+    // If in a numbered step, go back one step or to mode selection
+    if (selectedProcedureType && procedureMode && procedureStep) {
+      const stepNum = parseInt(procedureStep, 10);
+      
+      if (stepNum > 0) {
+        // Go back one step
+        setProcedureTab("generate");
+        setProcedureStep((stepNum - 1).toString());
+      } else {
+        // At step 0, go back to mode selection (clear step and mode)
+        setProcedureTab("generate");
+        setProcedureMode(null);
+        setProcedureStep(null);
+      }
+      return;
+    }
+    
+    // If at mode selection (mode exists but no step), reset to step 0 with hybrid mode
+    if (selectedProcedureType && procedureMode && !procedureStep) {
+      setProcedureTab("generate");
+      setProcedureMode("hybrid");
+      setProcedureStep("0");
+      return;
+    }
+    
+    // If at mode selection (procedureType exists but no mode), set to hybrid mode
+    if (selectedProcedureType && !procedureMode) {
+      setProcedureTab("generate");
+      setProcedureMode("hybrid");
+      setProcedureStep("0");
+      return;
+    }
+    
+    // Fallback: Reset to step 0 with hybrid mode (keep procedureType as "fieldwork")
+    setProcedureTab("generate");
+    setProcedureMode("hybrid");
+    setProcedureStep("0");
+  };
+
+  const handleCloseProcedure = () => {
+    setSelectedProcedureType(null);
+    setProcedureTab("view");
+    setProcedureMode(null);
+    setProcedureStep(null);
+  };
+
+  // Load procedure data
+  const loadProcedure = async (procedureType: "planning" | "fieldwork" | "completion") => {
+    if (!engagement?._id) return;
+    
+    setProcedureTypeLoading(true);
+    
+    try {
+      const base = import.meta.env.VITE_APIURL;
+      
+      if (procedureType === "planning") {
+        const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPlanningProcedure(data);
+        }
+      } else if (procedureType === "fieldwork") {
+        const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFieldworkProcedure(data?.procedure || data);
+        }
+      } else if (procedureType === "completion") {
+        const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCompletionProcedure(data);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading procedure:", error);
+      toast.error("Failed to load procedure data");
+    } finally {
+      setProcedureTypeLoading(false);
     }
   };
 
@@ -4458,696 +4718,169 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             {/* ✅ NEW: Procedures Tab renders only THIS classification */}
 
             <TabsContent value="procedures" className="flex-1 flex flex-col">
-
-              {procedureLoading ? (
-
-                <div className="flex items-center justify-center h-64">
-
-                  <EnhancedLoader variant="pulse" size="lg" text="Loading Procedures..." />
-
-                </div>
-
-              ) : (
-
-                <>
-
-                  {/* ✅ NEW: Generate Answers button for current classification */}
-
-
-
-                  <div className="flex flex-col h-full">
-
-                    {/* Header with classification name */}
-
-                    <div className="mb-4">
-
-                      <h3 className="text-xl font-bold">{formatClassificationForDisplay(classification)}</h3>
-
-                      <div className="text-sm text-muted-foreground">
-
-                        <Badge variant="outline">{classificationQuestions.length} procedures</Badge>
-
-                      </div>
-
-                    </div>
-
-
-
-                    {/* Sub-tabs */}
-
-                    <Tabs value={procedureSubTab} onValueChange={(v) => setProcedureSubTab(v as any)} className="flex-1 flex flex-col">
-
-                      <TabsList className="grid w-full grid-cols-3">
-
-                        <TabsTrigger value="questions">Questions</TabsTrigger>
-
-                        <TabsTrigger value="answers">Answers</TabsTrigger>
-
-                        <TabsTrigger value="procedures">Procedures</TabsTrigger>
-
-                      </TabsList>
-
-
-
-                      {/* Questions Sub-tab */}
-
-                      <TabsContent value="questions" className="flex-1 flex flex-col mt-4">
-
-                        <div className="flex items-center justify-between mb-4">
-
-                          <div className="flex items-center gap-2">
-
+              {/* Procedure Content with Generate/View Tabs - Always show like TrialBalanceTab.tsx */}
+              <div className="h-full flex flex-col">
+                  <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
+                    <div className="flex items-center gap-3">
+                      {selectedProcedureType && (
                             <Button
-
-                              variant={questionFilter === "all" ? "default" : "outline"}
-
-                              size="sm"
-
-                              onClick={() => setQuestionFilter("all")}
-
-                            >
-
-                              All Questions
-
-                            </Button>
-
-                            <Button
-
-                              variant={questionFilter === "unanswered" ? "default" : "outline"}
-
-                              size="sm"
-
-                              onClick={() => setQuestionFilter("unanswered")}
-
-                            >
-
-                              Unanswered Questions
-
-                            </Button>
-
-                          </div>
-
-                          <div className="flex items-center gap-2">
-
-                            <Button variant="outline" size="sm" onClick={handleAddQuestion}>
-
-                              <Plus className="h-4 w-4 mr-2" />
-
-                              Add Question
-
-                            </Button>
-
-                            <Button
-
                               variant="outline"
-
-                              size="sm"
-
-                              onClick={handleGenerateQuestions}
-
-                              disabled={generatingQuestions}
-
-                            >
-
-                              {generatingQuestions ? (
-
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                              ) : (
-
-                                <RefreshCw className="h-4 w-4 mr-2" />
-
-                              )}
-
-                              {classificationQuestions.length > 0 ? "Regenerate Questions" : "Generate Questions"}
-
-                            </Button>
-
-                          </div>
-
-                        </div>
-
-
-
-                        <ScrollArea className="flex-1">
-
-                          <div className="space-y-4">
-
-                            {classificationQuestions.length === 0 ? (
-
-                              <div className="text-center py-8 text-muted-foreground">
-
-                                {questionFilter === "unanswered" 
-
-                                  ? "All questions have been answered." 
-
-                                  : "No questions available. Click 'Add Question' to create one."}
-
-                              </div>
-
-                            ) : (
-
-                              classificationQuestions.map((q: any, idx: number) => (
-
-                                <Card key={q.id || idx}>
-
-                                  <CardContent className="pt-6">
-
-                                    {editingQuestionId === q.id ? (
-
-                                      <div className="space-y-3">
-
-                                        <div className="flex justify-between items-center">
-
-                                          <div className="font-medium">{idx + 1}.</div>
-
-                                          <div className="flex gap-2">
-
-                                            <Button size="sm" onClick={handleSaveQuestion}>
-
-                                              <Save className="h-4 w-4 mr-1" />
-
-                                              Save
-
+                          size="icon"
+                          className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
+                          aria-label="Back"
+                          onClick={() => {
+                            // Hierarchical back navigation (matching TrialBalanceTab.tsx)
+                            // If in tabs view (step === "tabs"), go back to questions step
+                            if (selectedProcedureType && procedureStep === "tabs") {
+                              setProcedureTab("generate");
+                              setProcedureStep("1"); // Go back to questions step (step 1)
+                              return;
+                            }
+                            
+                            // If in a numbered step, go back one step or to mode selection
+                            if (selectedProcedureType && procedureMode && procedureStep) {
+                              const stepNum = parseInt(procedureStep, 10);
+                              
+                              if (stepNum > 0) {
+                                // Go back one step
+                                setProcedureTab("generate");
+                                setProcedureStep((stepNum - 1).toString());
+                              } else {
+                                // At step 0, go back to mode selection (clear step and mode)
+                                setProcedureTab("generate");
+                                setProcedureMode(null);
+                                setProcedureStep(null);
+                              }
+                              return;
+                            }
+                            
+                            // If at mode selection (mode exists but no step), reset to step 0 with hybrid mode
+                            if (selectedProcedureType && procedureMode && !procedureStep) {
+                              setProcedureTab("generate");
+                              setProcedureMode("hybrid");
+                              setProcedureStep("0");
+                              return;
+                            }
+                            
+                            // If at mode selection (procedureType exists but no mode), set to hybrid mode
+                            if (selectedProcedureType && !procedureMode) {
+                              setProcedureTab("generate");
+                              setProcedureMode("hybrid");
+                              setProcedureStep("0");
+                              return;
+                            }
+                            
+                            // Fallback: Reset to step 0 with hybrid mode (keep procedureType as "fieldwork")
+                            setProcedureTab("generate");
+                            setProcedureMode("hybrid");
+                            setProcedureStep("0");
+                          }}
+                        >
+                          <ArrowLeft className="h-4 w-4" />
                                             </Button>
-
-                                            <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-
-                                              <X className="h-4 w-4 mr-1" />
-
-                                              Cancel
-
-                                            </Button>
-
-                                          </div>
-
-                                        </div>
-
-                                        <Input
-
-                                          value={editQuestionText}
-
-                                          onChange={(e) => setEditQuestionText(e.target.value)}
-
-                                          placeholder="Question"
-
-                                        />
-
-                                      </div>
-
-                                    ) : (
-
-                                      <>
-
-                                        <div className="flex justify-between items-start">
-
-                                          <div className="font-medium mb-1">
-
-                                            {idx + 1}. {q.question || "—"}
-
-                                          </div>
-
-                                          <div className="flex gap-2">
-
-                                            <Button
-
-                                              variant="ghost"
-
-                                              size="sm"
-
-                                              onClick={() => handleEditQuestion(q)}
-
-                                            >
-
-                                              <Edit2 className="h-4 w-4" />
-
-                                            </Button>
-
-                                            <Button
-
-                                              variant="ghost"
-
-                                              size="sm"
-
-                                              onClick={() => handleDeleteQuestion(q.id)}
-
-                                            >
-
-                                              <Trash2 className="h-4 w-4" />
-
-                                            </Button>
-
-                                          </div>
-
-                                        </div>
-
-                                        {q.framework && (
-
-                                          <Badge className="mr-2" variant="default">{q.framework}</Badge>
-
-                                        )}
-
-                                        {q.reference && (
-
-                                          <Badge variant="default">{q.reference}</Badge>
-
-                                        )}
-
-                                      </>
-
-                                    )}
-
-                                  </CardContent>
-
-                                </Card>
-
-                              ))
-
-                            )}
-
-                          </div>
-
-                        </ScrollArea>
-
-                      </TabsContent>
-
-
-
-                      {/* Answers Sub-tab */}
-
-                      <TabsContent value="answers" className="flex-1 flex flex-col mt-4">
-
-                        <div className="flex items-center justify-between mb-4">
-
-                          <div className="text-sm text-muted-foreground">
-
-                            {questionsWithAnswers.length} answered • {unansweredQuestions.length} unanswered
-
-                          </div>
-
-                          <div className="flex items-center gap-2">
-
-                            {unansweredQuestions.length > 0 && (
-
+                      )}
+                      <h3 className="font-semibold text-lg">
+                        {formatClassificationForDisplay(classification)}
+                      </h3>
+                      {selectedProcedureType && (
                               <Button
-
-                                variant="default"
-
-                                size="sm"
-
-                                onClick={generateAnswersForClassification}
-
-                                disabled={generatingAnswers}
-
-                              >
-
-                                {generatingAnswers ? (
-
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                                ) : (
-
-                                  <FileText className="h-4 w-4 mr-2" />
-
-                                )}
-
-                                Generate Answers
-
-                              </Button>
-
-                            )}
-
-                            {questionsWithAnswers.length > 0 && (
-
-                              <Button
-
                                 variant="outline"
-
+                          onClick={handleRegenerate} 
+                          className="flex items-center gap-2 bg-transparent"
                                 size="sm"
-
-                                onClick={generateAnswersForClassification}
-
-                                disabled={generatingAnswers}
-
-                              >
-
-                                {generatingAnswers ? (
-
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                                ) : (
-
-                                  <RefreshCw className="h-4 w-4 mr-2" />
-
-                                )}
-
-                                Regenerate Answers
-
+                            >
+                          <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
                               </Button>
-
-                            )}
-
-                            {(questionsWithAnswers.length > 0 || unansweredQuestions.length > 0) && (
-
-                              <Button
-
-                                variant="default"
-
-                                size="sm"
-
-                                onClick={handleSaveAnswers}
-
-                                disabled={isSaving}
-
-                              >
-
-                                {isSaving ? (
-
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                                ) : (
-
-                                  <Save className="h-4 w-4 mr-2" />
-
-                                )}
-
-                                Save Answers
-
-                              </Button>
-
-                            )}
-
+                      )}
                           </div>
-
-                        </div>
-
-
-
-                        <ScrollArea className="flex-1">
-
-                          <div className="space-y-4">
-
-                            {questionsWithAnswers.length === 0 && unansweredQuestions.length === 0 ? (
-
-                              <div className="text-center py-8 text-muted-foreground">
-
-                                No questions available. Go to Questions tab to add questions.
-
-                              </div>
-
-                            ) : (
-
-                              <>
-
-                                {/* Answered Questions */}
-
-                                {questionsWithAnswers.map((q: any, idx: number) => (
-
-                                  <Card key={q.id || idx}>
-
-                                    <CardContent className="pt-6">
-
-                                      <div className="font-medium mb-2">
-
-                                        {idx + 1}. {q.question || "—"}
-
-                                      </div>
-
-                                      <div className="text-sm text-muted-foreground mb-3">
-
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-
-                                          {String(q.answer || "No answer.")}
-
-                                        </ReactMarkdown>
-
-                                      </div>
-
-                                      <div className="flex gap-2">
-
-                                        {q.framework && (
-
-                                          <Badge variant="default">{q.framework}</Badge>
-
-                                        )}
-
-                                        {q.reference && (
-
-                                          <Badge variant="default">{q.reference}</Badge>
-
-                                        )}
-
-                                      </div>
-
-                                    </CardContent>
-
-                                  </Card>
-
-                                ))}
-
-
-
-                                {/* Unanswered Questions */}
-
-                                {unansweredQuestions.length > 0 && (
-
-                                  <div className="mt-6">
-
-                                    <h4 className="text-lg font-semibold mb-4">Unanswered Questions</h4>
-
-                                    {unansweredQuestions.map((q: any, idx: number) => (
-
-                                      <Card key={q.id || idx} className="mb-4">
-
-                                        <CardContent className="pt-6">
-
-                                          <div className="font-medium mb-2">
-
-                                            {questionsWithAnswers.length + idx + 1}. {q.question || "—"}
-
-                                          </div>
-
-                                          <div className="text-sm text-muted-foreground italic mb-3">
-
-                                            No answer.
-
-                                          </div>
-
                                           <Button
-
-                                            variant="outline"
-
-                                            size="sm"
-
-                                            onClick={() => handleAddAnswer(q.id)}
-
-                                            disabled={generatingAnswers}
-
-                                          >
-
-                                            {generatingAnswers ? (
-
-                                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                                            ) : (
-
-                                              <Plus className="h-4 w-4 mr-2" />
-
-                                            )}
-
-                                            Add Answer
-
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCloseProcedure}
+                      className="h-8 w-8"
+                    >
+                      <X className="h-4 w-4" />
                                           </Button>
-
-                                        </CardContent>
-
-                                      </Card>
-
-                                    ))}
-
                                   </div>
 
-                                )}
-
-                              </>
-
-                            )}
-
+                  {procedureTypeLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Loading Procedures...</span>
                           </div>
+                  ) : (
+                    <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="generate" className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" /> Generate Procedures
+                        </TabsTrigger>
+                        <TabsTrigger value="view" className="flex items-center gap-2">
+                          <Eye className="h-4 w-4" /> View Procedures
+                        </TabsTrigger>
+                      </TabsList>
 
-                        </ScrollArea>
-
+                      <TabsContent value="generate" className="flex-1 mt-6">
+                        {selectedProcedureType === "planning" ? (
+                          <PlanningProcedureGeneration
+                            engagement={engagement}
+                            existingProcedure={planningProcedure}
+                            onComplete={() => {
+                              loadProcedure("planning");
+                              setProcedureTab("view");
+                              setProcedureMode(null);
+                              setProcedureStep(null);
+                            }}
+                            onBack={handleProcedureTypeBack}
+                            updateProcedureParams={updateProcedureParams}
+                            searchParams={procedureSearchParams}
+                          />
+                        ) : selectedProcedureType === "fieldwork" ? (
+                          <ProcedureGeneration
+                            engagement={engagement}
+                            existingProcedure={fieldworkProcedure}
+                            onBack={handleProcedureTypeBack}
+                            onComplete={() => {
+                              loadProcedure("fieldwork");
+                              setProcedureTab("view");
+                              setProcedureMode(null);
+                              setProcedureStep(null);
+                            }}
+                            updateProcedureParams={updateProcedureParams}
+                            searchParams={procedureSearchParams}
+                          />
+                        ) : selectedProcedureType === "completion" ? (
+                          <CompletionProcedureGeneration
+                            engagement={engagement}
+                            onBack={handleProcedureTypeBack}
+                            existingProcedure={completionProcedure}
+                            onComplete={() => {
+                              loadProcedure("completion");
+                              setProcedureTab("view");
+                              setProcedureMode(null);
+                              setProcedureStep(null);
+                            }}
+                            updateProcedureParams={updateProcedureParams}
+                            searchParams={procedureSearchParams}
+                          />
+                        ) : null}
                       </TabsContent>
 
-
-
-                      {/* Procedures Sub-tab */}
-
-                      <TabsContent value="procedures" className="flex-1 flex flex-col mt-4">
-
-                        <div className="flex items-center justify-between mb-4">
-
-                          <h4 className="text-lg font-semibold">Audit Procedures & Recommendations</h4>
-
-                          <div className="flex items-center gap-2">
-
-                            <Button
-
-                              variant="outline"
-
-                              size="sm"
-
-                              onClick={handleGenerateProcedures}
-
-                              disabled={generatingProcedures}
-
-                            >
-
-                              {generatingProcedures ? (
-
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-
-                              ) : (
-
-                                <RefreshCw className="h-4 w-4 mr-2" />
-
-                              )}
-
-                              {questionsWithAnswers.length > 0 ? "Regenerate Procedures" : "Generate Procedures"}
-
-                            </Button>
-
-                          </div>
-
-                        </div>
-
-
-
-                        <div className="flex-1 flex flex-col gap-6 overflow-auto">
-
-                          {/* Audit Procedures Section (Questions + Answers) */}
-
-                          {classificationQuestions.length > 0 && (
-
-                            <div className="space-y-4">
-
-                              <h5 className="text-md font-semibold">Audit Procedures</h5>
-
-                              <Card>
-
-                                <CardContent className="pt-6">
-
-                                  <ScrollArea className="h-[400px]">
-
-                                    <div className="space-y-4">
-
-                                      {classificationQuestions.map((q: any, idx: number) => (
-
-                                        <div key={q.id || idx} className="border-b pb-4 last:border-b-0">
-
-                                          <div className="font-medium mb-2">
-
-                                            {idx + 1}. {q.question || "—"}
-
-                                          </div>
-
-                                          {q.answer ? (
-
-                                            <div className="text-sm text-muted-foreground mb-2">
-
-                                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-
-                                                {String(q.answer)}
-
-                                              </ReactMarkdown>
-
-                                            </div>
-
-                                          ) : (
-
-                                            <div className="text-sm text-muted-foreground italic mb-2">
-
-                                              No answer.
-
-                                            </div>
-
-                                          )}
-
-                                          <div className="flex gap-2">
-
-                                            {q.framework && (
-
-                                              <Badge variant="default">{q.framework}</Badge>
-
-                                            )}
-
-                                            {q.reference && (
-
-                                              <Badge variant="default">{q.reference}</Badge>
-
-                                            )}
-
-                                          </div>
-
-                                        </div>
-
-                                      ))}
-
-                                    </div>
-
-                                  </ScrollArea>
-
-                                </CardContent>
-
-                              </Card>
-
-                            </div>
-
-                          )}
-
-
-
-                          {/* Audit Recommendations Section */}
-
-                          <div className="space-y-4">
-
-                            <h5 className="text-md font-semibold">Audit Recommendations</h5>
-
-                            <div className="flex-1 relative min-h-[400px]">
-
-                              <NotebookInterface
-
-                                isOpen={true}
-
-                                isEditable={true}
-
-                                isPlanning={false}
-
-                                onClose={() => {}}
-
-                                recommendations={recommendationsForClass}
-
-                                onSave={handleSaveRecommendations}
-
-                                dismissible={false}
-
-                              />
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
+                      <TabsContent value="view" className="flex-1 mt-6 px-4 pb-4">
+                        {selectedProcedureType === "planning" ? (
+                          planningProcedure ? (
+                            <PlanningProcedureView procedure={planningProcedure} engagement={engagement} />
+                          ) : <div className="text-muted-foreground">No Planning procedures found.</div>
+                        ) : selectedProcedureType === "fieldwork" ? (
+                          fieldworkProcedure ? (
+                            <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                          ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+                        ) : completionProcedure ? (
+                          <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                        ) : <div className="text-muted-foreground">No Completion procedures found.</div>}
                       </TabsContent>
-
                     </Tabs>
-
+                  )}
                   </div>
-
-                </>
-
-              )}
 
             </TabsContent>
 

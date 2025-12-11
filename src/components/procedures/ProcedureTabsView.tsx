@@ -197,7 +197,20 @@ export const ProcedureTabsView: React.FC<ProcedureTabsViewProps> = ({
         }),
       })
 
-      if (!res.ok) throw new Error("Failed to generate questions")
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "")
+        let errorMessage = "Failed to generate questions"
+        try {
+          const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : {}
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          errorMessage = errorText?.slice(0, 200) || errorMessage
+        }
+        if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+          errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits."
+        }
+        throw new Error(errorMessage)
+      }
 
       const result = await res.json()
       const generatedQuestions = result?.procedure?.questions || result?.questions || []
