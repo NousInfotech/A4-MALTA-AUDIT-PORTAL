@@ -371,7 +371,20 @@ export const HybridPlanningProceduresStep: React.FC<HybridPlanningProceduresStep
         }),
       })
 
-      if (!res.ok) throw new Error("Failed to generate questions for section")
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "")
+        let errorMessage = "Failed to generate questions for section"
+        try {
+          const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : {}
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch {
+          errorMessage = errorText?.slice(0, 200) || errorMessage
+        }
+        if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+          errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits."
+        }
+        throw new Error(errorMessage)
+      }
       const data = await res.json()
 
       // Add new fields to the section

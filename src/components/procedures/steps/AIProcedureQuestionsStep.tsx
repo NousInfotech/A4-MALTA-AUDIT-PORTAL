@@ -136,10 +136,25 @@ const AIProcedureQuestionsStep: React.FC<{
       const ct = res.headers.get("content-type") || ""
       if (!res.ok) {
         const text = await res.text().catch(() => "")
-        throw new Error(
-          ct.includes("application/json") ? (JSON.parse(text)?.message || "Failed to generate AI questions")
-            : (text?.slice(0, 120) || `Failed to generate AI questions (HTTP ${res.status}).`)
-        )
+        let errorMessage = "Failed to generate AI questions";
+        
+        if (ct.includes("application/json")) {
+          try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch {
+            errorMessage = text?.slice(0, 200) || errorMessage;
+          }
+        } else {
+          errorMessage = text?.slice(0, 200) || `Failed to generate AI questions (HTTP ${res.status}).`;
+        }
+        
+        // Check for quota errors
+        if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+          errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits.";
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await res.json()
