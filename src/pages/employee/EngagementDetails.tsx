@@ -43,7 +43,8 @@ import { UpdateEngagementDialog } from "@/components/engagement/UpdateEngagement
 import { useEngagements } from "@/hooks/useEngagements";
 import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfirmation";
 import { IconReport } from "@tabler/icons-react";
-import FinancialStatusReport from "@/components/engagement/FinancialStatusReport";
+import FinancialStatusReport from "@/components/fs-review/FinancialStatusReport";
+import FinancialReportParent from "@/components/engagement/FinancialReportParent";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -504,7 +505,7 @@ export const EngagementDetails = () => {
               </TabsContent>
 
               <TabsContent value="financial-status-report" className="space-y-6">
-                <FinancialStatusReport />
+                <FinancialReportParent />
               </TabsContent>
 
               <TabsContent value="kyc" className="space-y-6">
