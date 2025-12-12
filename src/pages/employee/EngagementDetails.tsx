@@ -448,16 +448,16 @@ export const EngagementDetails = () => {
                     className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <IconReport className="h-4 w-4 mr-2" />
-                    Financial Status Report
+                     AI Review
                   </TabsTrigger>
 
-                  <TabsTrigger
+                  {/* <TabsTrigger
                     value="kyc"
                     className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <Shield className="h-4 w-4 mr-2" />
                     KYC
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                 </TabsList>
               </div>
               {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary">
