@@ -419,7 +419,7 @@ export function AddDocumentRequestModal({
 
         <div className="space-y-6">
           {/* Persons List - Only show for Engagement KYC */}
-          {engagementId && mergedPersons.length > 0 && (
+          {(engagementId || companyId) && mergedPersons.length > 0 && (
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">

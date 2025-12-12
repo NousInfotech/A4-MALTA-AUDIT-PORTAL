@@ -1,0 +1,370 @@
+{
+  "A": {
+    "title": "✅ CONFIRMED CORRECT ITEMS",
+    "items": []
+  },
+
+  "B": {
+    "title": "❌ CRITICAL ERRORS",
+    "items": [
+      {
+        "id": "B1",
+        "test_id": "T1",
+        "type": "visual",
+        "severity": "critical",
+        "description": "Severe formatting inconsistencies across multiple pages.",
+        "location": { "page": 1, "section": "Cover", "note": null, "line_hint": "Header alignment" },
+        "reported_value": null,
+        "expected_value": "Consistent layout",
+        "difference": null,
+        "reason": "Headers and numeric columns misaligned.",
+        "financial_impact": "Professional presentation compromised.",
+        "suggested_fix": "Standardize template formatting."
+      },
+      {
+        "id": "B2",
+        "test_id": "T2",
+        "type": "structure",
+        "severity": "critical",
+        "description": "Mandatory sections missing and page numbering inconsistent.",
+        "location": { "page": 2, "section": "Contents", "note": null, "line_hint": "Missing Directors’ Report" },
+        "reported_value": "Missing sections",
+        "expected_value": "All sections in correct order",
+        "difference": null,
+        "reason": "Cross references broken.",
+        "financial_impact": "FS cannot be relied upon.",
+        "suggested_fix": "Insert all missing statutory sections."
+      },
+      {
+        "id": "B3",
+        "test_id": "T3",
+        "type": "arithmetical",
+        "severity": "critical",
+        "description": "Income Statement subtotals do not recalculate.",
+        "location": { "page": 6, "section": "Income Statement", "note": null, "line_hint": "Gross profit" },
+        "reported_value": 52000,
+        "expected_value": 48000,
+        "difference": 4000,
+        "reason": "Incorrect expense total.",
+        "financial_impact": "Material misstatement of profitability.",
+        "suggested_fix": "Correct arithmetic across P&L."
+      },
+      {
+        "id": "B4",
+        "test_id": "T4",
+        "type": "arithmetical",
+        "severity": "critical",
+        "description": "Retained earnings roll-forward does not match closing balance.",
+        "location": { "page": 7, "section": "Equity Movements", "note": null, "line_hint": "Closing retained earnings" },
+        "reported_value": 60000,
+        "expected_value": 55000,
+        "difference": 5000,
+        "reason": "Unexplained variances in movement.",
+        "financial_impact": "Equity misstated by €5,000.",
+        "suggested_fix": "Reconstruct retained earnings bridge."
+      },
+      {
+        "id": "B5",
+        "test_id": "T5",
+        "type": "arithmetical",
+        "severity": "critical",
+        "description": "Notes do not agree to Balance Sheet captions.",
+        "location": { "page": 15, "section": "Notes", "note": "Note 8", "line_hint": "Receivables total" },
+        "reported_value": 41000,
+        "expected_value": 36000,
+        "difference": 5000,
+        "reason": "Breakdown incorrect.",
+        "financial_impact": "Assets overstated.",
+        "suggested_fix": "Recalculate note totals."
+      },
+      {
+        "id": "B6",
+        "test_id": "T7",
+        "type": "arithmetical",
+        "severity": "critical",
+        "description": "Tax expense does not reconcile with deferred tax movements.",
+        "location": { "page": 11, "section": "Tax Note", "note": null, "line_hint": "Deferred tax movement" },
+        "reported_value": 3800,
+        "expected_value": 3000,
+        "difference": 800,
+        "reason": "Deferred tax not linked properly.",
+        "financial_impact": "Misstated tax expense.",
+        "suggested_fix": "Fix deferred tax computation."
+      },
+      {
+        "id": "B7",
+        "test_id": "T10",
+        "type": "portal_crosscheck",
+        "severity": "critical",
+        "description": "Portal P&L and FS P&L do not match.",
+        "location": { "page": 6, "section": "Income Statement", "note": null, "line_hint": "Revenue" },
+        "reported_value": 150000,
+        "expected_value": 100000,
+        "difference": 50000,
+        "reason": "Incorrect mapping.",
+        "financial_impact": "Turnover materially misstated.",
+        "suggested_fix": "Fix mapping rules or FS totals."
+      },
+      {
+        "id": "B8",
+        "test_id": "T11",
+        "type": "registry",
+        "severity": "critical",
+        "description": "Registry extract does not match FS details.",
+        "location": { "page": 1, "section": "Cover Page", "note": null, "line_hint": "Company number" },
+        "reported_value": "C12345",
+        "expected_value": "C67890",
+        "difference": null,
+        "reason": "Incorrect statutory data.",
+        "financial_impact": "FS invalid for filing.",
+        "suggested_fix": "Correct company identity fields."
+      },
+      {
+        "id": "B9",
+        "test_id": "T12",
+        "type": "logic",
+        "severity": "critical",
+        "description": "Going concern triggers met but disclosures missing.",
+        "location": { "page": 13, "section": "Notes", "note": "GC", "line_hint": null },
+        "reported_value": null,
+        "expected_value": "Going concern note",
+        "difference": null,
+        "reason": "Liquidity issues not addressed.",
+        "financial_impact": "Material omission.",
+        "suggested_fix": "Insert detailed GC note."
+      },
+      {
+        "id": "B10",
+        "test_id": "T15",
+        "type": "portal_crosscheck",
+        "severity": "critical",
+        "description": "Directors’ remuneration does not match portal schedule.",
+        "location": { "page": 18, "section": "Related Parties", "note": "Note 14", "line_hint": "Director remuneration" },
+        "reported_value": 42000,
+        "expected_value": 25000,
+        "difference": 17000,
+        "reason": "Incorrect note disclosure.",
+        "financial_impact": "Misleading related party disclosures.",
+        "suggested_fix": "Correct FS note value."
+      },
+      {
+        "id": "B11",
+        "test_id": "T18",
+        "type": "registry_crosscheck",
+        "severity": "critical",
+        "description": "Company listed as 'in liquidation' in MBR but FS uses going concern basis.",
+        "location": { "page": 1, "section": "Cover Page", "note": null, "line_hint": "Status" },
+        "reported_value": "Going concern basis",
+        "expected_value": "Liquidation basis",
+        "difference": null,
+        "reason": "Registry status mismatch.",
+        "financial_impact": "FS invalid for filing.",
+        "suggested_fix": "Update FS to liquidation basis."
+      },
+      {
+        "id": "B12",
+        "test_id": "T22",
+        "type": "portal_crosscheck",
+        "severity": "critical",
+        "description": "Unmapped TB lines detected.",
+        "location": { "page": null, "section": "TB Mapping", "note": null, "line_hint": "Mapping summary" },
+        "reported_value": "5 unmapped lines",
+        "expected_value": "0 unmapped lines",
+        "difference": null,
+        "reason": "Incomplete mapping.",
+        "financial_impact": "FS totals unreliable.",
+        "suggested_fix": "Map all lines to captions."
+      }
+    ]
+  },
+
+  "C": {
+    "title": "⚠️ DISCLOSURE & REGULATORY BREACHES",
+    "items": [
+      {
+        "id": "C1",
+        "test_id": "T6",
+        "type": "disclosure",
+        "severity": "regulatory",
+        "description": "Missing accounting policies for major captions.",
+        "location": { "page": 12, "section": "Accounting Policies", "note": null, "line_hint": "Missing PPE policy" },
+        "impact": "Non-compliance with GAPSME.",
+        "suggested_fix": "Insert policy section."
+      },
+      {
+        "id": "C2",
+        "test_id": "T8",
+        "type": "classification",
+        "severity": "regulatory",
+        "description": "Borrowings misclassified between current and non-current.",
+        "location": { "page": 8, "section": "Balance Sheet", "note": null, "line_hint": "Borrowings" },
+        "impact": "Incorrect liquidity position.",
+        "suggested_fix": "Correct classification and disclose terms."
+      },
+      {
+        "id": "C3",
+        "test_id": "T9",
+        "type": "logic",
+        "severity": "presentation",
+        "description": "Comparatives missing for several captions.",
+        "location": { "page": 6, "section": "Income Statement", "note": null, "line_hint": "Comparatives" },
+        "impact": "Users cannot compare periods.",
+        "suggested_fix": "Insert prior year numbers."
+      },
+      {
+        "id": "C4",
+        "test_id": "T13",
+        "type": "legal",
+        "severity": "regulatory",
+        "description": "Approval and signature dates missing.",
+        "location": { "page": 2, "section": "Approval", "note": null, "line_hint": "Date missing" },
+        "impact": "Non-compliance with Companies Act.",
+        "suggested_fix": "Add signature dates."
+      },
+      {
+        "id": "C5",
+        "test_id": "T14",
+        "type": "grammar",
+        "severity": "presentation",
+        "description": "Wording refers to one director but MBR shows multiple.",
+        "location": { "page": 4, "section": "Directors' Responsibilities", "note": null, "line_hint": "Singular wording" },
+        "impact": "Inaccurate statutory representation.",
+        "suggested_fix": "Use plural terminology."
+      },
+      {
+        "id": "C6",
+        "test_id": "T16",
+        "type": "grammar",
+        "severity": "presentation",
+        "description": "Multiple grammatical and spelling errors found.",
+        "location": { "page": 5, "section": "Audit Report", "note": null, "line_hint": "First paragraph" },
+        "impact": "Reduces professional quality.",
+        "suggested_fix": "Correct grammar and spelling."
+      },
+      {
+        "id": "C7",
+        "test_id": "T17",
+        "type": "registry_crosscheck",
+        "severity": "regulatory",
+        "description": "Share capital details do not match MBR.",
+        "location": { "page": 14, "section": "Share Capital Note", "note": "Note 9", "line_hint": null },
+        "impact": "Statutory fields incorrect.",
+        "suggested_fix": "Correct nominal value and share numbers."
+      },
+      {
+        "id": "C8",
+        "test_id": "T19",
+        "type": "arithmetical",
+        "severity": "regulatory",
+        "description": "Related party notes do not tie to Balance Sheet.",
+        "location": { "page": 16, "section": "Notes", "note": "Note 13", "line_hint": null },
+        "impact": "Incorrect related party disclosures.",
+        "suggested_fix": "Update note balances."
+      },
+      {
+        "id": "C9",
+        "test_id": "T20",
+        "type": "arithmetical",
+        "severity": "presentation",
+        "description": "Tax reconciliation table does not sum correctly.",
+        "location": { "page": 11, "section": "Tax Note", "note": null, "line_hint": "Reconciliation table" },
+        "impact": "Tax rate unclear.",
+        "suggested_fix": "Fix arithmetic and rounding."
+      },
+      {
+        "id": "C10",
+        "test_id": "T21",
+        "type": "arithmetical",
+        "severity": "regulatory",
+        "description": "Equity movement schedule does not agree to Balance Sheet.",
+        "location": { "page": 7, "section": "Equity Movements", "note": null, "line_hint": "Closing equity" },
+        "impact": "Equity numbers unreliable.",
+        "suggested_fix": "Correct roll-forward."
+      },
+      {
+        "id": "C11",
+        "test_id": "T23",
+        "type": "logic",
+        "severity": "regulatory",
+        "description": "Large related party exposure not disclosed adequately.",
+        "location": { "page": 18, "section": "Related Parties", "note": "Note 14", "line_hint": "Shareholder loan" },
+        "impact": "Users misinformed.",
+        "suggested_fix": "Add additional disclosures."
+      },
+      {
+        "id": "C12",
+        "test_id": "T24",
+        "type": "presentation",
+        "severity": "regulatory",
+        "description": "Currency and rounding note missing.",
+        "location": { "page": 12, "section": "Accounting Policies", "note": null, "line_hint": null },
+        "impact": "Mandatory disclosure missing.",
+        "suggested_fix": "Insert disclosure."
+      },
+      {
+        "id": "C13",
+        "test_id": "T25",
+        "type": "presentation",
+        "severity": "presentation",
+        "description": "Year-end wording inconsistent across FS.",
+        "location": { "page": 1, "section": "Cover", "note": null, "line_hint": "Year-end" },
+        "impact": "Creates confusion.",
+        "suggested_fix": "Align all references."
+      },
+      {
+        "id": "C14",
+        "test_id": "T26",
+        "type": "structure",
+        "severity": "presentation",
+        "description": "Incorrect note references detected.",
+        "location": { "page": 16, "section": "Notes", "note": "Note reference", "line_hint": "Broken link" },
+        "impact": "Readers cannot trace disclosures.",
+        "suggested_fix": "Fix note references."
+      }
+    ]
+  },
+
+  "D": {
+    "title": "🔁 RECONCILIATION TABLES",
+    "tables": {
+      "retained_earnings": {
+        "columns": ["2024", "2023"],
+        "rows": [
+          { "description": "Opening balance", "values": [45000, 40000] },
+          { "description": "Profit for the year", "values": [9000, 7000] },
+          { "description": "Dividends", "values": [-5000, -2000] },
+          { "description": "Closing balance", "values": [49000, 45000] }
+        ]
+      },
+      "borrowings": {
+        "columns": ["2024", "2023"],
+        "rows": [
+          { "description": "Current portion", "values": [15000, 9000] },
+          { "description": "Non-current portion", "values": [30000, 26000] },
+          { "description": "Total", "values": [45000, 35000] }
+        ]
+      },
+      "deferred_tax": {
+        "columns": ["2024", "2023"],
+        "rows": [
+          { "description": "Opening balance", "values": [2000, 1500] },
+          { "description": "Movement", "values": [800, 500] },
+          { "description": "Closing balance", "values": [2800, 2000] }
+        ]
+      },
+      "equity": {
+        "columns": ["2024", "2023"],
+        "rows": [
+          { "description": "Share capital", "values": [1200, 1200] },
+          { "description": "Retained earnings", "values": [49000, 45000] },
+          { "description": "Total equity", "values": [50200, 46200] }
+        ]
+      }
+    }
+  },
+
+  "E": {
+    "title": "🛑 FINAL VERDICT",
+    "verdict": "FINANCIAL STATEMENTS ARE NOT FIT FOR APPROVAL – ERRORS PRESENT"
+  }
+}

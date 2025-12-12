@@ -371,6 +371,11 @@ export const EngagementManagement = () => {
                         View Details
                       </Link>
                     </Button>
+
+                       {/* <Link to={`/employee/clients/${engagement.clientId}/company/${engagement.companyId}`}>
+                        <Building2 className="h-4 w-4 mr-2" />
+                        View Company
+                      </Link> */}
                     <Button
                       className="bg-gray-700 hover:bg-primary text-primary-foreground rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
                       variant="default"

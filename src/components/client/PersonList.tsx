@@ -357,11 +357,11 @@ export const PersonList: React.FC<PersonListProps> = ({
     }
   }, [companyId, clientId]);
 
-  useEffect(() => {
-    if (clientId && !hasFetchedCompanyOptions && !isCompanyOptionsLoading) {
-      fetchCompanies();
-    }
-  }, [clientId, hasFetchedCompanyOptions, isCompanyOptionsLoading]);
+  // useEffect(() => {
+  //   if (clientId && !hasFetchedCompanyOptions && !isCompanyOptionsLoading) {
+  //     fetchCompanies();
+  //   }
+  // }, [clientId, hasFetchedCompanyOptions, isCompanyOptionsLoading]);
 
   useEffect(() => {
     if (
@@ -3422,6 +3422,7 @@ export const PersonList: React.FC<PersonListProps> = ({
         entityType="person"
         companyTotalShares={company?.totalShares || 0}
         existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+        company={company}
       />
 
       {/* Add Company Shareholder Modal */}
@@ -3437,10 +3438,11 @@ export const PersonList: React.FC<PersonListProps> = ({
         entityType="company"
         companyTotalShares={company?.totalShares || 0}
         existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
+        company={company}
       />
 
       {/* Add Person Representative Modal */}
-      <AddRepresentativeModal
+      <AddShareholderRepresentativeModal
         isOpen={isAddPersonRepresentativeModalOpen}
         onClose={() => setIsAddPersonRepresentativeModalOpen(false)}
         onSuccess={() => {
@@ -3449,12 +3451,14 @@ export const PersonList: React.FC<PersonListProps> = ({
         }}
         clientId={clientId}
         companyId={companyId}
-        entityType="person"
+        mode="representative"
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
         company={company}
       />
 
       {/* Add Company Representative Modal */}
-      <AddRepresentativeModal
+      <AddShareholderRepresentativeModal
         isOpen={isAddCompanyRepresentativeModalOpen}
         onClose={() => setIsAddCompanyRepresentativeModalOpen(false)}
         onSuccess={() => {
@@ -3463,7 +3467,9 @@ export const PersonList: React.FC<PersonListProps> = ({
         }}
         clientId={clientId}
         companyId={companyId}
-        entityType="company"
+        mode="representative"
+        companyTotalShares={company?.totalShares || 0}
+        existingSharesTotal={existingSharesTotals.personTotal + existingSharesTotals.companyTotal}
         company={company}
       />
 
