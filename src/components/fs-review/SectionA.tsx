@@ -9,9 +9,14 @@ export default function SectionA({ items }: { items: AItem[] }) {
     <div className="mb-10 space-y-3">
       <div className="flex items-center gap-3">
         <h2 className="text-xl text-green-600 font-bold">Confirmed Correct Items</h2>
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-medium">{items.length}</div>
+        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-600 text-white text-sm font-medium">{items?.length || 0}</div>
       </div>
 
+      {(!items || items.length === 0) ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center text-gray-500 italic">
+          No confirmed items to display.
+        </div>
+      ) : (
       <Accordion type="multiple">
         {items.map((item, idx) => (
           <AccordionItem key={idx} value={`A-${idx}`}>
@@ -28,6 +33,7 @@ export default function SectionA({ items }: { items: AItem[] }) {
           </AccordionItem>
         ))}
       </Accordion>
+      )}
     </div>
   );
 }

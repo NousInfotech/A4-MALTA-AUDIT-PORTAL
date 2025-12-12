@@ -80,6 +80,8 @@ function ReconciliationTableView({ table }: { table: ReconciliationTable }) {
 }
 
 export default function SectionD({ tables }: any) {
+  const safeTables = tables || {};
+  
   return (
     <section className="space-y-8">
       <header>
@@ -93,28 +95,28 @@ export default function SectionD({ tables }: any) {
           <h3 className="text-lg font-semibold text-slate-800">
             Retained Earnings Reconciliation
           </h3>
-          <ReconciliationTableView table={tables.retained_earnings} />
+          <ReconciliationTableView table={safeTables.retained_earnings} />
         </div>
 
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-slate-800">
             Borrowings Analysis
           </h3>
-          <ReconciliationTableView table={tables.borrowings} />
+          <ReconciliationTableView table={safeTables.borrowings} />
         </div>
 
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-slate-800">
             Deferred Tax Reconciliation
           </h3>
-          <ReconciliationTableView table={tables.deferred_tax} />
+          <ReconciliationTableView table={safeTables.deferred_tax} />
         </div>
 
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-slate-800">
             Equity Movement Summary
           </h3>
-          <ReconciliationTableView table={tables.equity} />
+          <ReconciliationTableView table={safeTables.equity} />
         </div>
       </div>
     </section>

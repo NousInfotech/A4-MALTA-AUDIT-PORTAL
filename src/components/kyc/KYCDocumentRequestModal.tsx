@@ -129,6 +129,9 @@ export function KYCDocumentRequestModal({
   const [viewMode, setViewMode] =
   useState<"shareholders" | "involvements">("shareholders");
 
+useEffect(() => {
+  console.log("Company passed into modal:", company);
+}, [company]);
 
 
   const handleSubmit = async () => {

@@ -9,9 +9,14 @@ export default function SectionB({ items }: { items: BItem[] }) {
     <div className="space-y-3">
        <div className="flex items-center gap-3">
         <h2 className="text-xl text-red-600 font-bold">Critical Errors</h2>
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 text-white text-sm font-medium">{items.length}</div>
+        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-600 text-white text-sm font-medium">{items?.length || 0}</div>
       </div>
 
+      {(!items || items.length === 0) ? (
+        <div className="bg-red-50/50 border border-red-100 rounded-lg p-6 text-center text-gray-500 italic">
+          No critical errors found.
+        </div>
+      ) : (
       <Accordion type="multiple">
         {items.map((err, idx) => (
           <AccordionItem key={idx} value={`B-${idx}`}>
@@ -48,6 +53,7 @@ export default function SectionB({ items }: { items: BItem[] }) {
           </AccordionItem>
         ))}
       </Accordion>
+      )}
     </div>
   );
 }

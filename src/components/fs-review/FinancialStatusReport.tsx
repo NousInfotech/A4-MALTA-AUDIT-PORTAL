@@ -8,11 +8,15 @@ import SectionB from "./SectionB";
 import SectionC from "./SectionC";
 import SectionD from "./SectionD";
 
+import { Download, Upload } from "lucide-react";
+import { generateFinancialStatusPDF } from "@/lib/pdf-generator";
+
 import { FSReviewOutput } from "@/types/fs/fs";
 
 import fsAllPass from "@/data/fs/fs-allPass.json";
 import fsAllFail from "@/data/fs/fs-allFail.json";
 import fsMix from "@/data/fs/fs.json";
+import { Button } from "../ui/button";
 
 const DATASETS = {
   allPass: fsAllPass,
@@ -20,7 +24,7 @@ const DATASETS = {
   mix: fsMix
 };
 
-export default function FinancialStatusReport({ data }: { data?: FSReviewOutput }) {
+export default function FinancialStatusReport({ data, onUploadAgain }: { data?: FSReviewOutput; onUploadAgain?: () => void }) {
   const [dataset, setDataset] = useState<"allPass" | "allFail" | "mix" | null>(null);
 
   // If user selected a dataset, use it. Otherwise use provided data. Fallback to 'mix'.
@@ -44,6 +48,13 @@ export default function FinancialStatusReport({ data }: { data?: FSReviewOutput 
       {/* ------------------- TOGGLE BUTTONS ------------------- */}
       <div className="flex flex-col items-center gap-2 mb-6">
 
+
+        {/* --- Test Data Notice Tag --- */}
+      <div className="text-sm mt-5 px-3 rounded-md text-gray-600 italic">
+      This is not real data — this is for test purposes only.
+      </div>
+
+        <div className="flex justify-between items-center gap-2 w-full">
       {/* --- Toggle Buttons --- */}
       <div className="flex justify-center gap-3">
       {[
@@ -68,10 +79,26 @@ export default function FinancialStatusReport({ data }: { data?: FSReviewOutput 
       ))}
       </div>
 
-      {/* --- Test Data Notice Tag --- */}
-      <div className="text-sm mt-5 px-3 rounded-md">
-      This is not real data — this is for test purposes only.
+      <div className="flex gap-2">
+      {onUploadAgain && (
+        <Button variant="default" onClick={onUploadAgain}>
+        <Upload className="w-4 h-4" />
+        Upload Another File
+        </Button>
+      )}
+      
+          {/* --- Export PDF Button --- */}
+        <Button
+          variant="default"
+          onClick={() => generateFinancialStatusPDF(activeData)}
+         >
+          <Download className="w-4 h-4" />
+          Export PDF Report
+        </Button>
       </div>
+      </div>
+
+  
       </div>
 
       

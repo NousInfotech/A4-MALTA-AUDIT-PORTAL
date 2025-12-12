@@ -263,21 +263,7 @@ export default function FSUploadFlow() {
         {/* STEP 4: REPORT */}
         {step === "report" && reportData && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <Button
-              variant="default"
-                onClick={backToUpload}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Another File
-              </Button>
-{/*               
-              <button className="px-6 py-3 bg-primary text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg">
-                Export Report
-              </button> */}
-            </div>
-
-            <FinancialStatusReport data={reportData} />
+            <FinancialStatusReport data={reportData} onUploadAgain={backToUpload} />
           </div>
         )}
       </div>

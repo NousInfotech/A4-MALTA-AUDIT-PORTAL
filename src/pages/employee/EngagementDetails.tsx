@@ -465,7 +465,7 @@ export const EngagementDetails = () => {
             </button> */}
             </div>
 
-            <div className="p-6">
+            <div className="p-6 h-[calc(100vh-200px)] overflow-y-auto">
               <TabsContent value="overview" className="space-y-6">
                 <PerEngagementKPIDashboard engagementId={id} />
               </TabsContent>

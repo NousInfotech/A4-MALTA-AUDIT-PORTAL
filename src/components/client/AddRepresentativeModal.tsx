@@ -1978,7 +1978,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                     </div>
                
                     {/* Shares Data - Only show for companies */}
-                    {entityType === "company" && (
+                    {/* {entityType === "company" && (
                       <div className="border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <Label className="text-sm font-semibold">
@@ -2100,7 +2100,7 @@ export const AddRepresentativeModal: React.FC<AddRepresentativeModalProps> = ({
                             />
                          </div>
                     </div>
-                  )}
+                  )} */}
                     
                   </CardContent>
                 </Card>

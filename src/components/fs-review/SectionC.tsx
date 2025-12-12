@@ -9,8 +9,14 @@ export default function SectionC({ items }: { items: CItem[] }) {
     <div className="mb-10 mt-10">
       <div className="flex items-center gap-3 mb-3">
         <h2 className="text-xl text-yellow-600 font-bold">Disclosure & Regulatory Breaches</h2>
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-yellow-600 text-white text-sm font-medium">{items.length}</div>
+        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-yellow-600 text-white text-sm font-medium">{items?.length || 0}</div>
       </div>  
+      
+      {(!items || items.length === 0) ? (
+        <div className="bg-yellow-50/50 border border-yellow-100 rounded-lg p-6 text-center text-gray-500 italic">
+          No disclosure or regulatory breaches found.
+        </div>
+      ) : (
       <Accordion type="multiple">
         {items.map((issue, idx) => (
           <AccordionItem key={idx} value={`C-${idx}`}>
@@ -36,6 +42,7 @@ export default function SectionC({ items }: { items: CItem[] }) {
           </AccordionItem>
         ))}
       </Accordion>
+      )}
     </div>
   );
 }
