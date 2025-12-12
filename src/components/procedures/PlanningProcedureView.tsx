@@ -38,16 +38,16 @@ async function authFetch(url: string, options: RequestInit = {}) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const token = data?.session?.access_token
-  
+
   // Don't set Content-Type for FormData - let browser set it with boundary
   const isFormData = options.body instanceof FormData
   const existingHeaders = (options.headers || {}) as Record<string, string>
-  
+
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...existingHeaders,
   }
-  
+
   // Only set Content-Type if not FormData and not already explicitly set
   if (!isFormData && !existingHeaders["Content-Type"]) {
     headers["Content-Type"] = "application/json"
@@ -55,7 +55,7 @@ async function authFetch(url: string, options: RequestInit = {}) {
     // Remove Content-Type for FormData to let browser set it with boundary
     delete headers["Content-Type"]
   }
-  
+
   return fetch(url, {
     ...options,
     headers,
@@ -356,80 +356,80 @@ export const PlanningProcedureView: React.FC<{
       // This preserves locally generated recommendations
     }
   }, [initial?._id]) // Only update when procedure ID changes, not on every recommendations change
-// NEW: handle save of notebook notes
-const handleSaveRecommendations = async (content: string | any[]) => {
-  try {
-    let recommendationsToSave: any[];
-    
-    // Handle both string and array formats from NotebookInterface
-    if (Array.isArray(content)) {
-      recommendationsToSave = content;
-    } else if (typeof content === 'string') {
-      // Convert string format to checklist items
-      recommendationsToSave = content
-        .split('\n')
-        .filter(line => line.trim())
-        .map((line, index) => ({
-          id: `rec-${Date.now()}-${index}`,
-          text: line.trim(),
-          checked: false,
-          section: 'general'
-        }));
-    } else {
-      recommendationsToSave = [];
+  // NEW: handle save of notebook notes
+  const handleSaveRecommendations = async (content: string | any[]) => {
+    try {
+      let recommendationsToSave: any[];
+
+      // Handle both string and array formats from NotebookInterface
+      if (Array.isArray(content)) {
+        recommendationsToSave = content;
+      } else if (typeof content === 'string') {
+        // Convert string format to checklist items
+        recommendationsToSave = content
+          .split('\n')
+          .filter(line => line.trim())
+          .map((line, index) => ({
+            id: `rec-${Date.now()}-${index}`,
+            text: line.trim(),
+            checked: false,
+            section: 'general'
+          }));
+      } else {
+        recommendationsToSave = [];
+      }
+
+      // Update local state first
+      setRecommendations(recommendationsToSave)
+
+      // Save to database
+      const form = new FormData()
+      const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+        ...sec,
+        fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+      }))
+
+      const payload = {
+        ...proc,
+        procedures: cleanedProcedures,
+        recommendations: recommendationsToSave, // Save as array
+        status: proc.status || "in-progress",
+        procedureType: "planning",
+      }
+
+      form.append("data", JSON.stringify(payload))
+
+      const engagementId = proc.engagement || engagement?._id
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+        method: "POST",
+        body: form,
+      })
+
+      if (!res.ok) throw new Error("Save failed")
+      const saved = await res.json()
+
+      // Update state with server response - this will trigger the useEffect
+      const savedWithUids = {
+        ...saved,
+        procedures: withUids(saved?.procedures || []),
+      }
+      setProc(savedWithUids)
+      setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+
+      toast({
+        title: "Notes Saved",
+        description: "Your audit recommendations have been updated and saved to the database."
+      })
+    } catch (e: any) {
+      toast({
+        title: "Save failed",
+        description: e.message,
+        variant: "destructive"
+      })
+      // Revert local state if save fails
+      setRecommendations(proc?.recommendations || [])
     }
-    
-    // Update local state first
-    setRecommendations(recommendationsToSave)
-    
-    // Save to database
-    const form = new FormData()
-    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
-      ...sec,
-      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
-    }))
-    
-    const payload = {
-      ...proc,
-      procedures: cleanedProcedures,
-      recommendations: recommendationsToSave, // Save as array
-      status: proc.status || "in-progress",
-      procedureType: "planning",
-    }
-    
-    form.append("data", JSON.stringify(payload))
-    
-    const engagementId = proc.engagement || engagement?._id
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
-      method: "POST",
-      body: form,
-    })
-    
-    if (!res.ok) throw new Error("Save failed")
-    const saved = await res.json()
-    
-    // Update state with server response - this will trigger the useEffect
-    const savedWithUids = {
-      ...saved,
-      procedures: withUids(saved?.procedures || []),
-    }
-    setProc(savedWithUids)
-    setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
-    
-    toast({ 
-      title: "Notes Saved", 
-      description: "Your audit recommendations have been updated and saved to the database." 
-    })
-  } catch (e: any) {
-    toast({ 
-      title: "Save failed", 
-      description: e.message, 
-      variant: "destructive" 
-    })
-    // Revert local state if save fails
-    setRecommendations(proc?.recommendations || [])
   }
-}
 
   const fileInput = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -451,7 +451,7 @@ const handleSaveRecommendations = async (content: string | any[]) => {
       // Find the section to get the correct sectionId
       const section = proc.procedures?.find((s: any) => (s.sectionId || s.id) === sectionId)
       const validSectionId = section?.sectionId || section?.id || sectionId
-      
+
       if (!validSectionId) {
         throw new Error("Invalid section ID")
       }
@@ -462,7 +462,7 @@ const handleSaveRecommendations = async (content: string | any[]) => {
         method: "POST",
         body: JSON.stringify({ sectionId: validSectionId }),
       })
-      
+
       if (!res.ok) {
         const errorText = await res.text().catch(() => "")
         let errorMessage = "Failed to generate questions for section"
@@ -493,15 +493,15 @@ const handleSaveRecommendations = async (content: string | any[]) => {
         return next
       })
 
-      toast({ 
-        title: "Questions Generated", 
-        description: `Questions for section generated successfully.` 
+      toast({
+        title: "Questions Generated",
+        description: `Questions for section generated successfully.`
       })
     } catch (e: any) {
-      toast({ 
-        title: "Generation failed", 
-        description: e.message || "Could not generate questions.", 
-        variant: "destructive" 
+      toast({
+        title: "Generation failed",
+        description: e.message || "Could not generate questions.",
+        variant: "destructive"
       })
     } finally {
       setGeneratingSections(prev => {
@@ -518,22 +518,22 @@ const handleSaveRecommendations = async (content: string | any[]) => {
     try {
       const base = import.meta.env.VITE_APIURL
       const sections = proc.procedures || []
-      
+
       for (const section of sections) {
         const sectionId = section.sectionId || section.id
         if (!sectionId) continue
-        
+
         const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/section-questions`, {
           method: "POST",
           body: JSON.stringify({ sectionId }),
         })
-        
+
         if (!res.ok) {
           const errorText = await res.text().catch(() => "")
           const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate questions" }
           throw new Error(errorData.message || "Failed to generate questions for section")
         }
-        
+
         const data = await res.json()
         setProc((prev: any) => {
           const next = { ...prev }
@@ -548,16 +548,16 @@ const handleSaveRecommendations = async (content: string | any[]) => {
           return next
         })
       }
-      
-      toast({ 
-        title: "Questions Generated", 
-        description: "Questions for all sections generated successfully." 
+
+      toast({
+        title: "Questions Generated",
+        description: "Questions for all sections generated successfully."
       })
     } catch (e: any) {
-      toast({ 
-        title: "Generation failed", 
-        description: e.message || "Could not generate questions.", 
-        variant: "destructive" 
+      toast({
+        title: "Generation failed",
+        description: e.message || "Could not generate questions.",
+        variant: "destructive"
       })
     } finally {
       setGeneratingQuestions(false)
@@ -575,7 +575,7 @@ const handleSaveRecommendations = async (content: string | any[]) => {
     try {
       const section = proc.procedures?.find((s: any) => (s.sectionId || s.id) === sectionId)
       const validSectionId = section?.sectionId || section?.id || sectionId
-      
+
       if (!validSectionId) {
         throw new Error("Invalid section ID")
       }
@@ -584,11 +584,11 @@ const handleSaveRecommendations = async (content: string | any[]) => {
         method: "POST",
         body: JSON.stringify({ sectionId: validSectionId }),
       })
-      
+
       if (res.ok) {
         const data = await res.json()
         const answers: Record<string, any> = {}
-        
+
         if (data.fields && Array.isArray(data.fields)) {
           data.fields.forEach((fieldItem: any) => {
             const fieldData = fieldItem._doc || fieldItem
@@ -596,11 +596,11 @@ const handleSaveRecommendations = async (content: string | any[]) => {
             if (key) {
               answers[key] = fieldItem.answer !== undefined ? fieldItem.answer :
                 fieldData.answer !== undefined ? fieldData.answer :
-                fieldData.content !== undefined ? fieldData.content : null
+                  fieldData.content !== undefined ? fieldData.content : null
             }
           })
         }
-        
+
         setProc((prev: any) => {
           const next = { ...prev }
           const sections = [...(next.procedures || [])]
@@ -608,18 +608,18 @@ const handleSaveRecommendations = async (content: string | any[]) => {
             const secId = sec.sectionId || sec.id
             return secId === sectionId
               ? {
-                  ...sec,
-                  fields: (sec.fields || []).map((f: any) => ({
-                    ...f,
-                    answer: answers[f.key] !== undefined ? answers[f.key] : f.answer
-                  }))
-                }
+                ...sec,
+                fields: (sec.fields || []).map((f: any) => ({
+                  ...f,
+                  answer: answers[f.key] !== undefined ? answers[f.key] : f.answer
+                }))
+              }
               : sec
           })
           next.procedures = updatedSections
           return next
         })
-        
+
         toast({ title: "Answers Generated", description: `Answers for section generated successfully.` })
       } else {
         const errorText = await res.text().catch(() => "")
@@ -663,7 +663,7 @@ const handleSaveRecommendations = async (content: string | any[]) => {
     setGeneratingProcedures(true)
     try {
       const base = import.meta.env.VITE_APIURL
-      
+
       const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/recommendations`, {
         method: "POST",
         body: JSON.stringify({
@@ -674,7 +674,7 @@ const handleSaveRecommendations = async (content: string | any[]) => {
           materiality: proc.materiality || 0,
         }),
       })
-      
+
       if (res.ok) {
         const data = await res.json()
         let recs = []
@@ -855,59 +855,59 @@ const handleSaveRecommendations = async (content: string | any[]) => {
   }
 
 
-const save = async (asCompleted = false) => {
-  try {
-    const form = new FormData()
-    // robust normalize before mapping
-    const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
-      ...sec,
-      fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
-    }))
-    
-    // Create the payload with updated recommendations - ensure it's always an array
-    const payload = {
-      ...proc,
-      procedures: cleanedProcedures,
-      // Ensure recommendations are included in the payload as array
-      recommendations: Array.isArray(recommendations) ? recommendations : [],
-      status: asCompleted ? "completed" : proc.status || "in-progress",
-      procedureType: "planning",
+  const save = async (asCompleted = false) => {
+    try {
+      const form = new FormData()
+      // robust normalize before mapping
+      const cleanedProcedures = (Array.isArray(proc.procedures) ? proc.procedures : []).map((sec) => ({
+        ...sec,
+        fields: (sec.fields || []).map(({ __uid, ...rest }) => rest),
+      }))
+
+      // Create the payload with updated recommendations - ensure it's always an array
+      const payload = {
+        ...proc,
+        procedures: cleanedProcedures,
+        // Ensure recommendations are included in the payload as array
+        recommendations: Array.isArray(recommendations) ? recommendations : [],
+        status: asCompleted ? "completed" : proc.status || "in-progress",
+        procedureType: "planning",
+      }
+
+      form.append("data", JSON.stringify(payload))
+      if (fileInput.current?.files?.length) {
+        Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
+      }
+
+      const engagementId = proc.engagement || engagement?._id
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
+        method: "POST",
+        body: form,
+      })
+
+      if (!res.ok) throw new Error("Save failed")
+      const saved = await res.json()
+
+      // Update state with server response - this will trigger the useEffect
+      const savedWithUids = {
+        ...saved,
+        procedures: withUids(saved?.procedures || []),
+      }
+      setProc(savedWithUids)
+      // keep local recs aligned with server - ensure it's an array
+      setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+      // Clear pending questions after successful save
+      setPendingQuestions(new Set())
+      toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
+      setEditMode(false)
+      // Notify parent component of update
+      if (onProcedureUpdate) {
+        onProcedureUpdate(saved)
+      }
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e.message, variant: "destructive" })
     }
-    
-    form.append("data", JSON.stringify(payload))
-    if (fileInput.current?.files?.length) {
-      Array.from(fileInput.current.files).forEach((f) => form.append("files", f))
-    }
-    
-    const engagementId = proc.engagement || engagement?._id
-    const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/save`, {
-      method: "POST",
-      body: form,
-    })
-    
-    if (!res.ok) throw new Error("Save failed")
-    const saved = await res.json()
-    
-    // Update state with server response - this will trigger the useEffect
-    const savedWithUids = {
-      ...saved,
-      procedures: withUids(saved?.procedures || []),
-    }
-    setProc(savedWithUids)
-    // keep local recs aligned with server - ensure it's an array
-    setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
-    // Clear pending questions after successful save
-    setPendingQuestions(new Set())
-    toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
-    setEditMode(false)
-    // Notify parent component of update
-    if (onProcedureUpdate) {
-      onProcedureUpdate(saved)
-    }
-  } catch (e: any) {
-    toast({ title: "Save failed", description: e.message, variant: "destructive" })
   }
-}
   // answers map for visibleIf
   const makeAnswers = (sec: any) =>
     (sec.fields || []).reduce((acc: any, f: any) => {
@@ -970,30 +970,30 @@ const save = async (asCompleted = false) => {
           doc.text(`Section: ${sec.title || `Section ${index + 1}`}`, margin, 20)
 
           const body: any[] = []
-          ;(sec.fields || []).forEach((f: any) => {
-            const t = normalizeType(f.type)
-            if (f.key === "documentation_reminder") return
-            const label = f.label || f.key
-            let answer = ""
-            if (t === "multiselect") {
-              answer = (Array.isArray(f.answer) ? f.answer : []).join(", ")
-            } else if (t === "table") {
-              const cols = Array.isArray(f.columns) ? f.columns : []
-              const rows = Array.isArray(f.answer) ? f.answer : []
-              answer = rows
-                .map((row: any) => cols.map((c: string) => String(row?.[c] ?? "")).join(" | "))
-                .join("  /  ")
-            } else if (t === "group") {
-              const val = f.answer && typeof f.answer === "object" ? f.answer : {}
-              const keys = Object.keys(val).filter((k) => !!val[k])
-              answer = keys.join(", ")
-            } else if (t === "checkbox") {
-              answer = f.answer ? "Yes" : "No"
-            } else {
-              answer = String(f.answer ?? "")
-            }
-            body.push([label, answer || "—"])
-          })
+            ; (sec.fields || []).forEach((f: any) => {
+              const t = normalizeType(f.type)
+              if (f.key === "documentation_reminder") return
+              const label = f.label || f.key
+              let answer = ""
+              if (t === "multiselect") {
+                answer = (Array.isArray(f.answer) ? f.answer : []).join(", ")
+              } else if (t === "table") {
+                const cols = Array.isArray(f.columns) ? f.columns : []
+                const rows = Array.isArray(f.answer) ? f.answer : []
+                answer = rows
+                  .map((row: any) => cols.map((c: string) => String(row?.[c] ?? "")).join(" | "))
+                  .join("  /  ")
+              } else if (t === "group") {
+                const val = f.answer && typeof f.answer === "object" ? f.answer : {}
+                const keys = Object.keys(val).filter((k) => !!val[k])
+                answer = keys.join(", ")
+              } else if (t === "checkbox") {
+                answer = f.answer ? "Yes" : "No"
+              } else {
+                answer = String(f.answer ?? "")
+              }
+              body.push([label, answer || "—"])
+            })
 
           if (body.length) {
             // @ts-ignore
@@ -1050,7 +1050,7 @@ const save = async (asCompleted = false) => {
             const setActiveSectionTab = (value: string) => {
               setSectionTabs(prev => ({ ...prev, [sectionId]: value }))
             }
-            
+
             return (
               <AccordionItem key={sec.id || sIdx} value={sectionId} className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
@@ -1062,424 +1062,424 @@ const save = async (asCompleted = false) => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pt-4 pb-4">
-                <Tabs value={activeSectionTab} onValueChange={setActiveSectionTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="questions">Questions</TabsTrigger>
-                    <TabsTrigger value="answers">Answers</TabsTrigger>
-                    <TabsTrigger value="procedures">Procedures</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="questions" className="space-y-3 mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => addQuestion(sIdx)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Question
-                        </Button>
-                      </div>
-                      <div className="flex gap-2">
-                        {((sec.fields || []).length > 0) ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
-                            disabled={generatingSections.has(sec.sectionId || sec.id)}
-                          >
-                            {generatingSections.has(sec.sectionId || sec.id) ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4 mr-2" />
-                            )}
-                            Regenerate Questions
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
-                            disabled={generatingSections.has(sec.sectionId || sec.id)}
-                          >
-                            {generatingSections.has(sec.sectionId || sec.id) ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                              <FileText className="h-4 w-4 mr-2" />
-                            )}
-                            Generate Questions
-                          </Button>
-                        )}
-                        {!editMode ? (
-                          <Button size="sm" onClick={() => setEditMode(true)}>Edit</Button>
-                        ) : (
-                          <>
-                            <Button size="sm" onClick={() => save(false)}>Save</Button>
-                            <Button size="sm" variant="outline" onClick={() => save(true)}>
-                              Save & Complete
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => {
-                              pendingQuestions.forEach((uid) => {
-                                setProc((prev: any) => {
-                                  const next = { ...prev }
-                                  const sections = [...(next.procedures || [])]
-                                  sections.forEach((sec: any) => {
-                                    sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
-                                  })
-                                  next.procedures = sections
-                                  return next
-                                })
-                              })
-                              setPendingQuestions(new Set())
-                              setEditMode(false)
-                            }}>
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                  <Tabs value={activeSectionTab} onValueChange={setActiveSectionTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="questions">Questions</TabsTrigger>
+                      <TabsTrigger value="answers">Answers</TabsTrigger>
+                      <TabsTrigger value="procedures">Procedures</TabsTrigger>
+                    </TabsList>
 
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-3">
-                        {(sec.fields || []).map((f: any, idx: number) => {
-                          const t = normalizeType(f.type)
-                          const isTable = t === "table"
-                          // respect visibleIf in view/edit
-                          if (!isFieldVisible(f, answers)) return null
-                          if (f.key === "documentation_reminder") return null
-                          
-                          const isPending = pendingQuestions.has(f.__uid)
-                          const questionKey = `${sIdx}-${f.__uid}`
-                          const isEditing = editingQuestionIds[questionKey] === f.__uid
-                          const editText = editQuestionTexts[questionKey] ?? (f.label || f.key)
-                          
-                          return (
-                            <Card key={f.__uid}>
-                              <CardContent className="pt-6">
-                                {isEditing || isPending ? (
-                                  <div className="space-y-3">
-                                    <Input
-                                      value={editText}
-                                      onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [questionKey]: e.target.value }))}
-                                      placeholder="Question"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button size="sm" onClick={() => {
-                                        setField(sIdx, f.__uid, { label: editText })
-                                        if (isPending) confirmQuestion(sIdx, f.__uid)
-                                        setEditingQuestionIds(prev => {
-                                          const next = { ...prev }
-                                          delete next[questionKey]
-                                          return next
-                                        })
-                                        setEditQuestionTexts(prev => {
-                                          const next = { ...prev }
-                                          delete next[questionKey]
-                                          return next
-                                        })
-                                      }}>
-                                        <Save className="h-4 w-4 mr-1" />
-                                        Save
-                                      </Button>
-                                      <Button size="sm" variant="outline" onClick={() => {
-                                        if (isPending) cancelQuestion(sIdx, f.__uid)
-                                        setEditingQuestionIds(prev => {
-                                          const next = { ...prev }
-                                          delete next[questionKey]
-                                          return next
-                                        })
-                                        setEditQuestionTexts(prev => {
-                                          const next = { ...prev }
-                                          delete next[questionKey]
-                                          return next
-                                        })
-                                      }}>
-                                        <X className="h-4 w-4 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="flex justify-between items-start">
-                                      <div className="font-medium mb-1">
-                                        {idx + 1}. {f.label || f.key}
-                                      </div>
-                                      <div className="flex gap-2">
-                                        {editMode && (
-                                          <>
-                                            <Button variant="ghost" size="sm" onClick={() => {
-                                              setEditingQuestionIds(prev => ({ ...prev, [questionKey]: f.__uid }))
-                                              setEditQuestionTexts(prev => ({ ...prev, [questionKey]: f.label || f.key }))
-                                            }}>
-                                              <Edit2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => removeQuestion(sIdx, f.__uid)}>
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {f.help && (
-                                      <div className="text-xs text-muted-foreground mt-1">{f.help}</div>
-                                    )}
-                                  </>
-                                )}
-                              </CardContent>
-                            </Card>
-                          )
-                        })}
-                        {(!sec.fields || sec.fields.length === 0) && (
-                          <div className="text-center py-8 text-muted-foreground">
-                            No questions available. Click "Add Question" to get started.
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                  
-                  <TabsContent value="answers" className="space-y-3 mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex gap-2">
-                        {((sec.fields || []).length > 0) ? (
-                          (sec.fields || []).some((f: any) => f.answer) ? (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
-                              disabled={generatingSections.has(sec.sectionId || sec.id)}
-                            >
-                              {generatingSections.has(sec.sectionId || sec.id) ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                              )}
-                              Regenerate Answers
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
-                              disabled={generatingSections.has(sec.sectionId || sec.id)}
-                            >
-                              {generatingSections.has(sec.sectionId || sec.id) ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              ) : (
-                                <FileText className="h-4 w-4 mr-2" />
-                              )}
-                              Generate Answers
-                            </Button>
-                          )
-                        ) : (
-                          <div className="text-muted-foreground text-sm">No questions added yet.</div>
-                        )}
-                      </div>
-                      {((sec.fields || []).length > 0) && (
-                        <Button variant="default" size="sm" onClick={handleSaveAnswers} disabled={isSaving}>
-                          {isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                          )}
-                          Save Answers
-                        </Button>
-                      )}
-                    </div>
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-3">
-                        {(sec.fields || []).map((f: any, idx: number) => {
-                          const t = normalizeType(f.type)
-                          const isTable = t === "table"
-                          if (!isFieldVisible(f, answers)) return null
-                          if (f.key === "documentation_reminder") return null
-                          
-                          const questionKey = `${sIdx}-${f.__uid}`
-                          const isEditingAnswer = editingQuestionIds[`answer-${questionKey}`] === f.__uid
-                          const editAnswerValue = editQuestionTexts[`answer-${questionKey}`] ?? String(f.answer ?? "")
-                          
-                          return (
-                            <Card key={f.__uid}>
-                              <CardContent className="pt-6">
-                                <div className="font-medium mb-2">
-                                  {idx + 1}. {f.label || f.key}
-                                </div>
-                                {isEditingAnswer ? (
-                                  <div className="space-y-3">
-                                    <Textarea
-                                      value={editAnswerValue}
-                                      onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: e.target.value }))}
-                                      placeholder="Answer"
-                                      className="min-h-[100px]"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button size="sm" onClick={() => {
-                                        setField(sIdx, f.__uid, { answer: editAnswerValue })
-                                        setEditingQuestionIds(prev => {
-                                          const next = { ...prev }
-                                          delete next[`answer-${questionKey}`]
-                                          return next
-                                        })
-                                        setEditQuestionTexts(prev => {
-                                          const next = { ...prev }
-                                          delete next[`answer-${questionKey}`]
-                                          return next
-                                        })
-                                      }}>
-                                        <Save className="h-4 w-4 mr-1" />
-                                        Save
-                                      </Button>
-                                      <Button size="sm" variant="outline" onClick={() => {
-                                        setEditingQuestionIds(prev => {
-                                          const next = { ...prev }
-                                          delete next[`answer-${questionKey}`]
-                                          return next
-                                        })
-                                        setEditQuestionTexts(prev => {
-                                          const next = { ...prev }
-                                          delete next[`answer-${questionKey}`]
-                                          return next
-                                        })
-                                      }}>
-                                        <X className="h-4 w-4 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="text-sm text-muted-foreground mb-3">
-                                      {f.answer ? (
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                          {String(f.answer)}
-                                        </ReactMarkdown>
-                                      ) : (
-                                        <span className="italic">No answer.</span>
-                                      )}
-                                    </div>
-                                    {editMode && (
-                                      <div className="flex items-center gap-2">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => {
-                                            setEditingQuestionIds(prev => ({ ...prev, [`answer-${questionKey}`]: f.__uid }))
-                                            setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: String(f.answer ?? "") }))
-                                          }}
-                                        >
-                                          <Edit2 className="h-4 w-4 mr-1" />
-                                          Edit Answer
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </CardContent>
-                            </Card>
-                          )
-                        })}
-                        {(!sec.fields || sec.fields.length === 0) && (
-                          <div className="text-center py-8 text-muted-foreground">
-                            No answers yet.
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                  
-                  <TabsContent value="procedures" className="space-y-3 mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold">Audit Recommendations</h4>
-                      <div className="flex items-center gap-2">
-                        {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
-                          recommendations.length > 0 ? (
+                    <TabsContent value="questions" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => addQuestion(sIdx)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Question
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          {((sec.fields || []).length > 0) ? (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={handleGenerateProcedures}
-                              disabled={generatingProcedures}
+                              onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
+                              disabled={generatingSections.has(sec.sectionId || sec.id)}
                             >
-                              {generatingProcedures ? (
+                              {generatingSections.has(sec.sectionId || sec.id) ? (
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                               ) : (
                                 <RefreshCw className="h-4 w-4 mr-2" />
                               )}
-                              Regenerate Procedures
+                              Regenerate Questions
                             </Button>
                           ) : (
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={handleGenerateProcedures}
-                              disabled={generatingProcedures}
+                              onClick={() => handleGenerateSectionQuestions(sec.sectionId || sec.id)}
+                              disabled={generatingSections.has(sec.sectionId || sec.id)}
                             >
-                              {generatingProcedures ? (
+                              {generatingSections.has(sec.sectionId || sec.id) ? (
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                               ) : (
                                 <FileText className="h-4 w-4 mr-2" />
                               )}
-                              Generate Procedures
+                              Generate Questions
                             </Button>
-                          )
-                        ) : (
-                          <div className="text-muted-foreground text-sm">
-                            {((sec.fields || []).length === 0) ? "Generate questions first." : "Generate answers first."}
-                          </div>
-                        )}
-                        {editMode && (
-                          <Button variant="outline" size="sm" onClick={() => {
-                            const newRec = {
-                              id: `rec-${Date.now()}`,
-                              text: "New recommendation",
-                              checked: false,
-                              section: sec.sectionId || sec.id
-                            }
-                            setRecommendations(prev => [...prev, newRec])
-                          }}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Procedures
+                          )}
+                          {!editMode ? (
+                            <Button size="sm" onClick={() => setEditMode(true)}>Edit</Button>
+                          ) : (
+                            <>
+                              <Button size="sm" onClick={() => save(false)}>Save</Button>
+                              <Button size="sm" variant="outline" onClick={() => save(true)}>
+                                Save & Complete
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                pendingQuestions.forEach((uid) => {
+                                  setProc((prev: any) => {
+                                    const next = { ...prev }
+                                    const sections = [...(next.procedures || [])]
+                                    sections.forEach((sec: any) => {
+                                      sec.fields = (sec.fields || []).filter((f: any) => f.__uid !== uid)
+                                    })
+                                    next.procedures = sections
+                                    return next
+                                  })
+                                })
+                                setPendingQuestions(new Set())
+                                setEditMode(false)
+                              }}>
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <ScrollArea className="h-[500px]">
+                        <div className="space-y-3">
+                          {(sec.fields || []).map((f: any, idx: number) => {
+                            const t = normalizeType(f.type)
+                            const isTable = t === "table"
+                            // respect visibleIf in view/edit
+                            if (!isFieldVisible(f, answers)) return null
+                            if (f.key === "documentation_reminder") return null
+
+                            const isPending = pendingQuestions.has(f.__uid)
+                            const questionKey = `${sIdx}-${f.__uid}`
+                            const isEditing = editingQuestionIds[questionKey] === f.__uid
+                            const editText = editQuestionTexts[questionKey] ?? (f.label || f.key)
+
+                            return (
+                              <Card key={f.__uid}>
+                                <CardContent className="pt-6">
+                                  {isEditing || isPending ? (
+                                    <div className="space-y-3">
+                                      <Input
+                                        value={editText}
+                                        onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [questionKey]: e.target.value }))}
+                                        placeholder="Question"
+                                      />
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={() => {
+                                          setField(sIdx, f.__uid, { label: editText })
+                                          if (isPending) confirmQuestion(sIdx, f.__uid)
+                                          setEditingQuestionIds(prev => {
+                                            const next = { ...prev }
+                                            delete next[questionKey]
+                                            return next
+                                          })
+                                          setEditQuestionTexts(prev => {
+                                            const next = { ...prev }
+                                            delete next[questionKey]
+                                            return next
+                                          })
+                                        }}>
+                                          <Save className="h-4 w-4 mr-1" />
+                                          Save
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => {
+                                          if (isPending) cancelQuestion(sIdx, f.__uid)
+                                          setEditingQuestionIds(prev => {
+                                            const next = { ...prev }
+                                            delete next[questionKey]
+                                            return next
+                                          })
+                                          setEditQuestionTexts(prev => {
+                                            const next = { ...prev }
+                                            delete next[questionKey]
+                                            return next
+                                          })
+                                        }}>
+                                          <X className="h-4 w-4 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex justify-between items-start">
+                                        <div className="font-medium mb-1">
+                                          {idx + 1}. {f.label || f.key}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          {editMode && (
+                                            <>
+                                              <Button variant="ghost" size="sm" onClick={() => {
+                                                setEditingQuestionIds(prev => ({ ...prev, [questionKey]: f.__uid }))
+                                                setEditQuestionTexts(prev => ({ ...prev, [questionKey]: f.label || f.key }))
+                                              }}>
+                                                <Edit2 className="h-4 w-4" />
+                                              </Button>
+                                              <Button variant="ghost" size="sm" onClick={() => removeQuestion(sIdx, f.__uid)}>
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {f.help && (
+                                        <div className="text-xs text-muted-foreground mt-1">{f.help}</div>
+                                      )}
+                                    </>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )
+                          })}
+                          {(!sec.fields || sec.fields.length === 0) && (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No questions available. Click "Add Question" to get started.
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="answers" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-2">
+                          {((sec.fields || []).length > 0) ? (
+                            (sec.fields || []).some((f: any) => f.answer) ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
+                                disabled={generatingSections.has(sec.sectionId || sec.id)}
+                              >
+                                {generatingSections.has(sec.sectionId || sec.id) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Regenerate Answers
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleGenerateSectionAnswers(sec.sectionId || sec.id)}
+                                disabled={generatingSections.has(sec.sectionId || sec.id)}
+                              >
+                                {generatingSections.has(sec.sectionId || sec.id) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <FileText className="h-4 w-4 mr-2" />
+                                )}
+                                Generate Answers
+                              </Button>
+                            )
+                          ) : (
+                            <div className="text-muted-foreground text-sm">No questions added yet.</div>
+                          )}
+                        </div>
+                        {((sec.fields || []).length > 0) && (
+                          <Button variant="default" size="sm" onClick={handleSaveAnswers} disabled={isSaving}>
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save Answers
                           </Button>
                         )}
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          onClick={() => save(true)}
-                          disabled={isSaving || (sec.fields || []).length === 0 || !(sec.fields || []).some((f: any) => f.answer)}
-                        >
-                          {isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                          )}
-                          Save & Complete
-                        </Button>
                       </div>
-                    </div>
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-3">
-                        {(() => {
-                          // Show all recommendations globally (matching TabsView behavior)
-                          // Don't filter by section - show all recommendations in each section's Procedures tab
-                          const allRecs = Array.isArray(recommendations) ? recommendations : []
-                          
-                          if (allRecs.length === 0) {
+                      <ScrollArea className="h-[500px]">
+                        <div className="space-y-3">
+                          {(sec.fields || []).map((f: any, idx: number) => {
+                            const t = normalizeType(f.type)
+                            const isTable = t === "table"
+                            if (!isFieldVisible(f, answers)) return null
+                            if (f.key === "documentation_reminder") return null
+
+                            const questionKey = `${sIdx}-${f.__uid}`
+                            const isEditingAnswer = editingQuestionIds[`answer-${questionKey}`] === f.__uid
+                            const editAnswerValue = editQuestionTexts[`answer-${questionKey}`] ?? String(f.answer ?? "")
+
                             return (
-                              <div className="text-center py-8 text-muted-foreground">
-                                {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer)
-                                  ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
-                                  : "Generate questions and answers first, then generate procedures."}
-                              </div>
+                              <Card key={f.__uid}>
+                                <CardContent className="pt-6">
+                                  <div className="font-medium mb-2">
+                                    {idx + 1}. {f.label || f.key}
+                                  </div>
+                                  {isEditingAnswer ? (
+                                    <div className="space-y-3">
+                                      <Textarea
+                                        value={editAnswerValue}
+                                        onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: e.target.value }))}
+                                        placeholder="Answer"
+                                        className="min-h-[100px]"
+                                      />
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={() => {
+                                          setField(sIdx, f.__uid, { answer: editAnswerValue })
+                                          setEditingQuestionIds(prev => {
+                                            const next = { ...prev }
+                                            delete next[`answer-${questionKey}`]
+                                            return next
+                                          })
+                                          setEditQuestionTexts(prev => {
+                                            const next = { ...prev }
+                                            delete next[`answer-${questionKey}`]
+                                            return next
+                                          })
+                                        }}>
+                                          <Save className="h-4 w-4 mr-1" />
+                                          Save
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => {
+                                          setEditingQuestionIds(prev => {
+                                            const next = { ...prev }
+                                            delete next[`answer-${questionKey}`]
+                                            return next
+                                          })
+                                          setEditQuestionTexts(prev => {
+                                            const next = { ...prev }
+                                            delete next[`answer-${questionKey}`]
+                                            return next
+                                          })
+                                        }}>
+                                          <X className="h-4 w-4 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="text-sm text-muted-foreground mb-3">
+                                        {f.answer ? (
+                                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {String(f.answer)}
+                                          </ReactMarkdown>
+                                        ) : (
+                                          <span className="italic">No answer.</span>
+                                        )}
+                                      </div>
+                                      {editMode && (
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                              setEditingQuestionIds(prev => ({ ...prev, [`answer-${questionKey}`]: f.__uid }))
+                                              setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: String(f.answer ?? "") }))
+                                            }}
+                                          >
+                                            <Edit2 className="h-4 w-4 mr-1" />
+                                            Edit Answer
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </CardContent>
+                              </Card>
                             )
-                          }
-                          
-                          return allRecs.map((rec: any, idx: number) => {
-                            const recId = rec.id || rec.__uid || `rec-${idx}`
-                            const recText = typeof rec === 'string' 
-                              ? rec 
-                              : rec.text || rec.content || String(rec) || "—"
-                            const isEditing = editingQuestionIds[`rec-${recId}`] === recId
-                            const editText = editQuestionTexts[`rec-${recId}`] ?? recText
-                              
+                          })}
+                          {(!sec.fields || sec.fields.length === 0) && (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No answers yet.
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="procedures" className="space-y-3 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                        <div className="flex items-center gap-2">
+                          {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
+                            recommendations.length > 0 ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleGenerateProcedures}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Regenerate Procedures
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={handleGenerateProcedures}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <FileText className="h-4 w-4 mr-2" />
+                                )}
+                                Generate Procedures
+                              </Button>
+                            )
+                          ) : (
+                            <div className="text-muted-foreground text-sm">
+                              {((sec.fields || []).length === 0) ? "Generate questions first." : "Generate answers first."}
+                            </div>
+                          )}
+                          {editMode && (
+                            <Button variant="outline" size="sm" onClick={() => {
+                              const newRec = {
+                                id: `rec-${Date.now()}`,
+                                text: "New recommendation",
+                                checked: false,
+                                section: sec.sectionId || sec.id
+                              }
+                              setRecommendations(prev => [...prev, newRec])
+                            }}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Procedures
+                            </Button>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => save(true)}
+                            disabled={isSaving || (sec.fields || []).length === 0 || !(sec.fields || []).some((f: any) => f.answer)}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save & Complete
+                          </Button>
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[500px]">
+                        <div className="space-y-3">
+                          {(() => {
+                            // Show all recommendations globally (matching TabsView behavior)
+                            // Don't filter by section - show all recommendations in each section's Procedures tab
+                            const allRecs = Array.isArray(recommendations) ? recommendations : []
+
+                            if (allRecs.length === 0) {
+                              return (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer)
+                                    ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
+                                    : "Generate questions and answers first, then generate procedures."}
+                                </div>
+                              )
+                            }
+
+                            return allRecs.map((rec: any, idx: number) => {
+                              const recId = rec.id || rec.__uid || `rec-${idx}`
+                              const recText = typeof rec === 'string'
+                                ? rec
+                                : rec.text || rec.content || String(rec) || "—"
+                              const isEditing = editingQuestionIds[`rec-${recId}`] === recId
+                              const editText = editQuestionTexts[`rec-${recId}`] ?? recText
+
                               return (
                                 <Card key={recId}>
                                   <CardContent className="pt-6">
@@ -1542,8 +1542,11 @@ const save = async (asCompleted = false) => {
                                     ) : (
                                       <>
                                         <div className="flex justify-between items-start">
-                                          <div className="font-medium mb-2 text-black">
-                                            {idx + 1}. {recText}
+                                          <div className="flex items-center font-medium mb-2 text-black">
+                                            <span className="w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center mr-2 text-sm">
+                                              ✔
+                                            </span>
+                                            {recText}
                                           </div>
                                           {editMode && (
                                             <div className="flex gap-2">
@@ -1572,24 +1575,24 @@ const save = async (asCompleted = false) => {
                                             </div>
                                           )}
                                         </div>
-                                        {rec.checked !== undefined && (
+                                        {/* {rec.checked !== undefined && (
                                           <div className="flex items-center gap-2 mt-2">
                                             <Badge variant={rec.checked ? "default" : "secondary"}>
                                               {rec.checked ? "Completed" : "Pending"}
                                             </Badge>
                                           </div>
-                                        )}
+                                        )} */}
                                       </>
                                     )}
                                   </CardContent>
                                 </Card>
                               )
                             })
-                        })()}
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                </Tabs>
+                          })()}
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                  </Tabs>
                 </AccordionContent>
               </AccordionItem>
             )
@@ -1599,8 +1602,8 @@ const save = async (asCompleted = false) => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 space-y-4">
             <div className="text-muted-foreground">No sections.</div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={addSectionAndQuestion}
               className="flex items-center gap-2"
             >
@@ -1610,7 +1613,7 @@ const save = async (asCompleted = false) => {
           </CardContent>
         </Card>
       )}
-      
+
       <div className="flex items-center justify-end gap-2">
         <Button variant="outline" size="sm" onClick={handleExportPlanningPDF}>
           <Download className="h-4 w-4 mr-2" />
