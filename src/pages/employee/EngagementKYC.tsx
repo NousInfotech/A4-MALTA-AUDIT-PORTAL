@@ -20,9 +20,11 @@ import {
   Trash2,
   AlertCircle
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { kycApi, engagementApi, documentRequestApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 import DocumentRequest from "@/components/document-request/DocumentRequest";
 import type {
   DocumentRequest as DocumentRequestType,
@@ -105,6 +107,7 @@ interface KYCWorkflow {
     createdAt: string;
   }>;
   status: 'active' | 'pending' | 'submitted' | 'in-review' | 'completed' | 'reopened';
+  workflowType?: 'Shareholder' | 'Representative';
   createdAt: string;
   updatedAt: string;
 }
@@ -114,13 +117,15 @@ interface EngagementKYCProps {
   companyId?: string;
   clientId?: string;
   company?: any;
+  isClientView?: boolean;
 }
 
 export function EngagementKYC({ 
   engagementId: engagementIdProp, 
   companyId: companyIdProp,
   clientId: clientIdProp,
-  company: companyProp
+  company: companyProp,
+  isClientView = false
 }: EngagementKYCProps = {}) {
   const params = useParams<{ id: string; clientId?: string; companyId?: string }>();
   
@@ -134,6 +139,10 @@ export function EngagementKYC({
   const companyId = companyIdProp || params.companyId;
   const engagementId = engagementIdProp || (!companyId ? params.id : undefined); 
   const clientId = clientIdProp || params.clientId;
+  const { user } = useAuth(); // Get current user for permission checks
+  
+  // Determine if we are in client view mode (either via prop or role)
+  const isClient = isClientView || user?.role === 'client';
 
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [kycWorkflows, setKycWorkflows] = useState<KYCWorkflow[]>([]);
@@ -919,8 +928,500 @@ export function EngagementKYC({
     );
   }
 
+  const shareholderWorkflows = kycWorkflows.filter(
+    (w) => !w.workflowType || w.workflowType === "Shareholder"
+  );
+  const representativeWorkflows = kycWorkflows.filter(
+    (w) => w.workflowType === "Representative"
+  );
+
+  // Helper to render a workflow section
+  const renderWorkflowSection = (workflows: KYCWorkflow[], type: "Shareholder" | "Representative") => {
+    if (workflows.length === 0) {
+      return (
+        <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No {type} KYC Workflow</h3>
+              <p className="text-gray-600 mb-4">
+                No {type} KYC workflow has been created for this {engagementId ? "engagement" : "company"} yet.
+              </p>
+
+              {(engagementId || companyId) && !isClient && (
+                <KYCDocumentRequestModal
+                  engagementId={engagementId}
+                  companyId={companyId}
+                  clientId={engagement?.clientId || clientId || ''}
+                  engagementName={engagement?.title}
+                  company={companyProp || engagement?.companyId}
+                  workflowType={type}
+                  onSuccess={fetchKYCWorkflows}
+                  trigger={
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create {type} KYC Workflow
+                    </Button>
+                  }
+                />
+              )}
+              {(engagementId || companyId) && isClient && (
+                 <p className="text-sm text-gray-500 italic mt-2">
+                   Please contact your auditor to initiate a KYC workflow.
+                 </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <Shield className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-gray-900">{type} KYC Workflow Details</CardTitle>
+                <CardDescription className="text-gray-700">
+                  Manage document requests and workflow status
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => fetchKYCWorkflows()}
+                disabled={isUpdating}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              
+              {(engagementId || companyId) && (() => {
+                const totalGlobalUploadedDocs = workflows.reduce((acc, workflow) => {
+                  return acc + (workflow.documentRequests?.reduce((reqAcc, item) => {
+                    const singleDocs = item.documentRequest.documents?.filter((d: any) => d.url).length || 0;
+                    const docReq = item.documentRequest as any;
+                    const multipleDocs = docReq.multipleDocuments?.reduce((mAcc: number, group: any) => {
+                      return mAcc + (group.multiple?.filter((d: any) => d.url).length || 0);
+                    }, 0) || 0;
+                    return reqAcc + singleDocs + multipleDocs;
+                  }, 0) || 0);
+                }, 0);
+
+                return totalGlobalUploadedDocs > 0 && (
+                  <Button
+                    variant="default"
+                    onClick={handleDownloadAll}
+                    disabled={isUpdating}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download All
+                  </Button>
+                );
+              })()}
+              {(engagementId || companyId) && !isClient && (
+                <AddDocumentRequestModal
+                  kycId={workflows[0]._id}
+                  engagementId={engagementId}
+                  companyId={companyId}
+                  clientId={workflows[0].clientId}
+                  company={companyProp || engagement?.companyId}
+                  workflowType={type}
+                  onSuccess={fetchKYCWorkflows}
+                  trigger={
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                    disabled={isUpdating}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Document Request
+                    </Button>
+                  }
+                />
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6 space-y-6">
+          {workflows.map((workflow) => (
+            <div key={workflow._id} className="space-y-4">
+              {/* Status Management – only show when there are document requests */}
+              {workflow.documentRequests && workflow.documentRequests.length > 0 && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    
+                    <h3 className="font-semibold text-gray-900">Status Management</h3>
+                    {getStatusBadge(workflow.status)}
+                  </div>
+                  {!isClient && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {workflow.status !== 'completed' && (
+                      <Button
+                        size="sm"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                        onClick={() => handleStatusUpdate(workflow._id, 'completed')}
+                        disabled={isUpdating}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Mark Completed
+                      </Button>
+                    )}
+                    {workflow.status === 'completed' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReopenKYC(workflow._id)}
+                        className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
+                        disabled={isUpdating}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reopen KYC
+                      </Button>
+                    )}
+                  </div>
+                  )}
+                </div>
+              )}
+
+              {/* Document Requests */}
+              {workflow.documentRequests && workflow.documentRequests.length > 0 ? (() => {
+                const validRequests = workflow.documentRequests.filter(
+                  (item) => item.documentRequest
+                );
+
+                if (validRequests.length === 0) {
+                    return (
+                    <div className="text-center py-8 text-gray-500">
+                      No document requests yet
+                    </div>
+                  );
+                }
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Document Requests
+                      </h3>
+                      <Badge
+                        variant="outline"
+                        className="text-gray-600 border-gray-300 bg-gray-50"
+                      >
+                        {validRequests.length} Request
+                        {validRequests.length !== 1 ? "s" : ""}
+                      </Badge>
+                    </div>
+                    <div className="space-y-4">
+                      {validRequests.map((item, index) => {
+                        const populated =
+                          (item.documentRequest &&
+                            documentRequestsMap[item.documentRequest._id]) ||
+                          null;
+                        const baseRequest = (populated ||
+                          item.documentRequest) as any;
+                        const singleDocs = baseRequest?.documents || [];
+                        const multipleGroups = baseRequest?.multipleDocuments || [];
+                        const multipleItems = multipleGroups.flatMap(
+                          (g: any) => g.multiple || []
+                        );
+                        const totalDocs =
+                          singleDocs.length + multipleItems.length;
+                        const completedSingle = singleDocs.filter(
+                          (doc: any) =>
+                            doc.url &&
+                            doc.status &&
+                            doc.status !== "rejected"
+                        ).length;
+                        const completedMultiple = multipleItems.filter(
+                          (item: any) =>
+                            item.url &&
+                            item.status &&
+                            item.status !== "rejected"
+                        ).length;
+                        const completedDocs =
+                          completedSingle + completedMultiple;
+                        const progressPercentage =
+                          totalDocs > 0
+                            ? (completedDocs / totalDocs) * 100
+                            : 0;
+                        const request: DocumentRequestType = {
+                          documents: baseRequest?.documents || [],
+                          multipleDocuments: baseRequest?.multipleDocuments || [],
+                          _id: baseRequest?._id,
+                          engagement: baseRequest?.engagement,
+                          clientId: baseRequest?.clientId,
+                          name: baseRequest?.name,
+                          category: baseRequest?.category ?? "",
+                          description: baseRequest?.description ?? "",
+                          comment: baseRequest?.comment,
+                          status: baseRequest?.status,
+                          requestedAt: baseRequest?.requestedAt ?? new Date(),
+                          completedAt: baseRequest?.completedAt,
+                        };
+                            
+                        return (
+                          <div
+                            key={item._id || index}
+                            className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                          >
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-3 flex-1">
+                                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <span className="text-lg font-semibold text-blue-700">
+                                    {item.person?.name?.charAt(0).toUpperCase() || (engagementId ? "U" : (workflow as any).company?.name?.charAt(0).toUpperCase() || "C")}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-semibold text-gray-900 text-lg">
+                                      {item.person?.name || (engagementId ? "Unknown Person" : (workflow as any).company?.name || "Company Request")}
+                                    </h4>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs text-blue-700 border-blue-300 bg-blue-50"
+                                    >
+                                      {(request.documents?.length || 0) +
+                                        (request.multipleDocuments?.length || 0)}{" "}
+                                      Document
+                                      {(request.documents?.length || 0) +
+                                        (request.multipleDocuments?.length || 0) !==
+                                      1
+                                        ? "s"
+                                        : ""}{" "}
+                                      Required
+                                    </Badge>
+                                  </div>
+                                  {item.person?.nationality && (
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {item.person.nationality} •{" "}
+                                      {item.person.address?.split("\n")[0] ||
+                                        "No address"}
+                                    </p>
+                                  )}
+                                  {request.description && (
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      {request.description}
+                                    </p>
+                                  )}
+                                  {totalDocs > 0 && (
+                                    <div className="mt-3 space-y-1">
+                                      <div className="flex items-center justify-between text-xs text-gray-600">
+                                        <span className="font-medium">
+                                          Progress: {completedDocs} / {totalDocs} documents
+                                        </span>
+                                        <span className="font-semibold">
+                                          {Math.round(progressPercentage)}%
+                                        </span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                        <div
+                                          className={`h-2.5 rounded-full transition-all ${
+                                            progressPercentage === 100
+                                              ? "bg-green-600"
+                                              : progressPercentage > 0
+                                              ? "bg-blue-600"
+                                              : "bg-gray-300"
+                                          }`}
+                                          style={{ width: `${progressPercentage}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {completedDocs > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleDownloadRequest(request._id)}
+                                    disabled={isUpdating}
+                                    title="Download All Documents In This Request"
+                                    className='text-xs'
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download All
+                                  </Button>
+                                )}
+                                {isClient ? null : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setDeleteDialog({
+                                      open: true,
+                                      type: "request",
+                                      documentRequestId: request._id,
+                                      documentName:
+                                        request.category || "this document request",
+                                    })
+                                  }
+                                  className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 text-xs"
+                                  title="Delete Document Request"
+                                  disabled={isUpdating}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete Request
+                                </Button>
+                                )}
+                              </div>
+                            </div>
+                        
+                            <DocumentRequest
+                              request={request}
+                              uploadingSingle={uploadingDocument}
+                              uploadingMultiple={uploadingMultiple}
+                              onUploadSingle={handleDocumentUpload}
+                              onUploadMultiple={handleUploadMultiple}
+                              onClearDocument={handleClearSingleDocument}
+                              onClearMultipleItem={handleClearMultipleItem}
+                              onClearMultipleGroup={handleClearMultipleGroup}
+                              onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                              onRequestDeleteDialog={(payload) =>
+                                setDeleteDialog({
+                                  open: true,
+                                  ...payload,
+                                })
+                              }
+                              clientId={workflow.clientId}
+                              onDocumentsAdded={fetchKYCWorkflows}
+                              isDisabled={loading || isUpdating}
+                              isClientView={isClient}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="text-center py-8 text-gray-500">
+                  No document requests yet
+                </div>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const company = companyProp || engagement?.companyId;
+  
+  // Check if company has relevant persons
+  const hasShareholders = Array.isArray(company?.shareHolders) && company.shareHolders.length > 0;
+  const hasRepresentatives = Array.isArray(company?.representationalSchema) && company.representationalSchema.length > 0;
+
   return (
     <div className="space-y-6">
+      {kycWorkflows.length > 0 ? (
+        <Tabs defaultValue="shareholder" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4 p-1 rounded-xl">
+            <TabsTrigger 
+              value="shareholder"
+             >
+              Shareholder KYC
+            </TabsTrigger>
+            <TabsTrigger 
+              value="representative"
+            >
+              Representative KYC
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="shareholder">
+            {renderWorkflowSection(shareholderWorkflows, "Shareholder")}
+          </TabsContent>
+          <TabsContent value="representative">
+            {renderWorkflowSection(representativeWorkflows, "Representative")}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
+          <CardContent className="p-6">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Shield className="h-8 w-8 text-gray-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No KYC Workflows</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                Get started by creating a KYC workflow for either Shareholders or Representatives.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                {(engagementId || companyId) && !isClient && (
+                  <>
+                    {hasShareholders && (
+                      <KYCDocumentRequestModal
+                        engagementId={engagementId}
+                        companyId={companyId}
+                        clientId={engagement?.clientId || clientId || ''}
+                        engagementName={engagement?.title}
+                        company={companyProp || engagement?.companyId}
+                        workflowType="Shareholder"
+                        onSuccess={fetchKYCWorkflows}
+                        trigger={
+                          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground w-full sm:w-auto h-auto py-3 px-6 flex-col gap-1">
+                            <div className="flex items-center">
+                              <Plus className="h-4 w-4 mr-2" />
+                              <span>Create Shareholder KYC</span>
+                            </div>
+                            <span className="text-xs opacity-80 font-normal">For company shareholders</span>
+                          </Button>
+                        }
+                      />
+                    )}
+
+                    {hasRepresentatives && (
+                      <KYCDocumentRequestModal
+                        engagementId={engagementId}
+                        companyId={companyId}
+                        clientId={engagement?.clientId || clientId || ''}
+                        engagementName={engagement?.title}
+                        company={companyProp || engagement?.companyId}
+                        workflowType="Representative"
+                        onSuccess={fetchKYCWorkflows}
+                        trigger={
+                          <Button variant="outline" className="w-full sm:w-auto h-auto py-3 px-6 flex-col gap-1">
+                            <div className="flex items-center">
+                              <Plus className="h-4 w-4 mr-2" />
+                              <span>Create Representative KYC</span>
+                            </div>
+                            <span className="text-xs opacity-80 font-normal">For legal representatives</span>
+                          </Button>
+                        }
+                      />
+                    )}
+                    
+                    {!hasShareholders && !hasRepresentatives && (
+                      <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+                         No shareholders or representatives found for this company. Please add them in the Company details first.
+                      </div>
+                    )}
+                  </>
+                )}
+                {(engagementId || companyId) && isClient && (
+                    <div className="text-center p-4">
+                        <p className="text-gray-600">
+                            No KYC workflows are currently active for you. Please contact your administrator if you believe this is an error.
+                        </p>
+                    </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {false && (
+        <div style={{ display: 'none' }}>
       {kycWorkflows.length > 0 ? (
         <Card className="bg-white border border-gray-200 rounded-2xl shadow-lg">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
@@ -984,7 +1485,7 @@ export function EngagementKYC({
                     }
                   />
                 )} */}
-                {(engagementId || companyId) && (
+                {(engagementId || companyId) && user?.role !== 'client' && (
                   <AddDocumentRequestModal
                     kycId={kycWorkflows[0]._id}
                     engagementId={engagementId}
@@ -1319,6 +1820,8 @@ export function EngagementKYC({
             </div>
           </CardContent>
         </Card>
+      )}
+        </div>
       )}
 
       {/* Delete Confirmation Dialog */}

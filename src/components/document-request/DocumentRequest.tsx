@@ -86,6 +86,8 @@ interface DocumentRequestProps {
 
   /** Optional flag to disable all actions (for when parent is updating) */
   isDisabled?: boolean;
+  /** Optional flag to hide admin-only features like adding new document slots */
+  isClientView?: boolean;
 }
 
 const DocumentRequest: React.FC<DocumentRequestProps> = ({
@@ -104,6 +106,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
   onClearMultipleGroup,
   onDownloadMultipleGroup,
   isDisabled,
+  isClientView = false,
 }) => {
   const [addDocumentDialogOpen, setAddDocumentDialogOpen] = useState(false);
   const {
@@ -194,7 +197,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
       </CardHeader> */}
 
       {/* Add Document Button */}
-      {(engagementId || clientId) && ( 
+      {(engagementId || clientId) && !isClientView && ( 
         <div className="mb-4 flex justify-end">
           <Button
             size="sm"
@@ -238,7 +241,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
         )}
 
         {/* Add Document Dialog */}
-        {(engagementId || clientId) && (
+        {(engagementId || clientId) && !isClientView && (
           <AddDocumentDialog
             open={addDocumentDialogOpen}
             onOpenChange={setAddDocumentDialogOpen}

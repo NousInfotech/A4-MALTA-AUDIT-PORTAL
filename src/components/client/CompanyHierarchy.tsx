@@ -903,7 +903,12 @@ return (
             type: "smoothstep"
           }}
         >
-          <MiniMap nodeStrokeColor={() => "#111827"} nodeColor={() => "#fff"} />
+          <MiniMap 
+            nodeStrokeColor={() => "#111827"} 
+            nodeColor={() => "#fff"} 
+            pannable 
+            zoomable 
+          />
           <Controls showInteractive={false} />
           <Background gap={16} color="#f3f4f6" />
         </ReactFlow>
