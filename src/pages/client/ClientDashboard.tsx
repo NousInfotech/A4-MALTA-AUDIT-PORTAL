@@ -105,9 +105,17 @@ export const ClientDashboard = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-brand-body mb-2">Welcome to Your Client Portal</h1>
+          <h1 className="text-3xl font-semibold text-brand-body mb-2">
+            {(() => {
+              const hour = new Date().getHours();
+              const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || "Client";
+              if (hour < 12) return `Good morning, ${userName}!`;
+              if (hour < 17) return `Good afternoon, ${userName}!`;
+              return `Good evening, ${userName}!`;
+            })()}
+          </h1>
           <p className="text-brand-body">Track your audit engagements and document requests.</p>
-      </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
@@ -118,8 +126,8 @@ export const ClientDashboard = () => {
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {stats.map((stat, index) => {
-          const Icon = stat.icon;
-          return (
+                const Icon = stat.icon;
+                return (
                   <div key={stat.title} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
                     <div className="flex items-center justify-between mb-4">
                       <Icon className="h-6 w-6 text-gray-800" />
@@ -127,11 +135,11 @@ export const ClientDashboard = () => {
                     <div className="space-y-1">
                       <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
                       <p className="text-sm text-gray-700">{stat.title}</p>
+                    </div>
                   </div>
-                </div>
-          );
-        })}
-      </div>
+                );
+              })}
+            </div>
 
             {/* Performance Indicators */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -159,12 +167,12 @@ export const ClientDashboard = () => {
 
             {/* Quick Navigation - Employee Dashboard Style */}
             <ClientComprehensiveNavigation />
-      </div>
+          </div>
 
           {/* Right Sidebar */}
           <div className="space-y-6">
 
-        {/* Recent Engagements */}
+            {/* Recent Engagements */}
             <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Engagements</h3>
               <div className="space-y-3">
@@ -176,46 +184,45 @@ export const ClientDashboard = () => {
                         <div className="flex-1 min-w-0">
                           <p className="text-gray-900 font-medium truncate">{engagement.title}</p>
                           <p className="text-gray-600 text-sm truncate">Audit Engagement</p>
-                </div>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                asChild 
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
                         className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
-              >
+                      >
                         <Link to={`/client/engagements`}>
                           <Eye className="h-3 w-3" />
-                </Link>
-              </Button>
-            </div>
+                        </Link>
+                      </Button>
+                    </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-3 w-3 text-gray-500" />
                         <span className="text-gray-500 text-xs">
-                        Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
+                          Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
                         </span>
-                    </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        engagement.status === "active" ? "bg-primary text-primary-foreground" :
-                        engagement.status === "completed" ? "bg-gray-700 text-white" :
-                        "bg-gray-600 text-white"
-                      }`}>
-                      {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${engagement.status === "active" ? "bg-primary text-primary-foreground" :
+                          engagement.status === "completed" ? "bg-gray-700 text-white" :
+                            "bg-gray-600 text-white"
+                        }`}>
+                        {getPBCStatusLabel(engagement.status) || getEngagementStatusLabel(engagement.status)}
                       </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {clientEngagements.length === 0 && (
+                ))}
+                {clientEngagements.length === 0 && (
                   <div className="text-center py-8">
                     <Briefcase className="h-12 w-12 text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-600">No engagements yet. Your audit engagements will appear here once they are created by your auditor.</p>
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-        {/* Pending Requests */}
+            {/* Pending Requests */}
             <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Requests</h3>
               <div className="space-y-3">
@@ -227,45 +234,45 @@ export const ClientDashboard = () => {
                         <div className="flex-1 min-w-0">
                           <p className="text-gray-900 font-medium truncate">{request.category}</p>
                           <p className="text-gray-600 text-sm truncate">{request.description}</p>
-                </div>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                asChild 
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
                         className="border-gray-300 hover:bg-gray-100 text-gray-700 hover:text-gray-900 rounded-xl flex-shrink-0"
-              >
+                      >
                         <Link to={`/client/requests`}>
                           <Upload className="h-3 w-3" />
-                </Link>
-              </Button>
-            </div>
+                        </Link>
+                      </Button>
+                    </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-3 w-3 text-gray-500" />
                         <span className="text-gray-500 text-xs">
-                      {new Date(request.requestedAt).toLocaleDateString()}
-                    </span>
-                  </div>
+                          {new Date(request.requestedAt).toLocaleDateString()}
+                        </span>
+                      </div>
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground">
                         Pending
                       </span>
                     </div>
-                </div>
-              ))}
-              {pendingRequests.length === 0 && (
+                  </div>
+                ))}
+                {pendingRequests.length === 0 && (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-600">No pending requests. All document requests have been completed.</p>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
-      </div>
 
-      {/* User Information */}
-            <div 
+            {/* User Information */}
+            <div
               className="backdrop-blur-md border rounded-2xl p-6 bg-primary/90"
-              style={{ 
+              style={{
                 borderColor: 'hsl(var(--primary) / 0.5)'
               }}
             >
@@ -281,16 +288,16 @@ export const ClientDashboard = () => {
                 <div className="flex justify-between">
                   <span className="text-primary-foreground/60 text-sm">Role:</span>
                   <span className="text-primary-foreground text-sm">{user?.role || 'Client'}</span>
-            </div>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-primary-foreground/60 text-sm">Email:</span>
                   <span className="text-primary-foreground text-sm truncate">{user?.email || 'N/A'}</span>
+                </div>
+              </div>
             </div>
           </div>
-            </div>
-            </div>
-            </div>
-          </div>
+        </div>
+      </div>
     </div>
   );
 };
