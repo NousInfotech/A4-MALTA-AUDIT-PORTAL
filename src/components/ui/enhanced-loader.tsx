@@ -8,6 +8,7 @@ interface EnhancedLoaderProps {
   size?: "sm" | "md" | "lg"
   className?: string
   variant?: "default" | "dots" | "pulse" | "bounce"
+  text?: string
 }
 
 export function EnhancedLoader({ size = "md", className }: EnhancedLoaderProps) {

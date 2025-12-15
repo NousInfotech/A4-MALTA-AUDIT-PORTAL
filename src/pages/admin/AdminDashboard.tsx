@@ -185,7 +185,7 @@ export const AdminDashboard = () => {
               industry: profile.industry || undefined,
             };
           }
-          
+
           // Otherwise, try to fetch email (with graceful fallback)
           const email = await getClientEmail(profile.user_id);
           return {
@@ -390,16 +390,16 @@ export const AdminDashboard = () => {
   // Dynamic greeting message
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
-    const userName = "Admin";
+    const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || "Admin";
 
     if (hour < 12) {
       // return `Good morning, ${userName}!`;
-      return `Good morning, Cleven!`;
+      return `Good morning, ${userName}!`;
     } else if (hour < 17) {
-      return `Good afternoon, Cleven!`;
+      return `Good afternoon, ${userName}!`;
       // return `Good afternoon, ${userName}!`;
     } else {
-      return `Good evening, Cleven!`;
+      return `Good evening, ${userName}!`;
       // return `Good evening, ${userName}!`;
     }
   };

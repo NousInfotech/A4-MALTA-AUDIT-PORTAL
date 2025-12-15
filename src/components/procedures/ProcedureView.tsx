@@ -1290,7 +1290,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
                     )}
-                    Save & Complete
+                    Save Procedures
                   </Button>
                 </div>
               </div>
@@ -1355,8 +1355,15 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                             ) : (
                               <>
                                 <div className="flex justify-between items-start">
-                                  <div className="font-medium mb-2 text-black">
-                                    {idx + 1}. {recText}
+                                  <div className="flex items-start space-x-3 flex-1">
+                                    <Checkbox
+                                      checked={rec.checked || false}
+                                      onCheckedChange={() => handleCheckboxToggle(recId)}
+                                      className="mt-1"
+                                    />
+                                    <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
+                                      {recText}
+                                    </span>
                                   </div>
                                   <div className="flex gap-2">
                                     <Button
@@ -1383,13 +1390,6 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                                     </Button>
                                   </div>
                                 </div>
-                                {rec.checked !== undefined && (
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Badge variant={rec.checked ? "default" : "secondary"}>
-                                      {rec.checked ? "Completed" : "Pending"}
-                                    </Badge>
-                                  </div>
-                                )}
                               </>
                             )}
                           </CardContent>
@@ -1777,7 +1777,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                             ) : (
                               <Save className="h-4 w-4 mr-2" />
                             )}
-                            Save & Complete
+                            Save Procedures
                           </Button>
                         </div>
                       </div>
@@ -1842,8 +1842,15 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                                     ) : (
                                       <>
                                         <div className="flex justify-between items-start">
-                                          <div className="font-medium mb-2 text-black">
-                                            {idx + 1}. {recText}
+                                          <div className="flex items-start space-x-3 flex-1">
+                                            <Checkbox
+                                              checked={rec.checked || false}
+                                              onCheckedChange={() => handleCheckboxToggle(recId)}
+                                              className="mt-1"
+                                            />
+                                            <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
+                                              {recText}
+                                            </span>
                                           </div>
                                           <div className="flex gap-2">
                                             <Button
@@ -1870,13 +1877,6 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                                             </Button>
                                           </div>
                                         </div>
-                                        {rec.checked !== undefined && (
-                                          <div className="flex items-center gap-2 mt-2">
-                                            <Badge variant={rec.checked ? "default" : "secondary"}>
-                                              {rec.checked ? "Completed" : "Pending"}
-                                            </Badge>
-                                          </div>
-                                        )}
                                       </>
                                     )}
                                   </CardContent>
