@@ -35,7 +35,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon,MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck, ChevronRight, ChevronDown } from 'lucide-react'
+import { Folder, FolderOpen, File, FileText, ImageIcon, Grid3X3, List, Search, RefreshCw, FolderInputIcon, MoreVertical, Upload, Download, Pencil, Trash2, Home, Loader2, Plus, Library, Sparkles, Eye, History, Filter, CheckSquare, Square, X, Calendar, Tag, User, FileCheck, ChevronRight, ChevronDown } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -58,6 +58,8 @@ import {
   type GlobalFolder,
   type DocumentVersion,
   type DocumentActivity,
+  getFilesReviewStatus,
+  saveAnnotation,
 } from "@/lib/api/global-library"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -104,7 +106,9 @@ export default function GlobalLibraryPage() {
   const [fileActivity, setFileActivity] = useState<DocumentActivity[]>([])
   const [showActivity, setShowActivity] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
-  
+
+  const [reviewStatuses, setReviewStatuses] = useState<Record<string, boolean>>({});
+
   // Advanced search/filter state
   const [advancedSearch, setAdvancedSearch] = useState({
     search: "",
@@ -124,10 +128,10 @@ export default function GlobalLibraryPage() {
   const { toast } = useToast()
   const { logUploadDocument, logDeleteDocument, logViewClientFile } = useActivityLogger()
 
-  useEffect(()=>{
-   if(selectedFolder && selectedFolder?.name)
-     setRenameFolderName(selectedFolder?.name);
-  },[selectedFolder])
+  useEffect(() => {
+    if (selectedFolder && selectedFolder?.name)
+      setRenameFolderName(selectedFolder?.name);
+  }, [selectedFolder])
 
   // Debounced search effect - only trigger API call after user stops typing
   useEffect(() => {
@@ -142,7 +146,7 @@ export default function GlobalLibraryPage() {
     // Apply local search filter immediately for better UX
     const term = localSearchTerm.trim().toLowerCase()
     if (!term) return files
-    
+
     return files.filter((f) => {
       const fileName = f.name || f.fileName || ""
       return fileName.toLowerCase().includes(term)
@@ -167,24 +171,24 @@ export default function GlobalLibraryPage() {
   // Build full path for a folder by traversing up the parent chain
   const getFolderPath = useCallback((folder: GlobalFolder | null): GlobalFolder[] => {
     if (!folder) return []
-    
+
     const path: GlobalFolder[] = []
     const folderMap = new Map<string, GlobalFolder>()
-    
+
     // Create a map of all folders by ID for quick lookup
     folders.forEach(f => {
       const id = f._id
       folderMap.set(id, f)
     })
-    
+
     // Traverse up the parent chain
     let current: GlobalFolder | null = folder
     const visited = new Set<string>()
-    
+
     while (current && !visited.has(current._id)) {
       visited.add(current._id)
       path.unshift(current) // Add to beginning to maintain order
-      
+
       // Get parent ID (handle both object and string)
       const parentId = current.parentId?._id || current.parentId
       if (parentId) {
@@ -193,7 +197,7 @@ export default function GlobalLibraryPage() {
         current = null
       }
     }
-    
+
     return path
   }, [folders])
 
@@ -208,18 +212,18 @@ export default function GlobalLibraryPage() {
       // Handle both null and undefined for parentId
       // parentId can be: null, undefined, string (_id), or object (populated)
       const folderParentId = folder.parentId
-      
+
       // If parentId is null or undefined, it's a root folder
       if (!folderParentId) {
         return false
       }
-      
+
       // If parentId is an object (populated), extract the _id
       if (typeof folderParentId === 'object') {
         const parentIdStr = String(folderParentId._id || folderParentId)
         return parentIdStr === selectedFolderId
       }
-      
+
       // If parentId is a string, compare directly
       return String(folderParentId) === selectedFolderId
     })
@@ -279,7 +283,7 @@ export default function GlobalLibraryPage() {
             )}>
               <Folder className="h-4 w-4" />
             </div>
-            
+
             {/* Folder name */}
             <span className={cn(
               "text-sm truncate flex-1",
@@ -287,7 +291,7 @@ export default function GlobalLibraryPage() {
             )}>
               {folder.name}
             </span>
-            
+
             {/* Actions menu */}
             <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <DropdownMenu>
@@ -367,6 +371,21 @@ export default function GlobalLibraryPage() {
         sortOrder: activeFilters.sortOrder || "desc",
       })
       setFiles(list)
+
+      // Check review status for files
+      if (list.length > 0) {
+        // Construct file IDs consistent with how they are saved in annotations (typically just the file object ID or name if using gridfs/s3 references)
+        // Adjust based on your backend logic. The annotationController uses `fileId` which maps to `_id` of the file record if available.
+        // If files are from filesystem-like storage, mapping might be different.
+        // Assuming list contains objects with _id.
+        const fileIds = list.map(f => f._id).filter(Boolean) as string[];
+        if (fileIds.length > 0) {
+          getFilesReviewStatus(fileIds).then(statusMap => {
+            setReviewStatuses(prev => ({ ...prev, ...statusMap }));
+          }).catch(console.error);
+        }
+      }
+
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to fetch files", variant: "destructive" })
     } finally {
@@ -385,7 +404,7 @@ export default function GlobalLibraryPage() {
       refreshFiles(selectedFolder)
     }
   }, [selectedFolder?._id])
-  
+
   // Separate effect for search term (debounced) - filters apply automatically via onValueChange handlers
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -403,15 +422,15 @@ export default function GlobalLibraryPage() {
     try {
       const parentId = selectedParentFolder?._id || null
       const createdFolder = await apiCreateFolder(name, parentId)
-      
+
       setNewFolderName("")
       setSelectedParentFolder(null)
       setIsCreateFolderOpen(false)
-      
+
       // Refresh folders to get the updated list
       const updatedFolders = await apiGetFolders()
       setFolders(updatedFolders)
-      
+
       // Maintain selection if still exists
       if (selectedFolder) {
         const found = updatedFolders.find((f) => f._id === selectedFolder._id)
@@ -421,7 +440,7 @@ export default function GlobalLibraryPage() {
           await refreshFiles(found)
         }
       }
-      
+
       toast({ title: "Folder created", description: `"${name}" is ready to use.` })
     } catch (e: any) {
       toast({ title: "Create failed", description: e.message || "Unable to create folder", variant: "destructive" })
@@ -441,21 +460,21 @@ export default function GlobalLibraryPage() {
     try {
       const parentId = selectedFolder._id
       const createdFolder = await apiCreateFolder(name, parentId)
-      
+
       setNewFolderInCurrentName("")
       setIsCreateFolderInCurrentOpen(false)
-      
+
       // Refresh folders to get the updated list
       const updatedFolders = await apiGetFolders()
       setFolders(updatedFolders)
-      
+
       // Maintain selection and refresh files view to show the new nested folder
       const found = updatedFolders.find((f) => f._id === selectedFolder._id)
       if (found) {
         setSelectedFolder(found)
         await refreshFiles(found)
       }
-      
+
       toast({ title: "Folder created", description: `"${name}" created inside "${selectedFolder.name}".` })
     } catch (e: any) {
       toast({ title: "Create failed", description: e.message || "Unable to create folder", variant: "destructive" })
@@ -521,7 +540,7 @@ export default function GlobalLibraryPage() {
     const filesList = e.target.files
     if (!filesList || filesList.length === 0) return
 
-    
+
     setUploading(true)
     try {
       for (const file of Array.from(filesList)) {
@@ -541,9 +560,9 @@ export default function GlobalLibraryPage() {
     try {
       const fileName = file.name || file.fileName || "";
       setDownloading(fileName);
-      
+
       if (!selectedFolder) return;
-      
+
       // If multiple files are selected, use bulk download
       if (useBulk && selectedFiles.size > 1) {
         const fileNames = Array.from(selectedFiles);
@@ -560,7 +579,7 @@ export default function GlobalLibraryPage() {
         toast({ title: "Download started", description: `Downloading ${fileNames.length} file(s) as ZIP...` });
         return;
       }
-      
+
       // Single file download - direct download (not ZIP)
       const result = await apiDownloadFile(selectedFolder.name, fileName);
       const response = await fetch(result.downloadUrl);
@@ -648,7 +667,7 @@ export default function GlobalLibraryPage() {
         // If decoding fails, use original URL
         decodedUrl = url
       }
-      
+
       const u = new URL(decodedUrl)
       if (addDownload && !u.searchParams.has("download")) {
         // makes the CDN return with Content-Disposition: attachment
@@ -690,10 +709,10 @@ export default function GlobalLibraryPage() {
       setAnnotatorUrl(processedUrl);
       setShowAnnotator(true);
     } catch (e: any) {
-      toast({ 
-        title: "Failed to open annotator", 
-        description: e.message || "Unable to open PDF annotator", 
-        variant: "destructive" 
+      toast({
+        title: "Failed to open annotator",
+        description: e.message || "Unable to open PDF annotator",
+        variant: "destructive"
       });
     }
   };
@@ -727,7 +746,7 @@ export default function GlobalLibraryPage() {
   // Bulk download handler
   const handleBulkDownload = async () => {
     if (!selectedFolder || selectedFiles.size === 0) return;
-    
+
     // If only one file selected, download directly (not ZIP)
     if (selectedFiles.size === 1) {
       const fileName = Array.from(selectedFiles)[0];
@@ -738,7 +757,7 @@ export default function GlobalLibraryPage() {
         return;
       }
     }
-    
+
     // Multiple files - download as ZIP
     try {
       const fileNames = Array.from(selectedFiles);
@@ -820,10 +839,10 @@ export default function GlobalLibraryPage() {
       }
       await apiDeleteFile(selectedFolder.name, fileName)
       await refreshFiles(selectedFolder)
-      
+
       // Log file deletion
       logDeleteDocument(`Deleted file: ${fileName} from folder: ${selectedFolder.name}`)
-      
+
       toast({ title: "File deleted", description: `"${fileName}" was removed.` })
     } catch (e: any) {
       toast({ title: "Delete failed", description: e.message || "Unable to delete file", variant: "destructive" })
@@ -863,8 +882,8 @@ export default function GlobalLibraryPage() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
               >
                 <Plus className="h-5 w-5 mr-2" />
@@ -902,7 +921,7 @@ export default function GlobalLibraryPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-gray-500">
-                    {selectedParentFolder 
+                    {selectedParentFolder
                       ? `Creating folder inside: ${selectedParentFolder.name}`
                       : "Creating folder at root level. Select a folder to create inside it."}
                   </p>
@@ -918,16 +937,16 @@ export default function GlobalLibraryPage() {
                   />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button 
-                    onClick={handleCreateFolder} 
-                    disabled={!newFolderName.trim() || creating} 
+                  <Button
+                    onClick={handleCreateFolder}
+                    disabled={!newFolderName.trim() || creating}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                   >
                     {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
                     Create Folder
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => {
                       setIsCreateFolderOpen(false)
                     }}
@@ -942,7 +961,7 @@ export default function GlobalLibraryPage() {
           {selectedFolder && (
             <Dialog open={isRenameFolderOpen} onOpenChange={setIsRenameFolderOpen}>
               <DialogTrigger asChild>
-                <Button 
+                <Button
                   variant="outline"
                   className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                 >
@@ -962,16 +981,16 @@ export default function GlobalLibraryPage() {
                     className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
                   />
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
-                      onClick={handleRenameFolder} 
+                    <Button
+                      onClick={handleRenameFolder}
                       disabled={!renameFolderName.trim() || renaming}
                       className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                     >
                       {renaming ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
                       Rename
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setIsRenameFolderOpen(false)}
                       className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
                     >
@@ -1081,1009 +1100,1034 @@ export default function GlobalLibraryPage() {
                       <p className="text-gray-600 font-medium">No folders yet. Create one to get started.</p>
                     </div>
                   )}
-              </div>
-            </aside>
-
-            {/* Main content */}
-            <section className="flex-1 min-w-0">
-              {/* Search and upload */}
-              <div className="p-6 border-b border-gray-200 bg-gray-50">
-                <div className="flex flex-col gap-4">
-                  {/* Basic search and upload */}
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="flex-1 relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder="Search files..."
-                        value={localSearchTerm}
-                        onChange={(e) => setLocalSearchTerm(e.target.value)}
-                        className="pl-10 h-12 bg-white/90 border-gray-200 focus:border-gray-400 focus:ring-gray-400/20 rounded-2xl"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowAdvancedSearch(prev => !prev)}
-                        className={`border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl transition-colors ${showAdvancedSearch ? 'bg-gray-100 border-gray-300' : ''}`}
-                      >
-                        <Filter className="h-4 w-4 mr-2" />
-                        Filters
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={!selectedFolder || creating}
-                        onClick={() => setIsCreateFolderInCurrentOpen(true)}
-                        className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl transition-colors"
-                      >
-                        <Folder className="h-4 w-4 mr-2" />
-                        New Folder
-                      </Button>
-                      <Input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        disabled={!selectedFolder || uploading}
-                        onChange={onFileInputChange}
-                        className="hidden"
-                      />
-                      <Button
-                        disabled={!selectedFolder || uploading}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
-                      >
-                        <Upload className="h-5 w-5 mr-2" />
-                        Upload
-                      </Button>
-                      {selectedFiles.size > 0 && (
-                        <Button
-                          onClick={handleBulkDownload}
-                          className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-6 py-3 h-auto"
-                        >
-                          <Download className="h-5 w-5 mr-2" />
-                          Download ({selectedFiles.size})
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Advanced search/filter panel */}
-                  {showAdvancedSearch && (
-                    <div className="p-6 bg-white rounded-xl border-2 border-gray-300 space-y-4 mt-4 shadow-lg relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowAdvancedSearch(false)}
-                          className="h-8 w-8 p-0 hover:bg-gray-100"
-                        >
-                          <X className="h-4 w-4 text-gray-600" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="file-type" className="text-sm font-medium text-gray-700">File Type</Label>
-                          <Select 
-                            value={advancedSearch.fileType || "all"} 
-                            onValueChange={(value) => {
-                              const fileTypeValue = value === "all" ? undefined : value;
-                              const newFilters = { ...advancedSearch, fileType: fileTypeValue };
-                              setAdvancedSearch(newFilters);
-                              // Apply filter immediately with new value
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder, { fileType: fileTypeValue });
-                              }
-                            }}
-                          >
-                            <SelectTrigger id="file-type" className="h-10 w-full">
-                              <SelectValue placeholder="All types" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All types</SelectItem>
-                              <SelectItem value="pdf">PDF</SelectItem>
-                              <SelectItem value="docx">Word</SelectItem>
-                              <SelectItem value="xlsx">Excel</SelectItem>
-                              <SelectItem value="jpg">Image</SelectItem>
-                              <SelectItem value="png">PNG</SelectItem>
-                              <SelectItem value="zip">ZIP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="sort-by" className="text-sm font-medium text-gray-700">Sort By</Label>
-                          <Select 
-                            value={advancedSearch.sortBy || "uploadedAt"} 
-                            onValueChange={(value) => {
-                              const newFilters = { ...advancedSearch, sortBy: value };
-                              setAdvancedSearch(newFilters);
-                              // Apply filter immediately with new value
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder, { sortBy: value });
-                              }
-                            }}
-                          >
-                            <SelectTrigger id="sort-by" className="h-10 w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="uploadedAt">Upload Date</SelectItem>
-                              <SelectItem value="fileName">File Name</SelectItem>
-                              <SelectItem value="fileSize">File Size</SelectItem>
-                              <SelectItem value="uploadedByName">Uploader</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="sort-order" className="text-sm font-medium text-gray-700">Order</Label>
-                          <Select 
-                            value={advancedSearch.sortOrder || "desc"} 
-                            onValueChange={(value: "asc" | "desc") => {
-                              const newFilters = { ...advancedSearch, sortOrder: value };
-                              setAdvancedSearch(newFilters);
-                              // Apply filter immediately with new value
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder, { sortOrder: value });
-                              }
-                            }}
-                          >
-                            <SelectTrigger id="sort-order" className="h-10 w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="desc">Descending</SelectItem>
-                              <SelectItem value="asc">Ascending</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="date-from" className="text-sm font-medium text-gray-700">Date From</Label>
-                          <Input
-                            id="date-from"
-                            type="date"
-                            value={advancedSearch.dateFrom || ""}
-                            onChange={(e) => {
-                              const newFilters = { ...advancedSearch, dateFrom: e.target.value };
-                              setAdvancedSearch(newFilters);
-                            }}
-                            onBlur={() => {
-                              // Apply filter when user finishes selecting date
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder);
-                              }
-                            }}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="date-to" className="text-sm font-medium text-gray-700">Date To</Label>
-                          <Input
-                            id="date-to"
-                            type="date"
-                            value={advancedSearch.dateTo || ""}
-                            onChange={(e) => {
-                              const newFilters = { ...advancedSearch, dateTo: e.target.value };
-                              setAdvancedSearch(newFilters);
-                            }}
-                            onBlur={() => {
-                              // Apply filter when user finishes selecting date
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder);
-                              }
-                            }}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="flex items-end gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setAdvancedSearch({
-                                search: "",
-                                fileType: "",
-                                uploadedBy: "",
-                                dateFrom: "",
-                                dateTo: "",
-                                tags: [],
-                                sortBy: "uploadedAt",
-                                sortOrder: "desc",
-                              });
-                              setLocalSearchTerm("");
-                              // Refresh files after clearing
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder);
-                              }
-                            }}
-                            className="flex-1 h-10"
-                          >
-                            Clear Filters
-                          </Button>
-                          <Button
-                            variant="default"
-                            onClick={() => {
-                              // Apply filters manually
-                              if (selectedFolder) {
-                                refreshFiles(selectedFolder);
-                                toast({ 
-                                  title: "Filters applied", 
-                                  description: "Files have been filtered according to your criteria." 
-                                });
-                              }
-                            }}
-                            className="flex-1 h-10 bg-primary hover:bg-primary/90"
-                          >
-                            Apply Filters
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Drag and drop zone */}
-                  {selectedFolder && (
-                    <div
-                      ref={dropZoneRef}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={cn(
-                        "border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300",
-                        isDragOver
-                          ? "border-primary bg-primary/5"
-                          : "border-gray-300 bg-white/50 hover:border-gray-400"
-                      )}
-                    >
-                      <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                      <p className="text-gray-600 font-medium mb-2">Drag and drop files here to upload</p>
-                      <p className="text-sm text-gray-500">File size must be less than 20 MB</p>
-                    </div>
-                  )}
                 </div>
-              </div>
+              </aside>
 
-              {/* Files and Folders list/grid */}
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
-                  <div className="p-6 min-h-[400px]">
-                    {!selectedFolder ? (
-                      <div className="text-center py-16">
-                        <div className="w-20 h-20 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                          <FolderOpen className="h-10 w-10 text-gray-600" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-800 mb-3">No folder selected</h3>
-                        <p className="text-gray-600 text-lg">
-                          Choose a folder on the left to view its contents.
-                        </p>
+              {/* Main content */}
+              <section className="flex-1 min-w-0">
+                {/* Search and upload */}
+                <div className="p-6 border-b border-gray-200 bg-gray-50">
+                  <div className="flex flex-col gap-4">
+                    {/* Basic search and upload */}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Search files..."
+                          value={localSearchTerm}
+                          onChange={(e) => setLocalSearchTerm(e.target.value)}
+                          className="pl-10 h-12 bg-white/90 border-gray-200 focus:border-gray-400 focus:ring-gray-400/20 rounded-2xl"
+                        />
                       </div>
-                    ) : viewMode === "list" ? (
-                      <div className="space-y-2">
-                        {/* Header (hidden on mobile) */}
-                        <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                          <div className="col-span-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={selectAllFiles}
-                              className="h-6 w-6"
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAdvancedSearch(prev => !prev)}
+                          className={`border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl transition-colors ${showAdvancedSearch ? 'bg-gray-100 border-gray-300' : ''}`}
+                        >
+                          <Filter className="h-4 w-4 mr-2" />
+                          Filters
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!selectedFolder || creating}
+                          onClick={() => setIsCreateFolderInCurrentOpen(true)}
+                          className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-xl transition-colors"
+                        >
+                          <Folder className="h-4 w-4 mr-2" />
+                          New Folder
+                        </Button>
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          disabled={!selectedFolder || uploading}
+                          onChange={onFileInputChange}
+                          className="hidden"
+                        />
+                        <Button
+                          disabled={!selectedFolder || uploading}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                        >
+                          <Upload className="h-5 w-5 mr-2" />
+                          Upload
+                        </Button>
+                        {selectedFiles.size > 0 && (
+                          <Button
+                            onClick={handleBulkDownload}
+                            className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-6 py-3 h-auto"
+                          >
+                            <Download className="h-5 w-5 mr-2" />
+                            Download ({selectedFiles.size})
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Advanced search/filter panel */}
+                    {showAdvancedSearch && (
+                      <div className="p-6 bg-white rounded-xl border-2 border-gray-300 space-y-4 mt-4 shadow-lg relative z-10">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAdvancedSearch(false)}
+                            className="h-8 w-8 p-0 hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4 text-gray-600" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="file-type" className="text-sm font-medium text-gray-700">File Type</Label>
+                            <Select
+                              value={advancedSearch.fileType || "all"}
+                              onValueChange={(value) => {
+                                const fileTypeValue = value === "all" ? undefined : value;
+                                const newFilters = { ...advancedSearch, fileType: fileTypeValue };
+                                setAdvancedSearch(newFilters);
+                                // Apply filter immediately with new value
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder, { fileType: fileTypeValue });
+                                }
+                              }}
                             >
-                              {selectedFiles.size === (filteredFiles.length + nestedFolders.length) ? (
-                                <CheckSquare className="h-4 w-4" />
-                              ) : (
-                                <Square className="h-4 w-4" />
-                              )}
+                              <SelectTrigger id="file-type" className="h-10 w-full">
+                                <SelectValue placeholder="All types" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All types</SelectItem>
+                                <SelectItem value="pdf">PDF</SelectItem>
+                                <SelectItem value="docx">Word</SelectItem>
+                                <SelectItem value="xlsx">Excel</SelectItem>
+                                <SelectItem value="jpg">Image</SelectItem>
+                                <SelectItem value="png">PNG</SelectItem>
+                                <SelectItem value="zip">ZIP</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="sort-by" className="text-sm font-medium text-gray-700">Sort By</Label>
+                            <Select
+                              value={advancedSearch.sortBy || "uploadedAt"}
+                              onValueChange={(value) => {
+                                const newFilters = { ...advancedSearch, sortBy: value };
+                                setAdvancedSearch(newFilters);
+                                // Apply filter immediately with new value
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder, { sortBy: value });
+                                }
+                              }}
+                            >
+                              <SelectTrigger id="sort-by" className="h-10 w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="uploadedAt">Upload Date</SelectItem>
+                                <SelectItem value="fileName">File Name</SelectItem>
+                                <SelectItem value="fileSize">File Size</SelectItem>
+                                <SelectItem value="uploadedByName">Uploader</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="sort-order" className="text-sm font-medium text-gray-700">Order</Label>
+                            <Select
+                              value={advancedSearch.sortOrder || "desc"}
+                              onValueChange={(value: "asc" | "desc") => {
+                                const newFilters = { ...advancedSearch, sortOrder: value };
+                                setAdvancedSearch(newFilters);
+                                // Apply filter immediately with new value
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder, { sortOrder: value });
+                                }
+                              }}
+                            >
+                              <SelectTrigger id="sort-order" className="h-10 w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="desc">Descending</SelectItem>
+                                <SelectItem value="asc">Ascending</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="date-from" className="text-sm font-medium text-gray-700">Date From</Label>
+                            <Input
+                              id="date-from"
+                              type="date"
+                              value={advancedSearch.dateFrom || ""}
+                              onChange={(e) => {
+                                const newFilters = { ...advancedSearch, dateFrom: e.target.value };
+                                setAdvancedSearch(newFilters);
+                              }}
+                              onBlur={() => {
+                                // Apply filter when user finishes selecting date
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder);
+                                }
+                              }}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="date-to" className="text-sm font-medium text-gray-700">Date To</Label>
+                            <Input
+                              id="date-to"
+                              type="date"
+                              value={advancedSearch.dateTo || ""}
+                              onChange={(e) => {
+                                const newFilters = { ...advancedSearch, dateTo: e.target.value };
+                                setAdvancedSearch(newFilters);
+                              }}
+                              onBlur={() => {
+                                // Apply filter when user finishes selecting date
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder);
+                                }
+                              }}
+                              className="h-10"
+                            />
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setAdvancedSearch({
+                                  search: "",
+                                  fileType: "",
+                                  uploadedBy: "",
+                                  dateFrom: "",
+                                  dateTo: "",
+                                  tags: [],
+                                  sortBy: "uploadedAt",
+                                  sortOrder: "desc",
+                                });
+                                setLocalSearchTerm("");
+                                // Refresh files after clearing
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder);
+                                }
+                              }}
+                              className="flex-1 h-10"
+                            >
+                              Clear Filters
+                            </Button>
+                            <Button
+                              variant="default"
+                              onClick={() => {
+                                // Apply filters manually
+                                if (selectedFolder) {
+                                  refreshFiles(selectedFolder);
+                                  toast({
+                                    title: "Filters applied",
+                                    description: "Files have been filtered according to your criteria."
+                                  });
+                                }
+                              }}
+                              className="flex-1 h-10 bg-primary hover:bg-primary/90"
+                            >
+                              Apply Filters
                             </Button>
                           </div>
-                          <div className="col-span-5">Name</div>
-                          <div className="col-span-2">Type</div>
-                          <div className="col-span-2">Modified</div>
-                          <div className="col-span-2">Actions</div>
                         </div>
-                        
-                        {/* Nested Folders */}
-                        {nestedFolders.length > 0 && nestedFolders.map((folder) => (
-                          <div
-                            key={folder._id}
-                            className={cn(
-                              "grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300 cursor-pointer",
-                              selectedFolder?._id === folder._id && "bg-blue-50 border border-blue-200"
-                            )}
-                            onClick={() => setSelectedFolder(folder)}
-                          >
-                            <div className="sm:col-span-1 flex items-center">
-                              <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
-                                <Folder className="h-4 w-4 text-primary-foreground" />
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 sm:col-span-5 min-w-0">
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm truncate font-medium block">{folder.name}</span>
-                                <span className="text-xs text-gray-500">Folder</span>
-                              </div>
-                            </div>
-                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
-                              Folder
-                            </div>
-                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
-                              {new Date(folder.createdAt).toLocaleDateString()}
-                            </div>
-                            <div className="sm:col-span-2 flex items-center gap-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedFolder(folder)
-                                    setRenameFolderName(folder.name)
-                                    setIsRenameFolderOpen(true)
-                                  }}>
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    Rename
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      confirmDeleteFolder(folder)
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
+                      </div>
+                    )}
+
+                    {/* Drag and drop zone */}
+                    {selectedFolder && (
+                      <div
+                        ref={dropZoneRef}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={cn(
+                          "border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300",
+                          isDragOver
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-300 bg-white/50 hover:border-gray-400"
+                        )}
+                      >
+                        <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <p className="text-gray-600 font-medium mb-2">Drag and drop files here to upload</p>
+                        <p className="text-sm text-gray-500">File size must be less than 20 MB</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Files and Folders list/grid */}
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <div className="p-6 min-h-[400px]">
+                      {!selectedFolder ? (
+                        <div className="text-center py-16">
+                          <div className="w-20 h-20 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                            <FolderOpen className="h-10 w-10 text-gray-600" />
                           </div>
-                        ))}
-                        
-                        {/* Files */}
-                        {filteredFiles.length > 0 ? (
-                      filteredFiles.map((file) => {
-                        const fileName = file.name || file.fileName || "";
-                        const isSelected = selectedFiles.has(fileName);
-                        return (
-                          <div
-                            key={fileName}
-                            className={cn(
-                              "grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300",
-                              isSelected && "bg-blue-50 border border-blue-200"
-                            )}
-                          >
-                            {/* Checkbox */}
-                            <div className="sm:col-span-1 flex items-center">
+                          <h3 className="text-2xl font-bold text-gray-800 mb-3">No folder selected</h3>
+                          <p className="text-gray-600 text-lg">
+                            Choose a folder on the left to view its contents.
+                          </p>
+                        </div>
+                      ) : viewMode === "list" ? (
+                        <div className="space-y-2">
+                          {/* Header (hidden on mobile) */}
+                          <div className="hidden sm:grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-gray-600 border-b border-gray-200">
+                            <div className="col-span-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => toggleFileSelection(fileName)}
+                                onClick={selectAllFiles}
                                 className="h-6 w-6"
                               >
-                                {isSelected ? (
-                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                {selectedFiles.size === (filteredFiles.length + nestedFolders.length) ? (
+                                  <CheckSquare className="h-4 w-4" />
                                 ) : (
                                   <Square className="h-4 w-4" />
                                 )}
                               </Button>
                             </div>
-                            {/* Name */}
-                            <div className="flex items-center gap-3 sm:col-span-5 min-w-0">
-                              <div className="w-8 h-8 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center">
-                                {getFileIcon(fileName)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm truncate font-medium block">{decodeURIComponent(fileName)}</span>
-                                {file.version && (
-                                  <span className="text-xs text-gray-500">v{file.version}</span>
-                                )}
-                                {file.uploadedByName && (
-                                  <span className="text-xs text-gray-500 block">by {file.uploadedByName}</span>
-                                )}
-                              </div>
-                            </div>
+                            <div className="col-span-5">Name</div>
+                            <div className="col-span-2">Type</div>
+                            <div className="col-span-2">Modified</div>
+                            <div className="col-span-2">Actions</div>
+                          </div>
 
-                            {/* Type/Modified (stacked on mobile) */}
-                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
-                              {(fileName.split(".").pop() || "").toUpperCase()} File
+                          {/* Nested Folders */}
+                          {nestedFolders.length > 0 && nestedFolders.map((folder) => (
+                            <div
+                              key={folder._id}
+                              className={cn(
+                                "grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300 cursor-pointer",
+                                selectedFolder?._id === folder._id && "bg-blue-50 border border-blue-200"
+                              )}
+                              onClick={() => setSelectedFolder(folder)}
+                            >
+                              <div className="sm:col-span-1 flex items-center">
+                                <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center">
+                                  <Folder className="h-4 w-4 text-primary-foreground" />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 sm:col-span-5 min-w-0">
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm truncate font-medium block">{folder.name}</span>
+                                  <span className="text-xs text-gray-500">Folder</span>
+                                </div>
+                              </div>
+                              <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                                Folder
+                              </div>
+                              <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                                {new Date(folder.createdAt).toLocaleDateString()}
+                              </div>
+                              <div className="sm:col-span-2 flex items-center gap-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="outline" size="icon" className="rounded-xl border-gray-200 hover:bg-gray-50">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedFolder(folder)
+                                      setRenameFolderName(folder.name)
+                                      setIsRenameFolderOpen(true)
+                                    }}>
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      Rename
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-red-600"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        confirmDeleteFolder(folder)
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
-                            <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
-                              {new Date(file.updatedAt || file.uploadedAt || Date.now()).toLocaleDateString()}
-                            </div>
-                            <div className="sm:hidden text-xs text-slate-500 -mt-2">
-                              {(fileName.split(".").pop() || "").toUpperCase()} • {new Date(file.updatedAt || file.uploadedAt || Date.now()).toLocaleDateString()}
-                            </div>
+                          ))}
 
-                            {/* Actions - vertically aligned buttons */}
-                            <div className="sm:col-span-2 flex flex-col items-start gap-2">
-                              {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
-                                <>
-                                  {fileName.toLowerCase().endsWith(".pdf") && (
+                          {/* Files */}
+                          {filteredFiles.length > 0 ? (
+                            filteredFiles.map((file) => {
+                              const fileName = file.name || file.fileName || "";
+                              const isSelected = selectedFiles.has(fileName);
+                              return (
+                                <div
+                                  key={fileName}
+                                  className={cn(
+                                    "grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 p-4 hover:bg-gray-50/30 rounded-2xl group transition-all duration-300",
+                                    isSelected && "bg-blue-50 border border-blue-200"
+                                  )}
+                                >
+                                  {/* Checkbox */}
+                                  <div className="sm:col-span-1 flex items-center">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => toggleFileSelection(fileName)}
+                                      className="h-6 w-6"
+                                    >
+                                      {isSelected ? (
+                                        <CheckSquare className="h-4 w-4 text-primary" />
+                                      ) : (
+                                        <Square className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                  {/* Name */}
+                                  <div className="flex items-center gap-3 sm:col-span-5 min-w-0">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center">
+                                      {getFileIcon(fileName)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm truncate font-medium block">{decodeURIComponent(fileName)}</span>
+                                      {file.version && (
+                                        <span className="text-xs text-gray-500">v{file.version}</span>
+                                      )}
+                                      {file.uploadedByName && (
+                                        <span className="text-xs text-gray-500 block">by {file.uploadedByName}</span>
+                                      )}
+                                      {reviewStatuses[file._id || ''] && (
+                                        <Badge variant="destructive" className="mt-1 text-xs px-2 py-0 border-transparent bg-red-500 text-white hover:bg-red-600">
+                                          Review Points
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Type/Modified (stacked on mobile) */}
+                                  <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                                    {(fileName.split(".").pop() || "").toUpperCase()} File
+                                  </div>
+                                  <div className="sm:col-span-2 hidden sm:flex items-center text-sm text-slate-500">
+                                    {new Date(file.updatedAt || file.uploadedAt || Date.now()).toLocaleDateString()}
+                                  </div>
+                                  <div className="sm:hidden text-xs text-slate-500 -mt-2">
+                                    {(fileName.split(".").pop() || "").toUpperCase()} • {new Date(file.updatedAt || file.uploadedAt || Date.now()).toLocaleDateString()}
+                                  </div>
+
+                                  {/* Actions - vertically aligned buttons */}
+                                  <div className="sm:col-span-2 flex flex-col items-start gap-2">
+                                    {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
+                                      <>
+                                        {fileName.toLowerCase().endsWith(".pdf") && (
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => handleOpenAnnotator(file)}
+                                            className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
+                                            aria-label={`Annotate ${fileName}`}
+                                            title="Annotate PDF"
+                                          >
+                                            <FileText className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          onClick={() => handlePreview(file)}
+                                          className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                          aria-label={`Preview ${fileName}`}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      onClick={() => handleOpenAnnotator(file)}
-                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
-                                      aria-label={`Annotate ${fileName}`}
-                                      title="Annotate PDF"
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Prevent triggering row selection
+                                        handleDownload(file, false); // Always direct download, never ZIP
+                                      }}
+                                      disabled={downloading === fileName}
+                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                      aria-label={`Download ${fileName}`}
                                     >
-                                      <FileText className="h-4 w-4" />
+                                      {downloading === fileName ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Download className="h-4 w-4" />
+                                      )}
                                     </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => handlePreview(file)}
-                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                    aria-label={`Preview ${fileName}`}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation(); // Prevent triggering row selection
-                                  handleDownload(file, false); // Always direct download, never ZIP
-                                }}
-                                disabled={downloading === fileName}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
-                                aria-label={`Download ${fileName}`}
-                              >
-                                {downloading === fileName ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
-                                    aria-label={`More actions ${fileName}`}
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
-                                >
-                                  <DropdownMenuItem
-                                    onClick={() => handleViewVersions(file)}
-                                    className="rounded-xl"
-                                  >
-                                    <History className="h-4 w-4 mr-2" />
-                                    Version History
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleViewActivity(file)}
-                                    className="rounded-xl"
-                                  >
-                                    <FileCheck className="h-4 w-4 mr-2" />
-                                    Activity Log
-                                  </DropdownMenuItem>
-                                  {folders
-                                    .filter((f) => selectedFolder && f._id !== selectedFolder._id)
-                                    .map((f) => (
-                                      <DropdownMenuItem
-                                        key={f._id}
-                                        onClick={() => handleMoveFile(file, f)}
-                                        className="rounded-xl"
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                          aria-label={`More actions ${fileName}`}
+                                        >
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
                                       >
-                                        <FolderInputIcon className="h-4 w-4 mr-2" />
-                                        Move to {f.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  <DropdownMenuItem
-                                    className="text-red-600 rounded-xl"
-                                    onClick={() => setFileToDelete(file)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete File
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                        <DropdownMenuItem
+                                          onClick={() => handleViewVersions(file)}
+                                          className="rounded-xl"
+                                        >
+                                          <History className="h-4 w-4 mr-2" />
+                                          Version History
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleViewActivity(file)}
+                                          className="rounded-xl"
+                                        >
+                                          <FileCheck className="h-4 w-4 mr-2" />
+                                          Activity Log
+                                        </DropdownMenuItem>
+                                        {folders
+                                          .filter((f) => selectedFolder && f._id !== selectedFolder._id)
+                                          .map((f) => (
+                                            <DropdownMenuItem
+                                              key={f._id}
+                                              onClick={() => handleMoveFile(file, f)}
+                                              className="rounded-xl"
+                                            >
+                                              <FolderInputIcon className="h-4 w-4 mr-2" />
+                                              Move to {f.name}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        <DropdownMenuItem
+                                          className="text-red-600 rounded-xl"
+                                          onClick={() => setFileToDelete(file)}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete File
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          ) : nestedFolders.length === 0 ? (
+                            <div className="text-center py-12">
+                              <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                <File className="h-8 w-8 text-gray-600" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
+                              <p className="text-gray-600">Right-click to create a folder or upload files</p>
                             </div>
-                          </div>
-                        );
-                      })
-                    ) : nestedFolders.length === 0 ? (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                          <File className="h-8 w-8 text-gray-600" />
+                          ) : null}
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
-                        <p className="text-gray-600">Right-click to create a folder or upload files</p>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : viewMode === "grid" ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                    {/* Nested Folders in Grid */}
-                    {nestedFolders.length > 0 && nestedFolders.map((folder) => (
-                      <Card 
-                        key={folder._id} 
-                        className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                        onClick={() => setSelectedFolder(folder)}
-                      >
-                        <div className="mb-3 flex justify-center">
-                          <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
-                            <Folder className="h-6 w-6 text-primary" />
-                          </div>
-                        </div>
-                        <div className="text-sm font-semibold truncate text-gray-800 mb-1" title={folder.name}>
-                          {folder.name}
-                        </div>
-                        <div className="text-xs text-gray-500 mb-2">Folder</div>
-                      </Card>
-                    ))}
-                    
-                    {/* Files in Grid */}
-                    {filteredFiles.length > 0 ? (
-                      filteredFiles.map((file) => {
-                        const fileName = file.name || file.fileName || "";
-                        return (
-                          <Card key={fileName} className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                            <div className="mb-3 flex justify-center">
-                              <div className="p-3 bg-gray-100 rounded-2xl border border-gray-200">{getFileIcon(fileName)}</div>
-                            </div>
-                            <div className="text-sm font-semibold truncate text-gray-800 mb-1" title={fileName}>
-                              {decodeURIComponent(fileName)}
-                            </div>
-                            {file.version && (
-                              <div className="text-xs text-gray-500 mb-2">v{file.version}</div>
-                            )}
-                            <div className="mt-3 flex flex-col items-center gap-2">
-                              {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
-                                <>
-                                  {fileName.toLowerCase().endsWith(".pdf") && (
+                      ) : viewMode === "grid" ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                          {/* Nested Folders in Grid */}
+                          {nestedFolders.length > 0 && nestedFolders.map((folder) => (
+                            <Card
+                              key={folder._id}
+                              className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                              onClick={() => setSelectedFolder(folder)}
+                            >
+                              <div className="mb-3 flex justify-center">
+                                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
+                                  <Folder className="h-6 w-6 text-primary" />
+                                </div>
+                              </div>
+                              <div className="text-sm font-semibold truncate text-gray-800 mb-1" title={folder.name}>
+                                {folder.name}
+                              </div>
+                              <div className="text-xs text-gray-500 mb-2">Folder</div>
+                            </Card>
+                          ))}
+
+                          {/* Files in Grid */}
+                          {filteredFiles.length > 0 ? (
+                            filteredFiles.map((file) => {
+                              const fileName = file.name || file.fileName || "";
+                              return (
+                                <Card key={fileName} className="p-4 text-center bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                                  <div className="mb-3 flex justify-center">
+                                    <div className="p-3 bg-gray-100 rounded-2xl border border-gray-200">{getFileIcon(fileName)}</div>
+                                  </div>
+                                  <div className="text-sm font-semibold truncate text-gray-800 mb-1" title={fileName}>
+                                    {decodeURIComponent(fileName)}
+                                  </div>
+                                  {file.version && (
+                                    <div className="text-xs text-gray-500 mb-2">v{file.version}</div>
+                                  )}
+                                  {reviewStatuses[file._id || ''] && (
+                                    <Badge variant="destructive" className="mb-2 text-xs px-2 py-0 border-transparent bg-red-500 text-white hover:bg-red-600">
+                                      Review Points
+                                    </Badge>
+                                  )}
+                                  <div className="mt-3 flex flex-col items-center gap-2">
+                                    {(["pdf", "jpg", "jpeg", "png", "docx", "doc"].includes((fileName.split(".").pop() || "").toLowerCase())) && (
+                                      <>
+                                        {fileName.toLowerCase().endsWith(".pdf") && (
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => handleOpenAnnotator(file)}
+                                            className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
+                                            aria-label={`Annotate ${fileName}`}
+                                            title="Annotate PDF"
+                                          >
+                                            <FileText className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          onClick={() => handlePreview(file)}
+                                          className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
+                                          aria-label={`Preview ${fileName}`}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="icon"
-                                      onClick={() => handleOpenAnnotator(file)}
-                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-blue-600 hover:text-blue-700"
-                                      aria-label={`Annotate ${fileName}`}
-                                      title="Annotate PDF"
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Prevent triggering row selection
+                                        handleDownload(file, false); // Always direct download, never ZIP
+                                      }}
+                                      disabled={downloading === fileName}
+                                      className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                      aria-label={`Download ${fileName}`}
                                     >
-                                      <FileText className="h-4 w-4" />
+                                      {downloading === fileName ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Download className="h-4 w-4" />
+                                      )}
                                     </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => handlePreview(file)}
-                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800"
-                                    aria-label={`Preview ${fileName}`}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={(e) => {
-                                  e.stopPropagation(); // Prevent triggering row selection
-                                  handleDownload(file, false); // Always direct download, never ZIP
-                                }}
-                                disabled={downloading === fileName}
-                                className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
-                                aria-label={`Download ${fileName}`}
-                              >
-                                {downloading === fileName ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
-                                    aria-label={`More actions ${fileName}`}
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
-                                >
-                                  <DropdownMenuItem
-                                    onClick={() => handleViewVersions(file)}
-                                    className="rounded-xl"
-                                  >
-                                    <History className="h-4 w-4 mr-2" />
-                                    Version History
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleViewActivity(file)}
-                                    className="rounded-xl"
-                                  >
-                                    <FileCheck className="h-4 w-4 mr-2" />
-                                    Activity Log
-                                  </DropdownMenuItem>
-                                  {folders
-                                    .filter((f) => selectedFolder && f._id !== selectedFolder._id)
-                                    .map((f) => (
-                                      <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)} className="rounded-xl">
-                                        <FolderInputIcon className="h-4 w-4 mr-2" />
-                                        Move to {f.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  <DropdownMenuItem
-                                    className="text-red-600 rounded-xl"
-                                    onClick={() => setFileToDelete(file)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete File
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 flex-shrink-0"
+                                          aria-label={`More actions ${fileName}`}
+                                        >
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="max-h-60 overflow-y-auto bg-white/95 backdrop-blur-sm border border-blue-100/50 rounded-2xl"
+                                      >
+                                        <DropdownMenuItem
+                                          onClick={() => handleViewVersions(file)}
+                                          className="rounded-xl"
+                                        >
+                                          <History className="h-4 w-4 mr-2" />
+                                          Version History
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleViewActivity(file)}
+                                          className="rounded-xl"
+                                        >
+                                          <FileCheck className="h-4 w-4 mr-2" />
+                                          Activity Log
+                                        </DropdownMenuItem>
+                                        {folders
+                                          .filter((f) => selectedFolder && f._id !== selectedFolder._id)
+                                          .map((f) => (
+                                            <DropdownMenuItem key={f._id} onClick={() => handleMoveFile(file, f)} className="rounded-xl">
+                                              <FolderInputIcon className="h-4 w-4 mr-2" />
+                                              Move to {f.name}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        <DropdownMenuItem
+                                          className="text-red-600 rounded-xl"
+                                          onClick={() => setFileToDelete(file)}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete File
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </Card>
+                              );
+                            })
+                          ) : nestedFolders.length === 0 ? (
+                            <div className="col-span-full text-center py-12">
+                              <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                                <File className="h-8 w-8 text-gray-600" />
+                              </div>
+                              <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
+                              <p className="text-gray-600">Right-click to create a folder or upload files</p>
                             </div>
-                          </Card>
-                        );
-                      })
-                    ) : nestedFolders.length === 0 ? (
-                      <div className="col-span-full text-center py-12">
-                        <div className="w-16 h-16 bg-gradient-to-br from-gray-500/20 to-gray-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                          <File className="h-8 w-8 text-gray-600" />
+                          ) : null}
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2">This folder is empty</h3>
-                        <p className="text-gray-600">Right-click to create a folder or upload files</p>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="w-56">
-                  <ContextMenuItem
-                    onClick={() => {
-                      if (selectedFolder) {
-                        setSelectedParentFolder(selectedFolder)
-                        setIsCreateFolderOpen(true)
-                      }
-                    }}
-                  >
-                    <Folder className="h-4 w-4 mr-2" />
-                    New Folder
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    onClick={() => {
-                      if (selectedFolder) {
-                        fileInputRef.current?.click()
-                      }
-                    }}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Files
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    onClick={() => {
-                      if (selectedFolder) {
-                        refreshFolders()
-                        refreshFiles(selectedFolder)
-                      }
-                    }}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-
-              {/* Status bar */}
-              <div className="border-t border-gray-200 px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/30 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-sm text-gray-600">
-                <span className="truncate font-medium">
-                  {nestedFolders.length + filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
-                  {nestedFolders.length > 0 && ` (${nestedFolders.length} folders, ${filteredFiles.length} files)`}
-                </span>
-                <span>{loading ? "Refreshing..." : ""}</span>
-              </div>
-            </section>
-          </div>
-        )}
-      </div>
-
-      {/* Delete folder confirmation */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete folder?</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-600">
-              This will permanently delete the folder{" "}
-              <span className="font-semibold text-gray-800">{folderToDelete?.name}</span> and all of its contents
-              from storage and the backend. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
-              onClick={handleDeleteFolder}
-              disabled={deleting}
-            >
-              {deleting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Trash2 className="h-5 w-5 mr-2" />}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete file confirmation */}
-      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete file?</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-600">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold text-gray-800 break-all">{fileToDelete?.name}</span>?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
-              onClick={handleDeleteFile}
-              disabled={deleting}
-            >
-              {deleting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Trash2 className="h-5 w-5 mr-2" />}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* PDF Annotator */}
-      {showAnnotator && annotatorFile && annotatorUrl && selectedFolder && (
-        <PDFAnnotator
-          fileUrl={annotatorUrl}
-          fileName={annotatorFile.name || annotatorFile.fileName || "document.pdf"}
-          engagementId={`global-${selectedFolder.name}`}
-          fileId={`${selectedFolder.name}-${annotatorFile.name || annotatorFile.fileName || ""}`}
-          onClose={() => {
-            setShowAnnotator(false);
-            setAnnotatorFile(null);
-            setAnnotatorUrl(null);
-          }}
-          onSave={(annotations) => {
-            // Annotations are automatically saved to localStorage
-            console.log("Annotations saved:", annotations);
-          }}
-        />
-      )}
-
-      {/* Preview Modal */}
-      <Dialog open={!!previewFileState && !showAnnotator} onOpenChange={(open) => !open && setPreviewFileState(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] bg-white">
-          <DialogHeader>
-            <DialogTitle>{previewFileState?.name || previewFileState?.fileName}</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            {previewUrl && (
-              <div className="w-full h-[70vh] overflow-auto border rounded-lg">
-                {previewFileState?.fileType === "pdf" ? (
-                  <div className="flex flex-col gap-2 p-4">
-                    <Button
-                      onClick={() => {
-                        setPreviewFileState(null);
-                        handleOpenAnnotator(previewFileState);
-                      }}
-                      className="w-full"
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Open in PDF Annotator
-                    </Button>
-                    <iframe src={previewUrl} className="w-full h-full min-h-[500px]" />
-                  </div>
-                ) : (["jpg", "jpeg", "png"].includes(previewFileState?.fileType || "")) ? (
-                  <img src={previewUrl} alt={previewFileState?.name} className="w-full h-auto" />
-                ) : (["docx", "doc"].includes(previewFileState?.fileType || "")) ? (
-                  <iframe 
-                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
-                    className="w-full h-full"
-                    frameBorder="0"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-500">Preview not available for this file type</p>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open(previewUrl, "_blank")}
-                      className="ml-4"
-                    >
-                      Open in New Tab
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Version History Dialog */}
-      <Dialog open={showVersions} onOpenChange={setShowVersions}>
-        <DialogContent className="max-w-2xl bg-white">
-          <DialogHeader>
-            <DialogTitle>Version History - {fileForVersions?.name || fileForVersions?.fileName}</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4 max-h-[60vh] overflow-y-auto">
-            {versionHistory.length > 0 ? (
-              <div className="space-y-2">
-                {versionHistory.map((version, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 border rounded-lg hover:bg-gray-50 flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Version {version.version}</span>
-                        {version.isLatest && (
-                          <Badge variant="default">Latest</Badge>
-                        )}
-                        {version.restoredFromVersion && (
-                          <Badge variant="outline" className="text-blue-600 border-blue-600">
-                            Restored from v{version.restoredFromVersion}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {version.restoredFromVersion 
-                          ? `Restored by ${version.uploadedBy} on ${new Date(version.uploadedAt).toLocaleString()}`
-                          : `Uploaded by ${version.uploadedBy} on ${new Date(version.uploadedAt).toLocaleString()}`
-                        }
-                      </p>
-                      <p className="text-xs text-gray-400">Size: {(version.fileSize / 1024).toFixed(2)} KB</p>
+                      ) : null}
                     </div>
-                    <div className="flex gap-2">
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-56">
+                    <ContextMenuItem
+                      onClick={() => {
+                        if (selectedFolder) {
+                          setSelectedParentFolder(selectedFolder)
+                          setIsCreateFolderOpen(true)
+                        }
+                      }}
+                    >
+                      <Folder className="h-4 w-4 mr-2" />
+                      New Folder
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onClick={() => {
+                        if (selectedFolder) {
+                          fileInputRef.current?.click()
+                        }
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Files
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onClick={() => {
+                        if (selectedFolder) {
+                          refreshFolders()
+                          refreshFiles(selectedFolder)
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+
+                {/* Status bar */}
+                <div className="border-t border-gray-200 px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100/30 flex flex-col sm:flex-row gap-2 sm:gap-0 sm:items-center sm:justify-between text-sm text-gray-600">
+                  <span className="truncate font-medium">
+                    {nestedFolders.length + filteredFiles.length} items{selectedFolder ? ` in ${selectedFolder.name}` : ""}
+                    {nestedFolders.length > 0 && ` (${nestedFolders.length} folders, ${filteredFiles.length} files)`}
+                  </span>
+                  <span>{loading ? "Refreshing..." : ""}</span>
+                </div>
+              </section>
+            </div>
+          )}
+        </div>
+
+        {/* Delete folder confirmation */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete folder?</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600">
+                This will permanently delete the folder{" "}
+                <span className="font-semibold text-gray-800">{folderToDelete?.name}</span> and all of its contents
+                from storage and the backend. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
+                onClick={handleDeleteFolder}
+                disabled={deleting}
+              >
+                {deleting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Trash2 className="h-5 w-5 mr-2" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete file confirmation */}
+        <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+          <AlertDialogContent className="bg-white/95 backdrop-blur-sm border border-gray-200 rounded-3xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-bold text-gray-800">Delete file?</AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-600">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-gray-800 break-all">{fileToDelete?.name}</span>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting} className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 rounded-2xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl"
+                onClick={handleDeleteFile}
+                disabled={deleting}
+              >
+                {deleting ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <Trash2 className="h-5 w-5 mr-2" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* PDF Annotator */}
+        {showAnnotator && annotatorFile && annotatorUrl && selectedFolder && (
+          <PDFAnnotator
+            fileUrl={annotatorUrl}
+            fileName={annotatorFile.name || annotatorFile.fileName || "document.pdf"}
+            engagementId={`global-${selectedFolder.name}`}
+            fileId={`${selectedFolder.name}-${annotatorFile.name || annotatorFile.fileName || ""}`}
+            onClose={() => {
+              setShowAnnotator(false);
+              setAnnotatorFile(null);
+              setAnnotatorUrl(null);
+            }}
+            onSave={async (annotations) => {
+              // Annotations are automatically saved to localStorage by the component
+              // We also save them to the backend
+              try {
+                await saveAnnotation({
+                  engagementId: `global-${selectedFolder.name}`,
+                  fileId: annotatorFile?._id || `${selectedFolder.name}-${annotatorFile.name || annotatorFile.fileName || ""}`,
+                  annotations
+                });
+                // Update the local review status
+                if (annotatorFile?._id) {
+                  setReviewStatuses(prev => ({ ...prev, [annotatorFile._id!]: annotations.length > 0 }));
+                }
+                toast({ title: "Annotations saved", description: "Review points synced with server." });
+              } catch (error) {
+                console.error("Failed to save annotations to backend", error);
+                toast({ title: "Warning", description: "Saved locally, but failed to sync with server.", variant: "destructive" });
+              }
+            }}
+          />
+        )}
+
+        {/* Preview Modal */}
+        <Dialog open={!!previewFileState && !showAnnotator} onOpenChange={(open) => !open && setPreviewFileState(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] bg-white">
+            <DialogHeader>
+              <DialogTitle>{previewFileState?.name || previewFileState?.fileName}</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              {previewUrl && (
+                <div className="w-full h-[70vh] overflow-auto border rounded-lg">
+                  {previewFileState?.fileType === "pdf" ? (
+                    <div className="flex flex-col gap-2 p-4">
+                      <Button
+                        onClick={() => {
+                          setPreviewFileState(null);
+                          handleOpenAnnotator(previewFileState);
+                        }}
+                        className="w-full"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Open in PDF Annotator
+                      </Button>
+                      <iframe src={previewUrl} className="w-full h-full min-h-[500px]" />
+                    </div>
+                  ) : (["jpg", "jpeg", "png"].includes(previewFileState?.fileType || "")) ? (
+                    <img src={previewUrl} alt={previewFileState?.name} className="w-full h-auto" />
+                  ) : (["docx", "doc"].includes(previewFileState?.fileType || "")) ? (
+                    <iframe
+                      src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`}
+                      className="w-full h-full"
+                      frameBorder="0"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-500">Preview not available for this file type</p>
                       <Button
                         variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          window.open(version.publicUrl, "_blank");
-                        }}
+                        onClick={() => window.open(previewUrl, "_blank")}
+                        className="ml-4"
                       >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View
+                        Open in New Tab
                       </Button>
-                      {!version.isLatest && (
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Version History Dialog */}
+        <Dialog open={showVersions} onOpenChange={setShowVersions}>
+          <DialogContent className="max-w-2xl bg-white">
+            <DialogHeader>
+              <DialogTitle>Version History - {fileForVersions?.name || fileForVersions?.fileName}</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {versionHistory.length > 0 ? (
+                <div className="space-y-2">
+                  {versionHistory.map((version, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 border rounded-lg hover:bg-gray-50 flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Version {version.version}</span>
+                          {version.isLatest && (
+                            <Badge variant="default">Latest</Badge>
+                          )}
+                          {version.restoredFromVersion && (
+                            <Badge variant="outline" className="text-blue-600 border-blue-600">
+                              Restored from v{version.restoredFromVersion}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {version.restoredFromVersion
+                            ? `Restored by ${version.uploadedBy} on ${new Date(version.uploadedAt).toLocaleString()}`
+                            : `Uploaded by ${version.uploadedBy} on ${new Date(version.uploadedAt).toLocaleString()}`
+                          }
+                        </p>
+                        <p className="text-xs text-gray-400">Size: {(version.fileSize / 1024).toFixed(2)} KB</p>
+                      </div>
+                      <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={async () => {
-                            if (selectedFolder && fileForVersions) {
-                              try {
-                                await restoreVersion(selectedFolder.name, fileForVersions.name || fileForVersions.fileName || "", version.version);
-                                toast({ title: "Version restored", description: `Version ${version.version} has been restored` });
-                                setShowVersions(false);
-                                await refreshFiles(selectedFolder);
-                              } catch (e: any) {
-                                toast({ title: "Error", description: e.message || "Failed to restore version", variant: "destructive" });
-                              }
-                            }
+                          onClick={() => {
+                            window.open(version.publicUrl, "_blank");
                           }}
                         >
-                          <History className="h-4 w-4 mr-2" />
-                          Restore
+                          <Eye className="h-4 w-4 mr-2" />
+                          View
                         </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No version history available</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Activity Log Dialog */}
-      <Dialog open={showActivity} onOpenChange={setShowActivity}>
-        <DialogContent className="max-w-2xl bg-white">
-          <DialogHeader>
-            <DialogTitle>Activity Log - {fileForVersions?.name || fileForVersions?.fileName}</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4 max-h-[60vh] overflow-y-auto">
-            {fileActivity.length > 0 ? (
-              <div className="space-y-2">
-                {fileActivity.map((activity, idx) => (
-                  <div key={idx} className="p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{activity.action}</Badge>
-                          <span className="font-medium">{activity.userName}</span>
-                          <span className="text-sm text-gray-500">({activity.userRole})</span>
-                        </div>
-                        {activity.details && (
-                          <p className="text-sm text-gray-600 mt-1">{activity.details}</p>
+                        {!version.isLatest && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              if (selectedFolder && fileForVersions) {
+                                try {
+                                  await restoreVersion(selectedFolder.name, fileForVersions.name || fileForVersions.fileName || "", version.version);
+                                  toast({ title: "Version restored", description: `Version ${version.version} has been restored` });
+                                  setShowVersions(false);
+                                  await refreshFiles(selectedFolder);
+                                } catch (e: any) {
+                                  toast({ title: "Error", description: e.message || "Failed to restore version", variant: "destructive" });
+                                }
+                              }
+                            }}
+                          >
+                            <History className="h-4 w-4 mr-2" />
+                            Restore
+                          </Button>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(activity.timestamp).toLocaleString()}
-                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No activity recorded</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No version history available</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
-      {/* Create Folder in Current Folder Dialog */}
-      <Dialog open={isCreateFolderInCurrentOpen} onOpenChange={(open) => {
-        setIsCreateFolderInCurrentOpen(open)
-        if (!open) {
-          setNewFolderInCurrentName("")
-        }
-      }}>
-        <DialogContent className="bg-white border border-gray-200 rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-900">Create New Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedFolder && (
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                Creating folder inside: <span className="font-semibold text-gray-900">{selectedFolder.name}</span>
+        {/* Activity Log Dialog */}
+        <Dialog open={showActivity} onOpenChange={setShowActivity}>
+          <DialogContent className="max-w-2xl bg-white">
+            <DialogHeader>
+              <DialogTitle>Activity Log - {fileForVersions?.name || fileForVersions?.fileName}</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4 max-h-[60vh] overflow-y-auto">
+              {fileActivity.length > 0 ? (
+                <div className="space-y-2">
+                  {fileActivity.map((activity, idx) => (
+                    <div key={idx} className="p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{activity.action}</Badge>
+                            <span className="font-medium">{activity.userName}</span>
+                            <span className="text-sm text-gray-500">({activity.userRole})</span>
+                          </div>
+                          {activity.details && (
+                            <p className="text-sm text-gray-600 mt-1">{activity.details}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(activity.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No activity recorded</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Folder in Current Folder Dialog */}
+        <Dialog open={isCreateFolderInCurrentOpen} onOpenChange={(open) => {
+          setIsCreateFolderInCurrentOpen(open)
+          if (!open) {
+            setNewFolderInCurrentName("")
+          }
+        }}>
+          <DialogContent className="bg-white border border-gray-200 rounded-xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold text-gray-900">Create New Folder</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedFolder && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                  Creating folder inside: <span className="font-semibold text-gray-900">{selectedFolder.name}</span>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="folder-name-current" className="text-sm font-medium text-gray-700">Folder Name</Label>
+                <Input
+                  id="folder-name-current"
+                  placeholder="Enter folder name"
+                  value={newFolderInCurrentName}
+                  onChange={(e) => setNewFolderInCurrentName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newFolderInCurrentName.trim()) {
+                      handleCreateFolderInCurrent()
+                    }
+                  }}
+                  className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                  autoFocus
+                />
               </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="folder-name-current" className="text-sm font-medium text-gray-700">Folder Name</Label>
-              <Input
-                id="folder-name-current"
-                placeholder="Enter folder name"
-                value={newFolderInCurrentName}
-                onChange={(e) => setNewFolderInCurrentName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newFolderInCurrentName.trim()) {
-                    handleCreateFolderInCurrent()
-                  }
-                }}
-                className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
-                autoFocus
-              />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleCreateFolderInCurrent}
+                  disabled={!newFolderInCurrentName.trim() || creating || !selectedFolder}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                >
+                  {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
+                  Create Folder
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreateFolderInCurrentOpen(false)
+                    setNewFolderInCurrentName("")
+                  }}
+                  disabled={creating}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button 
-                onClick={handleCreateFolderInCurrent} 
-                disabled={!newFolderInCurrentName.trim() || creating || !selectedFolder} 
-                className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3 h-auto"
-              >
-                {creating ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : null}
-                Create Folder
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setIsCreateFolderInCurrentOpen(false)
-                  setNewFolderInCurrentName("")
-                }}
-                disabled={creating}
-                className="border-gray-200 hover:bg-gray-50 text-gray-700 hover:text-gray-800 transition-all duration-300 rounded-xl px-6 py-3 h-auto"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </div>

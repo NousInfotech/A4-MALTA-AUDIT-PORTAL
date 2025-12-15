@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -305,9 +306,9 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
     } else if (selectedTool === "draw" && drawStart) {
       setCurrentDraw((prev) => {
         // Only add if the point is significantly different from the last one
-        if (prev.length === 0 || 
-            Math.abs(prev[prev.length - 1].x - coords.x) > 2 || 
-            Math.abs(prev[prev.length - 1].y - coords.y) > 2) {
+        if (prev.length === 0 ||
+          Math.abs(prev[prev.length - 1].x - coords.x) > 2 ||
+          Math.abs(prev[prev.length - 1].y - coords.y) > 2) {
           return [...prev, coords];
         }
         return prev;
@@ -932,412 +933,353 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
   const pageAnnotations = annotations.filter((ann) => ann.page === pageNumber);
 
   const annotatorContent = (
-    <div className="fixed inset-0 z-40 flex flex-col bg-black/90">
+    <div className="fixed inset-0 z-40 flex flex-col bg-gray/100">
       {/* Header */}
-      <div className="flex items-center justify-between bg-white border-b px-4 py-3">
+      {/* HEADER BAR LIKE MAIN APP */}
+      <div className="bg-white shadow-sm border-b px-6 py-3 flex items-center justify-between sticky top-0 z-50 rounded-md ml-24 mt-3">
+
+        {/* LEFT — Back Button + File Name */}
         <div className="flex items-center gap-4">
-          <FileText className="h-5 w-5 text-gray-600" />
+          <button
+            onClick={onClose}
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
           <div>
-            <h2 className="text-lg font-semibold">{fileName}</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold truncate max-w-[280px]">{fileName}</h2>
+            <p className="text-xs text-gray-500">
               Page {pageNumber} of {numPages || 0}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Primary controls - visible on wider screens */}
-          <div className="hidden sm:flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setScale((prev) => Math.max(0.5, prev - 0.25))}
-              title="Zoom Out"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-sm w-16 text-center">{Math.round(scale * 100)}%</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setScale((prev) => Math.min(3, prev + 0.25))}
-              title="Zoom In"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRotation((prev) => (prev + 90) % 360)}
-              title="Rotate"
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (!isFullscreen) {
-                  containerRef.current?.requestFullscreen?.();
-                  setIsFullscreen(true);
-                } else {
-                  document.exitFullscreen?.();
-                  setIsFullscreen(false);
-                }
-              }}
-              title="Fullscreen"
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="sm" onClick={saveAnnotations} title="Save Annotations">
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportAnnotatedPDF}
-              disabled={saving}
-              title="Export PDF"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {saving ? "Exporting..." : "Export"}
-            </Button>
-          </div>
+        {/* CENTER — Viewer Controls */}
+        <div className="hidden md:flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setScale(prev => Math.max(0.5, prev - 0.25))}>
+            <ZoomOut className="h-4 w-4" />
+          </Button>
 
-          {/* Compact actions in a 3-dot menu (always available) */}
+          <span className="text-sm font-medium w-12 text-center">
+            {Math.round(scale * 100)}%
+          </span>
+
+          <Button variant="outline" size="sm" onClick={() => setScale(prev => Math.min(3, prev + 0.25))}>
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => setRotation(prev => (prev + 90) % 360)}>
+            <RotateCw className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!isFullscreen) containerRef.current?.requestFullscreen?.();
+              else document.exitFullscreen?.();
+              setIsFullscreen(!isFullscreen);
+            }}
+          >
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        {/* RIGHT — Save / Export / Menu */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={saveAnnotations}>
+            <Save className="h-4 w-4 mr-1" /> Save
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={exportAnnotatedPDF} disabled={saving}>
+            <Download className="h-4 w-4 mr-1" />
+            {saving ? "Exporting..." : "Export"}
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="rounded-full"
-                title="More actions"
-                aria-label="More actions"
-              >
+              <Button size="icon" variant="outline" className="rounded-full">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onClick={() => setScale((prev) => Math.max(0.5, prev - 0.25))}
-              >
-                <ZoomOut className="h-4 w-4 mr-2" />
-                Zoom Out
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setScale((prev) => Math.min(3, prev + 0.25))}
-              >
-                <ZoomIn className="h-4 w-4 mr-2" />
-                Zoom In
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setRotation((prev) => (prev + 90) % 360)}
-              >
-                <RotateCw className="h-4 w-4 mr-2" />
-                Rotate
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!isFullscreen) {
-                    containerRef.current?.requestFullscreen?.();
-                    setIsFullscreen(true);
-                  } else {
-                    document.exitFullscreen?.();
-                    setIsFullscreen(false);
-                  }
-                }}
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize className="h-4 w-4 mr-2" />
-                    Exit Fullscreen
-                  </>
-                ) : (
-                  <>
-                    <Maximize className="h-4 w-4 mr-2" />
-                    Fullscreen
-                  </>
-                )}
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => containerRef.current?.requestFullscreen?.()}>
+                Fullscreen
               </DropdownMenuItem>
               <DropdownMenuItem onClick={saveAnnotations}>
-                <Save className="h-4 w-4 mr-2" />
                 Save Annotations
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportAnnotatedPDF} disabled={saving}>
-                <Download className="h-4 w-4 mr-2" />
-                {saving ? "Exporting..." : "Export PDF"}
+              <DropdownMenuItem onClick={exportAnnotatedPDF}>
+                Export PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button variant="outline" size="sm" onClick={onClose} title="Close">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Toolbar - Collapsible */}
+
+      <div className="flex flex-1 overflow-hidden flex-row-reverse">
         {sidebarOpen && (
-          <div className="w-56 bg-white border-r p-3 overflow-y-auto flex-shrink-0">
-          <h3 className="font-semibold mb-4">Annotation Tools</h3>
+          <div className="w-56 bg-white border-l p-3 overflow-y-auto flex-shrink-0">
 
-          <Tabs defaultValue="annotate" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="annotate">Annotate</TabsTrigger>
-              <TabsTrigger value="annotations">Annotations</TabsTrigger>
-            </TabsList>
+            <h3 className="font-semibold mb-4">Annotation Tools</h3>
 
-            <TabsContent value="annotate" className="space-y-4 mt-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Tools</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={!selectedTool || selectedTool === "cursor" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("cursor")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <MousePointer2 className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Cursor</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "highlight" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("highlight")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Highlighter className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Highlight</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "comment" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("comment")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <MessageSquare className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Comment</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "draw" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("draw")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Pen className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Draw</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "rectangle" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("rectangle")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Square className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Rectangle</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "circle" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("circle")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Circle className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Circle</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "text" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("text")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Type className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Text</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "arrow" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("arrow")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <ArrowRight className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Arrow</span>
-                  </Button>
-                  <Button
-                    variant={selectedTool === "eraser" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedTool("eraser")}
-                    className="flex flex-col h-auto py-3"
-                  >
-                    <Eraser className="h-5 w-5 mb-1" />
-                    <span className="text-xs">Eraser</span>
-                  </Button>
+            <Tabs defaultValue="annotate" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="annotate">Annotate</TabsTrigger>
+                <TabsTrigger value="annotations">Annotations</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="annotate" className="space-y-4 mt-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Tools</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={!selectedTool || selectedTool === "cursor" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("cursor")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <MousePointer2 className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Cursor</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "highlight" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("highlight")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Highlighter className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Highlight</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "comment" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("comment")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <MessageSquare className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Comment</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "draw" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("draw")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Pen className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Draw</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "rectangle" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("rectangle")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Square className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Rectangle</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "circle" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("circle")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Circle className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Circle</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "text" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("text")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Type className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Text</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "arrow" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("arrow")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <ArrowRight className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Arrow</span>
+                    </Button>
+                    <Button
+                      variant={selectedTool === "eraser" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedTool("eraser")}
+                      className="flex flex-col h-auto py-3"
+                    >
+                      <Eraser className="h-5 w-5 mb-1" />
+                      <span className="text-xs">Eraser</span>
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              {selectedTool && selectedTool !== "eraser" && selectedTool !== "cursor" && (
-                <div className="space-y-3">
-                  <label className="text-sm font-medium mb-2 block">Color</label>
-                  <div className="flex flex-wrap gap-2">
-                    {COLORS[
-                      selectedTool === "highlight" || selectedTool === "comment" ? "highlight" : "draw"
-                    ].map((color) => (
-                      <button
-                        key={color}
-                        className={cn(
-                          "w-8 h-8 rounded border-2",
-                          selectedColor === color ? "border-gray-800" : "border-gray-300"
-                        )}
-                        style={{ backgroundColor: color }}
-                        onClick={() => {
+                {selectedTool && selectedTool !== "eraser" && selectedTool !== "cursor" && (
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium mb-2 block">Color</label>
+                    <div className="flex flex-wrap gap-2">
+                      {COLORS[
+                        selectedTool === "highlight" || selectedTool === "comment" ? "highlight" : "draw"
+                      ].map((color) => (
+                        <button
+                          key={color}
+                          className={cn(
+                            "w-8 h-8 rounded border-2",
+                            selectedColor === color ? "border-gray-800" : "border-gray-300"
+                          )}
+                          style={{ backgroundColor: color }}
+                          onClick={() => {
+                            setSelectedColor(color);
+                            setRecentColors((prev) => {
+                              const next = [color, ...prev.filter((c) => c !== color)];
+                              return next.slice(0, 5);
+                            });
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={selectedColor}
+                        onChange={(e) => {
+                          const color = e.target.value;
                           setSelectedColor(color);
                           setRecentColors((prev) => {
                             const next = [color, ...prev.filter((c) => c !== color)];
                             return next.slice(0, 5);
                           });
                         }}
+                        className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
                       />
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={selectedColor}
-                      onChange={(e) => {
-                        const color = e.target.value;
-                        setSelectedColor(color);
-                        setRecentColors((prev) => {
-                          const next = [color, ...prev.filter((c) => c !== color)];
-                          return next.slice(0, 5);
-                        });
-                      }}
-                      className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
-                    />
-                    {recentColors.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {recentColors.map((color) => (
-                          <button
-                            key={color}
-                            className={cn(
-                              "w-6 h-6 rounded border-2",
-                              selectedColor === color ? "border-gray-800" : "border-gray-300"
-                            )}
-                            style={{ backgroundColor: color }}
-                            onClick={() => setSelectedColor(color)}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {selectedTool === "eraser" && (
-                <div className="space-y-3">
-                  <label className="text-sm font-medium mb-2 block">Eraser Size</label>
-                  <Slider
-                    min={8}
-                    max={72}
-                    step={4}
-                    value={[eraserSize]}
-                    onValueChange={([value]) => setEraserSize(value)}
-                  />
-                  <div className="text-xs text-gray-500">Current size: {eraserSize}px</div>
-                </div>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setSelectedTool("cursor")}
-              >
-                Clear Selection
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="annotations" className="mt-4">
-              <div className="space-y-2">
-                <div className="text-sm font-medium mb-2">
-                  Page {pageNumber} ({pageAnnotations.length} annotations)
-                </div>
-                {pageAnnotations.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className={cn(
-                      "p-2 border rounded cursor-pointer",
-                      selectedAnnotation?.id === ann.id ? "bg-blue-50 border-blue-500" : "bg-white"
-                    )}
-                    onClick={() => setSelectedAnnotation(ann)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {ann.type}
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteAnnotation(ann.id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      {recentColors.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {recentColors.map((color) => (
+                            <button
+                              key={color}
+                              className={cn(
+                                "w-6 h-6 rounded border-2",
+                                selectedColor === color ? "border-gray-800" : "border-gray-300"
+                              )}
+                              style={{ backgroundColor: color }}
+                              onClick={() => setSelectedColor(color)}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {ann.content && (
-                      <p className="text-xs text-gray-600 mt-1 truncate">{ann.content}</p>
-                    )}
                   </div>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+                )}
 
-          {/* Page navigation moved into sidebar for a simpler layout */}
-          <div className="mt-6 space-y-2 border-t pt-4">
-            <label className="text-sm font-medium block mb-1">Page Navigation</label>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
-                disabled={pageNumber <= 1}
-                title="Previous page"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Input
-                type="number"
-                min={1}
-                max={numPages || 1}
-                value={pageNumber}
-                onChange={(e) => {
-                  const page = parseInt(e.target.value);
-                  if (!Number.isNaN(page) && page >= 1 && page <= (numPages || 1)) {
-                    setPageNumber(page);
-                  }
-                }}
-                className="w-16 text-center"
-              />
-              <span className="text-xs text-gray-500">of {numPages || 0}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setPageNumber((prev) => Math.min(numPages || 1, prev + 1))}
-                disabled={pageNumber >= (numPages || 1)}
-                title="Next page"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                {selectedTool === "eraser" && (
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium mb-2 block">Eraser Size</label>
+                    <Slider
+                      min={8}
+                      max={72}
+                      step={4}
+                      value={[eraserSize]}
+                      onValueChange={([value]) => setEraserSize(value)}
+                    />
+                    <div className="text-xs text-gray-500">Current size: {eraserSize}px</div>
+                  </div>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setSelectedTool("cursor")}
+                >
+                  Clear Selection
+                </Button>
+              </TabsContent>
+
+              <TabsContent value="annotations" className="mt-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium mb-2">
+                    Page {pageNumber} ({pageAnnotations.length} annotations)
+                  </div>
+                  {pageAnnotations.map((ann) => (
+                    <div
+                      key={ann.id}
+                      className={cn(
+                        "p-2 border rounded cursor-pointer",
+                        selectedAnnotation?.id === ann.id ? "bg-blue-50 border-blue-500" : "bg-white"
+                      )}
+                      onClick={() => setSelectedAnnotation(ann)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">
+                          {ann.type}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAnnotation(ann.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      {ann.content && (
+                        <p className="text-xs text-gray-600 mt-1 truncate">{ann.content}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* Page navigation moved into sidebar for a simpler layout */}
+            <div className="mt-6 space-y-2 border-t pt-4">
+              <label className="text-sm font-medium block mb-1">Page Navigation</label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setPageNumber((prev) => Math.max(1, prev - 1))}
+                  disabled={pageNumber <= 1}
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  min={1}
+                  max={numPages || 1}
+                  value={pageNumber}
+                  onChange={(e) => {
+                    const page = parseInt(e.target.value);
+                    if (!Number.isNaN(page) && page >= 1 && page <= (numPages || 1)) {
+                      setPageNumber(page);
+                    }
+                  }}
+                  className="w-16 text-center"
+                />
+                <span className="text-xs text-gray-500">of {numPages || 0}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setPageNumber((prev) => Math.min(numPages || 1, prev + 1))}
+                  disabled={pageNumber >= (numPages || 1)}
+                  title="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
-          </div>
         )}
-        
+
         {/* Sidebar Toggle Button */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1415,7 +1357,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                       {annotations
                         .filter((ann) => ann.page === pageNum)
                         .map((ann) => renderAnnotation(ann, pageNum))}
-                      
+
                       {/* Preview for highlight selection */}
                       {isDrawing && selectedTool === "highlight" && currentSelection && selectionStart?.page === pageNum && (
                         <div
@@ -1431,7 +1373,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                           }}
                         />
                       )}
-                      
+
                       {/* Preview for rectangle */}
                       {isDrawing && selectedTool === "rectangle" && previewShape && (
                         <div
@@ -1447,7 +1389,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                           }}
                         />
                       )}
-                      
+
                       {/* Preview for circle */}
                       {isDrawing && selectedTool === "circle" && previewShape && (
                         <div
@@ -1464,7 +1406,7 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
                           }}
                         />
                       )}
-                      
+
                       {/* Preview for drawing */}
                       {isDrawing && selectedTool === "draw" && currentDraw.length > 0 && (
                         <svg
@@ -1573,4 +1515,3 @@ export const PDFAnnotator: React.FC<PDFAnnotatorProps> = ({
 
   return createPortal(annotatorContent, document.body);
 };
-

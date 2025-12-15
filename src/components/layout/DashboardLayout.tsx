@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { ChatWidget } from '@/components/chat/ChatWidget';
 
 export const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -15,8 +16,8 @@ export const DashboardLayout = () => {
   return (
     <div className="flex h-screen bg-brand-body relative">
       {/* Sidebar for desktop & mobile */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
+      <Sidebar
+        isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         isCollapsed={isSidebarCollapsed}
       />
@@ -30,22 +31,26 @@ export const DashboardLayout = () => {
         ></div>
       )}
 
-      <div 
+      <div
         className={cn(
           "flex-1 flex flex-col overflow-hidden transition-all duration-300",
-          // Add left margin based on sidebar state
           isSidebarCollapsed ? "md:ml-24" : "md:ml-[21rem]"
         )}
       >
-        <Header 
-          onMenuClick={() => setIsSidebarOpen(true)} 
+        <Header
+          onMenuClick={() => setIsSidebarOpen(true)}
           onSidebarToggle={handleSidebarToggle}
           isSidebarCollapsed={isSidebarCollapsed}
         />
+
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-brand-body">
           <Outlet />
         </main>
       </div>
+
+      {/* Chat widget OUTSIDE main layout */}
+      <ChatWidget />
     </div>
   );
+
 };

@@ -146,7 +146,7 @@ export async function getFiles(folderName: string, params?: Partial<FileSearchPa
   const token = await getAuthToken()
   const url = new URL(`${API_BASE}/api/global-library/files`)
   url.searchParams.set("folder", folderName)
-  
+
   if (params) {
     if (params.search) url.searchParams.set("search", params.search)
     if (params.fileType) url.searchParams.set("fileType", params.fileType)
@@ -161,7 +161,7 @@ export async function getFiles(folderName: string, params?: Partial<FileSearchPa
     if (params.sortBy) url.searchParams.set("sortBy", params.sortBy)
     if (params.sortOrder) url.searchParams.set("sortOrder", params.sortOrder)
   }
-  
+
   const res = await fetch(url.toString(), {
     headers: {
       'Authorization': `Bearer ${token}`
@@ -172,8 +172,8 @@ export async function getFiles(folderName: string, params?: Partial<FileSearchPa
 }
 
 export async function uploadFile(
-  folderName: string, 
-  file: File, 
+  folderName: string,
+  file: File,
   options?: { description?: string; tags?: string[]; engagementId?: string; clientId?: string }
 ): Promise<GlobalFile> {
   const token = await getAuthToken()
@@ -184,7 +184,7 @@ export async function uploadFile(
   if (options?.tags) fd.append("tags", JSON.stringify(options.tags))
   if (options?.engagementId) fd.append("engagementId", options.engagementId)
   if (options?.clientId) fd.append("clientId", options.clientId)
-  
+
   const res = await fetch(`${API_BASE}/api/global-library/files/upload`, {
     method: "POST",
     headers: {
@@ -416,6 +416,37 @@ export async function updateSessionActivity() {
     headers: {
       'Authorization': `Bearer ${token}`
     },
+  })
+  return res.json()
+}
+
+export async function saveAnnotation(data: {
+  engagementId: string;
+  fileId: string;
+  annotations: any[];
+}) {
+  const token = await getAuthToken()
+  const res = await fetch(`${API_BASE}/api/annotations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) await handleApiError(res)
+  return res.json()
+}
+
+export async function getFilesReviewStatus(fileIds: string[]): Promise<Record<string, boolean>> {
+  const token = await getAuthToken()
+  const res = await fetch(`${API_BASE}/api/annotations/status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ fileIds }),
   })
   if (!res.ok) await handleApiError(res)
   return res.json()
