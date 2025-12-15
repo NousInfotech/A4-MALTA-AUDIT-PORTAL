@@ -279,7 +279,20 @@ export const PlanningProcedureTabsView: React.FC<PlanningProcedureTabsViewProps>
           body: JSON.stringify({ sectionId }),
         })
         
-        if (!res.ok) throw new Error("Failed to generate questions")
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => "")
+          let errorMessage = "Failed to generate questions"
+          try {
+            const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : {}
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } catch {
+            errorMessage = errorText?.slice(0, 200) || errorMessage
+          }
+          if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+            errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits."
+          }
+          throw new Error(errorMessage)
+        }
         const data = await res.json()
         
         setProcedures(prev => prev.map(section =>

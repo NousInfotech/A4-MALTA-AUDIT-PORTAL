@@ -1300,20 +1300,21 @@ export function EngagementKYC({
                 No KYC workflows have been created for this {engagementId ? "engagement" : "company"} yet.
               </p>
               {(engagementId || companyId) && (
-                <KYCDocumentRequestModal
+                  <KYCDocumentRequestModal
                   engagementId={engagementId}
                   companyId={companyId}
                   clientId={engagement?.clientId || clientId || ''}
                   engagementName={engagement?.title}
-                  company={engagement?.companyId}
+                  company={companyProp || engagement?.companyId}   // ✅ FIXED
                   onSuccess={fetchKYCWorkflows}
                   trigger={
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First KYC Workflow
-                    </Button>
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create First KYC Workflow
+                  </Button>
                   }
-                />
+                  />
+
               )}
             </div>
           </CardContent>

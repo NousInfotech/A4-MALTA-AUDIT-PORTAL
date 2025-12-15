@@ -53,6 +53,7 @@ interface AddShareholderRepresentativeModalProps {
   mode: "shareholder" | "representative";
   companyTotalShares?: number;
   existingSharesTotal?: number;
+  company?: any;
 }
 
 interface Person {
@@ -82,6 +83,7 @@ export const AddShareholderRepresentativeModal: React.FC<
   mode,
   companyTotalShares = 0,
   existingSharesTotal = 0,
+  company,
 }) => {
   const [activeTab, setActiveTab] = useState<
     "existing-person" | "new-person" | "existing-company" | "new-company"
@@ -173,15 +175,11 @@ export const AddShareholderRepresentativeModal: React.FC<
   };
 
   useEffect(() => {
+    // Global search is now default, so we don't fetch all entities upfront
     if (isOpen) {
-      if (activeTab === "existing-person" || activeTab === "new-person") {
-        fetchAllPersons();
-      } else if (
-        activeTab === "existing-company" ||
-        activeTab === "new-company"
-      ) {
-        fetchAllCompanies();
-      }
+      // Clear previous search state when opening/switching tabs if desired
+      // setSearchQuery("");
+      // setSearchResults([]);
     }
   }, [isOpen, activeTab]);
 
@@ -426,7 +424,23 @@ export const AddShareholderRepresentativeModal: React.FC<
           page: currentPage,
           limit: searchPagination.limit,
         });
-        setSearchResults(result.data || []);
+        
+        // Filter out existing representatives
+        let data = result.data || [];
+        if (company) {
+          data = data.filter((person: any) => {
+             // Check if person is already a representative
+             const isRepresentative = (company.representationalSchema || []).some((rep: any) => {
+                const repId = typeof rep.personId === 'object' ? rep.personId?._id : rep.personId;
+                return repId === person._id;
+             });
+             // Also check if they are a shareholder? User request: "if a company is already added as a shareholder or a representative"
+             // Assuming this applies to Persons as well properly if they are already in the list
+             return !isRepresentative;
+          });
+        }
+
+        setSearchResults(data);
         setSearchPagination(result.pagination || searchPagination);
       } else {
         const result = await searchCompaniesGlobal({
@@ -434,7 +448,28 @@ export const AddShareholderRepresentativeModal: React.FC<
           page: currentPage,
           limit: searchPagination.limit,
         });
-        setSearchResults(result.data || []);
+        
+        // Filter out existing companies that are already shareholders or representatives
+        let data = result.data || [];
+        if (company) {
+          data = data.filter((comp: any) => {
+            // Check if company is already a shareholding company
+            const isShareholder = (company.shareHoldingCompanies || []).some((sh: any) => {
+               const shId = typeof sh.companyId === 'object' ? sh.companyId?._id : sh.companyId;
+               return shId === comp._id;
+            });
+            
+            // Check if company is already a representative company
+            const isRepresentativeInfo = (company.representationalCompany || []).some((rep: any) => {
+                const repId = typeof rep.companyId === 'object' ? rep.companyId?._id : rep.companyId;
+                return repId === comp._id;
+             });
+
+            return !isShareholder && !isRepresentativeInfo;
+          });
+        }
+
+        setSearchResults(data);
         setSearchPagination(result.pagination || searchPagination);
       }
     } catch (error: any) {
@@ -508,169 +543,90 @@ export const AddShareholderRepresentativeModal: React.FC<
 
             {/* Existing Person Tab */}
             <TabsContent value="existing-person" className="space-y-4 mt-4">
-              {!isGlobalSearchMode ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <Label>Select Mode</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant={!isBulkMode ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setIsBulkMode(false)}
-                      >
-                        Single
-                      </Button>
-                      <Button
-                        variant={isBulkMode ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setIsBulkMode(true)}
-                      >
-                        Bulk
-                      </Button>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    placeholder="Search persons globally..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleGlobalSearch();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() => handleGlobalSearch()}
+                    disabled={isSearching || !searchQuery.trim()}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
+                  {searchResults.map((person) => (
+                    <div
+                      key={person._id}
+                      className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
+                    >
+                      <Checkbox
+                        checked={selectedPersonIds.includes(person._id)}
+                        onCheckedChange={() => handlePersonToggle(person._id)}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium">{person.name}</p>
+                        {person.email && (
+                          <p className="text-sm text-gray-500">{person.email}</p>
+                        )}
+                        {person.nationality && (
+                          <p className="text-xs text-gray-400">{person.nationality}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {searchPagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-2 border-t">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsGlobalSearchMode(true)}
-                        className="ml-2"
-                      >
-                        <Search className="h-4 w-4 mr-2" />
-                        Search Globally
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleExitGlobalSearch}
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Back
-                    </Button>
-                    <div className="flex-1 flex gap-2">
-                      <Input
-                        placeholder="Search persons globally..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleGlobalSearch();
-                          }
+                        onClick={() => {
+                          setSearchPagination((prev) => ({ ...prev, page: prev.page - 1 }));
+                          handleGlobalSearch();
                         }}
-                      />
-                      <Button
-                        onClick={() => handleGlobalSearch()}
-                        disabled={isSearching || !searchQuery.trim()}
+                        disabled={searchPagination.page === 1}
                       >
-                        {isSearching ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Search className="h-4 w-4" />
-                        )}
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-500">
+                        Page {searchPagination.page} of {searchPagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newPage = searchPagination.page + 1;
+                          setSearchPagination((prev) => ({ ...prev, page: newPage }));
+                          handleGlobalSearch(newPage);
+                        }}
+                        disabled={searchPagination.page >= searchPagination.totalPages}
+                      >
+                        Next
                       </Button>
                     </div>
-                  </div>
-                  
-                  {searchResults.length > 0 && (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                      {searchResults.map((person) => (
-                        <div
-                          key={person._id}
-                          className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
-                        >
-                          <Checkbox
-                            checked={selectedPersonIds.includes(person._id)}
-                            onCheckedChange={() => handlePersonToggle(person._id)}
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium">{person.name}</p>
-                            {person.email && (
-                              <p className="text-sm text-gray-500">{person.email}</p>
-                            )}
-                            {person.nationality && (
-                              <p className="text-xs text-gray-400">{person.nationality}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {searchPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSearchPagination((prev) => ({ ...prev, page: prev.page - 1 }));
-                              handleGlobalSearch();
-                            }}
-                            disabled={searchPagination.page === 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-gray-500">
-                            Page {searchPagination.page} of {searchPagination.totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newPage = searchPagination.page + 1;
-                              setSearchPagination((prev) => ({ ...prev, page: newPage }));
-                              handleGlobalSearch(newPage);
-                            }}
-                            disabled={searchPagination.page >= searchPagination.totalPages}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </div>
                   )}
-                  
-                  {searchResults.length === 0 && !isSearching && searchQuery && (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No results found. Try a different search query.
-                    </p>
-                  )}
-                </>
+                </div>
               )}
-
-              {!isGlobalSearchMode && (
-                <>
-                  {isLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                      {persons.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">
-                          No persons found
-                        </p>
-                      ) : (
-                        persons.map((person) => (
-                          <div
-                            key={person._id}
-                            className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
-                          >
-                            <Checkbox
-                              checked={selectedPersonIds.includes(person._id)}
-                              onCheckedChange={() => handlePersonToggle(person._id)}
-                            />
-                            <div className="flex-1">
-                              <p className="font-medium">{person.name}</p>
-                              {person.email && (
-                                <p className="text-sm text-gray-500">{person.email}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
+              
+              {searchResults.length === 0 && !isSearching && searchQuery && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No results found. Try a different search query.
+                </p>
               )}
 
               {mode === "shareholder" && (
@@ -786,173 +742,92 @@ export const AddShareholderRepresentativeModal: React.FC<
 
             {/* Existing Company Tab */}
             <TabsContent value="existing-company" className="space-y-4 mt-4">
-              {!isGlobalSearchMode ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <Label>Select Mode</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant={!isBulkMode ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setIsBulkMode(false)}
-                      >
-                        Single
-                      </Button>
-                      <Button
-                        variant={isBulkMode ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setIsBulkMode(true)}
-                      >
-                        Bulk
-                      </Button>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    placeholder="Search companies globally..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleGlobalSearch();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() => handleGlobalSearch()}
+                    disabled={isSearching || !searchQuery.trim()}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
+                  {searchResults.map((company) => (
+                    <div
+                      key={company._id}
+                      className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
+                    >
+                      <Checkbox
+                        checked={selectedCompanyIds.includes(company._id)}
+                        onCheckedChange={() => handleCompanyToggle(company._id)}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium">{company.name}</p>
+                        {company.registrationNumber && (
+                          <p className="text-sm text-gray-500">
+                            {company.registrationNumber}
+                          </p>
+                        )}
+                        {company.address && (
+                          <p className="text-xs text-gray-400">{company.address}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {searchPagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-2 border-t">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsGlobalSearchMode(true)}
-                        className="ml-2"
-                      >
-                        <Search className="h-4 w-4 mr-2" />
-                        Search Globally
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleExitGlobalSearch}
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Back
-                    </Button>
-                    <div className="flex-1 flex gap-2">
-                      <Input
-                        placeholder="Search companies globally..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleGlobalSearch();
-                          }
+                        onClick={() => {
+                          setSearchPagination((prev) => ({ ...prev, page: prev.page - 1 }));
+                          handleGlobalSearch();
                         }}
-                      />
-                      <Button
-                        onClick={() => handleGlobalSearch()}
-                        disabled={isSearching || !searchQuery.trim()}
+                        disabled={searchPagination.page === 1}
                       >
-                        {isSearching ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Search className="h-4 w-4" />
-                        )}
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-500">
+                        Page {searchPagination.page} of {searchPagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newPage = searchPagination.page + 1;
+                          setSearchPagination((prev) => ({ ...prev, page: newPage }));
+                          handleGlobalSearch(newPage);
+                        }}
+                        disabled={searchPagination.page >= searchPagination.totalPages}
+                      >
+                        Next
                       </Button>
                     </div>
-                  </div>
-                  
-                  {searchResults.length > 0 && (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                      {searchResults.map((company) => (
-                        <div
-                          key={company._id}
-                          className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
-                        >
-                          <Checkbox
-                            checked={selectedCompanyIds.includes(company._id)}
-                            onCheckedChange={() => handleCompanyToggle(company._id)}
-                          />
-                          <div className="flex-1">
-                            <p className="font-medium">{company.name}</p>
-                            {company.registrationNumber && (
-                              <p className="text-sm text-gray-500">
-                                {company.registrationNumber}
-                              </p>
-                            )}
-                            {company.address && (
-                              <p className="text-xs text-gray-400">{company.address}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {searchPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSearchPagination((prev) => ({ ...prev, page: prev.page - 1 }));
-                              handleGlobalSearch();
-                            }}
-                            disabled={searchPagination.page === 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-gray-500">
-                            Page {searchPagination.page} of {searchPagination.totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newPage = searchPagination.page + 1;
-                              setSearchPagination((prev) => ({ ...prev, page: newPage }));
-                              handleGlobalSearch(newPage);
-                            }}
-                            disabled={searchPagination.page >= searchPagination.totalPages}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </div>
                   )}
-                  
-                  {searchResults.length === 0 && !isSearching && searchQuery && (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No results found. Try a different search query.
-                    </p>
-                  )}
-                </>
+                </div>
               )}
-
-              {!isGlobalSearchMode && (
-                <>
-                  {isLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                      {companies.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">
-                          No companies found
-                        </p>
-                      ) : (
-                        companies.map((company) => (
-                          <div
-                            key={company._id}
-                            className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
-                          >
-                            <Checkbox
-                              checked={selectedCompanyIds.includes(company._id)}
-                              onCheckedChange={() => handleCompanyToggle(company._id)}
-                            />
-                            <div className="flex-1">
-                              <p className="font-medium">{company.name}</p>
-                              {company.registrationNumber && (
-                                <p className="text-sm text-gray-500">
-                                  {company.registrationNumber}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
+              
+              {searchResults.length === 0 && !isSearching && searchQuery && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No results found. Try a different search query.
+                </p>
               )}
 
               {mode === "shareholder" && (

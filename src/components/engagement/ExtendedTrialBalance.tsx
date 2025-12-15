@@ -86,14 +86,18 @@ const parseAccountingNumber = (value: any): number => {
 };
 
 // Ensure each row has a unique client-only ID
+// Fix the withClientIds function to ALWAYS generate unique IDs
 const withClientIds = <T extends object>(rows: T[]) =>
-  rows.map((r: any, i: number) => ({
-    ...r,
-    id:
-      r.id ||
-      r._id ||
-      `row-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  }));
+  rows.map((r: any, i: number) => {
+    // ALWAYS generate a new unique ID, even if row already has an id
+    const uniqueId = `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${i}`;
+    return {
+      ...r,
+      id: uniqueId,
+      // Keep the original ID as a reference if needed
+      originalId: r.id || r._id,
+    };
+  });
 
 interface ETBRow {
   id: string;
@@ -323,10 +327,10 @@ async function authFetch(url: string, options: RequestInit = {}) {
 
 // Create a separate component for classification combos with proper key to prevent re-renders
 // Define it outside the main component to avoid hook issues
-const ClassificationCombos = React.memo(({ 
-  rowId, 
-  classification, 
-  onChange, 
+const ClassificationCombos = React.memo(({
+  rowId,
+  classification,
+  onChange,
   memoizedLevel1Options,
   visibleLevels = 4,
   onVisibleLevelsChange
@@ -616,7 +620,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const [selectedRowForReclassifications, setSelectedRowForReclassifications] = useState<ETBRow | null>(null);
   const [reclassificationsForRow, setReclassificationsForRow] = useState<any[]>([]);
   const [loadingReclassifications, setLoadingReclassifications] = useState(false);
-  
+
   // State for prior year population
   const [isPopulatingPriorYear, setIsPopulatingPriorYear] = useState(false);
 
@@ -837,7 +841,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       if (etbResponse.ok) {
         const existingETB = await etbResponse.json();
-        
+
         if (existingETB.rows && existingETB.rows.length > 0) {
           const rowsWithIds = withClientIds(existingETB.rows).map((row: ETBRow) => {
             // Calculate visibleLevels if not present
@@ -848,7 +852,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             }
             return row;
           });
-          
+
           // DEBUG: Log new accounts detection
           const newAccounts = rowsWithIds.filter((row: ETBRow) => row.isNewAccount === true);
           console.log('[ETB] Total rows loaded:', rowsWithIds.length);
@@ -856,7 +860,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           if (newAccounts.length > 0) {
             console.log('[ETB] New account codes:', newAccounts.map((r: ETBRow) => r.code));
           }
-          
+
           setEtbRows(rowsWithIds);
           refreshClassificationSummary(rowsWithIds);
           // only seed from props if we don't already have one (effect above also handles this)
@@ -874,7 +878,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (!trialBalanceData?.data) return;
 
       const [headers, ...rows] = trialBalanceData.data;
-      
+
       const codeIndex = headers.findIndex((h: string) =>
         h.toLowerCase().includes("code")
       );
@@ -940,7 +944,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
           const initialReclassification = 0;
           return {
-            id: `row-${index}-${Date.now()}`,
+            id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${index}`,
             code,
             accountName,
             currentYear,
@@ -979,7 +983,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           },
         }
       );
-      
+
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
         if (checkData.rows && checkData.rows.length > 0) {
@@ -1011,7 +1015,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           return;
         }
       }
-      
+
       // Backend ETB doesn't exist - safe to save
       if (etbData && etbData.length > 0) {
         await saveETB(false, etbData);
@@ -1032,7 +1036,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       initializeETB();
       return;
     }
-    
+
     // Re-initialize if trialBalanceData has changed (new upload)
     if (trialBalanceData && tbDataRef.current !== trialBalanceData) {
       tbDataRef.current = trialBalanceData;
@@ -1042,7 +1046,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
   const addNewRow = useCallback(() => {
     const newRow: ETBRow = {
-      id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${etbRows.length}`,
       code: "",
       accountName: "",
       currentYear: 0,
@@ -1055,14 +1059,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       grouping2: "",
       grouping3: "",
       grouping4: "",
-      visibleLevels: 1, // Start with Level 1 dropdown visible
+      visibleLevels: 1,
     };
     setEtbRows(prevRows => {
       const newRows = [...prevRows, newRow];
       refreshClassificationSummary(newRows);
       return newRows;
     });
-  }, [refreshClassificationSummary]);
+  }, [refreshClassificationSummary, etbRows.length]);
 
   // Save ETB (optionally mute toast, optionally pass custom rows)
   const saveETB = useCallback(async (showToast = true, customRows?: ETBRow[], skipLoadExistingData = false) => {
@@ -1124,11 +1128,11 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const proceedWithRowDeletion = useCallback((id: string) => {
     // Calculate new rows first
     const newRows = etbRows.filter((row) => row.id !== id);
-    
+
     // Update state immediately for UI responsiveness
     setEtbRows(newRows);
     refreshClassificationSummary(newRows);
-    
+
     // Save the updated ETB with the filtered rows, skip reloading existing data to avoid restoring deleted row
     saveETB(true, newRows, true); // skipLoadExistingData = true
   }, [etbRows, refreshClassificationSummary, saveETB]);
@@ -1142,7 +1146,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
     try {
       const rowId = row._id || row.id || row.code;
-      
+
       // Fetch all adjustments and reclassifications for this engagement
       const [adjustmentsResponse, reclassificationsResponse] = await Promise.all([
         adjustmentApi.getByEngagement(engagement._id),
@@ -1152,18 +1156,18 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       // Filter to find adjustments/reclassifications affecting this row
       const relevantAdjustments = adjustmentsResponse.success
         ? adjustmentsResponse.data.filter((adj: any) =>
-            adj.entries.some((entry: any) =>
-              entry.etbRowId === rowId || entry.code === row.code
-            )
+          adj.entries.some((entry: any) =>
+            entry.etbRowId === rowId || entry.code === row.code
           )
+        )
         : [];
 
       const relevantReclassifications = reclassificationsResponse.success
         ? reclassificationsResponse.data.filter((rc: any) =>
-            rc.entries.some((entry: any) =>
-              entry.etbRowId === rowId || entry.code === row.code
-            )
+          rc.entries.some((entry: any) =>
+            entry.etbRowId === rowId || entry.code === row.code
           )
+        )
         : [];
 
       setAdjustmentsForDeleteRow(relevantAdjustments);
@@ -1191,7 +1195,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const deleteRow = useCallback((id: string) => {
     const row = etbRows.find((r) => r.id === id);
     if (!row) return;
-    
+
     // Check for adjustments/reclassifications before deleting
     checkRowBeforeDelete(row);
   }, [etbRows, checkRowBeforeDelete]);
@@ -1476,17 +1480,24 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   }, []);
 
   // Toggle individual row selection
+  // 2. Update the toggleRowSelection function to ensure it's working correctly
   const toggleRowSelection = useCallback((rowId: string) => {
+    console.log('Toggling row with ID:', rowId);
+    console.log('Current selection:', Array.from(selectedRowIds));
+
     setSelectedRowIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(rowId)) {
         newSet.delete(rowId);
+        console.log('Deselected row:', rowId);
       } else {
         newSet.add(rowId);
+        console.log('Selected row:', rowId);
       }
+      console.log('New selection:', Array.from(newSet));
       return newSet;
     });
-  }, []);
+  }, [selectedRowIds]);
 
   // Toggle all rows selection
   const toggleAllRows = useCallback(() => {
@@ -1495,7 +1506,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         const code = (row.code || "").toString().trim().toUpperCase();
         return !code.startsWith("TOTALS");
       });
-      
+
       if (prev.size === filteredRows.length) {
         return new Set();
       } else {
@@ -1507,16 +1518,16 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Apply bulk classification to selected rows
   const applyBulkClassification = useCallback((classification: string) => {
     setBulkClassification(classification);
-    
+
     // Extract classification parts to sync with grouping fields
     const parts = (classification || "").split(" > ").filter(Boolean).map(s => s.trim());
-    
+
     // Calculate visible levels based on classification depth
     const newVisibleLevels = parts.length > 0 ? parts.length : 1;
-    
+
     // Update bulk visible levels to match
     setBulkVisibleLevels(newVisibleLevels);
-    
+
     setEtbRows(prevRows => {
       const updatedRows = prevRows.map((row) => {
         if (!selectedRowIds.has(row.id)) return row;
@@ -1534,10 +1545,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
         return updatedRow;
       });
-      
+
       // Refresh classification summary after bulk update
       refreshClassificationSummary(updatedRows);
-      
+
       return updatedRows;
     });
   }, [selectedRowIds, refreshClassificationSummary]);
@@ -1552,19 +1563,19 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   // Update bulk classification when selection changes (not when rows update)
   // We track previous selection to only update when selection actually changes
   const prevSelectionRef = useRef<Set<string>>(new Set());
-  
+
   useEffect(() => {
     // Check if selection actually changed
-    const selectionChanged = 
+    const selectionChanged =
       prevSelectionRef.current.size !== selectedRowIds.size ||
       ![...selectedRowIds].every(id => prevSelectionRef.current.has(id));
-    
+
     if (!selectionChanged) {
       return; // Don't update if selection didn't change
     }
-    
+
     prevSelectionRef.current = new Set(selectedRowIds);
-    
+
     if (selectedRowIds.size > 0) {
       // Get the classification of the first selected row
       const firstSelectedRow = etbRows.find(row => selectedRowIds.has(row.id));
@@ -1585,7 +1596,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     if (rowId === "bulk") {
       // Update bulk visible levels
       setBulkVisibleLevels(levels);
-      
+
       // Apply to all selected rows
       setEtbRows(prevRows => {
         return prevRows.map((row) => {
@@ -1614,13 +1625,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     try {
       // Fetch all adjustments for this engagement
       const response = await adjustmentApi.getByEngagement(engagement._id);
-      
+
       if (response.success) {
         // Filter to adjustments that affect this specific row
         const rowId = row._id || row.id || row.code;
         const relevantAdjustments = response.data.filter((adj: any) =>
-          adj.entries.some((entry: any) => 
-            entry.etbRowId === rowId || 
+          adj.entries.some((entry: any) =>
+            entry.etbRowId === rowId ||
             entry.code === row.code
           )
         );
@@ -1679,14 +1690,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (response.success) {
         toast({
           title: "Success",
-          description: response.data?.wasPosted 
+          description: response.data?.wasPosted
             ? "Adjustment deleted and ETB impact reversed"
             : "Adjustment deleted successfully",
         });
-        
+
         // Remove from list
         setAdjustmentsForDeleteRow(prev => prev.filter(adj => adj._id !== adjustmentId));
-        
+
         // Reload ETB data to reflect changes
         await initializeETB();
       }
@@ -1714,14 +1725,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (response.success) {
         toast({
           title: "Success",
-          description: response.data?.wasPosted 
+          description: response.data?.wasPosted
             ? "Reclassification deleted and ETB impact reversed"
             : "Reclassification deleted successfully",
         });
-        
+
         // Remove from list
         setReclassificationsForDeleteRow(prev => prev.filter(rc => rc._id !== reclassificationId));
-        
+
         // Reload ETB data to reflect changes
         await initializeETB();
       }
@@ -1769,22 +1780,22 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           method: "POST",
         }
       );
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to populate prior year data");
       }
-      
+
       const result = await res.json();
-      
+
       console.log('[ETB] Populate Prior Year Result:', result);
-      
+
       if (result.populated) {
         toast({
           title: "Prior Year Data Populated",
           description: result.details || "Prior year values have been updated",
         });
-        
+
         console.log('[ETB] Reloading ETB data to show updated flags...');
         // Reload the ETB data to show the updated flags
         await initializeETB();
@@ -2045,19 +2056,24 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     })
                     .map((row, idx) => (
                       <TableRow
-                        key={row.id}
+                        key={row.id} // Use only the unique ID, not the code
                         className={cn(
                           idx % 2 === 1 && "bg-muted/20",
                           "hover:bg-muted/40 transition-colors",
                           selectedRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/30"
-                          // Removed yellow highlighting - only showing badge now
                         )}
                       >
                         <TableCell className="border border-r-secondary border-b-secondary align-middle text-center min-w-[3.5rem] w-[3.5rem] px-2">
                           <div className="flex items-center justify-center">
                             <Checkbox
+                              id={`checkbox-${row.id}`} // Add a unique ID to the checkbox
                               checked={selectedRowIds.has(row.id)}
-                              onCheckedChange={() => toggleRowSelection(row.id)}
+                              onCheckedChange={(checked) => {
+                                // Prevent event propagation and ensure only this row is toggled
+                                event.stopPropagation();
+                                console.log('Checkbox changed for row:', row.id, 'Checked:', checked);
+                                toggleRowSelection(row.id);
+                              }}
                               aria-label={`Select row ${row.code || row.accountName}`}
                             />
                           </div>
@@ -2070,8 +2086,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                               className="font-mono text-xs sm:text-sm"
                             />
                             {row.isNewAccount && (
-                              <Badge 
-                                variant="outline" 
+                              <Badge
+                                variant="outline"
                                 className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1 py-0 h-4"
                                 title="This account code is new and was not found in the previous year"
                               >
@@ -2224,6 +2240,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   </TableRow>
                 </TableBody>
               </Table>
+
+
             </div>
           </div>
 
@@ -2311,10 +2329,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 {adjustmentsForRow.map((adj: any) => {
                   // Get the row ID for highlighting
                   const rowId = selectedRowForAdjustments?._id || selectedRowForAdjustments?.id || selectedRowForAdjustments?.code;
-                  
+
                   // Calculate net impact on this specific row
                   const netImpactOnRow = adj.entries
-                    .filter((entry: any) => 
+                    .filter((entry: any) =>
                       entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code
                     )
                     .reduce((sum: number, e: any) => sum + (e.dr || 0) - (e.cr || 0), 0);
@@ -2352,10 +2370,10 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                                 {adj.entries.map((entry: any, idx: number) => {
                                   // Highlight the row we clicked on
                                   const isClickedRow = entry.etbRowId === rowId || entry.code === selectedRowForAdjustments?.code;
-                                  
+
                                   return (
-                                    <tr 
-                                      key={idx} 
+                                    <tr
+                                      key={idx}
                                       className={cn(
                                         "border-t",
                                         isClickedRow && "bg-blue-50 font-semibold"
@@ -2382,7 +2400,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                                     </tr>
                                   );
                                 })}
-                                
+
                                 {/* Totals Row */}
                                 <tr className="border-t bg-gray-100 font-semibold">
                                   <td colSpan={2} className="px-3 py-2 border-r">
@@ -2446,7 +2464,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             <Alert className="border-amber-300 bg-amber-50">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800">
-                <strong>Important:</strong> Before deleting this ETB row, you must delete & reverse all adjustments and reclassifications that affect it. 
+                <strong>Important:</strong> Before deleting this ETB row, you must delete & reverse all adjustments and reclassifications that affect it.
                 This will remove their impact from the ETB. Once all adjustments and reclassifications are handled, you can proceed with deleting the row.
               </AlertDescription>
             </Alert>

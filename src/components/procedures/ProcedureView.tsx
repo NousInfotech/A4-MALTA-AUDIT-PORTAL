@@ -450,8 +450,23 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => "")
-        const errorData = errorText ? (errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText }) : { message: "Failed to generate AI questions" }
-        throw new Error(errorData.message || "Failed to generate AI questions")
+        let errorMessage = "Failed to generate AI questions";
+        
+        if (errorText) {
+          try {
+            const errorData = errorText.startsWith("{") ? JSON.parse(errorText) : { message: errorText };
+            errorMessage = errorData.error || errorData.message || errorText.slice(0, 200);
+          } catch {
+            errorMessage = errorText.slice(0, 200);
+          }
+        }
+        
+        // Check for quota errors
+        if (res.status === 429 || errorMessage.toLowerCase().includes("quota")) {
+          errorMessage = "OpenAI API quota exceeded. Please check your OpenAI account billing and quota limits.";
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await res.json()

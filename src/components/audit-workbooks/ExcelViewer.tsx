@@ -191,7 +191,7 @@ interface ExcelViewerProps {
   classification?: string;
   rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
   onRefreshMappings?: (workbookId: string) => Promise<void>; // ✅ NEW: Callback to refresh mappings after CRUD
-  
+
   // Dialog refresh control
   mappingsDialogRefreshKey?: number;
   setMappingsDialogRefreshKey?: (key: number | ((prev: number) => number)) => void;
@@ -309,7 +309,7 @@ interface ExcelViewerProps {
 
   // ✅ NEW: Callback when sheet selection changes (for saving preference)
   onSheetChange?: (workbookId: string, sheetName: string) => void;
-  
+
   // Auto-scrolling props
   spreadsheetContainerRef?: React.RefObject<HTMLDivElement>;
   autoScrollInterval?: NodeJS.Timeout | null;
@@ -317,7 +317,10 @@ interface ExcelViewerProps {
   mousePosition?: { x: number; y: number };
   setMousePosition?: (position: { x: number; y: number }) => void;
   currentMousePositionRef?: React.MutableRefObject<{ x: number; y: number }>; // ✅ NEW: Ref for immediate mouse position access
-  
+
+  // Format Excel date function
+  formatExcelDate?: (value: any) => string;
+
 }
 
 export const ExcelViewer: React.FC<ExcelViewerProps> = ({
@@ -349,10 +352,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   classification,
   rowType = 'etb', // Default to ETB for backward compatibility
   onRefreshMappings, // ✅ NEW: Callback to refresh mappings after CRUD
-  
+
   // Dialog refresh control
   mappingsDialogRefreshKey = 0,
-  setMappingsDialogRefreshKey = () => {},
+  setMappingsDialogRefreshKey = () => { },
 
   // All state props from parent
   selectedSheet,
@@ -428,19 +431,19 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // Reference files states
   isDualOptionsDialogOpen = false,
-  setIsDualOptionsDialogOpen = () => {},
+  setIsDualOptionsDialogOpen = () => { },
   isReferenceFilesDialogOpen = false,
-  setIsReferenceFilesDialogOpen = () => {},
+  setIsReferenceFilesDialogOpen = () => { },
   isUploadReferenceFilesDialogOpen = false,
-  setIsUploadReferenceFilesDialogOpen = () => {},
+  setIsUploadReferenceFilesDialogOpen = () => { },
   cellRangeEvidenceFiles = [],
-  setCellRangeEvidenceFiles = () => {},
+  setCellRangeEvidenceFiles = () => { },
   loadingEvidenceFiles = false,
-  setLoadingEvidenceFiles = () => {},
+  setLoadingEvidenceFiles = () => { },
   cellsWithEvidence = new Map(),
-  setCellsWithEvidence = () => {},
+  setCellsWithEvidence = () => { },
   uploadingFiles = false,
-  setUploadingFiles = () => {},
+  setUploadingFiles = () => { },
 
   // Reference files functions
   fetchEvidenceFilesForRange,
@@ -451,9 +454,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
   // File preview states
   filePreviewOpen = false,
-  setFilePreviewOpen = () => {},
+  setFilePreviewOpen = () => { },
   selectedPreviewFile = null,
-  setSelectedPreviewFile = () => {},
+  setSelectedPreviewFile = () => { },
 
   // ✅ NEW: Callback when sheet selection changes
   onSheetChange,
@@ -465,6 +468,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   mousePosition,
   setMousePosition,
   currentMousePositionRef: parentCurrentMousePositionRef,
+
+  // Format Excel date function
+  formatExcelDate,
 }) => {
   // ✅ Create local ref if parent doesn't provide one (for standalone ExcelViewer usage)
   const localCurrentMousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -476,16 +482,16 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     setSelectedSheet(sheetName);
   }, [setSelectedSheet]);
   const { toast } = useToast();
-  
+
   // State for mapping files to upload
   const [mappingFilesToUpload, setMappingFilesToUpload] = useState<File[]>([]);
   const [isUploadingMappingFiles, setIsUploadingMappingFiles] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
-  
+
   // ✅ NEW: State for sheet list dropdown panel
   const [isSheetListOpen, setIsSheetListOpen] = useState(false);
   const [selectedSheets, setSelectedSheets] = useState<Set<string>>(new Set());
-  
+
   // ✅ Create props object reference for functions that need to access props
   const props = {
     workbook,
@@ -552,7 +558,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     },
     [setSelectedSheet, setSelections, setIsSelecting]
   );
-  
+
   // ✅ DEBUG: Log when mappings prop changes
   useEffect(() => {
     console.log('📊 ExcelViewer: Mappings prop changed:', {
@@ -566,10 +572,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // Use workbook.fileData as fallback, but will be populated with cache
   const sheetData: SheetData = workbook?.fileData || {};
   // ✅ Get sheet names from fileData, or fallback to workbook.sheets array
-  const sheetNames = Object.keys(sheetData).length > 0 
+  const sheetNames = Object.keys(sheetData).length > 0
     ? Object.keys(sheetData)
     : (workbook?.sheets?.map((s: any) => s.name || s) || []);
-  
+
   // ✅ DEBUG: Log sheet names for troubleshooting
   useEffect(() => {
     console.log('ExcelViewer: Sheet names debug:', {
@@ -588,10 +594,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // ✅ DEBUG: Log workbook.referenceFiles whenever it changes
   useEffect(() => {
     const refFiles = workbook?.referenceFiles || [];
-    const refFilesForCurrentSheet = refFiles.filter((ref: any) => 
+    const refFilesForCurrentSheet = refFiles.filter((ref: any) =>
       ref?.details?.sheet === selectedSheet
     );
-    
+
     console.log('📊 ExcelViewer: workbook.referenceFiles changed:', {
       workbookId: workbook?.id,
       workbookName: workbook?.name,
@@ -621,7 +627,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   // Combine workbook mappings with ETB mappings for display
   const allMappings = React.useMemo(() => {
     const workbookMappings = mappings || [];
-    
+
     // Determine source rows based on rowType
     let sourceRows: any[] =
       etbData?.rows ||
@@ -644,14 +650,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           workbookId:
             mapping.workbookId && typeof mapping.workbookId === 'string'
               ? {
-                  _id: mapping.workbookId,
-                  name: workbook.name || 'Unknown Workbook',
-                }
+                _id: mapping.workbookId,
+                name: workbook.name || 'Unknown Workbook',
+              }
               : mapping.workbookId,
           _evidenceId: rowType === 'evidence' ? row.code : undefined,
         })) || []
       ) || [];
-    
+
     const combined = [...workbookMappings, ...etbMappings];
     console.log('🔍 allMappings recalculated:', {
       rowType,
@@ -679,7 +685,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     (etbData as any)?._updateTimestamp,
     JSON.stringify(etbData?.rows?.map((r) => r.mappings)),
   ]);
-  
+
   // ✅ Log when allMappings changes
   useEffect(() => {
     console.log('📊 allMappings changed:', {
@@ -775,17 +781,17 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       return;
     }
 
-      // ✅ IMPORTANT: Only process referenceFiles (NOT mappings)
-      // Mappings and reference files are separate concepts:
-      // - Mappings: Link cells to ETB/Working Paper/Evidence rows (shown with "Mapping" label)
-      // - Reference Files: Directly attached to cell ranges (shown with "References" label)
-      const fetchEvidenceForRanges = async () => {
-        const newCellsWithEvidence = new Map<string, boolean>();
-        
-        // ✅ DO NOT process mappings here - mappings are separate and should not populate cellsWithEvidence
-        // Mappings will show "Mapping" label, reference files will show "References" label
+    // ✅ IMPORTANT: Only process referenceFiles (NOT mappings)
+    // Mappings and reference files are separate concepts:
+    // - Mappings: Link cells to ETB/Working Paper/Evidence rows (shown with "Mapping" label)
+    // - Reference Files: Directly attached to cell ranges (shown with "References" label)
+    const fetchEvidenceForRanges = async () => {
+      const newCellsWithEvidence = new Map<string, boolean>();
 
-        // Process referenceFiles ONLY (new schema with details and evidence array)
+      // ✅ DO NOT process mappings here - mappings are separate and should not populate cellsWithEvidence
+      // Mappings will show "Mapping" label, reference files will show "References" label
+
+      // Process referenceFiles ONLY (new schema with details and evidence array)
       // ✅ Handle both old format (ObjectIds) and new format (ReferenceSchema)
       for (const refFile of sheetReferenceFiles) {
         // Skip old format entries (just ObjectIds without details)
@@ -793,7 +799,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           console.warn('⚠️ Skipping old format referenceFile entry:', refFile);
           continue;
         }
-        
+
         const { start, end } = refFile.details;
         if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
           console.warn('⚠️ Invalid referenceFile details.start:', refFile);
@@ -801,7 +807,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         }
 
         const evidenceIds = refFile.evidence || [];
-        
+
         // Mark cells in this reference range if it has evidence
         if (evidenceIds.length > 0) {
           const startRow = start.row;
@@ -1166,7 +1172,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const getFileIcon = (fileUrl: string) => {
     const fileName = fileUrl.split('/').pop() || '';
     const extension = fileName.split('.').pop()?.toLowerCase() || '';
-    
+
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(extension)) {
       return <Image className="h-5 w-5 text-green-500" />;
     }
@@ -1366,7 +1372,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         // Skip old format entries (just ObjectIds without details)
         if (!ref || typeof ref !== 'object' || !ref.details) return false;
         if (ref.details.sheet !== selectedSheet) return false;
-        
+
         const { start, end } = ref.details;
         if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
           return false;
@@ -1376,7 +1382,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
         const startCol = start.col;
         const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
-        
+
         return (
           excelRowNumber >= startRow &&
           excelRowNumber <= endRow &&
@@ -1396,10 +1402,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       return className;
     },
     [
-      selections, 
-      selectedSheet, 
-      allMappings, 
-      workbook.referenceFiles, 
+      selections,
+      selectedSheet,
+      allMappings,
+      workbook.referenceFiles,
       (workbook as any)?._referenceFilesUpdateTimestamp,
       (workbook as any)?.referenceFiles?.length, // ✅ Add length to dependencies to force re-render when referenceFiles change
       cellsWithEvidence
@@ -1591,11 +1597,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           throw new Error('Unable to resolve Working Paper row identifier.');
         }
         await removeMappingFromWPRow(engagementId, classification, effectiveRowId, mappingId);
-        
+
         // Update etbData IMMEDIATELY by removing the mapping (local state update only)
         setEtbData(prev => {
           if (!prev) return prev;
-          
+
           const updatedRows = prev.rows.map(row => {
             if (row.code === rowCode) {
               return {
@@ -1605,60 +1611,60 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             }
             return row;
           });
-          
+
           return {
             ...prev,
             rows: updatedRows,
             _updateTimestamp: Date.now() // Force re-render
           } as any;
         });
-        
+
         console.log('✅ Working Paper mapping deleted and UI updated immediately (local state only)');
       } else if (rowType === 'evidence') {
         // For Evidence, rowCode is the evidenceId
         const evidenceId = rowCode;
         await removeMappingFromEvidence(evidenceId, mappingId);
-        
+
         // After deletion, re-fetch evidence with mappings to update UI immediately
         try {
           const refreshedEvidence = await getEvidenceWithMappings(evidenceId);
-          
+
           // Update local etbData state with refreshed evidence
           setEtbData(prev => {
             if (!prev) return prev;
             const rowsWithoutEvidence = prev.rows.filter(row => row.code !== evidenceId);
             const evidenceRow = prev.rows.find(row => row.code === evidenceId);
-            
+
             if (!evidenceRow) return prev;
-            
+
             const normalizedRows = refreshedEvidence
               ? [
-                  ...rowsWithoutEvidence,
-                  {
-                    ...evidenceRow,
-                    mappings:
-                      refreshedEvidence.mappings?.map((mapping: any) => ({
-                        ...mapping,
-                        workbookId:
-                          typeof mapping.workbookId === 'object'
-                            ? mapping.workbookId
-                            : {
-                                _id: mapping.workbookId,
-                                name: 'Unknown Workbook'
-                              },
-                        isActive: mapping.isActive !== false
-                      })) || []
-                  }
-                ]
+                ...rowsWithoutEvidence,
+                {
+                  ...evidenceRow,
+                  mappings:
+                    refreshedEvidence.mappings?.map((mapping: any) => ({
+                      ...mapping,
+                      workbookId:
+                        typeof mapping.workbookId === 'object'
+                          ? mapping.workbookId
+                          : {
+                            _id: mapping.workbookId,
+                            name: 'Unknown Workbook'
+                          },
+                      isActive: mapping.isActive !== false
+                    })) || []
+                }
+              ]
               : prev.rows.filter(row => row.code !== evidenceId);
-            
+
             return {
               ...prev,
               rows: normalizedRows,
               _updateTimestamp: Date.now()
             } as any;
           });
-          
+
           // Notify parent component about the update
           onEvidenceMappingUpdated?.(refreshedEvidence);
           console.log('✅ Evidence mapping deleted and UI updated immediately');
@@ -1686,11 +1692,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       } else {
         // ETB (Lead Sheet) mapping
         await removeMappingFromRow(engagementId, effectiveRowId, mappingId);
-        
+
         // Update etbData IMMEDIATELY by removing the mapping (local state update only)
         setEtbData(prev => {
           if (!prev) return prev;
-          
+
           const updatedRows = prev.rows.map(row => {
             if (row.code === rowCode) {
               return {
@@ -1700,14 +1706,14 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             }
             return row;
           });
-          
+
           return {
             ...prev,
             rows: updatedRows,
             _updateTimestamp: Date.now() // Force re-render
           } as any;
         });
-        
+
         console.log('✅ Lead Sheet mapping deleted and UI updated immediately (local state only)');
       }
 
@@ -1747,7 +1753,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
     try {
       const labels = getContextLabels();
-      
+
       // Use the appropriate API based on rowType
       if (rowType === 'working-paper' && classification) {
         if (!effectiveCurrentRowId) {
@@ -1770,7 +1776,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               color: updateData.color || mapping.color,
               details: updateData.details
             };
-            
+
             // Update local etbData optimistically: remove from old row
             setEtbData(prev => {
               if (!prev) return prev;
@@ -1790,29 +1796,29 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 _updateTimestamp: Date.now()
               } as any;
             });
-            
+
             // Add mapping to new row (backend will create new mapping with new ID)
             const wpData = await addMappingToWPRow(engagementId, classification, effectiveNewRowId, mappingData);
-            
+
             // Update local etbData with the response from backend (includes new mapping with new ID)
             if (wpData?.rows) {
               setEtbData(prev => {
                 if (!prev) return prev;
                 // Find the new row's data from the backend response
                 const backendNewRow = wpData.rows.find((r: any) => r.code === newRowCode || r._id === effectiveNewRowId);
-                
+
                 if (backendNewRow?.mappings) {
                   // Replace mappings for the new row with backend data to get correct IDs
                   const updatedRows = prev.rows.map(row => {
                     if (row.code === newRowCode) {
                       const normalizedMappings = backendNewRow.mappings.map((m: any) => ({
                         ...m,
-                        workbookId: typeof m.workbookId === 'object' 
-                          ? m.workbookId 
+                        workbookId: typeof m.workbookId === 'object'
+                          ? m.workbookId
                           : {
-                              _id: m.workbookId,
-                              name: 'Unknown Workbook'
-                            },
+                            _id: m.workbookId,
+                            name: 'Unknown Workbook'
+                          },
                         isActive: m.isActive !== false
                       }));
                       return {
@@ -1836,7 +1842,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         } else {
           // Just update the existing mapping in the same row
           await updateWPMapping(engagementId, classification, effectiveCurrentRowId, mappingId, updateData);
-          
+
           // Update local etbData immediately
           setEtbData(prev => {
             if (!prev) return prev;
@@ -1844,8 +1850,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               if (row.code === currentRowCode) {
                 return {
                   ...row,
-                  mappings: row.mappings?.map(m => 
-                    m._id === mappingId 
+                  mappings: row.mappings?.map(m =>
+                    m._id === mappingId
                       ? { ...m, ...updateData, _id: mappingId }
                       : m
                   ) || []
@@ -1869,47 +1875,47 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         }
         const evidenceId = currentRowCode;
         await updateEvidenceMapping(evidenceId, mappingId, updateData);
-        
+
         // After update, re-fetch evidence with mappings to update UI immediately
         try {
           const refreshedEvidence = await getEvidenceWithMappings(evidenceId);
-          
+
           // Update local etbData state with refreshed evidence
           setEtbData(prev => {
             if (!prev) return prev;
             const rowsWithoutEvidence = prev.rows.filter(row => row.code !== evidenceId);
             const evidenceRow = prev.rows.find(row => row.code === evidenceId);
-            
+
             if (!evidenceRow) return prev;
-            
+
             const normalizedRows = refreshedEvidence
               ? [
-                  ...rowsWithoutEvidence,
-                  {
-                    ...evidenceRow,
-                    mappings:
-                      refreshedEvidence.mappings?.map((mapping: any) => ({
-                        ...mapping,
-                        workbookId:
-                          typeof mapping.workbookId === 'object'
-                            ? mapping.workbookId
-                            : {
-                                _id: mapping.workbookId,
-                                name: 'Unknown Workbook'
-                              },
-                        isActive: mapping.isActive !== false
-                      })) || []
-                  }
-                ]
+                ...rowsWithoutEvidence,
+                {
+                  ...evidenceRow,
+                  mappings:
+                    refreshedEvidence.mappings?.map((mapping: any) => ({
+                      ...mapping,
+                      workbookId:
+                        typeof mapping.workbookId === 'object'
+                          ? mapping.workbookId
+                          : {
+                            _id: mapping.workbookId,
+                            name: 'Unknown Workbook'
+                          },
+                      isActive: mapping.isActive !== false
+                    })) || []
+                }
+              ]
               : prev.rows;
-            
+
             return {
               ...prev,
               rows: normalizedRows,
               _updateTimestamp: Date.now()
             } as any;
           });
-          
+
           // Notify parent component about the update
           onEvidenceMappingUpdated?.(refreshedEvidence);
           console.log('✅ Evidence mapping updated and UI updated immediately');
@@ -1922,8 +1928,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               if (row.code === currentRowCode) {
                 return {
                   ...row,
-                  mappings: row.mappings?.map(m => 
-                    m._id === mappingId 
+                  mappings: row.mappings?.map(m =>
+                    m._id === mappingId
                       ? { ...m, ...updateData, _id: mappingId }
                       : m
                   ) || []
@@ -1953,7 +1959,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               color: updateData.color || mapping.color,
               details: updateData.details
             };
-            
+
             // Update local etbData optimistically: remove from old row
             setEtbData(prev => {
               if (!prev) return prev;
@@ -1973,29 +1979,29 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 _updateTimestamp: Date.now()
               } as any;
             });
-            
+
             // Add mapping to new row (backend will create new mapping with new ID)
             const etbDataResponse = await addMappingToRow(engagementId, effectiveNewRowId, mappingData);
-            
+
             // Update local etbData with the response from backend (includes new mapping with new ID)
             if (etbDataResponse?.rows) {
               setEtbData(prev => {
                 if (!prev) return prev;
                 // Find the new row's data from the backend response
                 const backendNewRow = etbDataResponse.rows.find((r: any) => r.code === newRowCode || r._id === effectiveNewRowId);
-                
+
                 if (backendNewRow?.mappings) {
                   // Replace mappings for the new row with backend data to get correct IDs
                   const updatedRows = prev.rows.map(row => {
                     if (row.code === newRowCode) {
                       const normalizedMappings = backendNewRow.mappings.map((m: any) => ({
                         ...m,
-                        workbookId: typeof m.workbookId === 'object' 
-                          ? m.workbookId 
+                        workbookId: typeof m.workbookId === 'object'
+                          ? m.workbookId
                           : {
-                              _id: m.workbookId,
-                              name: 'Unknown Workbook'
-                            },
+                            _id: m.workbookId,
+                            name: 'Unknown Workbook'
+                          },
                         isActive: m.isActive !== false
                       }));
                       return {
@@ -2019,7 +2025,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         } else {
           // Just update the existing mapping in the same row
           await updateMapping(engagementId, effectiveCurrentRowId, mappingId, updateData);
-          
+
           // Update local etbData immediately
           setEtbData(prev => {
             if (!prev) return prev;
@@ -2027,8 +2033,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               if (row.code === currentRowCode) {
                 return {
                   ...row,
-                  mappings: row.mappings?.map(m => 
-                    m._id === mappingId 
+                  mappings: row.mappings?.map(m =>
+                    m._id === mappingId
                       ? { ...m, ...updateData, _id: mappingId }
                       : m
                   ) || []
@@ -2054,7 +2060,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       if (onRefreshMappings) {
         console.log('ExcelViewer: Refreshing workbook mappings after update');
         await onRefreshMappings(workbook.id);
-        
+
         // Force dialog to re-render with updated mappings
         setMappingsDialogRefreshKey(prev => prev + 1);
       }
@@ -2085,7 +2091,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     const workbook = props.workbook;
     const onRefreshETBData = (props as any).onRefreshETBData;
     const onRefreshParentData = (props as any).onRefreshParentData;
-  
+
     if (!selectedETBRow || !engagementId) {
       toast({
         title: "Error",
@@ -2094,7 +2100,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
       return;
     }
-  
+
     const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
     if (!currentSelection) {
       toast({
@@ -2104,9 +2110,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       });
       return;
     }
-  
+
     setIsCreatingETBMapping(true);
-  
+
     try {
       const rowIdentifier = resolveRowIdentifier(selectedETBRow, selectedETBRow?.code);
       if (!rowIdentifier && rowType !== 'evidence') {
@@ -2119,30 +2125,30 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         console.log('📤 Uploading mapping reference files:', mappingFilesToUpload.length);
         setIsUploadingMappingFiles(true);
         setUploadProgress({});
-        
+
         try {
           // Get current user info - try to get from props or use default
           const userInfo = { name: 'Current User' }; // TODO: Get from auth context if available
-          
+
           // Show initial toast
           toast({
             title: "Uploading Files",
             description: `Uploading ${mappingFilesToUpload.length} file(s)...`,
           });
-          
+
           const uploadPromises = mappingFilesToUpload.map(async (file, index) => {
             try {
               setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-              
+
               const validation = validateFile(file);
               if (!validation.isValid) {
                 throw new Error(validation.error || 'Invalid file');
               }
-              
+
               setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
               const uploadResult = await uploadFileToStorage(file);
               setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-              
+
               return {
                 fileName: uploadResult.fileName || file.name,
                 fileUrl: uploadResult.url,
@@ -2155,10 +2161,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
               throw error;
             }
           });
-          
+
           referenceFiles = await Promise.all(uploadPromises);
           console.log('✅ Mapping reference files uploaded:', referenceFiles.length);
-          
+
           toast({
             title: "Upload Complete",
             description: `Successfully uploaded ${referenceFiles.length} file(s)`,
@@ -2167,11 +2173,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           console.error('Error uploading mapping reference files:', uploadError);
           const successfulUploads = referenceFiles.length;
           const failedUploads = mappingFilesToUpload.length - successfulUploads;
-          
+
           toast({
             variant: "destructive",
             title: "Upload Error",
-            description: failedUploads > 0 
+            description: failedUploads > 0
               ? `Failed to upload ${failedUploads} file(s). ${successfulUploads > 0 ? `${successfulUploads} file(s) uploaded successfully.` : ''} Mapping will be created with uploaded files only.`
               : "Failed to upload reference files. Mapping will be created without them.",
           });
@@ -2198,7 +2204,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         },
         referenceFiles: referenceFiles.length > 0 ? referenceFiles : undefined,
       } as any; // Type assertion needed as CreateMappingRequest may not have referenceFiles yet
-  
+
       console.log('ExcelViewer (main): Creating mapping:', {
         rowType,
         rowCode: selectedETBRow.code,
@@ -2206,7 +2212,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         mappingData,
         classification
       });
-  
+
       // Call the appropriate API based on rowType
       let mappingResult;
       if (rowType === 'working-paper') {
@@ -2215,23 +2221,23 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         }
         await addMappingToWPRow(engagementId, classification, rowIdentifier as string, mappingData);
         console.log('✅ Working Paper mapping created successfully');
-        
+
         // Update linkedExcelFiles array
         const wpData = await getWorkingPaperWithLinkedFiles(engagementId, classification);
         const currentRow = wpData.rows.find((r: any) => r.code === selectedETBRow.code);
         const existingLinkedFileIds = currentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
-        
+
         if (!existingLinkedFileIds.includes(workbook.id)) {
           const updatedLinkedFiles = [...existingLinkedFileIds, workbook.id];
           await updateLinkedExcelFilesInWP(engagementId, classification, rowIdentifier as string, updatedLinkedFiles);
           console.log('✅ Working Paper linkedExcelFiles updated');
         }
-        
+
       } else if (rowType === 'evidence') {
         // For Evidence, selectedETBRow.code is the evidenceId
         const evidenceId = selectedETBRow.code;
         console.log('ExcelViewer: Creating Evidence mapping for evidenceId:', evidenceId);
-        
+
         if (!workbook?.id) {
           throw new Error('A workbook must be selected before creating an Evidence mapping.');
         }
@@ -2241,17 +2247,17 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           color: mappingData.color,
           details: mappingData.details
         };
-        
+
         mappingResult = await addMappingToEvidence(evidenceId, evidenceMappingData);
         console.log('✅ Evidence mapping created successfully');
-        
+
         // Always call linkWorkbookToEvidence - backend handles duplicates gracefully
         // and returns the updated evidence with populated linkedWorkbooks
         let linkedEvidenceResult: any = null;
         try {
           linkedEvidenceResult = await linkWorkbookToEvidence(evidenceId, workbook.id);
           console.log('✅ Workbook linked to Evidence successfully (or already linked)');
-          
+
           // Update UI IMMEDIATELY with the response from linkWorkbookToEvidence
           // Backend always returns populated evidence, even if already linked
           if (linkedEvidenceResult) {
@@ -2282,26 +2288,26 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             onEvidenceMappingUpdated?.(updatedEvidence);
           }
         }
-        
+
       } else {
         // ETB mapping
         await addMappingToRow(engagementId, rowIdentifier as string, mappingData);
         console.log('✅ ETB mapping created successfully');
-        
+
         // Update linkedExcelFiles array
         const etbRowClassification = etbData?.rows.find(r => r.code === selectedETBRow.code)?.classification || classification;
         const etbLinkedData = await getExtendedTBWithLinkedFiles(engagementId, etbRowClassification);
         const etbCurrentRow = etbLinkedData.rows.find((r: any) => r.code === selectedETBRow.code);
         const etbExistingLinkedFileIds = etbCurrentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
-        
+
         if (!etbExistingLinkedFileIds.includes(workbook.id)) {
           const etbUpdatedLinkedFiles = [...etbExistingLinkedFileIds, workbook.id];
           await updateLinkedExcelFilesInExtendedTB(engagementId, etbRowClassification, rowIdentifier as string, etbUpdatedLinkedFiles);
           console.log('✅ ETB linkedExcelFiles updated');
         }
-        
+
       }
-  
+
       // CRITICAL FIX: Create a new mapping object with the same structure as existing mappings
       let newMapping = {
         _id: `temp-${Date.now()}`, // Temporary ID until refresh
@@ -2322,9 +2328,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
             mapping.workbookId && typeof mapping.workbookId === 'object'
               ? mapping.workbookId
               : {
-                  _id: mapping.workbookId,
-                  name: workbook.name || 'Unknown Workbook',
-                },
+                _id: mapping.workbookId,
+                name: workbook.name || 'Unknown Workbook',
+              },
           isActive: mapping.isActive !== false,
         }));
 
@@ -2332,11 +2338,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           newMapping = normalizedMappingsFromResult[normalizedMappingsFromResult.length - 1];
         }
       }
-  
+
       // CRITICAL FIX: Update etbData state immediately to trigger re-render
       setEtbData(prev => {
         if (!prev) return prev;
-        
+
         const updatedRows = prev.rows.map(row => {
           if (row.code === selectedETBRow.code) {
             const updatedMappings = normalizedMappingsFromResult
@@ -2349,7 +2355,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
           }
           return row;
         });
-        
+
         return {
           ...prev,
           rows: updatedRows,
@@ -2360,27 +2366,27 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       // CRITICAL FIX: Update parent-selected workbook immediately if setter provided
       // CRITICAL FIX: Force a re-render of the ExcelViewer by updating a timestamp
       (workbook as any)._mappingsUpdateTimestamp = Date.now();
-      
+
       // CRITICAL FIX: Force a re-render by updating a key prop
       // This ensures the component detects the change
       const onRefreshMappings = (props as any).onRefreshMappings;
       if (onRefreshMappings) {
         console.log('ExcelViewer (Wrapper): Refreshing mappings after creation');
         await onRefreshMappings(props.workbook.id);
-        
+
         // Force dialog to re-render with updated mappings
         setMappingsDialogRefreshKey(prev => prev + 1);
       }
-  
+
       // Reset form
       setSelectedETBRow(null);
       setMappingFilesToUpload([]); // Clear uploaded files
       setIsCreateETBMappingOpen(false);
-  
-      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully' 
+
+      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully'
         : rowType === 'evidence' ? 'Evidence mapping created successfully'
-        : 'ETB mapping created successfully';
-      
+          : 'ETB mapping created successfully';
+
       toast({
         title: "Success",
         description: successMessage,
@@ -2388,7 +2394,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     } catch (error) {
       const errorMessage = rowType === 'working-paper' ? 'Working Paper'
         : rowType === 'evidence' ? 'Evidence'
-        : 'ETB';
+          : 'ETB';
       console.error(`Error creating ${errorMessage} mapping:`, error);
       toast({
         title: "Error",
@@ -2479,12 +2485,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 <SelectValue placeholder="Select Sheet" className="text-xs" />{" "}
                 {/* Ensured SelectValue text is small */}
               </SelectTrigger>
-              <SelectContent 
-                className="max-h-[300px] !z-[9999]" 
+              <SelectContent
+                className="max-h-[300px] !z-[9999]"
                 style={{ zIndex: 9999, position: 'fixed' }}
               >
                 {sheetNames && sheetNames.length > 0 ? (
-                  sheetNames.map((sheet) => (
+                  sheetNames.sort().map((sheet) => (
                     <SelectItem
                       key={sheet}
                       value={sheet}
@@ -2502,7 +2508,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 )}
               </SelectContent>
             </Select>
-            
+
             {/* ✅ NEW: Sheet List Dropdown Panel */}
             <DropdownMenu open={isSheetListOpen} onOpenChange={setIsSheetListOpen}>
               <DropdownMenuTrigger asChild>
@@ -2518,8 +2524,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   List
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent 
-                align="start" 
+              <DropdownMenuContent
+                align="start"
                 className="w-56 max-h-[400px] overflow-y-auto !z-[9999]"
                 style={{ zIndex: 9999 }}
               >
@@ -2527,7 +2533,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                   <span>All Sheets ({sheetNames.length})</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                
+
                 {/* Select All Checkbox */}
                 <div className="px-2 py-1.5 flex items-center space-x-2 hover:bg-accent rounded-sm cursor-pointer">
                   <Checkbox
@@ -2547,12 +2553,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                     Select All
                   </label>
                 </div>
-                
+
                 <DropdownMenuSeparator />
-                
+
                 {/* Sheet List with Checkboxes */}
                 {sheetNames && sheetNames.length > 0 ? (
-                  sheetNames.map((sheet) => (
+                  sheetNames.sort().map((sheet) => (
                     <div
                       key={sheet}
                       className="px-2 py-1.5 flex items-center space-x-2 hover:bg-accent rounded-sm cursor-pointer"
@@ -2695,131 +2701,131 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 </div>
               </div>
             ) : (
-            <div className="space-y-4">
-              {etbData.rows.map((row) => (
-                <div key={row._id || row.code} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-semibold text-lg">{row.code} - {row.accountName}</h3>
-                      <p className="text-sm text-gray-600">Classification: {row.classification}</p>
+              <div className="space-y-4">
+                {etbData.rows.map((row) => (
+                  <div key={row._id || row.code} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-lg">{row.code} - {row.accountName}</h3>
+                        <p className="text-sm text-gray-600">Classification: {row.classification}</p>
+                      </div>
+                      <Badge variant="outline">{row.mappings?.length || 0} mapping(s)</Badge>
                     </div>
-                    <Badge variant="outline">{row.mappings?.length || 0} mapping(s)</Badge>
-                  </div>
 
-                  {!row.mappings || row.mappings.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">No mappings for this row</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {row.mappings.map((mapping) => (
-                        <div
-                          key={mapping._id}
-                          className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                {mapping.isActive === false && <Badge variant="destructive">Inactive</Badge>}
-                              </div>
-                              <p className="text-sm text-gray-600">
-                                Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
-                                {mapping.details?.end &&
-                                  (mapping.details.end.row !== mapping.details.start.row ||
-                                    mapping.details.end.col !== mapping.details.start.col) &&
-                                  `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
-                                }
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Workbook: {mapping.workbookId?.name || 'Unknown'}
-                              </p>
-                              {/* Show reference files count and button */}
-                              {mapping.referenceFiles && mapping.referenceFiles.length > 0 && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    {mapping.referenceFiles.length} reference file{mapping.referenceFiles.length !== 1 ? 's' : ''}
-                                  </Badge>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-xs"
-                                    onClick={() => {
-                                      // Convert mapping reference files to ClassificationEvidence format for display
-                                      const evidenceFiles: ClassificationEvidence[] = mapping.referenceFiles.map((refFile: any) => ({
-                                        _id: `mapping-ref-${mapping._id}-${refFile.fileName}`,
-                                        engagementId: (props as any).engagementId || '',
-                                        classificationId: (props as any).classification || '',
-                                        evidenceUrl: refFile.fileUrl,
-                                        uploadedBy: refFile.uploadedBy ? {
-                                          userId: '',
-                                          name: typeof refFile.uploadedBy === 'string' ? refFile.uploadedBy : refFile.uploadedBy.name || 'Unknown',
-                                          email: ''
-                                        } : {
-                                          userId: '',
-                                          name: 'Unknown',
-                                          email: ''
-                                        },
-                                        linkedWorkbooks: [],
-                                        mappings: [],
-                                        evidenceComments: [],
-                                        createdAt: refFile.uploadedAt || new Date().toISOString(),
-                                        updatedAt: refFile.uploadedAt || new Date().toISOString()
-                                      }));
-                                      setCellRangeEvidenceFiles(evidenceFiles);
-                                      setIsReferenceFilesDialogOpen(true);
-                                    }}
-                                  >
-                                    <Info className="h-3 w-3 mr-1" />
-                                    View Files
-                                  </Button>
+                    {!row.mappings || row.mappings.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No mappings for this row</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {row.mappings.map((mapping) => (
+                          <div
+                            key={mapping._id}
+                            className={`p-3 rounded border-l-4 ${mapping.color || 'bg-gray-200'} bg-gray-50`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {mapping.isActive === false && <Badge variant="destructive">Inactive</Badge>}
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex gap-1 ml-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
-                            >
-                              Select
-                            </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingETBMapping(mapping);
-                                  setIsEditETBMappingOpen(true);
-                                  setIsETBMappingsDialogOpen(false);
-                                }}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  handleDeleteETBMapping(mapping._id, row.code);
-                                }}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                Delete
-                              </Button>
+                                <p className="text-sm text-gray-600">
+                                  Range: {mapping.details?.sheet}!{mapping.details?.start && zeroIndexToExcelCol(mapping.details.start.col)}{mapping.details?.start?.row}
+                                  {mapping.details?.end &&
+                                    (mapping.details.end.row !== mapping.details.start.row ||
+                                      mapping.details.end.col !== mapping.details.start.col) &&
+                                    `:${zeroIndexToExcelCol(mapping.details.end.col)}${mapping.details.end.row}`
+                                  }
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Workbook: {mapping.workbookId?.name || 'Unknown'}
+                                </p>
+                                {/* Show reference files count and button */}
+                                {mapping.referenceFiles && mapping.referenceFiles.length > 0 && (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {mapping.referenceFiles.length} reference file{mapping.referenceFiles.length !== 1 ? 's' : ''}
+                                    </Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => {
+                                        // Convert mapping reference files to ClassificationEvidence format for display
+                                        const evidenceFiles: ClassificationEvidence[] = mapping.referenceFiles.map((refFile: any) => ({
+                                          _id: `mapping-ref-${mapping._id}-${refFile.fileName}`,
+                                          engagementId: (props as any).engagementId || '',
+                                          classificationId: (props as any).classification || '',
+                                          evidenceUrl: refFile.fileUrl,
+                                          uploadedBy: refFile.uploadedBy ? {
+                                            userId: '',
+                                            name: typeof refFile.uploadedBy === 'string' ? refFile.uploadedBy : refFile.uploadedBy.name || 'Unknown',
+                                            email: ''
+                                          } : {
+                                            userId: '',
+                                            name: 'Unknown',
+                                            email: ''
+                                          },
+                                          linkedWorkbooks: [],
+                                          mappings: [],
+                                          evidenceComments: [],
+                                          createdAt: refFile.uploadedAt || new Date().toISOString(),
+                                          updatedAt: refFile.uploadedAt || new Date().toISOString()
+                                        }));
+                                        setCellRangeEvidenceFiles(evidenceFiles);
+                                        setIsReferenceFilesDialogOpen(true);
+                                      }}
+                                    >
+                                      <Info className="h-3 w-3 mr-1" />
+                                      View Files
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-1 ml-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => selectMappingRange(mapping, { closeDialogs: true })}
+                                >
+                                  Select
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingETBMapping(mapping);
+                                    setIsEditETBMappingOpen(true);
+                                    setIsETBMappingsDialogOpen(false);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    handleDeleteETBMapping(mapping._id, row.code);
+                                  }}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  Delete
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsETBMappingsDialogOpen(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsETBMappingsDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     );
   };
 
@@ -2835,11 +2841,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       mappingsTimestamp: (workbook as any)._mappingsUpdateTimestamp,
       refreshKey: mappingsDialogRefreshKey
     });
-    
+
     // ✅ CRITICAL FIX: Add key to force re-render when mappings change
     const dialogKey = `workbook-mappings-${workbook.id}-${mappings.length}-${(workbook as any)._mappingsUpdateTimestamp || 0}-${mappingsDialogRefreshKey}-${mappingsRefreshKey || 0}`;
     console.log('🎨 Dialog key:', dialogKey);
-    
+
     return (
       <Dialog key={dialogKey} open={isWorkbookMappingsDialogOpen} onOpenChange={setIsWorkbookMappingsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -3037,6 +3043,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
   const isSheetLoading = (sheetDataCacheProp as Map<string, any>).size > 0 && !currentSheetData?.length;
 
   const renderSpreadsheet = () => {
+
+
+
     if (isLoadingWorkbookData) {
       return (
         <div className="flex flex-col items-center justify-center h-full bg-gray-50 rounded-lg shadow">
@@ -3069,10 +3078,10 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
 
     return (
       <>
-        <div 
+        <div
           ref={spreadsheetContainerRef}
           className="w-full bg-white rounded-lg shadow overflow-auto mb-1 scrollbar-hide-y"
-          style={{ 
+          style={{
             maxHeight: 'calc(100vh - 250px)', // Adjust based on your layout
             overflowX: 'auto', // Ensure horizontal scrolling is enabled
             overflowY: 'auto',
@@ -3125,7 +3134,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                         mapping &&
                         excelGridRowIndex === mapping.details.start.row &&
                         excelGridColIndex - 1 === mapping.details.start.col;
-                      
+
                       // Debug logging for mappings with reference files
                       if (mapping && isFirstCellOfMapping && mapping.referenceFiles && mapping.referenceFiles.length > 0) {
                         console.log('🟢 Mapping with reference files found at cell:', {
@@ -3156,7 +3165,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                           }
                           onMouseEnter={(e) => {
                             handleMouseEnter(excelGridRowIndex, excelGridColIndex);
-                            
+
                             // ✅ IMPROVED: Update mouse position for smooth auto-scrolling
                             // The actual scrolling is handled by the requestAnimationFrame loop above
                             // This just updates the mouse position so the scroll loop knows where to scroll
@@ -3167,7 +3176,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                             }
                           }}
                         >
-                          <span className="whitespace-nowrap">{cell}</span>
+                          <span className="whitespace-nowrap">{formatExcelDate(cell)}</span>
 
                           {/* invisible but occupying enough space for the title */}
                           {mapping &&
@@ -3218,12 +3227,12 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               (() => {
                                 const cellRow = excelGridRowIndex;
                                 const cellCol = excelGridColIndex - 1;
-                                
+
                                 // Check if this cell is in a reference file range (from workbook.referenceFiles)
                                 const referenceFiles = (workbook.referenceFiles || []).filter((ref: any) => {
                                   if (!ref || typeof ref !== 'object' || !ref.details) return false;
                                   if (ref.details.sheet !== selectedSheet) return false;
-                                  
+
                                   const { start, end } = ref.details;
                                   if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
                                     return false;
@@ -3233,7 +3242,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                   const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
                                   const startCol = start.col;
                                   const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
-                                  
+
                                   return (
                                     cellRow >= startRow &&
                                     cellRow <= endRow &&
@@ -3303,13 +3312,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                               (() => {
                                 const cellRow = excelGridRowIndex;
                                 const cellCol = excelGridColIndex - 1;
-                                
+
                                 // ✅ Check referenceFiles ONLY (not mappings)
                                 // Mappings are separate and don't show "i button" - they show "Mapping" label
                                 // ✅ CRITICAL: Use workbook prop - it should be reactive and update when state changes
                                 // The fix in refreshWorkbookMappings ensures we fetch the latest referenceFiles from backend
                                 const allReferenceFiles = workbook.referenceFiles || [];
-                                
+
                                 // ✅ DEBUG: Log when checking for reference files on specific cells (first few rows/cols)
                                 if (cellRow <= 20 && cellCol <= 5 && allReferenceFiles.length > 0) {
                                   console.log(`🔍 Cell (${cellRow},${cellCol}) - Checking reference files:`, {
@@ -3325,7 +3334,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                     }))
                                   });
                                 }
-                                
+
                                 const referenceFiles = allReferenceFiles.filter((ref: any) => {
                                   // Skip old format entries (just ObjectIds without details)
                                   if (!ref || typeof ref !== 'object' || !ref.details) {
@@ -3334,7 +3343,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                   if (ref.details.sheet !== selectedSheet) {
                                     return false;
                                   }
-                                  
+
                                   const { start, end } = ref.details;
                                   if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') {
                                     return false;
@@ -3344,7 +3353,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                                   const endRow = (end && typeof end.row === 'number') ? end.row : start.row;
                                   const startCol = start.col;
                                   const endCol = (end && typeof end.col === 'number') ? end.col : start.col;
-                                  
+
                                   return (
                                     cellRow >= startRow &&
                                     cellRow <= endRow &&
@@ -3544,11 +3553,11 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
     );
   };
 
-  
+
 
   const labels = getContextLabels();
 
-  
+
 
   return (
     <div className="flex flex-col h-auto">
@@ -3947,7 +3956,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                 type="file"
                 multiple
                 accept="*/*"
-                onChange={handleReferenceFileUpload || (() => {})}
+                onChange={handleReferenceFileUpload || (() => { })}
                 className="hidden"
                 id="reference-file-upload"
                 disabled={uploadingFiles}
@@ -3988,9 +3997,9 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
       </Dialog>
 
       {/* Create ETB Mapping Dialog */}
-      <Dialog 
+      <Dialog
         key={`create-mapping-dialog-${workbook.id}`}
-        open={isCreateETBMappingOpen} 
+        open={isCreateETBMappingOpen}
         onOpenChange={(open) => {
           // Prevent closing dialog during upload or creation
           if (!open && (isUploadingMappingFiles || isCreatingETBMapping)) {
@@ -4000,7 +4009,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
         }}
         modal={true}
       >
-        <DialogContent 
+        <DialogContent
           className="z-[100]"
           style={{ zIndex: isFullscreenMode ? 150 : 100 }}
           onInteractOutside={(e) => {
@@ -4051,7 +4060,7 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                       ))}
                     </div>
                   </div>
-                  
+
                   <Select
                     value={selectedETBRow?.code || ""}
                     onValueChange={(value) => {
@@ -4062,8 +4071,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder={`Select ${getContextLabels().rowLabel}`} />
                     </SelectTrigger>
-                    <SelectContent 
-                      className="max-h-[300px] !z-[9999]" 
+                    <SelectContent
+                      className="max-h-[300px] !z-[9999]"
                       style={{ zIndex: 9999, position: 'fixed' }}
                     >
                       {etbData.rows.map((row) => (
@@ -4140,14 +4149,13 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                     const isUploading = isUploadingMappingFiles && progress !== undefined && progress >= 0 && progress < 100;
                     const isError = progress === -1;
                     const isComplete = progress === 100;
-                    
+
                     return (
-                      <div key={index} className={`text-xs bg-gray-50 p-2 rounded border ${
-                        isError ? 'border-red-300 bg-red-50' : 
-                        isComplete ? 'border-green-300 bg-green-50' : 
-                        isUploading ? 'border-blue-300 bg-blue-50' : 
-                        'border-gray-200'
-                      }`}>
+                      <div key={index} className={`text-xs bg-gray-50 p-2 rounded border ${isError ? 'border-red-300 bg-red-50' :
+                        isComplete ? 'border-green-300 bg-green-50' :
+                          isUploading ? 'border-blue-300 bg-blue-50' :
+                            'border-gray-200'
+                        }`}>
                         <div className="flex items-center justify-between">
                           <span className={isError ? 'text-red-600' : isComplete ? 'text-green-600' : 'text-gray-600'}>
                             {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
@@ -4167,8 +4175,8 @@ export const ExcelViewer: React.FC<ExcelViewerProps> = ({
                         </div>
                         {isUploading && progress !== undefined && (
                           <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
-                            <div 
-                              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                            <div
+                              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${progress}%` }}
                             />
                           </div>
@@ -4410,14 +4418,14 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   const { toast } = useToast();
   const [isFullscreen, setIsFullscreen] = useState(props.autoFullscreen || false);
   const parentOnRefreshETBData = props.onRefreshETBData;
-  
+
   // Auto-open fullscreen if autoFullscreen prop is true
   useEffect(() => {
     if (props.autoFullscreen && !isFullscreen) {
       setIsFullscreen(true);
     }
   }, [props.autoFullscreen, isFullscreen]);
-  
+
   // Dialog refresh control
   const [mappingsDialogRefreshKey, setMappingsDialogRefreshKey] = useState(0);
 
@@ -4514,6 +4522,75 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     return `${sheet}_${row}_${col}`;
   }, []);
 
+
+
+  /**
+ * Formats Excel date values to readable date strings
+ * Handles Excel serial date numbers, dates with "At" prefix, ISO dates, and general date formats
+ * @param value - The value to format (could be a number, string, or other type)
+ * @returns Formatted date string or the original value if not a date
+ */
+  const formatExcelDate = (value: any): string => {
+    // Check if the value might be an Excel serial date number
+    if (typeof value === 'number' && value > 25569 && value < 2958466) {
+      // Excel stores dates as serial numbers (days since 1900-01-01)
+      const date = new Date((value - 25569) * 86400000);
+      return `At ${date.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })}`;
+    }
+
+    // Check if the value is a date string
+    if (typeof value === 'string') {
+      // Handle dates with "At" prefix (e.g., "At 31 December 2020")
+      const atDateRegex = /^At\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/i;
+      if (atDateRegex.test(value)) {
+        // Return the value as-is since it's already in the desired format
+        return value;
+      }
+
+      // Handle ISO date format (e.g., "2020-12-31")
+      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (isoDateRegex.test(value)) {
+        const date = new Date(value);
+        return `At ${date.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        })}`;
+      }
+
+      // Handle other date formats (e.g., "31/12/2020", "December 31, 2020")
+      const generalDateRegex = /^(\d{1,2})[\/\s-]([A-Za-z]+)[\/\s-](\d{4})$/i;
+      if (generalDateRegex.test(value)) {
+        const match = value.match(generalDateRegex);
+        if (match && match.length >= 4) {
+          const [, day, month, year] = match;
+          const monthNames: Record<string, number> = {
+            'january': 0, 'february': 1, 'march': 2, 'april': 3,
+            'may': 4, 'june': 5, 'july': 6, 'august': 7,
+            'september': 8, 'october': 9, 'november': 10, 'december': 11
+          };
+
+          const monthNum = monthNames[month.toLowerCase()];
+          if (monthNum !== undefined) {
+            const date = new Date(parseInt(year), monthNum, parseInt(day));
+            return `At ${date.toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}`;
+          }
+        }
+      }
+    }
+
+    // Return as-is for non-date values
+    return String(value);
+  };
+
   // Function to fetch evidence files for a cell range
   // ✅ CRITICAL: This function now reads from workbook.referenceFiles instead of calling the API
   // ✅ Accepts optional workbook parameter to use latest state
@@ -4527,7 +4604,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   ) => {
     // ✅ CRITICAL: Use workbookOverride if provided, otherwise use the latest workbook from ref
     const workbookToUse = workbookOverride || workbookRef.current;
-    
+
     if (!workbookToUse?.id) {
       console.warn('⚠️ fetchEvidenceFilesForRange: No workbook ID');
       return;
@@ -4557,15 +4634,15 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       const matchingRefFiles = (workbookToUse.referenceFiles || []).filter((ref: any) => {
         if (!ref || typeof ref !== 'object' || !ref.details) return false;
         if (ref.details.sheet !== sheet) return false;
-        
+
         const { start, end } = ref.details;
         if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
-        
+
         const refStartRow = start.row;
         const refEndRow = (end && typeof end.row === 'number') ? end.row : start.row;
         const refStartCol = start.col;
         const refEndCol = (end && typeof end.col === 'number') ? end.col : start.col;
-        
+
         // Check if the requested range overlaps with this reference file range
         const rangesOverlap = !(
           endRow < refStartRow ||
@@ -4573,7 +4650,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           endCol < refStartCol ||
           startCol > refEndCol
         );
-        
+
         return rangesOverlap && (ref.evidence || []).length > 0;
       });
 
@@ -4621,9 +4698,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         count: evidenceFiles.length,
         files: evidenceFiles.map(e => ({ id: e._id, url: e.evidenceUrl }))
       });
-      
+
       setCellRangeEvidenceFiles(evidenceFiles);
-      
+
       // Update cellsWithEvidence map
       setCellsWithEvidence(prev => {
         const newCellsWithEvidence = new Map(prev);
@@ -4651,19 +4728,19 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   const cellHasEvidence = useCallback((row: number, col: number, sheet: string): boolean => {
     const cellKey = getCellKey(row, col, sheet);
     const hasEvidence = cellsWithEvidence.get(cellKey) || false;
-    
+
     // Debug logging
     if (hasEvidence) {
       console.log('✅ Cell has evidence:', { row, col, sheet, cellKey });
     }
-    
+
     return hasEvidence;
   }, [cellsWithEvidence, getCellKey]);
 
   // Function to handle opening reference files dialog
   const handleOpenReferenceFilesDialog = useCallback(async () => {
     if (selections.length === 0) return;
-    
+
     const lastSelection = selections[selections.length - 1];
     if (!lastSelection || lastSelection.sheet !== selectedSheet) return;
 
@@ -4818,19 +4895,19 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // Use the last updated workbook from backend response if available
       // IMPORTANT: Preserve all existing workbook properties, especially fileData
       let updatedWorkbook = workbook;
-      
+
       // Try to use the updated workbook from the last backend response
       // ✅ CRITICAL: Use the LAST uploaded file's response (most up-to-date)
       const lastBackendResponse = uploadedFiles[uploadedFiles.length - 1];
       if (lastBackendResponse?.updatedWorkbook) {
         const backendWorkbook = lastBackendResponse.updatedWorkbook;
-        
+
         // ✅ CRITICAL: Normalize workbook ID (backend might use _id, frontend uses id)
         const normalizedBackendWorkbook = {
           ...backendWorkbook,
           id: backendWorkbook._id || backendWorkbook.id,
         };
-        
+
         // ✅ CRITICAL: Preserve fileData and other important properties from original workbook
         updatedWorkbook = {
           ...normalizedBackendWorkbook,
@@ -4839,13 +4916,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           mappings: workbook.mappings || normalizedBackendWorkbook.mappings, // Preserve mappings
           namedRanges: workbook.namedRanges || normalizedBackendWorkbook.namedRanges, // Preserve namedRanges
         };
-        
+
         // ✅ CRITICAL: Ensure referenceFiles is properly structured
         if (updatedWorkbook.referenceFiles && Array.isArray(updatedWorkbook.referenceFiles)) {
           // Normalize referenceFiles structure
           updatedWorkbook.referenceFiles = updatedWorkbook.referenceFiles.map((ref: any) => {
             if (!ref || typeof ref !== 'object' || !ref.details) return null;
-            
+
             // Normalize evidence IDs (backend might populate them as objects)
             const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
               // If it's already a string ID, return as is
@@ -4856,14 +4933,14 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               }
               return ev;
             }).filter((ev: any) => ev !== null && ev !== undefined);
-            
+
             return {
               ...ref,
               evidence: normalizedEvidence
             };
           }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
         }
-        
+
         console.log('✅ Using updated workbook from backend response (with preserved fileData):', {
           workbookId: updatedWorkbook.id,
           workbookIdBackend: backendWorkbook._id,
@@ -4882,7 +4959,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       } else {
         // Fallback: manually construct updated workbook if backend didn't return it
         // ✅ CRITICAL: Preserve all existing workbook properties
-        updatedWorkbook = { 
+        updatedWorkbook = {
           ...workbook, // This preserves fileData, sheets, mappings, etc.
         };
         if (!updatedWorkbook.referenceFiles) {
@@ -4940,7 +5017,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           };
           updatedWorkbook.referenceFiles.push(refFileEntry);
         }
-        
+
         console.log('✅ Manually constructed updated workbook:', {
           workbookId: updatedWorkbook.id,
           referenceFilesCount: updatedWorkbook.referenceFiles.length,
@@ -4965,7 +5042,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       if (!updatedWorkbook.namedRanges && workbook.namedRanges) {
         updatedWorkbook.namedRanges = workbook.namedRanges;
       }
-      
+
       // ✅ CRITICAL: Verify fileData is present before updating
       if (!updatedWorkbook.fileData) {
         console.error('❌ ERROR: fileData is missing from updated workbook!', {
@@ -4994,12 +5071,12 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // Set timestamp BEFORE creating new reference to ensure it's included
       const updateTimestamp = Date.now();
       (updatedWorkbook as any)._referenceFilesUpdateTimestamp = updateTimestamp;
-      
+
       // ✅ CRITICAL: Normalize workbook ID (backend might use _id, frontend uses id)
       if (updatedWorkbook._id && !updatedWorkbook.id) {
         updatedWorkbook.id = updatedWorkbook._id;
       }
-      
+
       // ✅ CRITICAL: Ensure referenceFiles array is properly structured and has new reference
       if (updatedWorkbook.referenceFiles) {
         updatedWorkbook.referenceFiles = updatedWorkbook.referenceFiles.map((ref: any) => {
@@ -5010,14 +5087,14 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
             if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
             return ev;
           }).filter((ev: any) => ev !== null && ev !== undefined);
-          
+
           return {
             ...ref,
             evidence: normalizedEvidence
           };
         }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
       }
-      
+
       // ✅ CRITICAL: Create a completely new object reference to ensure React detects the change
       // This is important because React uses shallow comparison for props
       // Use deep clone for nested arrays to ensure new references
@@ -5032,7 +5109,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         // ✅ CRITICAL: Include the timestamp in the new reference to force re-render
         _referenceFilesUpdateTimestamp: updateTimestamp
       };
-      
+
       // Update workbook via setSelectedWorkbook if available
       if (setSelectedWorkbook) {
         // ✅ CRITICAL: Use functional update to ensure we get the latest state
@@ -5040,7 +5117,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           // If prevWorkbook exists and has the same ID, merge with updated data
           const prevId = prevWorkbook?.id || prevWorkbook?._id;
           const newId = newWorkbookReference.id || newWorkbookReference._id;
-          
+
           if (prevWorkbook && prevId === newId) {
             const merged = {
               ...prevWorkbook,
@@ -5131,7 +5208,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
       // Use updated workbook for subsequent operations
       const workbookToUse = setSelectedWorkbook ? updatedWorkbook : props.workbook;
-      
+
       // ✅ CRITICAL: Ensure workbook ID is valid before using it
       const workbookId = workbookToUse?.id || workbookToUse?._id || workbook?.id || workbook?._id;
       if (!workbookId) {
@@ -5146,10 +5223,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // ✅ CRITICAL: Update UI immediately with the workbook from upload response
       // This ensures the user sees the changes right away, before the backend refresh
       console.log('✅ Immediate UI update completed, referenceFiles should now be visible');
-      
+
       // ✅ CRITICAL: Keep upload loader visible during evidence files fetching
       // The loader will stay visible in the upload dialog until everything is ready
-      
+
       toast({
         title: "Success",
         description: `${files.length} file(s) uploaded and linked to selected cells successfully`,
@@ -5157,16 +5234,16 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
       // Refresh mappings if callback provided - only if workbookId is valid
       // Do this in parallel with fetching evidence files for better performance
-      const mappingRefreshPromise = onRefreshMappings && workbookId 
+      const mappingRefreshPromise = onRefreshMappings && workbookId
         ? (async () => {
-            console.log('🔄 Refreshing mappings for workbook:', workbookId);
-            try {
-              await onRefreshMappings(workbookId);
-            } catch (error) {
-              console.error('❌ Error refreshing mappings:', error);
-              // Don't throw - this is not critical for the upload operation
-            }
-          })()
+          console.log('🔄 Refreshing mappings for workbook:', workbookId);
+          try {
+            await onRefreshMappings(workbookId);
+          } catch (error) {
+            console.error('❌ Error refreshing mappings:', error);
+            // Don't throw - this is not critical for the upload operation
+          }
+        })()
         : Promise.resolve();
 
       // Refresh evidence files for the cell range
@@ -5193,7 +5270,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // This ensures the dialog opens with files already loaded (no flickering)
       // Use setTimeout(0) to ensure state updates from fetchEvidenceFilesForRange are processed
       await new Promise(resolve => setTimeout(resolve, 0));
-      
+
       setIsReferenceFilesDialogOpen(true);
 
       // ✅ NEW: Dispatch event to notify ClassificationSection to refresh evidence files
@@ -5216,42 +5293,42 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         try {
           const { db_WorkbookApi } = await import('@/lib/api/workbookApi');
           const refreshedWorkbookResponse = await db_WorkbookApi.getWorkbookById(workbookId);
-          
+
           if (refreshedWorkbookResponse.success && refreshedWorkbookResponse.data && setSelectedWorkbook) {
             const refreshedWorkbook = refreshedWorkbookResponse.data;
-            
+
             // Normalize ID
             if (refreshedWorkbook._id && !refreshedWorkbook.id) {
               refreshedWorkbook.id = refreshedWorkbook._id;
             }
-            
+
             // Preserve fileData from current workbook
             refreshedWorkbook.fileData = updatedWorkbook.fileData || workbook.fileData;
-            
+
             // Normalize referenceFiles structure
             if (refreshedWorkbook.referenceFiles && Array.isArray(refreshedWorkbook.referenceFiles)) {
               refreshedWorkbook.referenceFiles = refreshedWorkbook.referenceFiles.map((ref: any) => {
                 if (!ref || typeof ref !== 'object' || !ref.details) return null;
-                
+
                 // Normalize evidence IDs
                 const normalizedEvidence = (ref.evidence || []).map((ev: any) => {
                   if (typeof ev === 'string') return ev;
                   if (ev && typeof ev === 'object' && (ev._id || ev.id)) return ev._id || ev.id;
                   return ev;
                 }).filter((ev: any) => ev !== null && ev !== undefined);
-                
+
                 return {
                   ...ref,
                   evidence: normalizedEvidence
                 };
               }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
             }
-            
+
             // Update workbook with refreshed data (only if dialog is still open)
             setSelectedWorkbook((prevWorkbook: any) => {
               const prevId = prevWorkbook?.id || prevWorkbook?._id;
               const newId = refreshedWorkbook.id || refreshedWorkbook._id;
-              
+
               if (prevWorkbook && prevId === newId) {
                 return {
                   ...prevWorkbook,
@@ -5263,7 +5340,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               }
               return refreshedWorkbook;
             });
-            
+
             console.log('✅ Workbook refreshed from backend (background)');
           }
         } catch (refreshError) {
@@ -5359,7 +5436,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     const edgeThreshold = 50; // pixels from edge to trigger scrolling
     const maxScrollSpeed = 25; // maximum pixels per frame
     const minScrollSpeed = 2; // minimum pixels per frame (slightly increased)
-    
+
     // Smooth scrolling function using requestAnimationFrame
     const smoothScroll = () => {
       // Only scroll if mouse button is actually pressed (dragging)
@@ -5371,14 +5448,14 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // Use ref for immediate access without state delay
       const mouseX = currentMousePositionRef.current.x;
       const mouseY = currentMousePositionRef.current.y;
-      
+
       // Get container's position and dimensions relative to viewport
       const containerRect = container.getBoundingClientRect();
-      
+
       // Check if container can scroll in each direction
       const canScrollHorizontally = container.scrollWidth > container.clientWidth;
       const canScrollVertically = container.scrollHeight > container.clientHeight;
-      
+
       let scrollX = 0;
       let scrollY = 0;
       let needsScroll = false;
@@ -5387,25 +5464,25 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       if (canScrollHorizontally) {
         // Check right edge (Distance is positive if inside, negative if outside)
         const distRight = containerRect.right - mouseX;
-        
+
         // Scroll if we are within the threshold distance OR outside (negative distance)
         if (distRight < edgeThreshold) {
           // Calculate speed: Closer to edge (or further outside) = Faster
           // If distRight is negative (outside), max(0, distRight) becomes 0, resulting in max speed
           const normalizedDist = Math.max(0, distRight) / edgeThreshold;
           const speedFactor = Math.pow(1 - normalizedDist, 2); // Quadratic easing
-          
+
           scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
           needsScroll = true;
         }
-        
+
         // Check left edge
         const distLeft = mouseX - containerRect.left;
-        
+
         if (distLeft < edgeThreshold) {
           const normalizedDist = Math.max(0, distLeft) / edgeThreshold;
           const speedFactor = Math.pow(1 - normalizedDist, 2);
-          
+
           scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
           needsScroll = true;
         }
@@ -5415,22 +5492,22 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       if (canScrollVertically) {
         // Check bottom edge
         const distBottom = containerRect.bottom - mouseY;
-        
+
         if (distBottom < edgeThreshold) {
           const normalizedDist = Math.max(0, distBottom) / edgeThreshold;
           const speedFactor = Math.pow(1 - normalizedDist, 2);
-          
+
           scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
           needsScroll = true;
         }
-        
+
         // Check top edge
         const distTop = mouseY - containerRect.top;
-        
+
         if (distTop < edgeThreshold) {
           const normalizedDist = Math.max(0, distTop) / edgeThreshold;
           const speedFactor = Math.pow(1 - normalizedDist, 2);
-          
+
           scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
           needsScroll = true;
         }
@@ -5441,15 +5518,15 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         // Check scroll limits before scrolling
         const maxScrollLeft = container.scrollWidth - container.clientWidth;
         const maxScrollTop = container.scrollHeight - container.clientHeight;
-        
+
         // Allow scrolling if not at boundaries
         const canScrollRight = scrollX > 0 && container.scrollLeft < maxScrollLeft;
         const canScrollLeft = scrollX < 0 && container.scrollLeft > 0;
         const canScrollDown = scrollY > 0 && container.scrollTop < maxScrollTop;
         const canScrollUp = scrollY < 0 && container.scrollTop > 0;
-        
-        if ((scrollX !== 0 && (canScrollRight || canScrollLeft)) || 
-            (scrollY !== 0 && (canScrollDown || canScrollUp))) {
+
+        if ((scrollX !== 0 && (canScrollRight || canScrollLeft)) ||
+          (scrollY !== 0 && (canScrollDown || canScrollUp))) {
           container.scrollBy({
             left: scrollX,
             top: scrollY,
@@ -5565,7 +5642,8 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           if (dataRowIdx >= 0 && dataRowIdx < maxRows &&
             dataColIdx >= 0 && dataColIdx < maxCols &&
             rawData[dataRowIdx]?.[dataColIdx] !== undefined) {
-            cellValue = String(rawData[dataRowIdx][dataColIdx]);
+            // Apply date formatting during processing
+            cellValue = formatExcelDate(rawData[dataRowIdx][dataColIdx]);
           }
           row.push(cellValue);
         }
@@ -5589,19 +5667,19 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
   useEffect(() => {
     if (!props.workbook?.id) return;
-    
-    const sheetNames = props.workbook.fileData 
+
+    const sheetNames = props.workbook.fileData
       ? Object.keys(props.workbook.fileData)
       : (props.workbook.sheets?.map((s: any) => s.name) || []);
-    
+
     if (sheetNames.length === 0) return;
-    
+
     // Use initialSheet from props (saved preference) if provided and valid
     // Otherwise use first sheet
     const sheetToSelect = (props.initialSheet && sheetNames.includes(props.initialSheet))
       ? props.initialSheet
       : sheetNames[0];
-    
+
     // Only set if different from current (to avoid unnecessary updates)
     if (selectedSheet !== sheetToSelect) {
       isInitializingRef.current = true; // Mark as initializing
@@ -5666,10 +5744,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           mappingsCount: r.mappings?.length || 0
         }))
       });
-      
+
       // ✅ ENHANCEMENT: Enhance mappings with workbook information
       const workbook = props.workbook; // Get the workbook object
-      
+
       // ✅ CRITICAL: For mapping dialog, show ALL ETB rows from engagement (no classification filtering)
       // This allows users to see all account names from the engagement's ETB
       console.log('ExcelViewer: ✅ Using all ETB rows for mapping dialog (no classification filter):', {
@@ -5678,23 +5756,23 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           parentEtbData.rows.map(row => row.classification).filter(Boolean)
         )) : []
       });
-      
+
       const enhancedData = {
         ...parentEtbData,
         rows: (parentEtbData.rows || []).map(row => ({
           ...row,
           mappings: row.mappings?.map(mapping => ({
             ...mapping,
-            workbookId: mapping.workbookId && typeof mapping.workbookId === 'string' 
+            workbookId: mapping.workbookId && typeof mapping.workbookId === 'string'
               ? {
-                  _id: mapping.workbookId,
-                  name: workbook.name || 'Unknown Workbook'
-                }
+                _id: mapping.workbookId,
+                name: workbook.name || 'Unknown Workbook'
+              }
               : mapping.workbookId
           })) || []
         }))
       };
-      
+
       setEtbData(enhancedData);
       setEtbLoading(false);
       setEtbError(null);
@@ -5783,9 +5861,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       setEtbLoading(false);
     }
   }, [
-    props.engagementId, 
-    props.classification, 
-    props.rowType, 
+    props.engagementId,
+    props.classification,
+    props.rowType,
     props.parentEtbData // Direct dependency on parentEtbData
   ]); // Depend on props to get fresh values
 
@@ -5799,7 +5877,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       rowType: (props as any).rowType,
       classification: (props as any).classification
     });
-    
+
     if (currentParentEtbData) {
       console.log('ExcelViewer: ✅ Syncing etbData from parentEtbData immediately:', {
         rowType: (props as any).rowType,
@@ -5810,10 +5888,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           name: r.accountName
         }))
       });
-      
+
       // ✅ ENHANCEMENT: Enhance mappings with workbook information
       const workbook = props.workbook;
-      
+
       // ✅ CRITICAL: For mapping dialog, show ALL ETB rows from engagement (no classification filtering)
       // This allows users to see all account names from the engagement's ETB
       console.log('ExcelViewer: ✅ Using all ETB rows for mapping dialog in sync useEffect (no classification filter):', {
@@ -5822,23 +5900,23 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           currentParentEtbData.rows.map(row => row.classification).filter(Boolean)
         )) : []
       });
-      
+
       const enhancedData = {
         ...currentParentEtbData,
         rows: (currentParentEtbData.rows || []).map(row => ({
           ...row,
           mappings: row.mappings?.map(mapping => ({
             ...mapping,
-            workbookId: mapping.workbookId && typeof mapping.workbookId === 'string' 
+            workbookId: mapping.workbookId && typeof mapping.workbookId === 'string'
               ? {
-                  _id: mapping.workbookId,
-                  name: workbook.name || 'Unknown Workbook'
-                }
+                _id: mapping.workbookId,
+                name: workbook.name || 'Unknown Workbook'
+              }
               : mapping.workbookId
           })) || []
         }))
       };
-      
+
       setEtbData(enhancedData);
       setEtbLoading(false);
       setEtbError(null);
@@ -5863,7 +5941,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     const rowType = (props as any).rowType || 'etb';
     const workbook = props.workbook;
     const onRefreshETBData = (props as any).onRefreshETBData;
-  
+
     if (!selectedETBRow || !engagementId) {
       toast({
         title: "Error",
@@ -5872,7 +5950,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       });
       return;
     }
-  
+
     const currentSelection = selections.length > 0 ? selections[selections.length - 1] : null;
     if (!currentSelection) {
       toast({
@@ -5882,9 +5960,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       });
       return;
     }
-  
+
     setIsCreatingETBMapping(true);
-  
+
     try {
       const rowIdentifier = resolveFullscreenRowIdentifier(selectedETBRow, selectedETBRow?.code);
       if (!rowIdentifier && rowType !== 'evidence') {
@@ -5897,30 +5975,30 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         console.log('📤 Uploading mapping reference files:', mappingFilesToUpload.length);
         setIsUploadingMappingFiles(true);
         setUploadProgress({});
-        
+
         try {
           // Get current user info - try to get from props or use default
           const userInfo = { name: 'Current User' }; // TODO: Get from auth context if available
-          
+
           // Show initial toast
           toast({
             title: "Uploading Files",
             description: `Uploading ${mappingFilesToUpload.length} file(s)...`,
           });
-          
+
           const uploadPromises = mappingFilesToUpload.map(async (file, index) => {
             try {
               setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-              
+
               const validation = validateFile(file);
               if (!validation.isValid) {
                 throw new Error(validation.error || 'Invalid file');
               }
-              
+
               setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
               const uploadResult = await uploadFileToStorage(file);
               setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-              
+
               return {
                 fileName: uploadResult.fileName || file.name,
                 fileUrl: uploadResult.url,
@@ -5933,10 +6011,10 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               throw error;
             }
           });
-          
+
           referenceFiles = await Promise.all(uploadPromises);
           console.log('✅ Mapping reference files uploaded:', referenceFiles.length);
-          
+
           toast({
             title: "Upload Complete",
             description: `Successfully uploaded ${referenceFiles.length} file(s)`,
@@ -5945,11 +6023,11 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           console.error('Error uploading mapping reference files:', uploadError);
           const successfulUploads = referenceFiles.length;
           const failedUploads = mappingFilesToUpload.length - successfulUploads;
-          
+
           toast({
             variant: "destructive",
             title: "Upload Error",
-            description: failedUploads > 0 
+            description: failedUploads > 0
               ? `Failed to upload ${failedUploads} file(s). ${successfulUploads > 0 ? `${successfulUploads} file(s) uploaded successfully.` : ''} Mapping will be created with uploaded files only.`
               : "Failed to upload reference files. Mapping will be created without them.",
           });
@@ -5976,7 +6054,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         },
         referenceFiles: referenceFiles.length > 0 ? referenceFiles : undefined,
       } as any; // Type assertion needed as CreateMappingRequest may not have referenceFiles yet
-  
+
       console.log('ExcelViewer (main): Creating mapping:', {
         rowType,
         rowCode: selectedETBRow.code,
@@ -5984,7 +6062,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         mappingData,
         classification
       });
-  
+
       // Call the appropriate API based on rowType
       if (rowType === 'working-paper') {
         if (!classification) {
@@ -5992,18 +6070,18 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         }
         await addMappingToWPRow(engagementId, classification, rowIdentifier as string, mappingData);
         console.log('✅ Working Paper mapping created successfully');
-        
+
         // Update linkedExcelFiles array
         const wpData = await getWorkingPaperWithLinkedFiles(engagementId, classification);
         const currentRow = wpData.rows.find((r: any) => r.code === selectedETBRow.code);
         const existingLinkedFileIds = currentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
-        
+
         if (!existingLinkedFileIds.includes(workbook.id)) {
           const updatedLinkedFiles = [...existingLinkedFileIds, workbook.id];
           await updateLinkedExcelFilesInWP(engagementId, classification, rowIdentifier as string, updatedLinkedFiles);
           console.log('✅ Working Paper linkedExcelFiles updated');
         }
-        
+
         // Refresh ETB data immediately to update cell highlighting
         if (onRefreshETBData) {
           console.log('✅ Refreshing ETB data for Working Papers to update cell highlighting');
@@ -6013,25 +6091,25 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         // For Evidence, selectedETBRow.code is the evidenceId
         const evidenceId = selectedETBRow.code;
         console.log('ExcelViewer: Creating Evidence mapping for evidenceId:', evidenceId);
-        
+
         const evidenceMappingData: EvidenceCreateMappingRequest = {
           workbookId: workbook.id,
           color: mappingData.color,
           details: mappingData.details
         };
-        
+
         await addMappingToEvidence(evidenceId, evidenceMappingData);
         console.log('✅ Evidence mapping created successfully');
-        
+
         // Link workbook to Evidence
         const evidenceData = await getEvidenceWithMappings(evidenceId);
         const existingWorkbookIds = evidenceData.linkedWorkbooks?.map((wb: any) => wb._id || wb) || [];
-        
+
         if (!existingWorkbookIds.includes(workbook.id)) {
           await linkWorkbookToEvidence(evidenceId, workbook.id);
           console.log('✅ Workbook linked to Evidence successfully');
         }
-        
+
         // Refresh ETB data immediately to update cell highlighting
         if (onRefreshETBData) {
           console.log('✅ Refreshing ETB data for Evidence to update cell highlighting');
@@ -6041,26 +6119,26 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
         // ETB mapping
         await addMappingToRow(engagementId, rowIdentifier as string, mappingData);
         console.log('✅ ETB mapping created successfully');
-        
+
         // Update linkedExcelFiles array
         const etbRowClassification = etbData?.rows.find(r => r.code === selectedETBRow.code)?.classification || classification;
         const etbLinkedData = await getExtendedTBWithLinkedFiles(engagementId, etbRowClassification);
         const etbCurrentRow = etbLinkedData.rows.find((r: any) => r.code === selectedETBRow.code);
         const etbExistingLinkedFileIds = etbCurrentRow?.linkedExcelFiles?.map((wb: any) => wb._id || wb) || [];
-        
+
         if (!etbExistingLinkedFileIds.includes(workbook.id)) {
           const etbUpdatedLinkedFiles = [...etbExistingLinkedFileIds, workbook.id];
           await updateLinkedExcelFilesInExtendedTB(engagementId, etbRowClassification, rowIdentifier as string, etbUpdatedLinkedFiles);
           console.log('✅ ETB linkedExcelFiles updated');
         }
-        
+
         // Refresh ETB data immediately to update cell highlighting
         if (onRefreshETBData) {
           console.log('✅ Refreshing ETB data to update cell highlighting');
           onRefreshETBData();
         }
       }
-  
+
       // CRITICAL FIX: Create a new mapping object with the same structure as existing mappings
       const newMapping = {
         _id: `temp-${Date.now()}`, // Temporary ID until refresh
@@ -6076,7 +6154,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
       // CRITICAL FIX: Update etbData state immediately to trigger re-render
       setEtbData(prev => {
         if (!prev) return prev;
-        
+
         const updatedRows = prev.rows.map(row => {
           if (row.code === selectedETBRow.code) {
             return {
@@ -6086,7 +6164,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           }
           return row;
         });
-        
+
         return {
           ...prev,
           rows: updatedRows,
@@ -6096,27 +6174,27 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
 
       // CRITICAL FIX: Force a re-render of the ExcelViewer by updating a timestamp
       (workbook as any)._mappingsUpdateTimestamp = Date.now();
-      
+
       // CRITICAL FIX: Force a re-render by updating a key prop
       // This ensures the component detects the change
       const onRefreshMappings = (props as any).onRefreshMappings;
       if (onRefreshMappings) {
         console.log('ExcelViewer (Wrapper): Refreshing mappings after creation');
         await onRefreshMappings(props.workbook.id);
-        
+
         // Force dialog to re-render with updated mappings
         setMappingsDialogRefreshKey(prev => prev + 1);
       }
-  
+
       // Reset form
       setSelectedETBRow(null);
       setMappingFilesToUpload([]); // Clear uploaded files
       setIsCreateETBMappingOpen(false);
-  
-      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully' 
+
+      const successMessage = rowType === 'working-paper' ? 'Working Paper mapping created successfully'
         : rowType === 'evidence' ? 'Evidence mapping created successfully'
-        : 'ETB mapping created successfully';
-      
+          : 'ETB mapping created successfully';
+
       toast({
         title: "Success",
         description: successMessage,
@@ -6124,7 +6202,7 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
     } catch (error) {
       const errorMessage = rowType === 'working-paper' ? 'Working Paper'
         : rowType === 'evidence' ? 'Evidence'
-        : 'ETB';
+          : 'ETB';
       console.error(`Error creating ${errorMessage} mapping:`, error);
       toast({
         title: "Error",
@@ -6190,13 +6268,13 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
   // Handle ESC key to close fullscreen
   useEffect(() => {
     if (!isFullscreen) return;
-    
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsFullscreen(false);
       }
     };
-    
+
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isFullscreen]);
@@ -6308,11 +6386,14 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
           mousePosition={mousePosition}
           setMousePosition={setMousePosition}
           currentMousePositionRef={currentMousePositionRef}
+
+          // Format Excel date function
+          formatExcelDate={formatExcelDate}
         />
       )}
       {/* Fullscreen view using normal div instead of Dialog to avoid z-index issues */}
       {isFullscreen && (
-        <div 
+        <div
           className="fixed inset-0 z-[90] w-screen h-screen bg-background flex flex-col"
           style={{ zIndex: 90 }}
         >
@@ -6375,11 +6456,11 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               setEditingWorkbookMapping={setEditingWorkbookMapping}
               isCreatingWorkbookMapping={isCreatingWorkbookMapping}
               setIsCreatingWorkbookMapping={setIsCreatingWorkbookMapping}
-              
+
               // Dialog refresh control
               mappingsDialogRefreshKey={mappingsDialogRefreshKey}
               setMappingsDialogRefreshKey={setMappingsDialogRefreshKey}
-              
+
               // ETB props
               etbData={etbData}
               setEtbData={setEtbData}
@@ -6425,6 +6506,9 @@ export const ExcelViewerWithFullscreen: React.FC<Omit<ExcelViewerProps,
               mousePosition={mousePosition}
               setMousePosition={setMousePosition}
               currentMousePositionRef={currentMousePositionRef}
+
+              // Format Excel date function
+              formatExcelDate={formatExcelDate}
             />
           </div>
           <div className="absolute top-4 right-4 z-50">
@@ -6524,11 +6608,11 @@ export const WorkbookViewerFullscreen: React.FC<WorkbookViewerFullscreenProps> =
   onUpdateNamedRange,
   onDeleteNamedRange,
   onBack = () => window.close(),
-  onLinkField = () => {},
-  onLinkSheet = () => {},
-  onLinkWorkbook = () => {},
-  onReupload = () => {},
-  onViewAuditLog = () => {},
+  onLinkField = () => { },
+  onLinkSheet = () => { },
+  onLinkWorkbook = () => { },
+  onReupload = () => { },
+  onViewAuditLog = () => { },
   onEvidenceMappingUpdated,
 }) => {
   return (
@@ -6546,12 +6630,12 @@ export const WorkbookViewerFullscreen: React.FC<WorkbookViewerFullscreenProps> =
         onLinkWorkbook={onLinkWorkbook}
         onReupload={onReupload}
         onViewAuditLog={onViewAuditLog}
-        onCreateMapping={onCreateMapping || (() => {})}
-        onUpdateMapping={onUpdateMapping || (() => {})}
-        onDeleteMapping={onDeleteMapping || (() => {})}
-        onCreateNamedRange={onCreateNamedRange || (() => {})}
-        onUpdateNamedRange={onUpdateNamedRange || (() => {})}
-        onDeleteNamedRange={onDeleteNamedRange || (() => {})}
+        onCreateMapping={onCreateMapping || (() => { })}
+        onUpdateMapping={onUpdateMapping || (() => { })}
+        onDeleteMapping={onDeleteMapping || (() => { })}
+        onCreateNamedRange={onCreateNamedRange || (() => { })}
+        onUpdateNamedRange={onUpdateNamedRange || (() => { })}
+        onDeleteNamedRange={onDeleteNamedRange || (() => { })}
         isLoadingWorkbookData={false}
         workingPaperCloudInfo={null}
         updateSheetsInWorkbook={undefined}

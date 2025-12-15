@@ -72,6 +72,7 @@ interface AddShareholderModalProps {
   companyTotalShares?: number;
   existingSharesTotal?: number;
   inline?: boolean; // When true, renders without Dialog wrapper
+  company?: any;
 }
 
 interface ExistingEntity {
@@ -119,6 +120,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   companyTotalShares = 0,
   existingSharesTotal = 0,
   inline = false,
+  company,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [existingEntities, setExistingEntities] = useState<any[]>([]);
@@ -164,6 +166,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     total: 0,
     totalPages: 0,
   });
+  const [hasSearched, setHasSearched] = useState(false);
   const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
   const { toast } = useToast();
 
@@ -179,6 +182,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         total: 0,
         totalPages: 0,
       });
+      setHasSearched(false);
     } else if (entityType === "company" && !isGlobalSearchMode) {
       // Automatically enable global search mode for companies
       setIsGlobalSearchMode(true);
@@ -1018,6 +1022,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
 
     try {
       setIsSearching(true);
+      setHasSearched(true);
       const currentPage = pageOverride !== undefined ? pageOverride : searchPagination.page;
       
       if (entityType === "person") {
@@ -1026,7 +1031,25 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           page: currentPage,
           limit: searchPagination.limit,
         });
-        setSearchResults(result.data || []);
+        
+        // Filter out existing shareholders/representatives if needed
+        let data = result.data || [];
+        if (company) {
+          data = data.filter((person: any) => {
+            // Check if person is already a shareholder
+            const isShareholder = (company.shareHolders || []).some((sh: any) => {
+               const shId = typeof sh.personId === 'object' ? sh.personId?._id : sh.personId;
+               return shId === person._id;
+            });
+            // Also check if they are a representative? 
+            // User requested "if a company is already added as a shareholder or a representative", implying Persons too?
+            // "if a company is already added... apply to both shareholder and rep"
+            // For Persons, assume similar logic if needed, but for now filtering shareholders is key.
+            return !isShareholder;
+          });
+        }
+        
+        setSearchResults(data);
         setSearchPagination(result.pagination || searchPagination);
       } else {
         const result = await searchCompaniesGlobal({
@@ -1036,32 +1059,42 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
         });
         
         // Filter out companies that are already shareholders in the current company
-        let filteredResults = result.data || [];
+        let data = result.data || [];
         
-        if (currentCompany) {
-          const existingShareholderIds = new Set(
-            (currentCompany.shareHoldingCompanies || []).map((sh: any) => {
+        if (company) {
+          const existingShareholderIds = new Set<string>();
+          
+          if (Array.isArray(company.shareHoldingCompanies)) {
+            company.shareHoldingCompanies.forEach((sh: any) => {
               const compId = sh?.companyId?._id || sh?.companyId?.id || sh?.companyId;
-              return String(compId);
-            })
-          );
+              if (compId) existingShareholderIds.add(String(compId));
+            });
+          }
+           
+          // Also check for representatives if that's what user meant by "representative global search"
+          if (Array.isArray(company.representationalCompany)) {
+             company.representationalCompany.forEach((rep: any) => {
+                const repId = typeof rep.companyId === 'object' ? rep.companyId?._id : rep.companyId;
+                 if (repId) existingShareholderIds.add(String(repId));
+             });
+          }
           
           // Also exclude the current company itself
           existingShareholderIds.add(String(companyId));
           
-          filteredResults = filteredResults.filter((company: any) => {
-            const compId = company._id || company.id;
+          data = data.filter((comp: any) => {
+            const compId = comp._id || comp.id;
             return !existingShareholderIds.has(String(compId));
           });
         } else {
-          // Even if currentCompany is not loaded, still exclude the current company
-          filteredResults = filteredResults.filter((company: any) => {
-            const compId = company._id || company.id;
+           // If no company object, at least filter out current company
+            data = data.filter((comp: any) => {
+            const compId = comp._id || comp.id;
             return String(compId) !== String(companyId);
           });
         }
         
-        setSearchResults(filteredResults);
+        setSearchResults(data);
         setSearchPagination(result.pagination || searchPagination);
       }
     } catch (error: any) {
@@ -1086,6 +1119,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       total: 0,
       totalPages: 0,
     });
+    setHasSearched(false);
   };
 
   const handleClose = () => {
@@ -1119,6 +1153,7 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
       total: 0,
       totalPages: 0,
     });
+    setHasSearched(false);
     onClose();
   };
 
@@ -1167,554 +1202,273 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
               </Button>
             )} */}
             {entityType === "company" && (
-           <Button
-           type="button"
-           size="sm"
-           variant="ghost"
-           onClick={() => setViewMode("new")}
-           className={`
-             rounded-md px-3
-             ${viewMode === "new"
-               ? "bg-white text-gray-900 shadow-sm"
-               : "text-gray-600"
-             }
-           `}
-         >
-           Create New
-         </Button>
-       )}
-            
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setViewMode("new")}
+                className={`
+                  rounded-xl px-3
+                  ${viewMode === "new"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-600"
+                  }
+                `}
+              >
+                Create New
+              </Button>
+            )}
           </div>
         </div>
 
         <div className="space-y-6 mt-4 px-2">
-          {/* Select Existing Entity Section */}
-          {/* Commented out existing section for persons - only show for companies */}
           {viewMode === "existing" && (
-          <div className="space-y-4">
-            {entityType === "company" ? (
+            <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Search Companies Globally
+                  {entityType === "company" ? "Search Companies" : "Search Persons"}
                 </h3>
               </div>
-            ) : (
-              // Commented out for persons - existing person selection is hidden
-              // <div className="flex items-center justify-between">
-              //   <h3 className="text-lg font-semibold text-gray-900">
-              //     Select Existing Person
-              //   </h3>
-              // </div>
-              null
-            )}
 
-            {isGlobalSearchMode && entityType === "company" ? (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="flex-1 flex gap-2">
-                    <Input
-                      placeholder="Search companies globally..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          handleGlobalSearch();
-                        }
-                      }}
-                      className="rounded-xl"
-                    />
-                    <Button
-                      onClick={() => handleGlobalSearch()}
-                      disabled={isSearching || !searchQuery.trim()}
-                      className="rounded-xl"
-                    >
-                      {isSearching ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Search className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    placeholder={entityType === "company" ? "Search companies globally..." : "Search persons globally..."}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleGlobalSearch();
+                      }
+                    }}
+                    className="rounded-xl"
+                  />
+                  <Button
+                    onClick={() => handleGlobalSearch()}
+                    disabled={isSearching || !searchQuery.trim()}
+                    className="rounded-xl"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-                
-                {searchResults.length > 0 && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
-                    {searchResults.map((entity) => {
-                      const entityId = entity._id || entity.id;
-                      const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
-                      const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
-                      const isExpanded = expandedEntities.has(entityId);
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-4">
+                  {searchResults.map((entity) => {
+                    const entityId = entity._id || entity.id;
+                    const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
+                    const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
+                    const isExpanded = expandedEntities.has(entityId);
 
-                      return (
-                        <div key={entityId} className="space-y-2">
-                          <div className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => handleExistingEntityToggle(entity)}
-                            />
-                            <div className="flex-1">
-                              <p className="font-medium">{entity.name}</p>
-                              {entity.registrationNumber && (
-                                <p className="text-sm text-gray-500">
-                                  {entity.registrationNumber}
-                                </p>
-                              )}
-                            </div>
-                            {isSelected && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleExistingEntityExpanded(entityId)}
-                              >
-                                {isExpanded ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
+                    return (
+                      <div key={entityId} className="space-y-2">
+                        <div className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => handleExistingEntityToggle(entity)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium">{entity.name}</p>
+                            {entityType === "company" && entity.registrationNumber && (
+                              <p className="text-sm text-gray-500">
+                                {entity.registrationNumber}
+                              </p>
                             )}
                           </div>
+                          {isSelected && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleExistingEntityExpanded(entityId)}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
 
-                          {isSelected && isExpanded && selectedEntity && (
-                            <Card className="ml-8 mb-2">
-                              <CardContent className="p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <Label className="text-sm font-semibold">
-                                    Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
-                                  </Label>
+                        {isSelected && isExpanded && selectedEntity && (
+                          <Card className="ml-8 mb-2">
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <Label className="text-sm font-semibold">
+                                  Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
+                                </Label>
+                              </div>
+                              {shareValidationErrors.global && (
+                                <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                  <p className="text-sm text-red-600">{shareValidationErrors.global}</p>
                                 </div>
-                                {shareValidationErrors.global && (
-                                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
-                                    <p className="text-sm text-red-600">{shareValidationErrors.global}</p>
-                                  </div>
-                                )}
-                                <div className="space-y-3">
-                                  <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                                    {getAvailableShareClasses().map((shareClass) => {
-                                      const availableShares = getAvailableSharesPerClass();
-                                      const formAllocatedPerClass = getFormAllocatedSharesPerClass();
-                                      const available = availableShares[shareClass] || 0;
-                                      const allocated = formAllocatedPerClass[shareClass] || 0;
-                                      const remaining = Math.max(0, available - allocated);
-                                      
-                                      // Get value from sharesData or class fields
-                                      let value = 0;
+                              )}
+                              <div className="space-y-3">
+                                <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                                  {getAvailableShareClasses().map((shareClass) => {
+                                    const availableShares = getAvailableSharesPerClass();
+                                    const formAllocatedPerClass = getFormAllocatedSharesPerClass();
+                                    const available = availableShares[shareClass] || 0;
+                                    const allocated = formAllocatedPerClass[shareClass] || 0;
+                                    const remaining = Math.max(0, available - allocated);
+                                    
+                                    // Get value from sharesData or class fields
+                                    let value = 0;
+                                    if (shareClass === "Ordinary") {
+                                      const ordinaryShare = selectedEntity.sharesData?.find((sd: ShareDataItem) => 
+                                        sd.shareClass === "Ordinary"
+                                      );
+                                      value = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
+                                    } else if (shareClass === "A") {
+                                      value = selectedEntity.classAShares || 0;
+                                    } else if (shareClass === "B") {
+                                      value = selectedEntity.classBShares || 0;
+                                    } else if (shareClass === "C") {
+                                      value = selectedEntity.classCShares || 0;
+                                    }
+                                    
+                                    const errorKey = `class_${shareClass}`;
+                                    const hasError = shareValidationErrors[errorKey];
+                                    
+                                    const handleChange = (newValue: number) => {
                                       if (shareClass === "Ordinary") {
-                                        const ordinaryShare = selectedEntity.sharesData?.find((sd: ShareDataItem) => 
+                                        const updatedSharesData = [...(selectedEntity.sharesData || [])];
+                                        const existingIndex = updatedSharesData.findIndex((sd: ShareDataItem) => 
                                           sd.shareClass === "Ordinary"
                                         );
-                                        value = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
-                                      } else if (shareClass === "A") {
-                                        value = selectedEntity.classAShares || 0;
-                                      } else if (shareClass === "B") {
-                                        value = selectedEntity.classBShares || 0;
-                                      } else if (shareClass === "C") {
-                                        value = selectedEntity.classCShares || 0;
-                                      }
-                                      
-                                      const errorKey = `class_${shareClass}`;
-                                      const hasError = shareValidationErrors[errorKey];
-                                      
-                                      const handleChange = (newValue: number) => {
-                                        if (shareClass === "Ordinary") {
-                                          const updatedSharesData = [...(selectedEntity.sharesData || [])];
-                                          const existingIndex = updatedSharesData.findIndex((sd: ShareDataItem) => 
-                                            sd.shareClass === "Ordinary"
-                                          );
-                                          
-                                          if (newValue > 0) {
-                                            const newShareItem: ShareDataItem = {
-                                              totalShares: newValue,
-                                              shareClass: "Ordinary",
-                                              shareType: "Ordinary"
-                                            };
-                                            if (existingIndex >= 0) {
-                                              updatedSharesData[existingIndex] = newShareItem;
-                                            } else {
-                                              updatedSharesData.push(newShareItem);
-                                            }
+                                        
+                                        if (newValue > 0) {
+                                          const newShareItem: ShareDataItem = {
+                                            totalShares: newValue,
+                                            shareClass: "Ordinary",
+                                            shareType: "Ordinary"
+                                          };
+                                          if (existingIndex >= 0) {
+                                            updatedSharesData[existingIndex] = newShareItem;
                                           } else {
-                                            if (existingIndex >= 0) {
-                                              updatedSharesData.splice(existingIndex, 1);
-                                            }
+                                            updatedSharesData.push(newShareItem);
                                           }
-                                          
-                                          setSelectedExistingEntities(
-                                            selectedExistingEntities.map((e) =>
-                                              e.id === entityId ? { ...e, sharesData: updatedSharesData } : e
-                                            )
-                                          );
-                                        } else if (shareClass === "A" || shareClass === "B" || shareClass === "C") {
-                                          handleExistingEntityClassSharesChange(
-                                            entityId,
-                                            shareClass,
-                                            newValue
-                                          );
+                                        } else {
+                                          if (existingIndex >= 0) {
+                                            updatedSharesData.splice(existingIndex, 1);
+                                          }
                                         }
-                                      };
-                                      
-                                      return (
-                                        <div key={shareClass}>
-                                          <Label className="text-xs text-gray-600">
-                                            {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
-                                          </Label>
-                                          <Input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            placeholder="0"
-                                            value={value || ""}
-                                            onChange={(e) => handleChange(Number(e.target.value) || 0)}
-                                            className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                          />
-                                          <p className="text-xs text-gray-500 mt-1">
-                                            {allocated > 0 ? (
-                                              <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
-                                            ) : (
-                                              <>Available: {available.toLocaleString()} shares</>
-                                            )}
-                                          </p>
-                                          {hasError && (
-                                            <p className="text-xs text-red-600 mt-1">
-                                              {shareValidationErrors[errorKey]}
-                                            </p>
+                                        
+                                        setSelectedExistingEntities(
+                                          selectedExistingEntities.map((e) =>
+                                            e.id === entityId ? { ...e, sharesData: updatedSharesData } : e
+                                          )
+                                        );
+                                      } else if (shareClass === "A" || shareClass === "B" || shareClass === "C") {
+                                        handleExistingEntityClassSharesChange(
+                                          entityId,
+                                          shareClass,
+                                          newValue
+                                        );
+                                      }
+                                    };
+                                    
+                                    return (
+                                      <div key={shareClass}>
+                                        <Label className="text-xs text-gray-600">
+                                          {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          placeholder="0"
+                                          value={value || ""}
+                                          onChange={(e) => handleChange(Number(e.target.value) || 0)}
+                                          className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {allocated > 0 ? (
+                                            <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
+                                          ) : (
+                                            <>Available: {available.toLocaleString()} shares</>
                                           )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                  {shareValidationErrors.global && (
-                                    <p className="text-xs text-red-600">
-                                      {shareValidationErrors.global}
-                                    </p>
-                                  )}
-                                  <div className="mt-3">
+                                        </p>
+                                        {hasError && (
+                                          <p className="text-xs text-red-600 mt-1">
+                                            {shareValidationErrors[errorKey]}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {shareValidationErrors.global && (
+                                  <p className="text-xs text-red-600">
+                                    {shareValidationErrors.global}
+                                  </p>
+                                )}
                                     <PaidUpSharesInput
-                                      value={selectedEntity.paidUpSharesPercentage ?? 100}
+                                      value={selectedEntity.paidUpSharesPercentage || 100}
                                       onChange={(val) => {
-                                        const numVal = val === "" ? 0 : val;
+                                        const newVal = val === "" ? 0 : Number(val);
+                                        // Update selected entity state
                                         setSelectedExistingEntities(
                                           selectedExistingEntities.map((ent) => 
-                                            ent.id === entityId ? { ...ent, paidUpSharesPercentage: numVal } : ent
+                                            ent.id === entityId ? { ...ent, paidUpSharesPercentage: newVal } : ent
                                           )
                                         );
                                       }}
                                     />
                                   </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {searchPagination.totalPages > 1 && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newPage = searchPagination.page - 1;
-                            setSearchPagination((prev) => ({ ...prev, page: newPage }));
-                            handleGlobalSearch(newPage);
-                          }}
-                          disabled={searchPagination.page === 1}
-                          className="rounded-xl"
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm text-gray-500">
-                          Page {searchPagination.page} of {searchPagination.totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newPage = searchPagination.page + 1;
-                            setSearchPagination((prev) => ({ ...prev, page: newPage }));
-                            handleGlobalSearch(newPage);
-                          }}
-                          disabled={searchPagination.page >= searchPagination.totalPages}
-                          className="rounded-xl"
-                        >
-                          Next
-                        </Button>
+                            </CardContent>
+                          </Card>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
-                
-                {searchResults.length === 0 && !isSearching && searchQuery && (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    No results found. Try a different search query.
-                  </p>
-                )}
-              </>
-            ) : (
-              // Commented out existing person selection section - only show for companies
-              // For persons, this section is hidden
-              entityType === "company" ? (
-                <>
-                  {isLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-2 border rounded-lg p-4">
-                      {existingEntities.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">
-                          No companies found
-                        </p>
-                      ) : (
-                        existingEntities.map((entity) => {
-                        const entityId = entity._id || entity.id;
-                        const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
-                        const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
-                        const isExpanded = expandedEntities.has(entityId);
-
-                        return (
-                          <div key={entityId} className="space-y-2">
-                            <div className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => handleExistingEntityToggle(entity)}
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium">{entity.name}</p>
-                                {entityType === "company" && entity.registrationNumber && (
-                                  <p className="text-sm text-gray-500">
-                                    {entity.registrationNumber}
-                                  </p>
-                                )}
-                              </div>
-                              {isSelected && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleExistingEntityExpanded(entityId)}
-                                >
-                                  {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-
-                            {isSelected && isExpanded && selectedEntity && (
-                              <Card className="ml-8 mb-2">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <Label className="text-sm font-semibold">
-                                      Enter Shares {getAvailableShareClasses().length > 1 && "(at least one required)"}
-                                    </Label>
-                                  </div>
-                                  {shareValidationErrors.global && (
-                                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
-                                      <p className="text-sm text-red-600">{shareValidationErrors.global}</p>
-                                    </div>
-                                  )}
-                                  <div className="space-y-3">
-                                    <div className={`grid gap-3 ${getAvailableShareClasses().length === 1 ? "grid-cols-1" : getAvailableShareClasses().length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                                      {getAvailableShareClasses().map((shareClass) => {
-                                        const availableShares = getAvailableSharesPerClass();
-                                        const formAllocatedPerClass = getFormAllocatedSharesPerClass();
-                                        const available = availableShares[shareClass] || 0;
-                                        const allocated = formAllocatedPerClass[shareClass] || 0;
-                                        const remaining = Math.max(0, available - allocated);
-                                        
-                                        // Get value from sharesData or class fields
-                                        let value = 0;
-                                        if (shareClass === "Ordinary") {
-                                          const ordinaryShare = selectedEntity.sharesData?.find((sd: ShareDataItem) => 
-                                            sd.shareClass === "Ordinary"
-                                          );
-                                          value = ordinaryShare ? Number(ordinaryShare.totalShares) || 0 : 0;
-                                        } else if (shareClass === "A") {
-                                          value = selectedEntity.classAShares || 0;
-                                        } else if (shareClass === "B") {
-                                          value = selectedEntity.classBShares || 0;
-                                        } else if (shareClass === "C") {
-                                          value = selectedEntity.classCShares || 0;
-                                        }
-                                        
-                                        const errorKey = `class_${shareClass}`;
-                                        const hasError = shareValidationErrors[errorKey];
-                                        
-                                        const handleChange = (newValue: number) => {
-                                          if (shareClass === "Ordinary") {
-                                            const updatedSharesData = [...(selectedEntity.sharesData || [])];
-                                            const existingIndex = updatedSharesData.findIndex((sd: ShareDataItem) => 
-                                              sd.shareClass === "Ordinary"
-                                            );
-                                            
-                                            if (newValue > 0) {
-                                              const newShareItem: ShareDataItem = {
-                                                totalShares: newValue,
-                                                shareClass: "Ordinary",
-                                                shareType: "Ordinary"
-                                              };
-                                              if (existingIndex >= 0) {
-                                                updatedSharesData[existingIndex] = newShareItem;
-                                              } else {
-                                                updatedSharesData.push(newShareItem);
-                                              }
-                                            } else {
-                                              if (existingIndex >= 0) {
-                                                updatedSharesData.splice(existingIndex, 1);
-                                              }
-                                            }
-                                            
-                                            setSelectedExistingEntities(
-                                              selectedExistingEntities.map((e) =>
-                                                e.id === entityId ? { ...e, sharesData: updatedSharesData } : e
-                                              )
-                                            );
-                                          } else if (shareClass === "A" || shareClass === "B" || shareClass === "C") {
-                                            handleExistingEntityClassSharesChange(
-                                              entityId,
-                                              shareClass,
-                                              newValue
-                                            );
-                                          }
-                                        };
-                                        
-                                        return (
-                                          <div key={shareClass}>
-                                            <Label className="text-xs text-gray-600">
-                                              {shareClass === "Ordinary" ? "Ordinary Shares" : `Class ${shareClass} Shares`}
-                                            </Label>
-                                            <Input
-                                              type="number"
-                                              min="0"
-                                              step="1"
-                                              placeholder="0"
-                                              value={value || ""}
-                                              onChange={(e) => handleChange(Number(e.target.value) || 0)}
-                                              className={`rounded-lg ${hasError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">
-                                              {allocated > 0 ? (
-                                                <>Remaining: {remaining.toLocaleString()} shares (Total: {available.toLocaleString()}, Allocated: {allocated.toLocaleString()})</>
-                                              ) : (
-                                                <>Available: {available.toLocaleString()} shares</>
-                                              )}
-                                            </p>
-                                            {hasError && (
-                                              <p className="text-xs text-red-600 mt-1">
-                                                {shareValidationErrors[errorKey]}
-                                              </p>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                    {shareValidationErrors.global && (
-                                      <p className="text-xs text-red-600">
-                                        {shareValidationErrors.global}
-                                      </p>
-                                    )}
-                                    <div className="mt-3">
-                                      <Label className="text-xs text-gray-600">Paid Up Percentage</Label>
-                                      <div className="flex items-center gap-2">
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          max="100"
-                                          step="1"
-                                          placeholder="100"
-                                          value={selectedEntity.paidUpSharesPercentage}
-                                          onChange={(e) => {
-                                            const val = e.target.value === "" ? 0 : Number(e.target.value);
-                                            // Update selected entity state
-                                            setSelectedExistingEntities(
-                                              selectedExistingEntities.map((ent) => 
-                                                ent.id === entityId ? { ...ent, paidUpSharesPercentage: Math.min(100, Math.max(0, val)) } : ent
-                                              )
-                                            );
-                                          }}
-                                          className="rounded-lg"
-                                        />
-                                        <span className="text-sm text-gray-700">%</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-
-                            
-                          </div>
-                        );
-                        })
-                      )}
+                    );
+                  })}
+                  {searchPagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newPage = searchPagination.page - 1;
+                          setSearchPagination((prev) => ({ ...prev, page: newPage }));
+                          handleGlobalSearch(newPage);
+                        }}
+                        disabled={searchPagination.page === 1}
+                        className="rounded-xl"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-gray-500">
+                        Page {searchPagination.page} of {searchPagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newPage = searchPagination.page + 1;
+                          setSearchPagination((prev) => ({ ...prev, page: newPage }));
+                          handleGlobalSearch(newPage);
+                        }}
+                        disabled={searchPagination.page >= searchPagination.totalPages}
+                        className="rounded-xl"
+                      >
+                        Next
+                      </Button>
                     </div>
                   )}
-                </>
-              ) : (
-                // Commented out existing person selection UI
-                // <>
-                //   {isLoading ? (
-                //     <div className="flex justify-center py-8">
-                //       <Loader2 className="h-6 w-6 animate-spin" />
-                //     </div>
-                //   ) : (
-                //     <div className="space-y-2 border rounded-lg p-4">
-                //       {existingEntities.length === 0 ? (
-                //         <p className="text-sm text-gray-500 text-center py-4">
-                //           No persons found
-                //         </p>
-                //       ) : (
-                //         existingEntities.map((entity) => {
-                //           const entityId = entity._id || entity.id;
-                //           const isSelected = selectedExistingEntities.some((e) => e.id === entityId);
-                //           const selectedEntity = selectedExistingEntities.find((e) => e.id === entityId);
-                //           const isExpanded = expandedEntities.has(entityId);
-                //
-                //           return (
-                //             <div key={entityId} className="space-y-2">
-                //               <div className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                //                 <Checkbox
-                //                   checked={isSelected}
-                //                   onCheckedChange={() => handleExistingEntityToggle(entity)}
-                //                 />
-                //                 <div className="flex-1">
-                //                   <p className="font-medium">{entity.name}</p>
-                //                 </div>
-                //                 {isSelected && (
-                //                   <Button
-                //                     variant="ghost"
-                //                     size="sm"
-                //                     onClick={() => toggleExistingEntityExpanded(entityId)}
-                //                   >
-                //                     {isExpanded ? (
-                //                       <ChevronUp className="h-4 w-4" />
-                //                     ) : (
-                //                       <ChevronDown className="h-4 w-4" />
-                //                     )}
-                //                   </Button>
-                //                 )}
-                //               </div>
-                //
-                //               {isSelected && isExpanded && selectedEntity && (
-                //                 <Card className="ml-8 mb-2">
-                //                   <CardContent className="p-4">
-                //                     {/* Share input fields */}
-                //                   </CardContent>
-                //                 </Card>
-                //               )}
-                //             </div>
-                //           );
-                //         })
-                //       )}
-                //     </div>
-                //   )}
-                // </>
-                null
-              )
-            )}
-          </div>
+                </div>
+              )}
+              
+              {searchResults.length === 0 && !isSearching && hasSearched && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No results found. Try a different search query.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Create New Entity Section */}
@@ -2044,25 +1798,20 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                               );
                             })}
                           </div>
-                          {shareValidationErrors.global && (
-                            <p className="text-xs text-red-600">
-                              {shareValidationErrors.global}
-                            </p>
-                          )}
+                           
+                           <div className="space-y-2 mt-3">
+                              <PaidUpSharesInput
+                                 value={entity.paidUpSharesPercentage || 0}
+                                 onChange={(val) => {
+                                    const numVal = val === "" ? 0 : Number(val);
+                                    handleNewEntityChange(entityIndex, "paidUpSharesPercentage", numVal);
+                                 }}
+                                 className="p-0 border-0 bg-transparent shadow-none"
+                              />
+                           </div>
+
                         </div>
                       </div>
-                        <div>
-                          <div>
-                             <PaidUpSharesInput
-                                value={entity.paidUpSharesPercentage ?? 100}
-                                onChange={(val) => {
-                                   const numVal = val === "" ? 0 : val;
-                                   handleNewEntityChange(entityIndex, "paidUpSharesPercentage", numVal);
-                                }}
-                             />
-                          </div>
-                       </div>
-
                     </div>
                   </CardContent>
                 </Card>

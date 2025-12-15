@@ -129,6 +129,9 @@ export function KYCDocumentRequestModal({
   const [viewMode, setViewMode] =
   useState<"shareholders" | "involvements">("shareholders");
 
+useEffect(() => {
+  console.log("Company passed into modal:", company);
+}, [company]);
 
 
   const handleSubmit = async () => {
@@ -383,13 +386,13 @@ export function KYCDocumentRequestModal({
           </Card>
 
           {/* ✅ Persons List */}
-          {mergedPersons.length > 0 && (
+        {mergedPersons.length > 0 && (
           <Card>
           <CardHeader>
           <div className="flex items-center justify-between gap-2">
             <div className='flex flex-col gap-2'>
           <CardTitle className="text-lg">
-          Persons Related to this Engagement ({mergedPersons.length})
+          Persons Related to this {engagementId ? "engagement" : "company"} ({mergedPersons.length})
           </CardTitle>
 
           <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
