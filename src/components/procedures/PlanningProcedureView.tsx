@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Download, Save, X, Plus, Sparkles, Edit2, Trash2, Loader2, RefreshCw, FileText } from "lucide-react"
+
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -32,6 +33,60 @@ const normalizeType = (t?: string) => {
   if (v === "textfield") return "text"
   if (v === "selection") return "select"
   return v
+}
+
+// Ensure recommendations are tagged to a section so they render in the right place
+const assignSectionToRecommendations = (recs: any[], procedures: any[]) => {
+  const defaultSectionId =
+    procedures?.[0]?.sectionId ||
+    procedures?.[0]?.id ||
+    "general"
+  return (Array.isArray(recs) ? recs : []).map((rec) => {
+    const recSection = rec?.section || rec?.sectionId
+    if (recSection) return rec
+    return { ...rec, section: defaultSectionId }
+  })
+}
+
+// Normalize API recommendation payloads (array or section-keyed object) and tag with section
+const normalizeRecommendations = (incoming: any, sectionId: string) => {
+  if (!incoming) return []
+  // If it's a JSON string, try parsing first
+  if (typeof incoming === "string") {
+    try {
+      const parsed = JSON.parse(incoming)
+      return normalizeRecommendations(parsed, sectionId)
+    } catch {
+      // Treat as a single-line rec string
+      return [{ id: `rec-${Date.now()}`, text: incoming.trim(), checked: false, section: sectionId }]
+    }
+  }
+  // Already an array
+  if (Array.isArray(incoming)) {
+    return incoming.map((rec: any, idx: number) => {
+      if (typeof rec === "string") {
+        return { id: `rec-${Date.now()}-${idx}`, text: rec.trim(), checked: false, section: sectionId }
+      }
+      return { ...rec, id: rec.id || rec.__uid || `rec-${Date.now()}-${idx}`, section: rec.section || rec.sectionId || sectionId }
+    })
+  }
+  // Object keyed by section names (e.g., section1..section6)
+  if (typeof incoming === "object") {
+    const collected: any[] = []
+    Object.values(incoming).forEach((arr: any, idxOuter: number) => {
+      if (Array.isArray(arr)) {
+        arr.forEach((rec: any, idxInner: number) => {
+          if (typeof rec === "string") {
+            collected.push({ id: `rec-${Date.now()}-${idxOuter}-${idxInner}`, text: rec.trim(), checked: false, section: sectionId })
+          } else {
+            collected.push({ ...rec, id: rec.id || rec.__uid || `rec-${Date.now()}-${idxOuter}-${idxInner}`, section: rec.section || rec.sectionId || sectionId })
+          }
+        })
+      }
+    })
+    return collected
+  }
+  return []
 }
 
 async function authFetch(url: string, options: RequestInit = {}) {
@@ -303,19 +358,20 @@ export const PlanningProcedureView: React.FC<{
   // Fix: Initialize recommendations properly as checklist items array
   const [recommendations, setRecommendations] = useState<any[]>(() => {
     const recs = initial?.recommendations || [];
+    let normalized: any[] = [];
     // Ensure we always have an array of checklist items
     if (Array.isArray(recs)) {
-      return recs;
+      normalized = recs;
     } else if (typeof recs === 'string') {
       // If it's a string, try to parse it or convert to empty array
       try {
         const parsed = JSON.parse(recs);
-        return Array.isArray(parsed) ? parsed : [];
+        normalized = Array.isArray(parsed) ? parsed : [];
       } catch {
-        return [];
+        normalized = [];
       }
     }
-    return [];
+    return assignSectionToRecommendations(normalized, initial?.procedures || []);
   });
 
   // Add useEffect to update proc when initial prop changes
@@ -333,22 +389,22 @@ export const PlanningProcedureView: React.FC<{
     if (initial?.recommendations !== undefined) {
       const recs = initial.recommendations;
       if (Array.isArray(recs) && recs.length > 0) {
-        setRecommendations(recs);
+        setRecommendations(assignSectionToRecommendations(recs, initial?.procedures || proc?.procedures || []));
       } else if (typeof recs === 'string' && recs.trim()) {
         try {
           const parsed = JSON.parse(recs);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setRecommendations(parsed);
+            setRecommendations(assignSectionToRecommendations(parsed, initial?.procedures || proc?.procedures || []));
           }
         } catch {
           // If it's not JSON, try splitting by newlines
           const lines = recs.split("\n").filter((l: string) => l.trim());
           if (lines.length > 0) {
-            setRecommendations(lines.map((text: string, idx: number) => ({
+            setRecommendations(assignSectionToRecommendations(lines.map((text: string, idx: number) => ({
               id: `rec-${Date.now()}-${idx}`,
               text: text.trim(),
               checked: false,
-            })));
+            })), initial?.procedures || proc?.procedures || []));
           }
         }
       }
@@ -363,9 +419,27 @@ export const PlanningProcedureView: React.FC<{
 
       // Handle both string and array formats from NotebookInterface
       if (Array.isArray(content)) {
-        recommendationsToSave = content;
+        // Preserve section tags from existing recommendations
+        recommendationsToSave = content.map((rec: any) => {
+          // If it's already an object with section, preserve it
+          if (typeof rec === 'object' && rec !== null) {
+            return {
+              ...rec,
+              // Ensure section is preserved, or assign to first section if missing
+              section: rec.section || rec.sectionId || (proc.procedures?.[0]?.sectionId || proc.procedures?.[0]?.id || 'general')
+            };
+          }
+          // If it's a string, assign to first section
+          return {
+            id: `rec-${Date.now()}-${Math.random()}`,
+            text: String(rec).trim(),
+            checked: false,
+            section: proc.procedures?.[0]?.sectionId || proc.procedures?.[0]?.id || 'general'
+          };
+        });
       } else if (typeof content === 'string') {
-        // Convert string format to checklist items
+        // Convert string format to checklist items - assign to first section
+        const defaultSectionId = proc.procedures?.[0]?.sectionId || proc.procedures?.[0]?.id || 'general';
         recommendationsToSave = content
           .split('\n')
           .filter(line => line.trim())
@@ -373,11 +447,14 @@ export const PlanningProcedureView: React.FC<{
             id: `rec-${Date.now()}-${index}`,
             text: line.trim(),
             checked: false,
-            section: 'general'
+            section: defaultSectionId
           }));
       } else {
         recommendationsToSave = [];
       }
+
+      // Ensure all recommendations are properly tagged
+      recommendationsToSave = assignSectionToRecommendations(recommendationsToSave, proc.procedures || []);
 
       // Update local state first
       setRecommendations(recommendationsToSave)
@@ -414,7 +491,11 @@ export const PlanningProcedureView: React.FC<{
         procedures: withUids(saved?.procedures || []),
       }
       setProc(savedWithUids)
-      setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+      // Ensure all recommendations from server are tagged with sections
+      setRecommendations(assignSectionToRecommendations(
+        Array.isArray(saved?.recommendations) ? saved.recommendations : [],
+        saved?.procedures || proc?.procedures || []
+      ))
 
       toast({
         title: "Notes Saved",
@@ -426,8 +507,11 @@ export const PlanningProcedureView: React.FC<{
         description: e.message,
         variant: "destructive"
       })
-      // Revert local state if save fails
-      setRecommendations(proc?.recommendations || [])
+      // Revert local state if save fails - ensure tags are preserved
+      setRecommendations(assignSectionToRecommendations(
+        Array.isArray(proc?.recommendations) ? proc.recommendations : [],
+        proc?.procedures || []
+      ))
     }
   }
 
@@ -658,53 +742,88 @@ export const PlanningProcedureView: React.FC<{
     }
   }
 
-  // Generate/Regenerate procedures (recommendations)
-  const handleGenerateProcedures = async () => {
+  // Handle checklist item toggle
+  const handleCheckboxToggle = (itemId: string) => {
+    setRecommendations(prev => 
+      prev.map((item: any) => {
+        const rId = item.id || item.__uid || `rec-${prev.indexOf(item)}`
+        return rId === itemId ? { ...item, checked: !(item.checked || false) } : item
+      })
+    )
+  }
+
+  // Handle save procedures (similar to Save Checklist in NotebookInterface)
+  const handleSaveProcedures = async () => {
+    setIsSaving(true)
+    try {
+      await save(false) // Save without marking as completed
+      toast({ 
+        title: "Procedures Saved", 
+        description: "Your checklist has been saved." 
+      })
+    } catch (error: any) {
+      toast({
+        title: "Save failed",
+        description: error.message || "Could not save procedures.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Generate/Regenerate procedures (recommendations) for a specific section
+  const handleGenerateProcedures = async (sectionId: string) => {
     setGeneratingProcedures(true)
     try {
       const base = import.meta.env.VITE_APIURL
+      
+      // Find the specific section - use consistent ID matching
+      const section = proc.procedures?.find((s: any) => {
+        const sId = String(s.sectionId || s.id || "").trim()
+        const targetId = String(sectionId || "").trim()
+        return sId === targetId && sId !== ""
+      })
+      if (!section) {
+        throw new Error("Section not found")
+      }
+      
+      // Use the same ID format as in the render
+      const actualSectionId = String(section.sectionId || section.id || sectionId).trim()
 
       const res = await authFetch(`${base}/api/planning-procedures/${engagement?._id}/generate/recommendations`, {
         method: "POST",
         body: JSON.stringify({
-          procedures: (proc.procedures || []).map((sec: any) => ({
-            ...sec,
-            fields: (sec.fields || []).map(({ __uid, ...rest }) => rest)
-          })),
+          procedures: [{
+            ...section,
+            fields: (section.fields || []).map(({ __uid, ...rest }) => rest)
+          }],
           materiality: proc.materiality || 0,
         }),
       })
 
       if (res.ok) {
         const data = await res.json()
-        let recs = []
-        if (data.recommendations && Array.isArray(data.recommendations)) {
-          recs = data.recommendations.map((rec: any, idx: number) => {
-            // Ensure each recommendation has required properties
-            if (typeof rec === 'string') {
-              return {
-                id: `rec-${Date.now()}-${idx}`,
-                text: rec.trim(),
-                checked: false,
-              }
-            }
-            return {
-              id: rec.id || rec.__uid || `rec-${Date.now()}-${idx}`,
-              text: rec.text || rec.content || String(rec),
-              checked: rec.checked || false,
-              ...rec
-            }
+        const newRecs = normalizeRecommendations(data.recommendations, actualSectionId)
+        
+        // Ensure all new recommendations have the correct section ID (use actualSectionId consistently)
+        const taggedRecs = newRecs.map((rec: any) => ({
+          ...rec,
+          section: actualSectionId,
+          sectionId: actualSectionId
+        }))
+        
+        // Remove old recommendations for this section and add new ones
+        setRecommendations((prev: any[]) => {
+          const filtered = prev.filter((r: any) => {
+            const rSection = String(r.section || r.sectionId || "").trim()
+            return rSection !== actualSectionId
           })
-        } else if (data.recommendations && typeof data.recommendations === 'string') {
-          recs = data.recommendations.split("\n").filter((l: string) => l.trim()).map((text: string, idx: number) => ({
-            id: `rec-${Date.now()}-${idx}`,
-            text: text.trim(),
-            checked: false,
-          }))
-        }
-        console.log("Generated recommendations:", recs)
-        setRecommendations(recs)
-        toast({ title: "Procedures Generated", description: `Generated ${recs.length} recommendations successfully.` })
+          const updated = [...filtered, ...taggedRecs]
+          return updated
+        })
+        
+        toast({ title: "Procedures Generated", description: `Generated ${taggedRecs.length} recommendations successfully for this section.` })
       } else {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.message || "Failed to generate recommendations")
@@ -865,11 +984,17 @@ export const PlanningProcedureView: React.FC<{
       }))
 
       // Create the payload with updated recommendations - ensure it's always an array
+      // Ensure all recommendations are tagged before saving
+      const taggedRecommendations = assignSectionToRecommendations(
+        Array.isArray(recommendations) ? recommendations : [],
+        cleanedProcedures
+      );
+
       const payload = {
         ...proc,
         procedures: cleanedProcedures,
-        // Ensure recommendations are included in the payload as array
-        recommendations: Array.isArray(recommendations) ? recommendations : [],
+        // Ensure recommendations are included in the payload as array with proper tags
+        recommendations: taggedRecommendations,
         status: asCompleted ? "completed" : proc.status || "in-progress",
         procedureType: "planning",
       }
@@ -894,8 +1019,11 @@ export const PlanningProcedureView: React.FC<{
         procedures: withUids(saved?.procedures || []),
       }
       setProc(savedWithUids)
-      // keep local recs aligned with server - ensure it's an array
-      setRecommendations(Array.isArray(saved?.recommendations) ? saved.recommendations : [])
+      // keep local recs aligned with server - ensure it's an array and tagged
+      setRecommendations(assignSectionToRecommendations(
+        Array.isArray(saved?.recommendations) ? saved.recommendations : [],
+        saved?.procedures || proc?.procedures || []
+      ))
       // Clear pending questions after successful save
       setPendingQuestions(new Set())
       toast({ title: "Saved", description: asCompleted ? "Marked completed." : "Changes saved." })
@@ -1045,7 +1173,7 @@ export const PlanningProcedureView: React.FC<{
         <Accordion type="multiple" className="space-y-4">
           {proc.procedures.map((sec: any, sIdx: number) => {
             const answers = makeAnswers(sec)
-            const sectionId = sec.id || `section-${sIdx}`
+            const sectionId = sec.sectionId || sec.id || `section-${sIdx}`
             const activeSectionTab = sectionTabs[sectionId] || "questions"
             const setActiveSectionTab = (value: string) => {
               setSectionTabs(prev => ({ ...prev, [sectionId]: value }))
@@ -1204,19 +1332,15 @@ export const PlanningProcedureView: React.FC<{
                                           {idx + 1}. {f.label || f.key}
                                         </div>
                                         <div className="flex gap-2">
-                                          {editMode && (
-                                            <>
-                                              <Button variant="ghost" size="sm" onClick={() => {
-                                                setEditingQuestionIds(prev => ({ ...prev, [questionKey]: f.__uid }))
-                                                setEditQuestionTexts(prev => ({ ...prev, [questionKey]: f.label || f.key }))
-                                              }}>
-                                                <Edit2 className="h-4 w-4" />
-                                              </Button>
-                                              <Button variant="ghost" size="sm" onClick={() => removeQuestion(sIdx, f.__uid)}>
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </>
-                                          )}
+                                          <Button variant="ghost" size="sm" onClick={() => {
+                                            setEditingQuestionIds(prev => ({ ...prev, [questionKey]: f.__uid }))
+                                            setEditQuestionTexts(prev => ({ ...prev, [questionKey]: f.label || f.key }))
+                                          }}>
+                                            <Edit2 className="h-4 w-4" />
+                                          </Button>
+                                          <Button variant="ghost" size="sm" onClick={() => removeQuestion(sIdx, f.__uid)}>
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
                                         </div>
                                       </div>
 
@@ -1357,21 +1481,19 @@ export const PlanningProcedureView: React.FC<{
                                           <span className="italic">No answer.</span>
                                         )}
                                       </div>
-                                      {editMode && (
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => {
-                                              setEditingQuestionIds(prev => ({ ...prev, [`answer-${questionKey}`]: f.__uid }))
-                                              setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: String(f.answer ?? "") }))
-                                            }}
-                                          >
-                                            <Edit2 className="h-4 w-4 mr-1" />
-                                            Edit Answer
-                                          </Button>
-                                        </div>
-                                      )}
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setEditingQuestionIds(prev => ({ ...prev, [`answer-${questionKey}`]: f.__uid }))
+                                            setEditQuestionTexts(prev => ({ ...prev, [`answer-${questionKey}`]: String(f.answer ?? "") }))
+                                          }}
+                                        >
+                                          <Edit2 className="h-4 w-4 mr-1" />
+                                          {f.answer ? "Edit Answer" : "Add Answer"}
+                                        </Button>
+                                      </div>
                                     </>
                                   )}
                                 </CardContent>
@@ -1391,55 +1513,75 @@ export const PlanningProcedureView: React.FC<{
                       <div className="flex items-center justify-between mb-4">
                         <h4 className="text-lg font-semibold">Audit Recommendations</h4>
                         <div className="flex items-center gap-2">
-                          {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
-                            recommendations.length > 0 ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleGenerateProcedures}
-                                disabled={generatingProcedures}
-                              >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4 mr-2" />
-                                )}
-                                Regenerate Procedures
-                              </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={handleSaveProcedures}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
                             ) : (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={handleGenerateProcedures}
-                                disabled={generatingProcedures}
-                              >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <FileText className="h-4 w-4 mr-2" />
-                                )}
-                                Generate Procedures
-                              </Button>
-                            )
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save Procedures
+                          </Button>
+                          {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
+                            (() => {
+                              const currentSectionId = String(sec.sectionId || sec.id || sectionId).trim()
+                              const allRecs = Array.isArray(recommendations) ? recommendations : []
+                              const sectionRecs = allRecs.filter((rec: any) => {
+                                const recSection = String(rec.section || rec.sectionId || "").trim()
+                                return recSection === currentSectionId && recSection !== ""
+                              })
+                              return sectionRecs.length > 0 ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleGenerateProcedures(currentSectionId)}
+                                  disabled={generatingProcedures}
+                                >
+                                  {generatingProcedures ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : (
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                  )}
+                                  Regenerate Procedures
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleGenerateProcedures(String(sec.sectionId || sec.id || sectionId).trim())}
+                                  disabled={generatingProcedures}
+                                >
+                                  {generatingProcedures ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : (
+                                    <FileText className="h-4 w-4 mr-2" />
+                                  )}
+                                  Generate Procedures
+                                </Button>
+                              )
+                            })()
                           ) : (
                             <div className="text-muted-foreground text-sm">
                               {((sec.fields || []).length === 0) ? "Generate questions first." : "Generate answers first."}
                             </div>
                           )}
-                          {editMode && (
-                            <Button variant="outline" size="sm" onClick={() => {
-                              const newRec = {
-                                id: `rec-${Date.now()}`,
-                                text: "New recommendation",
-                                checked: false,
-                                section: sec.sectionId || sec.id
-                              }
-                              setRecommendations(prev => [...prev, newRec])
-                            }}>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add Procedures
-                            </Button>
-                          )}
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const newRec = {
+                              id: `rec-${Date.now()}`,
+                              text: "New recommendation",
+                              checked: false,
+                              section: String(sec.sectionId || sec.id || sectionId).trim(),
+                              sectionId: String(sec.sectionId || sec.id || sectionId).trim()
+                            }
+                            setRecommendations(prev => [...prev, newRec])
+                          }}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Procedures
+                          </Button>
                           <Button
                             variant="default"
                             size="sm"
@@ -1458,21 +1600,26 @@ export const PlanningProcedureView: React.FC<{
                       <ScrollArea className="h-[500px]">
                         <div className="space-y-3">
                           {(() => {
-                            // Show all recommendations globally (matching TabsView behavior)
-                            // Don't filter by section - show all recommendations in each section's Procedures tab
+                            // Filter recommendations by current section - strict isolation
+                            const currentSectionId = String(sec.sectionId || sec.id || sectionId).trim()
                             const allRecs = Array.isArray(recommendations) ? recommendations : []
+                            const sectionRecs = allRecs.filter((rec: any) => {
+                              const recSection = String(rec.section || rec.sectionId || "").trim()
+                              // Only show recommendations that are explicitly tagged to this section
+                              return recSection === currentSectionId && recSection !== ""
+                            })
 
-                            if (allRecs.length === 0) {
+                            if (sectionRecs.length === 0) {
                               return (
                                 <div className="text-center py-8 text-muted-foreground">
                                   {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer)
-                                    ? "No recommendations generated yet. Click 'Generate Procedures' to create recommendations."
+                                    ? "No recommendations generated yet for this section. Click 'Generate Procedures' to create recommendations."
                                     : "Generate questions and answers first, then generate procedures."}
                                 </div>
                               )
                             }
 
-                            return allRecs.map((rec: any, idx: number) => {
+                            return sectionRecs.map((rec: any, idx: number) => {
                               const recId = rec.id || rec.__uid || `rec-${idx}`
                               const recText = typeof rec === 'string'
                                 ? rec
@@ -1542,38 +1689,43 @@ export const PlanningProcedureView: React.FC<{
                                     ) : (
                                       <>
                                         <div className="flex justify-between items-start">
-                                          <div className="flex items-center font-medium mb-2 text-black">
-                                            <span className="w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center mr-2 text-sm">
-                                              ✔
+                                          <div className="flex items-start space-x-3 flex-1">
+                                            <Checkbox
+                                              checked={rec.checked || false}
+                                              onCheckedChange={() => {
+                                                const rId = rec.id || rec.__uid || `rec-${idx}`
+                                                handleCheckboxToggle(rId)
+                                              }}
+                                              className="mt-1"
+                                            />
+                                            <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
+                                              {recText}
                                             </span>
-                                            {recText}
                                           </div>
-                                          {editMode && (
-                                            <div className="flex gap-2">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                  setEditingQuestionIds(prev => ({ ...prev, [`rec-${recId}`]: recId }))
-                                                  setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: recText }))
-                                                }}
-                                              >
-                                                <Edit2 className="h-4 w-4" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                  setRecommendations(prev => prev.filter((r: any, i: number) => {
-                                                    const rId = r.id || r.__uid || `rec-${i}`
-                                                    return rId !== recId
-                                                  }))
-                                                }}
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </div>
-                                          )}
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setEditingQuestionIds(prev => ({ ...prev, [`rec-${recId}`]: recId }))
+                                                setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: recText }))
+                                              }}
+                                            >
+                                              <Edit2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  return rId !== recId
+                                                }))
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
                                         </div>
                                         {/* {rec.checked !== undefined && (
                                           <div className="flex items-center gap-2 mt-2">
