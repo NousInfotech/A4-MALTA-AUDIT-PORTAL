@@ -389,7 +389,7 @@ export const DocumentRequests = () => {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {false && <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-6 hover:bg-white/70 transition-all duration-300 shadow-lg shadow-gray-300/30">
             <div className="flex items-center justify-between mb-4">
               <Clock className="h-6 w-6 text-gray-800" />
@@ -428,7 +428,7 @@ export const DocumentRequests = () => {
               <p className="text-sm text-gray-700">Files Uploaded</p>
             </div>
           </div>
-        </div>
+        </div>}
 
          {false && <Tabs
           value={activeTab}
@@ -907,13 +907,14 @@ export const DocumentRequests = () => {
           </TabsContent>
         </Tabs>}
 
-        <h1 className="text-lg text-red-500 text-center underline">Under Development</h1>
+        {/* <h1 className="text-lg text-red-500 text-center underline">Under Development</h1> */}
         {/* KYC Component */}
         {clientEngagements.length > 0 ? (
            <EngagementKYC 
              companyId={clientEngagements[0].companyId} 
              clientId={user?.id}
-             isClientView={true}
+             showStatusManagement={false}
+             deleteRequest={false}
            />
         ) : (
            <div className="flex justify-center p-12">
