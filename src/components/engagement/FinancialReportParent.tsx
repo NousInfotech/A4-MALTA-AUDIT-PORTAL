@@ -1,9 +1,13 @@
 import React from 'react'
 import FSUploadFlow from '../fs-review/FSUploadFlow'
 
-const FinancialReportParent = () => {
+interface FinancialReportParentProps {
+  engagementId?: string;
+}
+
+const FinancialReportParent = ({ engagementId }: FinancialReportParentProps) => {
   return (
-    <FSUploadFlow />
+    <FSUploadFlow engagementId={engagementId} />
   )
 }
 

@@ -21,9 +21,9 @@ export default function SectionB({ items }: { items: BItem[] }) {
         {items.map((err, idx) => (
           <AccordionItem key={idx} value={`B-${idx}`}>
             <AccordionTrigger>
-              <div className="flex items-center gap-3">
+              <div className="flex gap-3">
                 <AlertTriangle className="text-red-500" size={18} />
-                <span>{err.test_id} — {err.description}</span>
+                <span className="text-left">{err.test_id} — {err.description}</span>
               </div>
             </AccordionTrigger>
 

@@ -57,7 +57,7 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
         <div className="flex justify-between items-center gap-2 w-full">
       {/* --- Toggle Buttons --- */}
       <div className="flex justify-center gap-3">
-      {[
+      {/* {[
       { key: "allPass", label: "All Pass", color: "green" },
       { key: "allFail", label: "All Fail", color: "red" },
       { key: "mix", label: "Mixed", color: "blue" }
@@ -76,7 +76,7 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
       >
       {btn.label}
       </button>
-      ))}
+      ))} */}
       </div>
 
       <div className="flex gap-2">
