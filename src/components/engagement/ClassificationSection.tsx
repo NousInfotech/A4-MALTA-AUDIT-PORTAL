@@ -222,9 +222,9 @@ import ClassificationReviewPanel from "../classification-review/ClassificationRe
 import axiosInstance from "@/lib/axiosInstance";
 
 
-import { 
-  getEvidenceWithMappings, 
-  linkWorkbookToEvidence, 
+import {
+  getEvidenceWithMappings,
+  linkWorkbookToEvidence,
   unlinkWorkbookFromEvidence,
   type ClassificationEvidence as EvidenceWithMappings
 } from "@/lib/api/classificationEvidenceApi";
@@ -264,7 +264,7 @@ interface ClassificationSectionProps {
   onClassificationJump?: (classification: string) => void;
 
   onReviewStatusChange?: () => void; // Callback to refresh notification counts
-  
+
   loadExistingData?: () => void; // Callback to refresh ETB data
 }
 
@@ -852,10 +852,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   onClassificationJump,
 
   onReviewStatusChange,
-  
+
   loadExistingData,
 }) => {
-
+  console.log('classification:', classification);
 
 
 
@@ -898,7 +898,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const [fieldworkProcedure, setFieldworkProcedure] = useState<any>(null);
   const [completionProcedure, setCompletionProcedure] = useState<any>(null);
   const [procedureTypeLoading, setProcedureTypeLoading] = useState(false);
-  
+
   // Create a mock URLSearchParams object that syncs with local state for procedure components
   const procedureSearchParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -908,18 +908,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (procedureStep) params.set("step", procedureStep);
     return params;
   }, [selectedProcedureType, procedureTab, procedureMode, procedureStep]);
-  
+
   // Question filter state
   const [questionFilter, setQuestionFilter] = useState<"all" | "unanswered">("all");
-  
+
   // Editing states for questions/answers
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestionText, setEditQuestionText] = useState("");
   const [editAnswerText, setEditAnswerText] = useState("");
-  
+
   // Notebook state for Audit Recommendations
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  
+
   // Generating states
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [generatingProcedures, setGeneratingProcedures] = useState(false);
@@ -979,11 +979,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Evidence-related state
 
   const [evidenceFiles, setEvidenceFiles] = useState<EvidenceFile[]>([]);
-  
+
   // ✅ NEW: State to store all classifications from the entire ETB (for global workbook fetching)
   // Initialize with current classification to ensure we always have at least one
   const [allClassificationsFromETB, setAllClassificationsFromETB] = useState<string[]>([classification]);
-  
+
   // ✅ NEW: Fetch all classifications from the entire ETB (similar to how evidence files work)
   useEffect(() => {
     const fetchAllClassifications = async () => {
@@ -992,7 +992,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setAllClassificationsFromETB([classification]);
         return;
       }
-      
+
       try {
         const base = import.meta.env.VITE_APIURL;
         if (!base) {
@@ -1001,21 +1001,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           setAllClassificationsFromETB([classification]);
           return;
         }
-        
+
         // Fetch all ETB rows to get all classifications
         const { data: session } = await supabase.auth.getSession();
         const token = session?.session?.access_token;
-        
+
         const response = await fetch(`${base}/api/engagements/${engagement.id}/etb`, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
-        
+
         if (response.ok) {
           const etbData = await response.json();
           const rows = etbData.rows || [];
-          
+
           // Extract all unique classifications
           const classifications = new Set<string>();
           classifications.add(classification); // Always include current classification
@@ -1024,7 +1024,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               classifications.add(row.classification);
             }
           });
-          
+
           const allClassKeys = Array.from(classifications);
           setAllClassificationsFromETB(allClassKeys);
           console.log('📚 Fetched all classifications from ETB:', {
@@ -1043,10 +1043,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setAllClassificationsFromETB([classification]);
       }
     };
-    
+
     fetchAllClassifications();
   }, [engagement.id, classification]); // Re-fetch when engagement or classification changes
-  
+
   // ✅ NEW: Use allClassificationsFromETB (always has at least current classification)
   const allClassifications = useMemo(() => {
     // allClassificationsFromETB always has at least the current classification
@@ -1054,7 +1054,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (allClassificationsFromETB.length > 0) {
       return allClassificationsFromETB;
     }
-    
+
     // Final fallback (shouldn't happen, but just in case)
     return [classification];
   }, [allClassificationsFromETB, classification]);
@@ -1067,10 +1067,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       prev.map(file =>
         file.id === updatedId
           ? {
-              ...file,
-              linkedWorkbooks: updatedEvidence.linkedWorkbooks || file.linkedWorkbooks,
-              mappings: updatedEvidence.mappings || file.mappings,
-            }
+            ...file,
+            linkedWorkbooks: updatedEvidence.linkedWorkbooks || file.linkedWorkbooks,
+            mappings: updatedEvidence.mappings || file.mappings,
+          }
           : file
       )
     );
@@ -1094,7 +1094,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         try {
           // Fetch detailed evidence with linked workbooks and mappings
           const detailedEvidence = await getEvidenceWithMappings(evidence._id);
-          
+
           return {
             id: evidence._id,
             fileName: evidence.evidenceUrl.split('/').pop() || 'Unknown File',
@@ -1182,24 +1182,24 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const handleRemoveWorkbookFromEvidence = async (evidenceId: string, workbookId: string, workbookName: string) => {
     try {
       await unlinkWorkbookFromEvidence(evidenceId, workbookId);
-      
+
       // Update local state immediately
       setEvidenceFiles(prev =>
         prev.map(file =>
           file.id === evidenceId
             ? {
-                ...file,
-                linkedWorkbooks: file.linkedWorkbooks?.filter(
-                  (wb: any) => String(wb._id || wb.id || wb) !== String(workbookId)
-                ) || []
-              }
+              ...file,
+              linkedWorkbooks: file.linkedWorkbooks?.filter(
+                (wb: any) => String(wb._id || wb.id || wb) !== String(workbookId)
+              ) || []
+            }
             : file
         )
       );
-      
+
       // Reload evidence files to get updated data from backend
       await loadEvidenceFiles();
-      
+
       toast.success(`Workbook "${workbookName}" removed from evidence successfully.`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to remove workbook from evidence';
@@ -1302,7 +1302,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         // ✅ Refresh lead sheet if it's for the current classification
         // WorkBookApp will automatically refresh its workbooks list via refreshTrigger
         if (eventClassification === classification ||
-            eventClassification?.startsWith(`${classification} >`)) {
+          eventClassification?.startsWith(`${classification} >`)) {
           setWorkbookRefreshTrigger((prev) => prev + 1);
           await refreshLeadSheetData();
         }
@@ -1347,38 +1347,38 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   useEffect(() => {
     const handleWorkbookLinked = async (event: CustomEvent) => {
       console.log('📣 ClassificationSection: Received workbook-linked event from MainDashboard:', event.detail);
-      
+
       const { classification: eventClassification, engagementId: eventEngagementId, rowType: eventRowType, evidence: eventEvidence, rowCode } = event.detail;
-      
+
       // Check if this event is for Evidence tab
       if (eventRowType === 'evidence' && eventEvidence) {
         console.log('📣 ClassificationSection: Evidence workbook linked event received');
-        
+
         // Update evidenceFiles state IMMEDIATELY with the evidence data from the event
         // The eventEvidence contains the updated evidence with linkedWorkbooks populated
         setEvidenceFiles(prev =>
           prev.map(file =>
             file.id === rowCode
               ? {
-                  ...file,
-                  linkedWorkbooks: eventEvidence.linkedWorkbooks || file.linkedWorkbooks,
-                  mappings: eventEvidence.mappings || file.mappings,
-                }
+                ...file,
+                linkedWorkbooks: eventEvidence.linkedWorkbooks || file.linkedWorkbooks,
+                mappings: eventEvidence.mappings || file.mappings,
+              }
               : file
           )
         );
-        
+
         console.log('✅ ClassificationSection: Evidence files state updated immediately with linked workbook');
-        
+
         return; // Return early for evidence - UI is already updated
       }
-      
+
       // For Lead Sheet/Working Papers, check if this event is relevant to the current classification
       // If the linked workbook's classification starts with our classification, it might be relevant
       // e.g., our classification is "Assets > Non-current > Property, plant and equipment"
       // and the event classification is "Assets > Non-current > Property, plant and equipment > Property, plant and equipment - Cost"
-      if (eventEngagementId === engagement._id && 
-          (eventClassification === classification || eventClassification?.startsWith(classification + ' >'))) {
+      if (eventEngagementId === engagement._id &&
+        (eventClassification === classification || eventClassification?.startsWith(classification + ' >'))) {
         console.log('📣 Event is relevant to current classification - refreshing Lead Sheet data');
         await refreshLeadSheetData();
       } else {
@@ -1400,7 +1400,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   useEffect(() => {
     const handleEvidenceUploaded = async (event: CustomEvent) => {
       console.log('📣 ClassificationSection: Received evidence-uploaded event:', event.detail);
-      
+
       const { engagementId: eventEngagementId } = event.detail;
       const currentEngagementId = engagement.id || (engagement as any)?._id;
 
@@ -1976,7 +1976,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setEditingQuestionId(null);
     setEditQuestionText("");
     setEditAnswerText("");
-    
+
     // Save to backend
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
@@ -2006,7 +2006,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (!procedure) return;
     const updatedQuestions = procedure.questions.filter((q: any) => q.id !== questionId);
     setProcedure({ ...procedure, questions: updatedQuestions });
-    
+
     // Save to backend
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
@@ -2027,7 +2027,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Handle add answer for a specific question
   const handleAddAnswer = async (questionId: string) => {
     if (!procedure || !engagement?._id) return;
-    
+
     setGeneratingAnswers(true);
     try {
       const question = procedure.questions.find((q: any) => q.id === questionId);
@@ -2051,8 +2051,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const data = await res.json();
       const updatedQuestions = procedure.questions.map((q: any) => {
         if (q.id === questionId) {
-          const aiAnswer = Array.isArray(data?.aiAnswers) 
-            ? data.aiAnswers.find((a: any) => a.key === q.key)?.answer 
+          const aiAnswer = Array.isArray(data?.aiAnswers)
+            ? data.aiAnswers.find((a: any) => a.key === q.key)?.answer
             : null;
           return { ...q, answer: aiAnswer || q.answer || "" };
         }
@@ -2071,7 +2071,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Generate/Regenerate questions for classification
   const handleGenerateQuestions = async () => {
     if (!engagement?._id) return;
-    
+
     setGeneratingQuestions(true);
     try {
       const base = import.meta.env.VITE_APIURL;
@@ -2103,10 +2103,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       const result = await res.json();
       const generatedQuestions = result?.procedure?.questions || result?.questions || [];
-      
+
       // Normalize and merge with existing questions
       const normalizedQuestions = normalize(generatedQuestions);
-      
+
       // Replace questions for this classification
       let updatedQuestions = procedure?.questions || [];
       const otherQuestions = updatedQuestions.filter((q: any) => q.classification !== classification);
@@ -2114,15 +2114,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         ...q,
         classification: classification,
       }));
-      
+
       updatedQuestions = [...otherQuestions, ...newQuestions];
-      
+
       setProcedure({
         ...procedure,
         questions: updatedQuestions,
         materiality: procedure?.materiality || engagement?.materiality,
       });
-      
+
       toast.success(`Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}`);
     } catch (error: any) {
       toast.error(`Failed to generate questions: ${error.message}`);
@@ -2134,14 +2134,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Save answers for classification
   const handleSaveAnswers = async () => {
     if (!procedure || !engagement?._id) return;
-    
+
     setIsSaving(true);
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
-      
+
       // Preserve existing status or use "draft" (valid enum values: "draft" or "completed")
       const currentStatus = procedure.status === "completed" ? "completed" : "draft";
-      
+
       const response = await authFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2171,16 +2171,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Generate/Regenerate procedures (questions + answers + recommendations)
   const handleGenerateProcedures = async () => {
     if (!procedure || !engagement?._id) return;
-    
+
     setGeneratingProcedures(true);
     try {
       const base = import.meta.env.VITE_APIURL;
-      
+
       // First ensure we have questions
       const classificationQuestions = procedure.questions?.filter(
         (q: any) => q.classification === classification
       ) || [];
-      
+
       if (classificationQuestions.length === 0) {
         toast.error("Please generate questions first");
         setGeneratingProcedures(false);
@@ -2191,9 +2191,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const questionsWithoutAnswers = classificationQuestions.filter(
         (q: any) => !q.answer || q.answer.trim() === ""
       );
-      
+
       let updatedQuestions = procedure.questions;
-      
+
       if (questionsWithoutAnswers.length > 0) {
         // Generate answers first
         const res = await authFetch(
@@ -2211,7 +2211,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         if (!res.ok) throw new Error("Failed to generate answers");
         const answerData = await res.json();
-        
+
         // Merge answers
         const updatedClassificationQs = mergeAiAnswers(questionsWithoutAnswers, answerData.aiAnswers || []);
         updatedQuestions = replaceClassificationQuestions(
@@ -2225,11 +2225,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const questionsWithAnswers = updatedQuestions.filter(
         (q: any) => q.classification === classification && q.answer && q.answer.trim() !== ""
       );
-      
+
       // Recommendations are typically generated along with answers
       // If the answer generation returned recommendations, use them
       let finalRecommendations = procedure?.recommendations || [];
-      
+
       // Update procedure with new questions
       const updatedProcedure = {
         ...procedure,
@@ -2237,7 +2237,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         recommendations: finalRecommendations,
         status: "completed",
       };
-      
+
       setProcedure(updatedProcedure);
 
       // Save everything
@@ -2262,7 +2262,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     // If recommendations is already an array of checklist items, use it directly
     if (Array.isArray(procedure.recommendations)) {
-      return procedure.recommendations.filter((item: any) => 
+      return procedure.recommendations.filter((item: any) =>
         item.classification === classification
       );
     }
@@ -2280,7 +2280,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     const normalizeClassification = (s: string) => s.toLowerCase().trim();
 
     let content = "";
-    
+
     // 1) Exact match on full classification path
     if (byClassFromServer[classification]) {
       content = byClassFromServer[classification];
@@ -2292,7 +2292,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           break;
         }
       }
-      
+
       // 3) Last resort: Try suffix match for deeper parts of the classification
       if (!content) {
         const leaf = classification.split(">").pop()?.trim() || "";
@@ -2325,9 +2325,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Handle save recommendations
   const handleSaveRecommendations = async (content: any) => {
     if (!procedure || !engagement?._id) return;
-    
+
     let finalRecommendations = content;
-    
+
     if (Array.isArray(procedure?.recommendations)) {
       const otherClassificationRecommendations = procedure.recommendations.filter(
         (item: any) => item.classification !== classification
@@ -2337,7 +2337,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         ...(Array.isArray(content) ? content : [])
       ];
     }
-    
+
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
       await authFetch(url, {
@@ -2348,7 +2348,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           recommendations: finalRecommendations,
         }),
       });
-      
+
       setProcedure({ ...procedure, recommendations: finalRecommendations });
       toast.success("Recommendations saved successfully");
     } catch (error: any) {
@@ -2375,27 +2375,27 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   const handleProcedureButtonClick = (procedureType: "planning" | "fieldwork" | "completion") => {
     setSelectedProcedureType(procedureType);
-    
+
     // Determine default tab based on whether procedures exist
     let defaultTab: "generate" | "view" = "generate";
-    
+
     if (procedureType === "planning") {
-      const hasQuestions = planningProcedure?.procedures?.some((sec: any) => 
+      const hasQuestions = planningProcedure?.procedures?.some((sec: any) =>
         sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
       );
       defaultTab = hasQuestions ? "view" : "generate";
     } else if (procedureType === "fieldwork") {
-      const hasQuestions = fieldworkProcedure?.questions && 
-        Array.isArray(fieldworkProcedure.questions) && 
+      const hasQuestions = fieldworkProcedure?.questions &&
+        Array.isArray(fieldworkProcedure.questions) &&
         fieldworkProcedure.questions.length > 0;
       defaultTab = hasQuestions ? "view" : "generate";
     } else if (procedureType === "completion") {
-      const hasQuestions = completionProcedure?.procedures?.some((sec: any) => 
+      const hasQuestions = completionProcedure?.procedures?.some((sec: any) =>
         sec?.fields && Array.isArray(sec.fields) && sec.fields.length > 0
       );
       defaultTab = hasQuestions ? "view" : "generate";
     }
-    
+
     setProcedureTab(defaultTab);
     setProcedureMode(null);
     setProcedureStep(null);
@@ -2419,11 +2419,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setProcedureStep("1"); // Go back to questions step (step 1)
       return;
     }
-    
+
     // If in a numbered step, go back one step or to mode selection
     if (selectedProcedureType && procedureMode && procedureStep) {
       const stepNum = parseInt(procedureStep, 10);
-      
+
       if (stepNum > 0) {
         // Go back one step
         setProcedureTab("generate");
@@ -2436,21 +2436,21 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
       return;
     }
-    
+
     // If at mode selection (mode exists but no step), clear mode
     if (selectedProcedureType && procedureMode && !procedureStep) {
       setProcedureTab("generate");
       setProcedureMode(null);
       return;
     }
-    
+
     // If at procedure type selection (procedureType exists but no mode), clear procedureType
     if (selectedProcedureType && !procedureMode) {
       setProcedureTab("generate");
       setSelectedProcedureType(null);
       return;
     }
-    
+
     // Fallback: Clear all procedure params
     setProcedureTab("view");
     setSelectedProcedureType(null);
@@ -2470,11 +2470,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setProcedureStep("1"); // Go back to questions step (step 1)
       return;
     }
-    
+
     // If in a numbered step, go back one step or to mode selection
     if (selectedProcedureType && procedureMode && procedureStep) {
       const stepNum = parseInt(procedureStep, 10);
-      
+
       if (stepNum > 0) {
         // Go back one step
         setProcedureTab("generate");
@@ -2487,7 +2487,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       }
       return;
     }
-    
+
     // If at mode selection (mode exists but no step), reset to step 0 with hybrid mode
     if (selectedProcedureType && procedureMode && !procedureStep) {
       setProcedureTab("generate");
@@ -2495,7 +2495,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setProcedureStep("0");
       return;
     }
-    
+
     // If at mode selection (procedureType exists but no mode), set to hybrid mode
     if (selectedProcedureType && !procedureMode) {
       setProcedureTab("generate");
@@ -2503,7 +2503,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       setProcedureStep("0");
       return;
     }
-    
+
     // Fallback: Reset to step 0 with hybrid mode (keep procedureType as "fieldwork")
     setProcedureTab("generate");
     setProcedureMode("hybrid");
@@ -2520,12 +2520,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Load procedure data
   const loadProcedure = async (procedureType: "planning" | "fieldwork" | "completion") => {
     if (!engagement?._id) return;
-    
+
     setProcedureTypeLoading(true);
-    
+
     try {
       const base = import.meta.env.VITE_APIURL;
-      
+
       if (procedureType === "planning") {
         const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
         if (res.ok) {
@@ -2621,7 +2621,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Fetch linked files for each row (same logic as ExtendedTBWithWorkbook)
       console.log('ClassificationSection: Fetching linked files for rows:', rows.length);
-      
+
       const byCode = new Map<string, any>();
       const byId = new Map<string, any>();
 
@@ -2634,9 +2634,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               hasRows: !!linkedResp?.rows,
               rowsCount: linkedResp?.rows?.length || 0
             });
-            
+
             const linkedRow = linkedResp?.rows?.find((lr: any) => lr.code === row.code);
-            
+
             if (linkedRow) {
               console.log(`ClassificationSection: ✅ Found linked files for row ${row.code}:`, {
                 linkedCount: linkedRow.linkedExcelFiles?.length || 0,
@@ -2664,7 +2664,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           linkedExcelFiles: Array.isArray(match?.linkedExcelFiles) ? match.linkedExcelFiles : [],
         };
       });
-      
+
       console.log('ClassificationSection: Final merged data:', {
         totalRows: merged.length,
         rowsWithLinkedFiles: merged.filter(r => r.linkedExcelFiles?.length > 0).length,
@@ -3037,13 +3037,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     console.log('🔄 loadWorkingPaperFromDB: START for classification:', classification, 'silent:', silent, 'activeTab:', activeTab);
     console.trace('🔄 loadWorkingPaperFromDB: Called from:');
     const onWpTab = activeTab === "working-papers";
-    
+
     // GUARD: Don't overwrite Lead Sheet data when on Lead Sheet tab!
     if (!onWpTab && activeTab === "lead-sheet") {
       console.log('🔄 loadWorkingPaperFromDB: SKIPPED - on Lead Sheet tab, preventing data overwrite');
       return false;
     }
-    
+
     if (onWpTab) setDbBusy("load");
     else setLoading(true);
 
@@ -3060,12 +3060,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         // ✅ Only replace sectionData if we're actually viewing Working Papers
         if (onWpTab) {
           const rows = Array.isArray(json.rows) ? json.rows : [];
-          
+
           console.log('ClassificationSection: Fetching linked files for Working Paper rows:', {
             totalRows: rows.length,
             classification
           });
-          
+
           // Fetch linked files for each row (same as Lead Sheet)
           const rowsWithLinkedFiles = await Promise.all(
             rows.map(async (row: any) => {
@@ -3075,26 +3075,26 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                   rowClassification,
                   engagementId: engagement.id || engagement._id
                 });
-                
+
                 const linkedFilesData = await getWorkingPaperWithLinkedFiles(
                   engagement.id || engagement._id,
                   rowClassification
                 );
-                
+
                 console.log(`ClassificationSection: API returned for row ${row.code}:`, {
                   hasData: !!linkedFilesData,
                   hasRows: !!linkedFilesData?.rows,
                   rowsCount: linkedFilesData?.rows?.length || 0,
                   allRowCodes: linkedFilesData?.rows?.map((r: any) => r.code)
                 });
-                
+
                 const linkedRow = linkedFilesData.rows.find((r: any) => r.code === row.code);
                 const linkedFiles = linkedRow?.linkedExcelFiles || [];
-                
+
                 console.log(`ClassificationSection: Row ${row.code} has ${linkedFiles.length} linked files:`, {
                   linkedFiles: linkedFiles.map((f: any) => ({ id: f._id, name: f.name }))
                 });
-                
+
                 return {
                   ...row,
                   linkedExcelFiles: linkedFiles
@@ -3105,14 +3105,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               }
             })
           );
-          
-            console.log('ClassificationSection: Total rows with linked files:', {
-              totalRows: rowsWithLinkedFiles.length,
-              rowsWithLinkedFiles: rowsWithLinkedFiles.filter(r => r.linkedExcelFiles?.length > 0).length
-            });
 
-            setWorkingPaperData(rowsWithLinkedFiles); // ✅ Use separate state for WP
-            console.log('🔄 loadWorkingPaperFromDB: workingPaperData updated ✅');
+          console.log('ClassificationSection: Total rows with linked files:', {
+            totalRows: rowsWithLinkedFiles.length,
+            rowsWithLinkedFiles: rowsWithLinkedFiles.filter(r => r.linkedExcelFiles?.length > 0).length
+          });
+
+          setWorkingPaperData(rowsWithLinkedFiles); // ✅ Use separate state for WP
+          console.log('🔄 loadWorkingPaperFromDB: workingPaperData updated ✅');
         }
 
         if (!silent) {
@@ -4720,167 +4720,167 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <TabsContent value="procedures" className="flex-1 flex flex-col">
               {/* Procedure Content with Generate/View Tabs - Always show like TrialBalanceTab.tsx */}
               <div className="h-full flex flex-col">
-                  <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
-                    <div className="flex items-center gap-3">
-                      {selectedProcedureType && (
-                            <Button
-                              variant="outline"
-                          size="icon"
-                          className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
-                          aria-label="Back"
-                          onClick={() => {
-                            // Hierarchical back navigation (matching TrialBalanceTab.tsx)
-                            // If in tabs view (step === "tabs"), go back to questions step
-                            if (selectedProcedureType && procedureStep === "tabs") {
+                <div className="flex items-center justify-between p-4 border-b bg-gray-50/80">
+                  <div className="flex items-center gap-3">
+                    {selectedProcedureType && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-xl bg-white border border-gray-200 text-brand-body hover:bg-gray-100 hover:text-brand-body shadow-sm"
+                        aria-label="Back"
+                        onClick={() => {
+                          // Hierarchical back navigation (matching TrialBalanceTab.tsx)
+                          // If in tabs view (step === "tabs"), go back to questions step
+                          if (selectedProcedureType && procedureStep === "tabs") {
+                            setProcedureTab("generate");
+                            setProcedureStep("1"); // Go back to questions step (step 1)
+                            return;
+                          }
+
+                          // If in a numbered step, go back one step or to mode selection
+                          if (selectedProcedureType && procedureMode && procedureStep) {
+                            const stepNum = parseInt(procedureStep, 10);
+
+                            if (stepNum > 0) {
+                              // Go back one step
                               setProcedureTab("generate");
-                              setProcedureStep("1"); // Go back to questions step (step 1)
-                              return;
-                            }
-                            
-                            // If in a numbered step, go back one step or to mode selection
-                            if (selectedProcedureType && procedureMode && procedureStep) {
-                              const stepNum = parseInt(procedureStep, 10);
-                              
-                              if (stepNum > 0) {
-                                // Go back one step
-                                setProcedureTab("generate");
-                                setProcedureStep((stepNum - 1).toString());
-                              } else {
-                                // At step 0, go back to mode selection (clear step and mode)
-                                setProcedureTab("generate");
-                                setProcedureMode(null);
-                                setProcedureStep(null);
-                              }
-                              return;
-                            }
-                            
-                            // If at mode selection (mode exists but no step), reset to step 0 with hybrid mode
-                            if (selectedProcedureType && procedureMode && !procedureStep) {
+                              setProcedureStep((stepNum - 1).toString());
+                            } else {
+                              // At step 0, go back to mode selection (clear step and mode)
                               setProcedureTab("generate");
-                              setProcedureMode("hybrid");
-                              setProcedureStep("0");
-                              return;
+                              setProcedureMode(null);
+                              setProcedureStep(null);
                             }
-                            
-                            // If at mode selection (procedureType exists but no mode), set to hybrid mode
-                            if (selectedProcedureType && !procedureMode) {
-                              setProcedureTab("generate");
-                              setProcedureMode("hybrid");
-                              setProcedureStep("0");
-                              return;
-                            }
-                            
-                            // Fallback: Reset to step 0 with hybrid mode (keep procedureType as "fieldwork")
+                            return;
+                          }
+
+                          // If at mode selection (mode exists but no step), reset to step 0 with hybrid mode
+                          if (selectedProcedureType && procedureMode && !procedureStep) {
                             setProcedureTab("generate");
                             setProcedureMode("hybrid");
                             setProcedureStep("0");
-                          }}
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                                            </Button>
-                      )}
-                      <h3 className="font-semibold text-lg">
-                        {formatClassificationForDisplay(classification)}
-                      </h3>
-                      {selectedProcedureType && (
-                              <Button
-                                variant="outline"
-                          onClick={handleRegenerate} 
-                          className="flex items-center gap-2 bg-transparent"
-                                size="sm"
-                            >
-                          <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
-                              </Button>
-                      )}
-                          </div>
-                                          <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleCloseProcedure}
-                      className="h-8 w-8"
-                    >
-                      <X className="h-4 w-4" />
-                                          </Button>
-                                  </div>
+                            return;
+                          }
 
-                  {procedureTypeLoading ? (
-                    <div className="flex items-center justify-center h-64">
-                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                      <span>Loading Procedures...</span>
-                          </div>
-                  ) : (
-                    <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="generate" className="flex items-center gap-2">
-                          <Sparkles className="h-4 w-4" /> Generate Procedures
-                        </TabsTrigger>
-                        <TabsTrigger value="view" className="flex items-center gap-2">
-                          <Eye className="h-4 w-4" /> View Procedures
-                        </TabsTrigger>
-                      </TabsList>
+                          // If at mode selection (procedureType exists but no mode), set to hybrid mode
+                          if (selectedProcedureType && !procedureMode) {
+                            setProcedureTab("generate");
+                            setProcedureMode("hybrid");
+                            setProcedureStep("0");
+                            return;
+                          }
 
-                      <TabsContent value="generate" className="flex-1 mt-6">
-                        {selectedProcedureType === "planning" ? (
-                          <PlanningProcedureGeneration
-                            engagement={engagement}
-                            existingProcedure={planningProcedure}
-                            onComplete={() => {
-                              loadProcedure("planning");
-                              setProcedureTab("view");
-                              setProcedureMode(null);
-                              setProcedureStep(null);
-                            }}
-                            onBack={handleProcedureTypeBack}
-                            updateProcedureParams={updateProcedureParams}
-                            searchParams={procedureSearchParams}
-                          />
-                        ) : selectedProcedureType === "fieldwork" ? (
-                          <ProcedureGeneration
-                            engagement={engagement}
-                            existingProcedure={fieldworkProcedure}
-                            onBack={handleProcedureTypeBack}
-                            onComplete={() => {
-                              loadProcedure("fieldwork");
-                              setProcedureTab("view");
-                              setProcedureMode(null);
-                              setProcedureStep(null);
-                            }}
-                            updateProcedureParams={updateProcedureParams}
-                            searchParams={procedureSearchParams}
-                          />
-                        ) : selectedProcedureType === "completion" ? (
-                          <CompletionProcedureGeneration
-                            engagement={engagement}
-                            onBack={handleProcedureTypeBack}
-                            existingProcedure={completionProcedure}
-                            onComplete={() => {
-                              loadProcedure("completion");
-                              setProcedureTab("view");
-                              setProcedureMode(null);
-                              setProcedureStep(null);
-                            }}
-                            updateProcedureParams={updateProcedureParams}
-                            searchParams={procedureSearchParams}
-                          />
-                        ) : null}
-                      </TabsContent>
-
-                      <TabsContent value="view" className="flex-1 mt-6 px-4 pb-4">
-                        {selectedProcedureType === "planning" ? (
-                          planningProcedure ? (
-                            <PlanningProcedureView procedure={planningProcedure} engagement={engagement} />
-                          ) : <div className="text-muted-foreground">No Planning procedures found.</div>
-                        ) : selectedProcedureType === "fieldwork" ? (
-                          fieldworkProcedure ? (
-                            <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
-                          ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
-                        ) : completionProcedure ? (
-                          <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
-                        ) : <div className="text-muted-foreground">No Completion procedures found.</div>}
-                      </TabsContent>
-                    </Tabs>
-                  )}
+                          // Fallback: Reset to step 0 with hybrid mode (keep procedureType as "fieldwork")
+                          setProcedureTab("generate");
+                          setProcedureMode("hybrid");
+                          setProcedureStep("0");
+                        }}
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <h3 className="font-semibold text-lg">
+                      {formatClassificationForDisplay(classification)}
+                    </h3>
+                    {selectedProcedureType && (
+                      <Button
+                        variant="outline"
+                        onClick={handleRegenerate}
+                        className="flex items-center gap-2 bg-transparent"
+                        size="sm"
+                      >
+                        <RefreshCw className="h-4 w-4" /> Back to Procedure Selection
+                      </Button>
+                    )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleCloseProcedure}
+                    className="h-8 w-8"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {procedureTypeLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Loading Procedures...</span>
+                  </div>
+                ) : (
+                  <Tabs value={procedureTab} onValueChange={(value) => handleProcedureTabChange(value as "generate" | "view")} className="flex-1">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="generate" className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" /> Generate Procedures
+                      </TabsTrigger>
+                      <TabsTrigger value="view" className="flex items-center gap-2">
+                        <Eye className="h-4 w-4" /> View Procedures
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="generate" className="flex-1 mt-6">
+                      {selectedProcedureType === "planning" ? (
+                        <PlanningProcedureGeneration
+                          engagement={engagement}
+                          existingProcedure={planningProcedure}
+                          onComplete={() => {
+                            loadProcedure("planning");
+                            setProcedureTab("view");
+                            setProcedureMode(null);
+                            setProcedureStep(null);
+                          }}
+                          onBack={handleProcedureTypeBack}
+                          updateProcedureParams={updateProcedureParams}
+                          searchParams={procedureSearchParams}
+                        />
+                      ) : selectedProcedureType === "fieldwork" ? (
+                        <ProcedureGeneration
+                          engagement={engagement}
+                          existingProcedure={fieldworkProcedure}
+                          onBack={handleProcedureTypeBack}
+                          onComplete={() => {
+                            loadProcedure("fieldwork");
+                            setProcedureTab("view");
+                            setProcedureMode(null);
+                            setProcedureStep(null);
+                          }}
+                          updateProcedureParams={updateProcedureParams}
+                          searchParams={procedureSearchParams}
+                        />
+                      ) : selectedProcedureType === "completion" ? (
+                        <CompletionProcedureGeneration
+                          engagement={engagement}
+                          onBack={handleProcedureTypeBack}
+                          existingProcedure={completionProcedure}
+                          onComplete={() => {
+                            loadProcedure("completion");
+                            setProcedureTab("view");
+                            setProcedureMode(null);
+                            setProcedureStep(null);
+                          }}
+                          updateProcedureParams={updateProcedureParams}
+                          searchParams={procedureSearchParams}
+                        />
+                      ) : null}
+                    </TabsContent>
+
+                    <TabsContent value="view" className="flex-1 mt-6 px-4 pb-4">
+                      {selectedProcedureType === "planning" ? (
+                        planningProcedure ? (
+                          <PlanningProcedureView procedure={planningProcedure} engagement={engagement} />
+                        ) : <div className="text-muted-foreground">No Planning procedures found.</div>
+                      ) : selectedProcedureType === "fieldwork" ? (
+                        fieldworkProcedure ? (
+                          <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                        ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
+                      ) : completionProcedure ? (
+                        <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                      ) : <div className="text-muted-foreground">No Completion procedures found.</div>}
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </div>
 
             </TabsContent>
 
@@ -6130,10 +6130,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       if (!response.ok) throw new Error("Failed to fetch ETB data");
 
       const etbData = await response.json();
-      
+
       // Track skipped rows for user feedback
       const skippedRows: string[] = [];
-      
+
       const updatedRows = (etbData.rows || []).map((row: any) => {
         // Match by code and accountName to find the corresponding row
         const isSelected = selectedRows.some(
@@ -6145,7 +6145,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         if (isSelected) {
           // Get existing classification parts
           const parts = (row.classification || "").split(" > ").map((p: string) => p.trim());
-          
+
           // Validate: Ensure row has at least 3 levels before adding Level 4
           if (!parts[0] || !parts[1] || !parts[2]) {
             skippedRows.push(`${row.code} - ${row.accountName}`);
@@ -6154,7 +6154,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             );
             return row; // Skip this row
           }
-          
+
           // Update grouping4 (parts[3]) while keeping other levels intact
           const updatedClassification = [
             parts[0],        // Level 1 (already validated)
@@ -6192,7 +6192,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Reload section data to get fresh data with updated grouping
       await loadSectionData();
-      
+
       // Notify parent to refresh ETB data
       if (loadExistingData) {
         loadExistingData();
@@ -6232,11 +6232,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       rowCount: workingPaperData.length,
       rowsWithLinkedFiles: workingPaperData.filter(r => r.linkedExcelFiles?.length > 0).length
     });
-    
+
     console.log('Waiting 500ms for backend to persist data...');
     // Increased delay to ensure backend has fully persisted the data
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     console.log('Now reloading data based on active tab:', activeTab);
     // ✅ FIX: Load the correct data based on active tab
     if (activeTab === 'working-papers') {
@@ -6244,14 +6244,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     } else {
       await loadSectionData();
     }
-    
+
     console.log('Incrementing refresh trigger to force WorkBookApp remount...');
     setLeadSheetRefreshTrigger(prev => {
       const newValue = prev + 1;
       console.log(`Refresh trigger: ${prev} -> ${newValue}`);
       return newValue;
     });
-    
+
     const endTime = Date.now();
     console.log(`========== REFRESH COMPLETE (took ${endTime - startTime}ms) ==========`);
   }
@@ -6289,9 +6289,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Call API to remove workbook
       await deleteWorkbookFromLinkedFilesInExtendedTB(
-        engagementId, 
+        engagementId,
         rowClassification, // Use row's actual classification
-        rowId, 
+        rowId,
         workbookId
       );
 
@@ -6311,6 +6311,1327 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     }
   }
 
+
+
+
+  // Helper function to check if classification is Liabilities or Equity
+  function isLiabilityOrEquityClassification(classification: string) {
+    if (!classification) return false;
+    const parts = classification.split(" > ");
+    return parts[0] === "Liabilities" || parts[0] === "Equity";
+  }
+
+  function isAssetsClassification(classification: string) {
+    if (!classification) return false;
+    const parts = classification.split(" > ");
+    return parts[0] === "Assets";
+  }
+
+  // Helper function to format values based on classification type
+  function formatValueForDisplay(value: number, classification: string) {
+    // Ensure proper number conversion, handling strings and edge cases
+    let numValue = 0;
+    if (value !== null && value !== undefined && value !== '') {
+      const parsed = Number(value);
+      if (!isNaN(parsed)) {
+        numValue = parsed;
+      }
+    }
+    
+    // Handle zero values explicitly - no reverse sign, no parentheses, just return "0"
+    if (Math.abs(numValue) < 0.0001) {
+      return "0";
+    }
+    
+    // Normalize classification string (trim whitespace)
+    const normalizedClassification = classification ? classification.trim() : '';
+    const isLiabilityOrEquity = isLiabilityOrEquityClassification(normalizedClassification);
+    const isAssets = isAssetsClassification(normalizedClassification);
+
+    // For Liabilities & Equity: reverse the sign
+    if (isLiabilityOrEquity) {
+      const reversedValue = -numValue;
+      // Display negative values in parentheses (no "-" symbol, use parentheses instead)
+      if (reversedValue < 0) {
+        // Use Math.abs to ensure no negative sign, then format with parentheses
+        // Convert to absolute value first to ensure no negative sign in the formatted string
+        const absValue = Math.abs(reversedValue);
+        // Format the absolute value (which is always positive) and wrap in parentheses
+        const formatted = absValue.toLocaleString();
+        // Ensure no negative sign in the formatted string (defensive check)
+        const cleanFormatted = formatted.replace(/^-/, '');
+        return `(${cleanFormatted})`;
+      }
+      // For positive values, display normally
+      return reversedValue.toLocaleString();
+    }
+
+    // For Assets: no reverse sign, but display negative values in parentheses
+    if (isAssets) {
+      if (numValue < 0) {
+        // Use Math.abs to ensure no negative sign, then format with parentheses
+        const absValue = Math.abs(numValue);
+        const formatted = absValue.toLocaleString();
+        // Ensure no negative sign in the formatted string (defensive check)
+        const cleanFormatted = formatted.replace(/^-/, '');
+        return `(${cleanFormatted})`;
+      }
+      return numValue.toLocaleString();
+    }
+
+    // For other classifications: default formatting
+    return numValue.toLocaleString();
+  }
+
+
+
+  // Helper function to get available Grouping 4 values based on selected rows' Level 1-3 classification
+  // Only shows Level 4 options that match the selected rows' existing classification
+  function getAvailableGrouping4Values(data: ETBRow[]): string[] {
+    // Get selected rows
+    const selectedRows = data.filter(row => selectedRowIds.has(getRowId(row)));
+
+    // If no rows selected, analyze ALL rows in the current section to find their common Level 1-3
+    const rowsToAnalyze = selectedRows.length > 0 ? selectedRows : data;
+
+    if (rowsToAnalyze.length === 0) {
+      // Fallback: return all Level 4 values
+      const allGrouping4Values = new Set<string>();
+      NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
+        const parts = opt.split(" > ").map(p => p.trim());
+        const level4 = parts[3];
+        if (level4) {
+          allGrouping4Values.add(level4);
+        }
+      });
+      return Array.from(allGrouping4Values).sort();
+    }
+
+    // Get the Level 1-3 classification from the first row to analyze
+    const firstRow = rowsToAnalyze[0];
+    const parts = (firstRow.classification || "").split(" > ").map(p => p.trim());
+    const level1 = parts[0] || "";
+    const level2 = parts[1] || "";
+    const level3 = parts[2] || "";
+
+    // If Level 1-3 are not complete, return empty array (will show warning)
+    if (!level1 || !level2 || !level3) {
+      console.warn('Rows need complete Level 1-3 classification before adding Level 4');
+      return [];
+    }
+
+    // Filter NEW_CLASSIFICATION_OPTIONS to only show Level 4 values that match this Level 1-3
+    const matchingGrouping4Values = new Set<string>();
+    const prefix = `${level1} > ${level2} > ${level3}`;
+
+    NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
+      if (opt.startsWith(prefix)) {
+        const parts = opt.split(" > ").map(p => p.trim());
+        const level4 = parts[3];
+        if (level4) {
+          matchingGrouping4Values.add(level4);
+        }
+      }
+    });
+
+    const result = Array.from(matchingGrouping4Values).sort();
+    console.log(`Available Grouping 4 values for "${prefix}":`, result.length, 'items', result);
+
+    return result;
+  }
+
+  function renderDataTable(sectionData, sectionTotals = null) {
+    console.log('renderDataTable called with:', {
+      rowCount: sectionData?.length || 0,
+      rowsWithLinkedFiles: sectionData?.filter(r => r.linkedExcelFiles?.length > 0).length || 0,
+      firstThreeRows: sectionData?.slice(0, 3).map(r => ({
+        code: r.code,
+        name: r.accountName,
+        linkedCount: r.linkedExcelFiles?.length || 0
+      })) || []
+    });
+
+    // Calculate totals from sectionData if sectionTotals is not provided
+    const currentTotals = sectionTotals || calculateTotals(sectionData);
+    const isSignedOff = reviewWorkflow?.isSignedOff;
+
+    // Get classification from sectionData for formatting
+    const rowClassification = sectionData.length > 0
+      ? sectionData[0].classification
+      : classification || "";
+
+    // Check if this is a Liabilities or Equity classification
+    const isLiabilityOrEquity = isLiabilityOrEquityClassification(rowClassification);
+    
+    // Check if this is an Assets classification
+    const isAssets = isAssetsClassification(rowClassification);
+
+    // Determine if we should show the Liabilities or Equity totals
+    const showLiabilitiesOrEquityTotals = isLiabilityOrEquity && !isAdjustments(classification);
+
+
+
+    if (isETB(classification)) {
+
+      // ETB view
+
+      return (
+
+        <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
+
+          <div className="overflow-x-auto">
+
+            <table className="w-full text-sm">
+
+              <thead className="bg-gray-50">
+
+                <tr>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Code</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[12rem] max-w-[12rem] text-xs sm:text-sm">Account Name</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[8rem] text-xs sm:text-sm">Re-Classification</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Adjustments</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Final Balance</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
+
+                  <th className="px-4 py-2 border-b border-secondary font-bold w-[8rem] text-xs sm:text-sm">Linked Files</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {sectionData.map((row, index) => (
+
+                  <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
+
+                    <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
+                      {formatValueForDisplay(Number(row.currentYear) || 0, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
+                      {formatValueForDisplay(Number(row.reclassification) || 0, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
+                      {formatValueForDisplay(Number(row.adjustments) || 0, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right font-medium">
+                      {formatValueForDisplay(Number(row.finalBalance) || 0, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
+                      {formatValueForDisplay(Number(row.priorYear) || 0, rowClassification)}
+                    </td>
+
+                    <td className="px-4 py-2 border-b border-secondary text-left">
+                      <Drawer>
+                        <DrawerTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-3"
+                            disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                          </Button>
+                        </DrawerTrigger>
+                        <DrawerContent>
+                          <DrawerHeader>
+                            <DrawerTitle>Linked Excel Files</DrawerTitle>
+                            <DrawerDescription>
+                              Manage linked files for {row.accountName} ({row.code})
+                            </DrawerDescription>
+                          </DrawerHeader>
+                          <div className="px-4 pb-4">
+                            {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                              <div className="text-center py-8 text-muted-foreground">
+                                No linked files for this row.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {row.linkedExcelFiles.map((workbook: any) => (
+                                  <div
+                                    key={workbook._id}
+                                    className="flex items-center justify-between p-3 border rounded-lg"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                      <div>
+                                        <p className="font-medium">{workbook.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleViewWorkbook(workbook)}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Remove
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                              This action cannot be undone.
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                              Remove
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <DrawerFooter>
+                            <DrawerClose asChild>
+                              <Button variant="outline">Close</Button>
+                            </DrawerClose>
+                          </DrawerFooter>
+                        </DrawerContent>
+                      </Drawer>
+                    </td>
+
+                  </tr>
+
+                ))}
+
+                {sectionData.length > 0 && (
+                  <tr className="bg-muted/50 font-medium">
+                    <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                      TOTALS
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {formatValueForDisplay(currentTotals.currentYear, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {formatValueForDisplay(currentTotals.reclassification || 0, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {formatValueForDisplay(currentTotals.adjustments, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {formatValueForDisplay(currentTotals.finalBalance, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                      {formatValueForDisplay(currentTotals.priorYear, rowClassification)}
+                    </td>
+                    <td className="px-4 py-2 border-r-secondary border"></td>
+                  </tr>
+                )}
+
+                {sectionData.length === 0 && (
+
+                  <tr>
+
+                    <td
+
+                      colSpan={8}
+
+                      className="px-4 py-8 text-center text-gray-500"
+
+                    >
+
+                      No ETB rows found
+
+                    </td>
+
+                  </tr>
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      );
+
+    } else if (isAdjustments(classification)) {
+
+      // Adjustments view: grouped by top categories
+
+      return (
+
+        <div className="overflow-x-auto space-y-6">
+
+          {Object.entries(groupedForAdjustments).map(([cls, items]) => {
+
+            const subtotal = items.reduce(
+
+              (acc, r) => ({
+
+                currentYear: acc.currentYear + (Number(r.currentYear) || 0),
+
+                priorYear: acc.priorYear + (Number(r.priorYear) || 0),
+
+                adjustments: acc.adjustments + (Number(r.adjustments) || 0),
+
+                reclassification: acc.reclassification + (Number(r.reclassification) || 0),
+
+                finalBalance: acc.finalBalance + (Number(r.finalBalance) || 0),
+
+              }),
+
+              { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
+
+            );
+
+            // Get classification from items for formatting
+            const itemClassification = items.length > 0
+              ? items[0].classification
+              : "";
+            
+            // Check if this is a Liabilities or Equity classification
+            const isLiabilityOrEquity = isLiabilityOrEquityClassification(itemClassification);
+            
+            // Check if this is an Assets classification
+            const isAssets = isAssetsClassification(itemClassification);
+
+            return (
+
+              <div key={cls} className="border border-secondary rounded-lg ">
+
+                <div className="px-4 py-2 border-b border-secondary font-medium">
+
+                  {formatClassificationForDisplay(cls) || "Unclassified"}
+
+                </div>
+
+                <div className="">
+
+                  <table className="w-full text-sm">
+
+                    <thead>
+
+                      <tr>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Code</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
+
+                        <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
+
+                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
+
+                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Linked Files</th>
+
+
+
+                      </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                      {items.map((row) => (
+
+                        <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
+
+                          <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">
+                            {row.code}
+                          </td>
+                          <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                            {formatValueForDisplay(Number(row.currentYear) || 0, row.classification || itemClassification)}
+                          </td>
+                          <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                            {formatValueForDisplay(Number(row.reclassification) || 0, row.classification || itemClassification)}
+                          </td>
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                            {formatValueForDisplay(Number(row.adjustments) || 0, row.classification || itemClassification)}
+                          </td>
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                            {formatValueForDisplay(Number(row.finalBalance) || 0, row.classification || itemClassification)}
+                          </td>
+                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                            {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || itemClassification)}
+                          </td>
+
+                          <td className="px-4 py-2 border-secondary border-b text-left">
+                            <Drawer>
+                              <DrawerTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-3"
+                                  disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                                </Button>
+                              </DrawerTrigger>
+                              <DrawerContent>
+                                <DrawerHeader>
+                                  <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                  <DrawerDescription>
+                                    Manage linked files for {row.accountName} ({row.code})
+                                  </DrawerDescription>
+                                </DrawerHeader>
+                                <div className="px-4 pb-4">
+                                  {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                      No linked files for this row.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {row.linkedExcelFiles.map((workbook: any) => (
+                                        <div
+                                          key={workbook._id}
+                                          className="flex items-center justify-between p-3 border rounded-lg"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                            <div>
+                                              <p className="font-medium">{workbook.name}</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleViewWorkbook(workbook)}
+                                            >
+                                              <ExternalLink className="h-4 w-4 mr-2" />
+                                              View
+                                            </Button>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button
+                                                  variant="destructive"
+                                                  size="sm"
+                                                >
+                                                  <Trash2 className="h-4 w-4 mr-2" />
+                                                  Remove
+                                                </Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                    This action cannot be undone.
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction
+                                                    onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                  >
+                                                    Remove
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <DrawerFooter>
+                                  <DrawerClose asChild>
+                                    <Button variant="outline">Close</Button>
+                                  </DrawerClose>
+                                </DrawerFooter>
+                              </DrawerContent>
+                            </Drawer>
+                          </td>
+
+
+
+                        </tr>
+
+                      ))}
+
+                      <tr className="bg-muted/50 font-bold border-t">
+
+                        <td className="px-4 py-2 border-r border-secondary" colSpan={2}>
+
+                          Subtotal
+
+                        </td>
+
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+                          {formatValueForDisplay(subtotal.currentYear, itemClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+                          {formatValueForDisplay(subtotal.reclassification, itemClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+                          {formatValueForDisplay(subtotal.adjustments, itemClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+                          {formatValueForDisplay(subtotal.finalBalance, itemClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary text-right">
+                          {formatValueForDisplay(subtotal.priorYear, itemClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary"></td>
+
+                      </tr>
+
+                    </tbody>
+
+                  </table>
+
+                </div>
+
+              </div>
+
+            );
+
+          })}
+
+
+
+          {/* Grand Totals for Adjustments */}
+          {/* Note: Grand Totals are mixed from all classifications, so we use default formatting */}
+          <div className="border rounded-lg border-secondary overflow-hidden">
+
+            <div className="px-4 py-2 border-b bg-gray-50 border-secondary font-medium">
+
+              Adjustments — Grand Total
+
+            </div>
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full text-sm">
+
+                <tbody>
+
+                  <tr>
+
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Current Year</td>
+
+                    <td className="px-4 py-2 border-secondary border-b text-right">
+
+                      {totals.currentYear.toLocaleString()}
+
+                    </td>
+
+                  </tr>
+
+                  <tr>
+
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Prior Year</td>
+
+                    <td className="px-4 py-2 border-secondary border-b text-right">
+
+                      {totals.priorYear.toLocaleString()}
+
+                    </td>
+
+                  </tr>
+
+                  <tr>
+
+                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Adjustments</td>
+
+                    <td className="px-4 py-2 border-secondary border-b text-right">
+
+                      {totals.adjustments.toLocaleString()}
+
+                    </td>
+
+                  </tr>
+
+                  <tr>
+
+                    <td className="px-4 py-2 border-r border-secondary font-bold">Final Balance</td>
+
+                    <td className="px-4 py-2 border-secondary text-right">
+
+                      {totals.finalBalance.toLocaleString()}
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      );
+
+    } else {
+      // Normal classification/category table
+      // Separate rows by grouping4 status
+      const groupedRows = sectionData.filter(row => row.grouping4 && row.grouping4.trim() !== '');
+      const ungroupedRows = sectionData.filter(row => !row.grouping4 || row.grouping4.trim() === '');
+
+      // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
+      // based on the classifications present in sectionData
+      // For "Change Grouping" mode, pass ALL sectionData (both grouped and ungrouped)
+      // so it can analyze the common Level 1-3 classification
+      const availableGrouping4Values = getAvailableGrouping4Values(sectionData);
+
+      // Also include any existing grouping4 values from the data (for backwards compatibility)
+      const existingGrouping4Values = [
+        ...new Set(
+          sectionData
+            .map(row => row.grouping4)
+            .filter(g4 => g4 && g4.trim() !== '')
+        )
+      ];
+
+      // Combine both lists and remove duplicates
+      const uniqueGrouping4Values = [
+        ...new Set([...availableGrouping4Values, ...existingGrouping4Values])
+      ].sort();
+
+      // Log for debugging
+      console.log('Grouping Mode:', {
+        isGroupingMode,
+        selectedRowsCount: selectedRowIds.size,
+        availableOptionsCount: availableGrouping4Values.length,
+        existingValuesCount: existingGrouping4Values.length,
+        totalUniqueCount: uniqueGrouping4Values.length,
+        values: uniqueGrouping4Values
+      });
+
+      return (
+        <div className="space-y-6">
+          {/* Grouping Controls */}
+          {isGroupingMode && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      Grouping Mode Active
+                    </h4>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedRowIds.size} row{selectedRowIds.size !== 1 ? 's' : ''} selected
+                    </Badge>
+                  </div>
+
+                  {/* Show message if no rows selected */}
+                  {selectedRowIds.size === 0 ? (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Info className="h-4 w-4 text-yellow-700" />
+                        <span className="text-sm font-medium text-yellow-800">
+                          No rows selected
+                        </span>
+                      </div>
+                      <p className="text-xs text-yellow-700">
+                        Please select one or more rows from the table below using the checkboxes, then choose a Grouping 4 value.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="grouping4-select" className="text-xs text-gray-600">
+                        Select Grouping 4 value:
+                      </Label>
+                      {uniqueGrouping4Values.length === 0 ? (
+                        <div className="p-3 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                          ⚠️ Selected rows need complete Level 1-3 classification before adding Level 4.
+                        </div>
+                      ) : (
+                        <Select value={grouping4Value} onValueChange={setGrouping4Value}>
+                          <SelectTrigger className="max-w-xs">
+                            <SelectValue placeholder="Choose grouping value" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {uniqueGrouping4Values.map((value, index) => (
+                              <SelectItem key={index} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                            {/* Option to add custom value */}
+                            <div className="p-2 border-t">
+                              <Input
+                                placeholder="Or type new value..."
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const newValue = e.currentTarget.value.trim();
+                                    if (newValue) {
+                                      setGrouping4Value(newValue);
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedRowIds.size > 0 && grouping4Value && (
+                    <Button
+                      onClick={completeGrouping}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Complete Grouping
+                    </Button>
+                  )}
+                  <Button
+                    onClick={cancelGroupingMode}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Already Grouped 4 Section */}
+          {groupedRows.length > 0 && (
+            <div className="border border-secondary rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                  Already Grouped (Grouping 4)
+                </h4>
+                {!isGroupingMode && (
+                  <Button
+                    onClick={startGroupingMode}
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    disabled={isSignedOff}
+                  >
+                    <Edit2 className="h-3 w-3 mr-1" />
+                    Change Grouping
+                  </Button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {isGroupingMode && (
+                        <th
+                          className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={groupedRows.length > 0 && groupedRows.every(row => selectedRowIds.has(getRowId(row)))}
+                              onCheckedChange={(checked) => {
+                                console.log('Select all grouped rows:', checked);
+                                if (checked) {
+                                  setSelectedRowIds(new Set([...selectedRowIds, ...groupedRows.map(r => getRowId(r))]));
+                                } else {
+                                  const newSet = new Set(selectedRowIds);
+                                  groupedRows.forEach(r => newSet.delete(getRowId(r)));
+                                  setSelectedRowIds(newSet);
+                                }
+                              }}
+                              aria-label="Select all grouped rows"
+                              disabled={isSignedOff}
+                            />
+                          </div>
+                        </th>
+                      )}
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedRows.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                      >
+                        {isGroupingMode && (
+                          <td
+                            className="px-4 py-2 border-r border-secondary border-b text-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-center">
+                              <Checkbox
+                                checked={selectedRowIds.has(getRowId(row))}
+                                onCheckedChange={(checked) => {
+                                  console.log('Grouped row checkbox clicked:', row.accountName, 'checked:', checked);
+                                  toggleRowSelection(getRowId(row));
+                                }}
+                                aria-label={`Select ${row.accountName}`}
+                                disabled={isSignedOff}
+                              />
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.currentYear) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                          {formatValueForDisplay(Number(row.reclassification) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.adjustments) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {formatValueForDisplay(Number(row.finalBalance) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b text-left">
+                          <Drawer>
+                            <DrawerTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3"
+                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                              </Button>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                              <DrawerHeader>
+                                <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                <DrawerDescription>
+                                  Manage linked files for {row.accountName} ({row.code})
+                                </DrawerDescription>
+                              </DrawerHeader>
+                              <div className="px-4 pb-4">
+                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    No linked files for this row.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {row.linkedExcelFiles.map((workbook: any) => (
+                                      <div
+                                        key={workbook._id}
+                                        className="flex items-center justify-between p-3 border rounded-lg"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                          <div>
+                                            <p className="font-medium">{workbook.name}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleViewWorkbook(workbook)}
+                                          >
+                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                            View
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                              >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Remove
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                  This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <DrawerFooter>
+                                <DrawerClose asChild>
+                                  <Button variant="outline">Close</Button>
+                                </DrawerClose>
+                              </DrawerFooter>
+                            </DrawerContent>
+                          </Drawer>
+                        </td>
+
+                      </tr>
+                    ))}
+                    {/* Totals row for grouped section */}
+                    {groupedRows.length > 0 && (
+                      <tr className="bg-muted/50 font-medium">
+                        {isGroupingMode && <td className="px-4 py-2 border-r-secondary border"></td>}
+                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                          TOTALS
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            groupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            groupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            groupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            groupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            groupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Not Grouped Section */}
+          {ungroupedRows.length > 0 && (
+            <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
+              {/* Action Buttons */}
+              {!isGroupingMode && selectedRowIds.size > 0 && (
+                <div className="p-3 bg-green-50 dark:bg-green-950/20 border-b border-green-200 flex justify-end">
+                  <Button
+                    onClick={startGroupingMode}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Grouping
+                  </Button>
+                </div>
+              )}
+
+              <div className="overflow-x-auto -mr-1">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th
+                        className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            checked={ungroupedRows.length > 0 && ungroupedRows.every(row => selectedRowIds.has(getRowId(row)))}
+                            onCheckedChange={(checked) => {
+                              console.log('Select all ungrouped rows:', checked);
+                              if (checked) {
+                                setSelectedRowIds(new Set([...selectedRowIds, ...ungroupedRows.map(r => getRowId(r))]));
+                              } else {
+                                const newSet = new Set(selectedRowIds);
+                                ungroupedRows.forEach(r => newSet.delete(getRowId(r)));
+                                setSelectedRowIds(newSet);
+                              }
+                            }}
+                            aria-label="Select all ungrouped rows"
+                            disabled={isSignedOff}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
+                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
+                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ungroupedRows.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                      >
+                        <td
+                          className="px-4 py-2 border-r border-secondary border-b text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={selectedRowIds.has(getRowId(row))}
+                              onCheckedChange={(checked) => {
+                                console.log('Checkbox clicked for row:', row.accountName, 'checked:', checked);
+                                toggleRowSelection(getRowId(row));
+                              }}
+                              aria-label={`Select ${row.accountName}`}
+                              disabled={isSignedOff}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.currentYear) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
+                          {formatValueForDisplay(Number(row.reclassification) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.adjustments) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
+                          {formatValueForDisplay(Number(row.finalBalance) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
+                          {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || rowClassification)}
+                        </td>
+                        <td className="px-4 py-2 border-secondary border-b text-left">
+                          <Drawer>
+                            <DrawerTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3"
+                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                              </Button>
+                            </DrawerTrigger>
+                            <DrawerContent>
+                              <DrawerHeader>
+                                <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                <DrawerDescription>
+                                  Manage linked files for {row.accountName} ({row.code})
+                                </DrawerDescription>
+                              </DrawerHeader>
+                              <div className="px-4 pb-4">
+                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    No linked files for this row.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {row.linkedExcelFiles.map((workbook: any) => (
+                                      <div
+                                        key={workbook._id}
+                                        className="flex items-center justify-between p-3 border rounded-lg"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                          <div>
+                                            <p className="font-medium">{workbook.name}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleViewWorkbook(workbook)}
+                                          >
+                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                            View
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                              >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Remove
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                  This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <DrawerFooter>
+                                <DrawerClose asChild>
+                                  <Button variant="outline">Close</Button>
+                                </DrawerClose>
+                              </DrawerFooter>
+                            </DrawerContent>
+                          </Drawer>
+                        </td>
+
+                      </tr>
+                    ))}
+                    {ungroupedRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="px-4 py-8 text-center text-gray-500"
+                        >
+                          All rows are grouped
+                        </td>
+                      </tr>
+                    )}
+                    {ungroupedRows.length > 0 && (
+                      <tr className="bg-muted/50 font-medium">
+                        <td className="px-4 py-2 border-r-secondary border"></td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
+                          TOTALS
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            ungroupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            ungroupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
+                          {formatValueForDisplay(
+                            ungroupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0),
+                            rowClassification
+                          )}
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+  }
+
+
+
+
+
+
+
   function renderLeadSheetContent() {
     console.log('🎨 renderLeadSheetContent called with sectionData:', {
       rowCount: sectionData.length,
@@ -6323,7 +7644,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     });
 
     const subSections = groupBySubCategory(sectionData);
-    
+
     console.log('🎨 After groupBySubCategory:', {
       sectionCount: subSections.length,
       sections: subSections.map(s => ({
@@ -6383,7 +7704,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               reclassification: row.reclassification ? Math.round(row.reclassification) : row.reclassification,
               finalBalance: Math.round(row.finalBalance),
             }));
-            
+
             const sectionTotals = calculateTotals(roundedData);
             return (
               <div key={index}>
@@ -6433,7 +7754,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     });
 
     const subSections = groupBySubCategory(sectionData);
-    
+
     console.log('🎨 After groupBySubCategory:', {
       sectionCount: subSections.length,
       sections: subSections.map(s => ({
@@ -6493,7 +7814,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
               reclassification: row.reclassification ? Math.round(row.reclassification) : row.reclassification,
               finalBalance: Math.round(row.finalBalance),
             }));
-            
+
             const sectionTotals = calculateTotals(roundedData);
             return (
               <div key={index}>
@@ -6513,10 +7834,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <FileSpreadsheet className="h-5 w-5" />
             Linked Workbooks
           </h3>
-          <WorkBookApp 
+          <WorkBookApp
             key={`workbook-app-${leadSheetRefreshTrigger}`}
-            engagement={engagement} 
-            engagementId={engagement.id || engagement._id} 
+            engagement={engagement}
+            engagementId={engagement.id || engagement._id}
             classification={classification}
             etbRows={sectionData}
             onRefreshData={refreshLeadSheetData}
@@ -6600,10 +7921,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <FileSpreadsheet className="h-5 w-5" />
             Linked Workbooks
           </h3>
-          <WorkBookApp 
+          <WorkBookApp
             key={`workbook-app-wp-${leadSheetRefreshTrigger}`}
-            engagement={engagement} 
-            engagementId={engagement.id || engagement._id} 
+            engagement={engagement}
+            engagementId={engagement.id || engagement._id}
             classification={classification}
             etbRows={workingPaperData}
             onRefreshData={refreshLeadSheetData}
@@ -7649,10 +8970,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <FileSpreadsheet className="h-5 w-5" />
             Linked Workbooks
           </h3>
-          <WorkBookApp 
+          <WorkBookApp
             key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
-            engagement={engagement} 
-            engagementId={engagement.id || engagement._id} 
+            engagement={engagement}
+            engagementId={engagement.id || engagement._id}
             classification={classification}
             etbRows={evidenceFiles.map(file => ({
               _id: file.id,
@@ -8951,1233 +10272,6 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-  // Helper function to get available Grouping 4 values based on selected rows' Level 1-3 classification
-  // Only shows Level 4 options that match the selected rows' existing classification
-  function getAvailableGrouping4Values(data: ETBRow[]): string[] {
-    // Get selected rows
-    const selectedRows = data.filter(row => selectedRowIds.has(getRowId(row)));
-    
-    // If no rows selected, analyze ALL rows in the current section to find their common Level 1-3
-    const rowsToAnalyze = selectedRows.length > 0 ? selectedRows : data;
-    
-    if (rowsToAnalyze.length === 0) {
-      // Fallback: return all Level 4 values
-      const allGrouping4Values = new Set<string>();
-      NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
-        const parts = opt.split(" > ").map(p => p.trim());
-        const level4 = parts[3];
-        if (level4) {
-          allGrouping4Values.add(level4);
-        }
-      });
-      return Array.from(allGrouping4Values).sort();
-    }
-
-    // Get the Level 1-3 classification from the first row to analyze
-    const firstRow = rowsToAnalyze[0];
-    const parts = (firstRow.classification || "").split(" > ").map(p => p.trim());
-    const level1 = parts[0] || "";
-    const level2 = parts[1] || "";
-    const level3 = parts[2] || "";
-
-    // If Level 1-3 are not complete, return empty array (will show warning)
-    if (!level1 || !level2 || !level3) {
-      console.warn('Rows need complete Level 1-3 classification before adding Level 4');
-      return [];
-    }
-
-    // Filter NEW_CLASSIFICATION_OPTIONS to only show Level 4 values that match this Level 1-3
-    const matchingGrouping4Values = new Set<string>();
-    const prefix = `${level1} > ${level2} > ${level3}`;
-    
-    NEW_CLASSIFICATION_OPTIONS.forEach(opt => {
-      if (opt.startsWith(prefix)) {
-        const parts = opt.split(" > ").map(p => p.trim());
-        const level4 = parts[3];
-        if (level4) {
-          matchingGrouping4Values.add(level4);
-        }
-      }
-    });
-
-    const result = Array.from(matchingGrouping4Values).sort();
-    console.log(`Available Grouping 4 values for "${prefix}":`, result.length, 'items', result);
-
-    return result;
-  }
-
-  function renderDataTable(sectionData, sectionTotals = null) {
-    console.log('renderDataTable called with:', {
-      rowCount: sectionData?.length || 0,
-      rowsWithLinkedFiles: sectionData?.filter(r => r.linkedExcelFiles?.length > 0).length || 0,
-      firstThreeRows: sectionData?.slice(0, 3).map(r => ({
-        code: r.code,
-        name: r.accountName,
-        linkedCount: r.linkedExcelFiles?.length || 0
-      })) || []
-    });
-
-    // Calculate totals from sectionData if sectionTotals is not provided
-    const currentTotals = sectionTotals || calculateTotals(sectionData);
-    const isSignedOff = reviewWorkflow?.isSignedOff;
-
-
-
-    if (isETB(classification)) {
-
-      // ETB view
-
-      return (
-
-        <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
-
-          <div className="overflow-x-auto">
-
-            <table className="w-full text-sm">
-
-              <thead className="bg-gray-50">
-
-                <tr>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Code</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[12rem] max-w-[12rem] text-xs sm:text-sm">Account Name</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Current Year</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[8rem] text-xs sm:text-sm">Re-Classification</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Adjustments</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Final Balance</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
-
-                  <th className="px-4 py-2 border-b border-secondary font-bold w-[8rem] text-xs sm:text-sm">Linked Files</th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {sectionData.map((row, index) => (
-
-                  <tr key={index} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r font-mono text-xs">{row.code}</td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
-
-                      {row.currentYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
-                      {(Number(row.reclassification) || 0).toLocaleString()}
-                    </td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
-
-                      {row.adjustments.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r text-right font-medium">
-
-                      {row.finalBalance.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-b border-secondary border-r text-right">
-
-                      {row.priorYear.toLocaleString()}
-
-                    </td>
-
-                    <td className="px-4 py-2 border-b border-secondary text-left">
-                      <Drawer>
-                        <DrawerTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3"
-                            disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                          </Button>
-                        </DrawerTrigger>
-                        <DrawerContent>
-                          <DrawerHeader>
-                            <DrawerTitle>Linked Excel Files</DrawerTitle>
-                            <DrawerDescription>
-                              Manage linked files for {row.accountName} ({row.code})
-                            </DrawerDescription>
-                          </DrawerHeader>
-                          <div className="px-4 pb-4">
-                            {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                              <div className="text-center py-8 text-muted-foreground">
-                                No linked files for this row.
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {row.linkedExcelFiles.map((workbook: any) => (
-                                  <div
-                                    key={workbook._id}
-                                    className="flex items-center justify-between p-3 border rounded-lg"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                      <div>
-                                        <p className="font-medium">{workbook.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleViewWorkbook(workbook)}
-                                      >
-                                        <ExternalLink className="h-4 w-4 mr-2" />
-                                        View
-                                      </Button>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Remove
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                              This action cannot be undone.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            >
-                                              Remove
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <DrawerFooter>
-                            <DrawerClose asChild>
-                              <Button variant="outline">Close</Button>
-                            </DrawerClose>
-                          </DrawerFooter>
-                        </DrawerContent>
-                      </Drawer>
-                    </td>
-
-                  </tr>
-
-                ))}
-
-                {sectionData.length > 0 && (
-                  <tr className="bg-muted/50 font-medium">
-                    <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
-                      TOTALS
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {currentTotals.currentYear.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {(currentTotals.reclassification || 0).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {currentTotals.adjustments.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {currentTotals.finalBalance.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                      {currentTotals.priorYear.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 border-r-secondary border"></td>
-                  </tr>
-                )}
-
-                {sectionData.length === 0 && (
-
-                  <tr>
-
-                    <td
-
-                      colSpan={8}
-
-                      className="px-4 py-8 text-center text-gray-500"
-
-                    >
-
-                      No ETB rows found
-
-                    </td>
-
-                  </tr>
-
-                )}
-
-              </tbody>
-
-            </table>
-
-          </div>
-
-        </div>
-
-      );
-
-    } else if (isAdjustments(classification)) {
-
-      // Adjustments view: grouped by top categories
-
-      return (
-
-        <div className="overflow-x-auto space-y-6">
-
-          {Object.entries(groupedForAdjustments).map(([cls, items]) => {
-
-            const subtotal = items.reduce(
-
-              (acc, r) => ({
-
-                currentYear: acc.currentYear + (Number(r.currentYear) || 0),
-
-                priorYear: acc.priorYear + (Number(r.priorYear) || 0),
-
-                adjustments: acc.adjustments + (Number(r.adjustments) || 0),
-
-                reclassification: acc.reclassification + (Number(r.reclassification) || 0),
-
-                finalBalance: acc.finalBalance + (Number(r.finalBalance) || 0),
-
-              }),
-
-              { currentYear: 0, priorYear: 0, adjustments: 0, reclassification: 0, finalBalance: 0 }
-
-            );
-
-            return (
-
-              <div key={cls} className="border border-secondary rounded-lg ">
-
-                <div className="px-4 py-2 border-b border-secondary font-medium">
-
-                  {formatClassificationForDisplay(cls) || "Unclassified"}
-
-                </div>
-
-                <div className="">
-
-                  <table className="w-full text-sm">
-
-                    <thead>
-
-                      <tr>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left">Code</th>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Current Year</th>
-
-                        <th className="px-4 py-2 font-bold border-secondary border-b border-r text-left">Re-Classification</th>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Adjustments</th>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Final Balance</th>
-
-                        <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
-
-                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Linked Files</th>
-
-
-
-                      </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                      {items.map((row) => (
-
-                        <tr key={row.id} className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">
-
-                            {row.code}
-
-                          </td>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                            {row.currentYear.toLocaleString()}
-
-                          </td>
-
-                          <td className="px-4 py-2 border-secondary border-b border-r text-right">
-                            {(Number(row.reclassification) || 0).toLocaleString()}
-                          </td>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
-
-                            {row.adjustments.toLocaleString()}
-
-                          </td>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                            {row.finalBalance.toLocaleString()}
-
-                          </td>
-
-                          <td className="px-4 py-2 border-r border-secondary border-b text-right">
-
-                            {row.priorYear.toLocaleString()}
-
-                          </td>
-
-                          <td className="px-4 py-2 border-secondary border-b text-left">
-                            <Drawer>
-                              <DrawerTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-3"
-                                  disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                                </Button>
-                              </DrawerTrigger>
-                              <DrawerContent>
-                                <DrawerHeader>
-                                  <DrawerTitle>Linked Excel Files</DrawerTitle>
-                                  <DrawerDescription>
-                                    Manage linked files for {row.accountName} ({row.code})
-                                  </DrawerDescription>
-                                </DrawerHeader>
-                                <div className="px-4 pb-4">
-                                  {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                      No linked files for this row.
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {row.linkedExcelFiles.map((workbook: any) => (
-                                        <div
-                                          key={workbook._id}
-                                          className="flex items-center justify-between p-3 border rounded-lg"
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                            <div>
-                                              <p className="font-medium">{workbook.name}</p>
-                                              <p className="text-sm text-muted-foreground">
-                                                Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                              </p>
-                                            </div>
-                                          </div>
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => handleViewWorkbook(workbook)}
-                                            >
-                                              <ExternalLink className="h-4 w-4 mr-2" />
-                                              View
-                                            </Button>
-                                            <AlertDialog>
-                                              <AlertDialogTrigger asChild>
-                                                <Button
-                                                  variant="destructive"
-                                                  size="sm"
-                                                >
-                                                  <Trash2 className="h-4 w-4 mr-2" />
-                                                  Remove
-                                                </Button>
-                                              </AlertDialogTrigger>
-                                              <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                  <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                                  <AlertDialogDescription>
-                                                    Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                                    This action cannot be undone.
-                                                  </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                  <AlertDialogAction
-                                                    onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                  >
-                                                    Remove
-                                                  </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                              </AlertDialogContent>
-                                            </AlertDialog>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <DrawerFooter>
-                                  <DrawerClose asChild>
-                                    <Button variant="outline">Close</Button>
-                                  </DrawerClose>
-                                </DrawerFooter>
-                              </DrawerContent>
-                            </Drawer>
-                          </td>
-
-
-
-                        </tr>
-
-                      ))}
-
-                      <tr className="bg-muted/50 font-bold border-t">
-
-                        <td className="px-4 py-2 border-r border-secondary" colSpan={2}>
-
-                          Subtotal
-
-                        </td>
-
-                        <td className="px-4 py-2 border-r border-secondary text-right">
-
-                          {subtotal.currentYear.toLocaleString()}
-
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary text-right">
-
-                          {(Number(subtotal.reclassification) || 0).toLocaleString()}
-
-                        </td>
-
-                        <td className="px-4 py-2 border-r border-secondary text-right">
-
-                          {subtotal.adjustments.toLocaleString()}
-
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary text-right">
-
-                          {subtotal.finalBalance.toLocaleString()}
-
-                        </td>
-
-                        <td className="px-4 py-2 border-r border-secondary text-right">
-
-                          {subtotal.priorYear.toLocaleString()}
-
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary"></td>
-
-                      </tr>
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-
-              </div>
-
-            );
-
-          })}
-
-
-
-          {/* Grand Totals for Adjustments */}
-
-          <div className="border rounded-lg border-secondary overflow-hidden">
-
-            <div className="px-4 py-2 border-b bg-gray-50 border-secondary font-medium">
-
-              Adjustments — Grand Total
-
-            </div>
-
-            <div className="overflow-x-auto">
-
-              <table className="w-full text-sm">
-
-                <tbody>
-
-                  <tr>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Current Year</td>
-
-                    <td className="px-4 py-2 border-secondary border-b text-right">
-
-                      {totals.currentYear.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Prior Year</td>
-
-                    <td className="px-4 py-2 border-secondary border-b text-right">
-
-                      {totals.priorYear.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td className="px-4 py-2 border-r border-secondary border-b font-bold">Adjustments</td>
-
-                    <td className="px-4 py-2 border-secondary border-b text-right">
-
-                      {totals.adjustments.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td className="px-4 py-2 border-r border-secondary font-bold">Final Balance</td>
-
-                    <td className="px-4 py-2 border-secondary text-right">
-
-                      {totals.finalBalance.toLocaleString()}
-
-                    </td>
-
-                  </tr>
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      );
-
-    } else {
-      // Normal classification/category table
-      // Separate rows by grouping4 status
-      const groupedRows = sectionData.filter(row => row.grouping4 && row.grouping4.trim() !== '');
-      const ungroupedRows = sectionData.filter(row => !row.grouping4 || row.grouping4.trim() === '');
-
-      // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
-      // based on the classifications present in sectionData
-      // For "Change Grouping" mode, pass ALL sectionData (both grouped and ungrouped)
-      // so it can analyze the common Level 1-3 classification
-      const availableGrouping4Values = getAvailableGrouping4Values(sectionData);
-
-      // Also include any existing grouping4 values from the data (for backwards compatibility)
-      const existingGrouping4Values = [
-        ...new Set(
-          sectionData
-            .map(row => row.grouping4)
-            .filter(g4 => g4 && g4.trim() !== '')
-        )
-      ];
-
-      // Combine both lists and remove duplicates
-      const uniqueGrouping4Values = [
-        ...new Set([...availableGrouping4Values, ...existingGrouping4Values])
-      ].sort();
-      
-      // Log for debugging
-      console.log('Grouping Mode:', {
-        isGroupingMode,
-        selectedRowsCount: selectedRowIds.size,
-        availableOptionsCount: availableGrouping4Values.length,
-        existingValuesCount: existingGrouping4Values.length,
-        totalUniqueCount: uniqueGrouping4Values.length,
-        values: uniqueGrouping4Values
-      });
-
-      return (
-        <div className="space-y-6">
-          {/* Grouping Controls */}
-          {isGroupingMode && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                      Grouping Mode Active
-                    </h4>
-                    <Badge variant="secondary" className="text-xs">
-                      {selectedRowIds.size} row{selectedRowIds.size !== 1 ? 's' : ''} selected
-                    </Badge>
-                  </div>
-                  
-                  {/* Show message if no rows selected */}
-                  {selectedRowIds.size === 0 ? (
-                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Info className="h-4 w-4 text-yellow-700" />
-                        <span className="text-sm font-medium text-yellow-800">
-                          No rows selected
-                        </span>
-                      </div>
-                      <p className="text-xs text-yellow-700">
-                        Please select one or more rows from the table below using the checkboxes, then choose a Grouping 4 value.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="grouping4-select" className="text-xs text-gray-600">
-                        Select Grouping 4 value:
-                      </Label>
-                      {uniqueGrouping4Values.length === 0 ? (
-                        <div className="p-3 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
-                          ⚠️ Selected rows need complete Level 1-3 classification before adding Level 4.
-                        </div>
-                      ) : (
-                        <Select value={grouping4Value} onValueChange={setGrouping4Value}>
-                          <SelectTrigger className="max-w-xs">
-                            <SelectValue placeholder="Choose grouping value" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {uniqueGrouping4Values.map((value, index) => (
-                              <SelectItem key={index} value={value}>
-                                {value}
-                              </SelectItem>
-                            ))}
-                            {/* Option to add custom value */}
-                            <div className="p-2 border-t">
-                              <Input
-                                placeholder="Or type new value..."
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const newValue = e.currentTarget.value.trim();
-                                    if (newValue) {
-                                      setGrouping4Value(newValue);
-                                      e.currentTarget.value = '';
-                                    }
-                                  }
-                                }}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedRowIds.size > 0 && grouping4Value && (
-                    <Button
-                      onClick={completeGrouping}
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      Complete Grouping
-                    </Button>
-                  )}
-                  <Button
-                    onClick={cancelGroupingMode}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Already Grouped 4 Section */}
-          {groupedRows.length > 0 && (
-            <div className="border border-secondary rounded-lg overflow-hidden">
-              <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                  Already Grouped (Grouping 4)
-                </h4>
-                {!isGroupingMode && (
-                  <Button
-                    onClick={startGroupingMode}
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7"
-                    disabled={isSignedOff}
-                  >
-                    <Edit2 className="h-3 w-3 mr-1" />
-                    Change Grouping
-                  </Button>
-                )}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      {isGroupingMode && (
-                        <th
-                          className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center justify-center">
-                            <Checkbox
-                              checked={groupedRows.length > 0 && groupedRows.every(row => selectedRowIds.has(getRowId(row)))}
-                              onCheckedChange={(checked) => {
-                                console.log('Select all grouped rows:', checked);
-                                if (checked) {
-                                  setSelectedRowIds(new Set([...selectedRowIds, ...groupedRows.map(r => getRowId(r))]));
-                                } else {
-                                  const newSet = new Set(selectedRowIds);
-                                  groupedRows.forEach(r => newSet.delete(getRowId(r)));
-                                  setSelectedRowIds(newSet);
-                                }
-                              }}
-                              aria-label="Select all grouped rows"
-                              disabled={isSignedOff}
-                            />
-                          </div>
-                        </th>
-                      )}
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupedRows.map((row, index) => (
-                      <tr
-                        key={index}
-                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
-                      >
-                        {isGroupingMode && (
-                          <td
-                            className="px-4 py-2 border-r border-secondary border-b text-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex items-center justify-center">
-                              <Checkbox
-                                checked={selectedRowIds.has(getRowId(row))}
-                                onCheckedChange={(checked) => {
-                                  console.log('Grouped row checkbox clicked:', row.accountName, 'checked:', checked);
-                                  toggleRowSelection(getRowId(row));
-                                }}
-                                aria-label={`Select ${row.accountName}`}
-                                disabled={isSignedOff}
-                              />
-                            </div>
-                          </td>
-                        )}
-                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.currentYear.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
-                          {(Number(row.reclassification) || 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.adjustments.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
-                          {row.finalBalance.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.priorYear.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-secondary border-b text-left">
-                          <Drawer>
-                            <DrawerTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3"
-                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                              </Button>
-                            </DrawerTrigger>
-                            <DrawerContent>
-                              <DrawerHeader>
-                                <DrawerTitle>Linked Excel Files</DrawerTitle>
-                                <DrawerDescription>
-                                  Manage linked files for {row.accountName} ({row.code})
-                                </DrawerDescription>
-                              </DrawerHeader>
-                              <div className="px-4 pb-4">
-                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    No linked files for this row.
-                                  </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    {row.linkedExcelFiles.map((workbook: any) => (
-                                      <div
-                                        key={workbook._id}
-                                        className="flex items-center justify-between p-3 border rounded-lg"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                          <div>
-                                            <p className="font-medium">{workbook.name}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleViewWorkbook(workbook)}
-                                          >
-                                            <ExternalLink className="h-4 w-4 mr-2" />
-                                            View
-                                          </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button
-                                                variant="destructive"
-                                                size="sm"
-                                              >
-                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                Remove
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                                  This action cannot be undone.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                >
-                                                  Remove
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <DrawerFooter>
-                                <DrawerClose asChild>
-                                  <Button variant="outline">Close</Button>
-                                </DrawerClose>
-                              </DrawerFooter>
-                            </DrawerContent>
-                          </Drawer>
-                        </td>
-
-                      </tr>
-                    ))}
-                    {/* Totals row for grouped section */}
-                    {groupedRows.length > 0 && (
-                      <tr className="bg-muted/50 font-medium">
-                        {isGroupingMode && <td className="px-4 py-2 border-r-secondary border"></td>}
-                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
-                          TOTALS
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {groupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
-                        </td>
-                        <td></td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Not Grouped Section */}
-          {ungroupedRows.length > 0 && (
-            <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
-              {/* Action Buttons */}
-              {!isGroupingMode && selectedRowIds.size > 0 && (
-                <div className="p-3 bg-green-50 dark:bg-green-950/20 border-b border-green-200 flex justify-end">
-                  <Button
-                    onClick={startGroupingMode}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Grouping
-                  </Button>
-                </div>
-              )}
-
-              <div className="overflow-x-auto -mr-1">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th
-                        className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-center">
-                          <Checkbox
-                            checked={ungroupedRows.length > 0 && ungroupedRows.every(row => selectedRowIds.has(getRowId(row)))}
-                            onCheckedChange={(checked) => {
-                              console.log('Select all ungrouped rows:', checked);
-                              if (checked) {
-                                setSelectedRowIds(new Set([...selectedRowIds, ...ungroupedRows.map(r => getRowId(r))]));
-                              } else {
-                                const newSet = new Set(selectedRowIds);
-                                ungroupedRows.forEach(r => newSet.delete(getRowId(r)));
-                                setSelectedRowIds(newSet);
-                              }
-                            }}
-                            aria-label="Select all ungrouped rows"
-                            disabled={isSignedOff}
-                          />
-                        </div>
-                      </th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left border-r">Re-Classification</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
-                      <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ungroupedRows.map((row, index) => (
-                      <tr
-                        key={index}
-                        className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
-                      >
-                        <td
-                          className="px-4 py-2 border-r border-secondary border-b text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center justify-center">
-                            <Checkbox
-                              checked={selectedRowIds.has(getRowId(row))}
-                              onCheckedChange={(checked) => {
-                                console.log('Checkbox clicked for row:', row.accountName, 'checked:', checked);
-                                toggleRowSelection(getRowId(row));
-                              }}
-                              aria-label={`Select ${row.accountName}`}
-                              disabled={isSignedOff}
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.currentYear.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-secondary border-b border-r text-right">
-                          {(Number(row.reclassification) || 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.adjustments.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right font-medium">
-                          {row.finalBalance.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r border-secondary border-b text-right">
-                          {row.priorYear.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-secondary border-b text-left">
-                          <Drawer>
-                            <DrawerTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3"
-                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                              </Button>
-                            </DrawerTrigger>
-                            <DrawerContent>
-                              <DrawerHeader>
-                                <DrawerTitle>Linked Excel Files</DrawerTitle>
-                                <DrawerDescription>
-                                  Manage linked files for {row.accountName} ({row.code})
-                                </DrawerDescription>
-                              </DrawerHeader>
-                              <div className="px-4 pb-4">
-                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    No linked files for this row.
-                                  </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    {row.linkedExcelFiles.map((workbook: any) => (
-                                      <div
-                                        key={workbook._id}
-                                        className="flex items-center justify-between p-3 border rounded-lg"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                          <div>
-                                            <p className="font-medium">{workbook.name}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleViewWorkbook(workbook)}
-                                          >
-                                            <ExternalLink className="h-4 w-4 mr-2" />
-                                            View
-                                          </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button
-                                                variant="destructive"
-                                                size="sm"
-                                              >
-                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                Remove
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                                  This action cannot be undone.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                >
-                                                  Remove
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <DrawerFooter>
-                                <DrawerClose asChild>
-                                  <Button variant="outline">Close</Button>
-                                </DrawerClose>
-                              </DrawerFooter>
-                            </DrawerContent>
-                          </Drawer>
-                        </td>
-
-                      </tr>
-                    ))}
-                    {ungroupedRows.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="px-4 py-8 text-center text-gray-500"
-                        >
-                          All rows are grouped
-                        </td>
-                      </tr>
-                    )}
-                    {ungroupedRows.length > 0 && (
-                      <tr className="bg-muted/50 font-medium">
-                        <td className="px-4 py-2 border-r-secondary border"></td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
-                          TOTALS
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.currentYear) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.reclassification) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.adjustments) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.finalBalance) || 0), 0).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 border-r-secondary border font-bold text-right">
-                          {ungroupedRows.reduce((acc, r) => acc + (Number(r.priorYear) || 0), 0).toLocaleString()}
-                        </td>
-                        <td></td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-  }
 
 
 
@@ -10762,10 +10856,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             <FileSpreadsheet className="h-5 w-5" />
             Linked Workbooks
           </h3>
-          <WorkBookApp 
+          <WorkBookApp
             key={`workbook-app-evidence-${leadSheetRefreshTrigger}`}
-            engagement={engagement} 
-            engagementId={engagement.id || engagement._id} 
+            engagement={engagement}
+            engagementId={engagement.id || engagement._id}
             classification={classification}
             etbRows={evidenceFiles.map(file => ({
               _id: file.id,
