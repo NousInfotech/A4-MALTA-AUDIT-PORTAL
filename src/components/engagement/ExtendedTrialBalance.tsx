@@ -85,6 +85,29 @@ const parseAccountingNumber = (value: any): number => {
   return isNaN(num) ? 0 : Math.round(num);
 };
 
+// Helper function to round all financial values in an ETB row
+const roundETBRowFinancialValues = (row: any): ETBRow => {
+  const roundedRow = {
+    ...row,
+    currentYear: Math.round(Number(row.currentYear) || 0),
+    priorYear: Math.round(Number(row.priorYear) || 0),
+    adjustments: Math.round(Number(row.adjustments) || 0),
+    reclassification: Math.round(Number(row.reclassification) || 0),
+  };
+  // Recalculate finalBalance from rounded values
+  roundedRow.finalBalance = Math.round(
+    (roundedRow.currentYear || 0) + 
+    (roundedRow.adjustments || 0) + 
+    (roundedRow.reclassification || 0)
+  );
+  return roundedRow;
+};
+
+// Helper function to round all financial values in an array of ETB rows
+const roundETBRowsFinancialValues = (rows: any[]): ETBRow[] => {
+  return rows.map(row => roundETBRowFinancialValues(row));
+};
+
 // Ensure each row has a unique client-only ID
 // Fix the withClientIds function to ALWAYS generate unique IDs
 const withClientIds = <T extends object>(rows: T[]) =>
@@ -844,13 +867,15 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
         if (existingETB.rows && existingETB.rows.length > 0) {
           const rowsWithIds = withClientIds(existingETB.rows).map((row: ETBRow) => {
+            // Round all financial values first
+            const roundedRow = roundETBRowFinancialValues(row);
             // Calculate visibleLevels if not present
             // Show at least 1 level by default for rows without classification
-            if (row.visibleLevels === undefined || row.visibleLevels === null) {
-              const parts = (row.classification || "").split(" > ").filter(Boolean);
-              return { ...row, visibleLevels: parts.length > 0 ? parts.length : 1 };
+            if (roundedRow.visibleLevels === undefined || roundedRow.visibleLevels === null) {
+              const parts = (roundedRow.classification || "").split(" > ").filter(Boolean);
+              return { ...roundedRow, visibleLevels: parts.length > 0 ? parts.length : 1 };
             }
-            return row;
+            return roundedRow;
           });
 
           // DEBUG: Log new accounts detection
@@ -943,15 +968,22 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           const initialVisibleLevels = parts.length > 0 ? parts.length : 1;
 
           const initialReclassification = 0;
+          // Round all financial values and calculate finalBalance from rounded values
+          const roundedCurrentYear = Math.round(currentYear);
+          const roundedPriorYear = Math.round(priorYear);
+          const roundedAdjustments = Math.round(adjustments);
+          const roundedReclassification = Math.round(initialReclassification);
+          const roundedFinalBalance = Math.round(roundedCurrentYear + roundedAdjustments + roundedReclassification);
+          
           return {
             id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${index}`,
             code,
             accountName,
-            currentYear,
-            priorYear,
-            adjustments,
-            reclassification: initialReclassification,
-            finalBalance: currentYear + adjustments + initialReclassification,
+            currentYear: roundedCurrentYear,
+            priorYear: roundedPriorYear,
+            adjustments: roundedAdjustments,
+            reclassification: roundedReclassification,
+            finalBalance: roundedFinalBalance,
             classification,
             // Store file grouping (will be overwritten when user changes classification)
             grouping1: g1,
@@ -1002,11 +1034,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             const refetchedETB = await refetchResponse.json();
             if (refetchedETB.rows && refetchedETB.rows.length > 0) {
               const rowsWithIds = withClientIds(refetchedETB.rows).map((row: ETBRow) => {
-                if (row.visibleLevels === undefined || row.visibleLevels === null) {
-                  const parts = (row.classification || "").split(" > ").filter(Boolean);
-                  return { ...row, visibleLevels: parts.length > 0 ? parts.length : 1 };
+                // Round all financial values first
+                const roundedRow = roundETBRowFinancialValues(row);
+                if (roundedRow.visibleLevels === undefined || roundedRow.visibleLevels === null) {
+                  const parts = (roundedRow.classification || "").split(" > ").filter(Boolean);
+                  return { ...roundedRow, visibleLevels: parts.length > 0 ? parts.length : 1 };
                 }
-                return row;
+                return roundedRow;
               });
               setEtbRows(rowsWithIds);
               refreshClassificationSummary(rowsWithIds);
@@ -1072,6 +1106,9 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   const saveETB = useCallback(async (showToast = true, customRows?: ETBRow[], skipLoadExistingData = false) => {
     const rowsToSave = customRows || etbRows;
 
+    // Round all financial values before saving to backend
+    const roundedRows = roundETBRowsFinancialValues(rowsToSave);
+
     // Only set saving state if we're not in the middle of a push operation
     if (!isPushingToCloud) {
       setSaving(true);
@@ -1090,14 +1127,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             "Content-Type": "application/json",
             Authorization: `Bearer ${data.session.access_token}`,
           },
-          body: JSON.stringify({ rows: rowsToSave }),
+          body: JSON.stringify({ rows: roundedRows }),
         }
       );
 
       if (!response.ok)
         throw new Error("Failed to save Extended Trial Balance");
 
-      refreshClassificationSummary(rowsToSave);
+      refreshClassificationSummary(roundedRows);
       if (showToast)
         toast({
           title: "Success",
@@ -1393,7 +1430,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           const parts = (row.classification || "").split(" > ").filter(Boolean);
           row.visibleLevels = parts.length > 0 ? parts.length : 1;
         }
-        return row;
+        // Round all financial values before using the row
+        return roundETBRowFinancialValues(row);
       });
       setEtbRows(withIds);
       refreshClassificationSummary(withIds);
@@ -2110,7 +2148,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                           <EditableText
                             type="number"
                             step={1}
-                            value={row.currentYear}
+                            value={Math.round(Number(row.currentYear) || 0)}
                             onChange={(val) =>
                               updateRow(row.id, "currentYear", val)
                             }
@@ -2160,7 +2198,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                         <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
                           <EditableText
                             type="number"
-                            value={row.priorYear}
+                            value={Math.round(Number(row.priorYear) || 0)}
                             onChange={(val) => {
                               updateRow(row.id, "priorYear", val);
                             }}

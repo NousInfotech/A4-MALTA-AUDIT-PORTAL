@@ -10618,7 +10618,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         </DrawerContent>
                       </Drawer>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
 
                         <Button
 
@@ -10632,7 +10632,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         >
 
-                          <Eye className="h-3 w-3 text-gray-400" />
+                          {/* <Eye className="h-3 w-3 text-gray-400" /> */}
+                          <span className="px-2 text-xs">View</span>
 
                         </Button>
 
