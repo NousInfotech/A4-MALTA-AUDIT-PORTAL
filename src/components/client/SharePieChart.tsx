@@ -109,7 +109,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
   }, [companyTotalSharesArray]);
 
   // State to track which view is selected (default to "total")
-  const [selectedView, setSelectedView] = useState<string>("total");
+  const [selectedView, setSelectedView] = useState<string>("authorized");
 
   // Calculate data for all available classes
   const chartsData = useMemo(() => {
@@ -365,9 +365,49 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
     };
   }, [persons, companies, companyTotalShares, companyTotalSharesArray, availableClasses]);
 
+  // Calculate Classes view data (Distribution of shares by class)
+  const classesViewData = useMemo(() => {
+    if (!Array.isArray(companyTotalSharesArray) || companyTotalSharesArray.length === 0) {
+      return {
+        normalizedData: [],
+        totalRaw: 0,
+        companyTotal: 0,
+        personTotal: 0,
+        personTotalShares: 0,
+        companyTotalShares: 0,
+        totalSharesSum: 0,
+        currentClassTotal: 0,
+      };
+    }
+
+    const totalSharesAll = companyTotalSharesArray.reduce((acc, item) => acc + (Number(item.totalShares) || 0), 0);
+
+    const normalizedData = companyTotalSharesArray
+      .filter(item => Number(item.totalShares) > 0)
+      .map(item => ({
+        name: item.class === "Ordinary" ? "Ordinary Shares" : `Class ${item.class}`,
+        value: totalSharesAll > 0 ? (Number(item.totalShares) / totalSharesAll) * 100 : 0,
+        totalShares: Number(item.totalShares),
+        type: "Class"
+      }))
+      .sort((a, b) => b.value - a.value); // Sort by biggest share class
+
+    return {
+      normalizedData,
+      totalRaw: 100,
+      companyTotal: 0,
+      personTotal: 0,
+      personTotalShares: 0,
+      companyTotalShares: 0,
+      totalSharesSum: totalSharesAll,
+      currentClassTotal: totalSharesAll,
+    };
+  }, [companyTotalSharesArray]);
+
   // Helper function to format class label
   const getClassLabel = (shareClass: string): string => {
     if (shareClass === "Ordinary") return "Ordinary Shares";
+    if (shareClass === "classes") return "Share Class Distribution";
     return `Class ${shareClass} Shares`;
   };
 
@@ -455,8 +495,8 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
         <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <div className="text-center sm:text-left space-y-1">
             <p className="text-base sm:text-lg">
-              Total declared {classLabel.toUpperCase()}:{" "}
-              <span className="font-bold">{totalRaw.toFixed(0)}%</span>
+              Total declared {shareClass === "classes" ? "SHARES" : classLabel.toUpperCase()}:{" "}
+              <span className="font-bold">{shareClass === "classes" ? "100%" : `${totalRaw.toFixed(0)}%`}</span>
               {totalSharesSum > 0 && (
                 <span className="text-gray-600 ml-2">
                   ({totalSharesSum.toLocaleString()} out of {currentClassTotal.toLocaleString()} shares
@@ -469,7 +509,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
                 </span>
               )}
             </p>
-            {(companyTotal > 0 || personTotal > 0) && (
+            {shareClass !== "classes" && (companyTotal > 0 || personTotal > 0) && (
               <div className="flex flex-wrap gap-4 justify-center sm:justify-start text-sm text-gray-600">
                 {companyTotal > 0 && (
                   <span>
@@ -497,10 +537,11 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
 
   // Helper function to format class label for buttons
   const getClassButtonLabel = (shareClass: string): string => {
-    if (shareClass === "Ordinary") return "Ordinary";
-    if (shareClass === "total") return "Total";
-    if (shareClass === "authorized") return "Authorized Share";
-    return `Class ${shareClass}`;
+    if (shareClass === "Ordinary") return "Ordinary Share";
+    if (shareClass === "total") return "Issued Share"; // Fixed label to match UI
+    if (shareClass === "authorized") return "Authorized";
+    if (shareClass === "classes") return "Classes";
+    return `Class ${shareClass} Share`;
   };
 
   // Get the currently selected chart data
@@ -509,7 +550,15 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       return {
         shareClass: "total",
         data: totalViewData,
-        label: "Issued Shares"
+        label: "Issued Shares Breakdown"
+      };
+    }
+    
+    if (selectedView === "classes") {
+      return {
+        shareClass: "classes",
+        data: classesViewData,
+        label: "Share Class Distribution"
       };
     }
     
@@ -600,6 +649,18 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
               Authorized Share
             </Button>
           )}
+
+
+
+          {/* Classes Button - NEW */}
+          <Button
+            variant={selectedView === "classes" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedView("classes")}
+            className="rounded-lg"
+          >
+            Classes
+          </Button>
 
           {/* Total Button */}
           <Button

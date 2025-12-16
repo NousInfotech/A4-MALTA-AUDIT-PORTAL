@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -42,6 +42,7 @@ import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Link, useSearchParams, useNavigate } from "react-router-dom"; // Import useNavigate
 import PbcUpload from "./components/PbcUpload";
 import KycUpload from "./components/KycUpload";
+import { EngagementKYC } from "../employee/EngagementKYC";
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
@@ -59,60 +60,63 @@ export const DocumentRequests = () => {
   // Get the active tab from URL parameters
   const activeTab = searchParams.get("tab") || "pending";
 
-  useEffect(() => {
-    const fetchClientData = async () => {
+  const hasFetched = useRef(false);
+
+  const fetchClientData = useCallback(async (showLoading = true, force = false) => {
+    // Prevent fetching if we already have data and not forcing
+    // Also check if we have already fetched successfully to avoid repeated fetches on re-renders
+    if (!force && (hasFetched.current || (allRequests.length > 0 && clientEngagements.length > 0))) {
+      if (showLoading) setLoading(false);
+      return;
+    }
+
+    try {
+      if (showLoading) setLoading(true);
+      const allEngagements = await engagementApi.getAll();
+      const clientFiltered = allEngagements.filter(
+        (e) => e.clientId === user?.id
+      );
+      setClientEngagements(clientFiltered);
+
+      // Fetch document requests by company
+      const promises = clientFiltered.map((e) =>
+        documentRequestApi.getByCompany(e.companyId).catch(() => [])
+      );
+      const arrays = await Promise.all(promises);
+      const engagementRequests = arrays.flat();
+      
+      // Also fetch all KYC requests for this client directly
+      let kycRequests = [];
       try {
-        setLoading(true);
-        const allEngagements = await engagementApi.getAll();
-        const clientFiltered = allEngagements.filter(
-          (e) => e.clientId === user?.id
-        );
-        setClientEngagements(clientFiltered);
-
-        // Fetch document requests by engagement
-        const promises = clientFiltered.map((e) =>
-          documentRequestApi.getByEngagement(e._id).catch(() => [])
-        );
-        const arrays = await Promise.all(promises);
-        console.log("allredocreqs", arrays);
-        const engagementRequests = arrays.flat();
-        
-        // Also fetch all KYC requests for this client directly
-        let kycRequests = [];
-        try {
-          const allKYCRequests = await documentRequestApi.getAll();
-          kycRequests = allKYCRequests.filter((r) => r.category === "kyc" && r.clientId === user?.id);
-          console.log("Direct KYC requests for client:", kycRequests);
-        } catch (error) {
-          console.log("Could not fetch KYC requests directly:", error);
-        }
-        
-        // Combine both sources and remove duplicates
-        const allRequests = [...engagementRequests, ...kycRequests];
-        const uniqueRequests = allRequests.filter((request, index, self) => 
-          index === self.findIndex(r => r._id === request._id)
-        );
-        console.log("All requests:", uniqueRequests);
-        console.log("KYC requests:", uniqueRequests.filter((r) => r.category === "kyc"));
-        console.log("KYC requests with statuses:", uniqueRequests.filter((r) => r.category === "kyc").map(r => ({ id: r._id, status: r.status, description: r.description })));
-        console.log("Client engagements:", clientFiltered);
-        console.log("Current user ID:", user?.id);
-        
-        setAllRequests(uniqueRequests);
-      } catch (err) {
-        console.error(err);
-        toast({
-          title: "Error",
-          description: "Failed to fetch requests",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+        const allKYCRequests = await documentRequestApi.getAll();
+        kycRequests = allKYCRequests.filter((r) => r.category === "kyc" && r.clientId === user?.id);
+      } catch (error) {
+        console.log("Could not fetch KYC requests directly:", error);
       }
-    };
+      
+      // Combine both sources and remove duplicates
+      const allRequests = [...engagementRequests, ...kycRequests];
+      const uniqueRequests = allRequests.filter((request, index, self) => 
+        index === self.findIndex(r => r._id === request._id)
+      );
+      
+      setAllRequests(uniqueRequests);
+      hasFetched.current = true; // Mark as fetched
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to fetch requests",
+        variant: "destructive",
+      });
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, [user, toast]); // Removed other dependencies to keep it stable
 
-    if (user) fetchClientData();
-  }, [user, toast]);
+  useEffect(() => {
+    if (user) fetchClientData(true, false);
+  }, [user, fetchClientData]);
 
   // Filter requests for different tabs
   // Pending tab: Show ALL pending requests (including KYC)
@@ -304,6 +308,27 @@ export const DocumentRequests = () => {
   const getEngagementTitle = (id) =>
     clientEngagements.find((e) => e._id === id)?.title || "Unknown Engagement";
 
+  const getCompanyName = (request) => {
+    // 1. Direct population
+    if (request?.company?.name) return request.company.name;
+    
+    // 2. Via engagement lookup
+    const engagementId = request?.engagement?._id || request?.engagement;
+    const engagement = clientEngagements.find(e => e._id === engagementId);
+    if (engagement?.company?.name) return engagement.company.name;
+
+    // 3. Via company ID lookup (scan engagements for matching company)
+    const companyId = request?.company?._id || request?.company;
+    if (companyId) {
+        const found = clientEngagements.find(e => 
+            (e.company?._id === companyId) || (e.companyId === companyId)
+        );
+        if (found?.company?.name) return found.company.name;
+    }
+    
+    return "Unknown Company";
+  };
+
   // Function to handle tab changes and update URL
   const handleTabChange = (newTabValue: string) => {
     setSearchParams({ tab: newTabValue });
@@ -328,13 +353,13 @@ export const DocumentRequests = () => {
       </div>
     );
   }
-  console.log("allRequests", allRequests);
-  console.log("PBCRequests", pbcRequests);
-  console.log("kycRequests", kycRequests);
-  console.log("pendingRequests", pendingRequests);
-  console.log("completedRequests", completedRequests);
-  console.log("loading state:", loading);
-  console.log("user:", user);
+  // console.log("allRequests", allRequests);
+  // console.log("PBCRequests", pbcRequests);
+  // console.log("kycRequests", kycRequests);
+  // console.log("pendingRequests", pendingRequests);
+  // console.log("completedRequests", completedRequests);
+  // console.log("loading state:", loading);
+  // console.log("user:", user);
 
   return (
     <div className="min-h-screen  bg-brand-body p-6">
@@ -405,7 +430,7 @@ export const DocumentRequests = () => {
           </div>
         </div>
 
-        <Tabs
+         {false && <Tabs
           value={activeTab}
           onValueChange={handleTabChange}
           className="space-y-6"
@@ -880,7 +905,24 @@ export const DocumentRequests = () => {
               </div>
             )}
           </TabsContent>
-        </Tabs>
+        </Tabs>}
+
+        <h1 className="text-lg text-red-500 text-center underline">Under Development</h1>
+        {/* KYC Component */}
+        {clientEngagements.length > 0 ? (
+           <EngagementKYC 
+             companyId={clientEngagements[0].companyId} 
+             clientId={user?.id}
+             isClientView={true}
+           />
+        ) : (
+           <div className="flex justify-center p-12">
+             <div className="text-center">
+               <p className="text-gray-500">No active engagement found.</p>
+             </div>
+           </div>
+        )}
+          
       </div>
     </div>
   );

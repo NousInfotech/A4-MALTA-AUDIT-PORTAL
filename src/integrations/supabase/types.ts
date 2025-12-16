@@ -17,6 +17,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          bankconnectionid: string | null
           company_name: string | null
           company_number: string | null
           company_summary: string | null
@@ -24,12 +25,14 @@ export type Database = {
           id: string
           industry: string | null
           name: string
+          organization_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          bankconnectionid?: string | null
           company_name?: string | null
           company_number?: string | null
           company_summary?: string | null
@@ -37,12 +40,14 @@ export type Database = {
           id?: string
           industry?: string | null
           name: string
+          organization_id?: string | null
           role: Database["public"]["Enums"]["app_role"]
           status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          bankconnectionid?: string | null
           company_name?: string | null
           company_number?: string | null
           company_summary?: string | null
@@ -50,6 +55,7 @@ export type Database = {
           id?: string
           industry?: string | null
           name?: string
+          organization_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           updated_at?: string

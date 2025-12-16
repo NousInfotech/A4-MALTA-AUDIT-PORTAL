@@ -79,6 +79,7 @@ interface AddDocumentRequestModalProps {
   company?: any;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  workflowType?: "Shareholder" | "Representative";
 }
 
 export function AddDocumentRequestModal({
@@ -88,7 +89,8 @@ export function AddDocumentRequestModal({
   clientId,
   company,
   onSuccess,
-  trigger
+  trigger,
+  workflowType
 }: AddDocumentRequestModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,6 +100,15 @@ export function AddDocumentRequestModal({
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"shareholders" | "involvements">("shareholders");
   const { toast } = useToast();
+
+  // Sync viewMode with workflowType
+  useEffect(() => {
+    if (workflowType === "Representative") {
+      setViewMode("involvements");
+    } else if (workflowType === "Shareholder") {
+      setViewMode("shareholders");
+    }
+  }, [workflowType]);
 
   const togglePersonSelect = (personId: string) => {
     setSelectedPersonIds(prev =>
@@ -396,6 +407,14 @@ export function AddDocumentRequestModal({
     );
   };
 
+  const filteredPersons = mergedPersons.filter(p => {
+    if (viewMode === "shareholders") {
+      return p.shareholder;
+    } else {
+      return (p.roles ?? []).some(r => r !== "Shareholder");
+    }
+  });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -425,8 +444,13 @@ export function AddDocumentRequestModal({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-col gap-2">
                     <CardTitle className="text-lg">
-                      Select Persons ({mergedPersons.length})
+                      Select Persons ({filteredPersons.length})
                     </CardTitle>
+                    {workflowType ? (
+                      <Badge variant="outline" className='text-md'>
+                        {workflowType === "Representative" ? "Representatives" : "Shareholders"}
+                      </Badge>
+                    ) : (
                     <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
                       <SelectTrigger className="w-48 border-gray-300 focus:border-gray-500 rounded-xl">
                         <SelectValue placeholder="Select view" />
@@ -436,20 +460,34 @@ export function AddDocumentRequestModal({
                         <SelectItem value="involvements">Involvements</SelectItem>
                       </SelectContent>
                     </Select>
+                    )}
                   </div>
 
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      if (selectedPersonIds.length === mergedPersons.length) {
-                        setSelectedPersonIds([]);
-                      } else {
-                        setSelectedPersonIds(mergedPersons.map(p => p.personId));
-                      }
-                    }}
-                  >
-                    {selectedPersonIds.length === mergedPersons.length ? "Unselect All" : "Select All"}
-                  </Button>
+                  {filteredPersons.length > 0 && (
+                    <Button
+                      variant="default"
+                      onClick={() => {
+                          // Compare with filteredPersons
+                          const allSelected = filteredPersons.every(p => selectedPersonIds.includes(p.personId));
+                          
+                          if (allSelected) {
+                            // Unselect visible only
+                            setSelectedPersonIds(prev => prev.filter(id => !filteredPersons.find(p => p.personId === id)));
+                          } else {
+                            // Select all visible
+                            const newIds = [...selectedPersonIds];
+                            filteredPersons.forEach(p => {
+                              if (!newIds.includes(p.personId)) newIds.push(p.personId);
+                            });
+                            setSelectedPersonIds(newIds);
+                          }
+                      }}
+                    >
+                       {filteredPersons.length > 0 && filteredPersons.every(p => selectedPersonIds.includes(p.personId))
+                        ? "Unselect All"
+                        : "Select All"}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
 
@@ -457,102 +495,118 @@ export function AddDocumentRequestModal({
                 {/* SHAREHOLDERS */}
                 {viewMode === "shareholders" && (
                   <div className="space-y-3">
-                    {mergedPersons
-                      .filter(p => p.shareholder)
-                      .map(p => (
-                        <div
-                          key={p.personId}
-                          onClick={() => togglePersonSelect(p.personId)}
-                          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
-                        >
-                          <div>
-                            <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
-                            {p.nationality && (
-                              <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
-                            )}
-                            {p.address && (
-                              <p className="text-sm text-gray-600">Address: {p.address}</p>
-                            )}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              
-                            {p.shareholder?.shareClasses.map((item: any) =>(
-                                 
-                                <Badge variant="outline">
-                                  { item.class.toLowerCase() != "ordinary" ? "Class" : ""} {item.class}: {item.totalShares}
-                                </Badge>
-                              ))}
+                    {filteredPersons.length === 0 ? (
+                      <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+                        No shareholders found. Please add shareholders in the Company details.
+                      </div>
+                    ) : (
+                      filteredPersons
+                        .map(p => (
+                          <div
+                            key={p.personId}
+                            onClick={() => togglePersonSelect(p.personId)}
+                            className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
+                          >
+                            <div>
+                              <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+                              {p.nationality && (
+                                <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
+                              )}
+                              {p.address && (
+                                <p className="text-sm text-gray-600">Address: {p.address}</p>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                
+                              {p.shareholder?.shareClasses.map((item: any) =>(
+                                   
+                                  <Badge variant="outline">
+                                    { item.class.toLowerCase() != "ordinary" ? "Class" : ""} {item.class}: {item.totalShares}
+                                  </Badge>
+                                ))}
 
-                             {p.shareholder?.totalShares != null && (
-                                <Badge variant="outline">
-                                  Shares: {String(Number(p.shareholder.totalShares) || 0)}/{String(Number(company?.totalShares.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0)) || 0)}
-                                </Badge>
-                              )}
-                                  
-                              
-                              {typeof p.shareholder?.percentage === "number" && !isNaN(p.shareholder.percentage) && (
-                                <Badge variant="outline">{p.shareholder.percentage.toFixed(2)}%</Badge>
-                              )}
+                               {p.shareholder?.totalShares != null && (
+                                  <Badge variant="outline">
+                                    Shares: {String(Number(p.shareholder.totalShares) || 0)}/{String(Number(company?.totalShares.reduce((sum: number, item: any) => sum + (Number(item?.totalShares) || 0), 0)) || 0)}
+                                  </Badge>
+                                )}
+                                    
+                                
+                                {typeof p.shareholder?.percentage === "number" && !isNaN(p.shareholder.percentage) && (
+                                  <Badge variant="outline">{p.shareholder.percentage.toFixed(2)}%</Badge>
+                                )}
+                              </div>
                             </div>
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 accent-blue-600"
+                              checked={selectedPersonIds.includes(p.personId)}
+                              onChange={() => { }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePersonSelect(p.personId);
+                              }}
+                            />
                           </div>
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 accent-blue-600"
-                            checked={selectedPersonIds.includes(p.personId)}
-                            onChange={() => { }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              togglePersonSelect(p.personId);
-                            }}
-                          />
-                        </div>
-                      ))}
+                        ))
+                    )
+                    }
                   </div>
                 )}
 
                 {/* INVOLVEMENTS */}
                 {viewMode === "involvements" && (
                   <div className="space-y-3">
-                    {mergedPersons.map(p => {
-                      const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
-                      if (roles.length === 0) return null;
+                    {filteredPersons.length === 0 ? (
+                      <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+                        No representatives or involvements found. Please add them in the Company details.
+                      </div>
+                    ) : (
+                      filteredPersons.map(p => {
+                        const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
+                        if (roles.length === 0) return null;
 
-                      return (
-                        <div
-                          key={p.personId}
-                          onClick={() => togglePersonSelect(p.personId)}
-                          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
-                        >
-                          <div>
-                            <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
-                            {p.nationality && (
-                              <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
-                            )}
-                            {p.address && (
-                              <p className="text-sm text-gray-600">Address: {p.address}</p>
-                            )}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {roles.map((role: string, i: number) => (
-                                <Badge key={i} variant="outline">
-                                  {typeof role === 'string' ? role : String(role || '')}
-                                </Badge>
-                              ))}
+                        return (
+                          <div
+                            key={p.personId}
+                            onClick={() => togglePersonSelect(p.personId)}
+                            className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100"
+                          >
+                            <div>
+                              <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
+                              {p.nationality && (
+                                <p className="text-sm text-gray-600">Nationality: {p.nationality}</p>
+                              )}
+                              {p.address && (
+                                <p className="text-sm text-gray-600">Address: {p.address}</p>
+                              )}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {roles.map((role: string, i: number) => (
+                                  <Badge key={i} variant="outline">
+                                    {typeof role === 'string' ? role : String(role || '')}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 accent-blue-600"
+                              checked={selectedPersonIds.includes(p.personId)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePersonSelect(p.personId);
+                              }}
+                              readOnly
+                            />
                           </div>
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 accent-blue-600"
-                            checked={selectedPersonIds.includes(p.personId)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              togglePersonSelect(p.personId);
-                            }}
-                            readOnly
-                          />
-                        </div>
-                      );
-                    })}
+                        );
+
+                      })
+                    )
+                    }
                   </div>
                 )}
+
+
               </CardContent>
             </Card>
           )}
@@ -802,7 +856,7 @@ export function AddDocumentRequestModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || (!!engagementId && selectedPersonIds.length === 0)}
+              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || ((!!engagementId || !!companyId) && selectedPersonIds.length === 0)}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (
