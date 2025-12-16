@@ -4,7 +4,7 @@ import {
     MessageCircle, X, ChevronUp, ChevronDown, Plus,
     MoreHorizontal, Video, Phone, Check, Search,
     Maximize2, Minimize2, Image as ImageIcon, Send, Pin, Trash2,
-    Settings, Archive, Filter, Bell
+    Settings, Archive, Filter, Bell, Star // Added Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
     startDirectChat, getConversations, searchUsers, Conversation,
-    togglePinConversation, toggleArchiveConversation // Added archive service
+    togglePinConversation, toggleArchiveConversation, getStarredMessages, Message // Added services
 } from '@/services/chatService';
 import { ChatWindow } from './ChatWindow';
 import { supabase } from '@/integrations/supabase/client';
@@ -70,6 +70,9 @@ export const ChatWidget = () => {
     // Filter/Search State for List
     const [listSearchQuery, setListSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState<'focused' | 'other'>('focused');
+    const [isStarredOpen, setIsStarredOpen] = useState(false);
+    const [starredMessages, setStarredMessages] = useState<Message[]>([]);
+    const [loadingStarred, setLoadingStarred] = useState(false);
 
     const SOCKET_URL = (import.meta.env.VITE_APIURL as string) || "http://localhost:8000";
 
@@ -237,6 +240,19 @@ export const ChatWidget = () => {
         setFilterUnread(!filterUnread);
     };
 
+    const handleOpenStarred = async () => {
+        setIsStarredOpen(true);
+        setLoadingStarred(true);
+        try {
+            const data = await getStarredMessages();
+            setStarredMessages(data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingStarred(false);
+        }
+    };
+
     // --- Render Helpers ---
     const sortedConversations = [...conversations].sort((a, b) => {
         // Pinned first
@@ -386,6 +402,9 @@ export const ChatWidget = () => {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={toggleNotifications}>
                                     <Bell className="mr-2 h-4 w-4" /> {notificationsEnabled ? "Mute Notifications" : "Enable Notifications"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleOpenStarred}>
+                                    <Star className="mr-2 h-4 w-4 text-yellow-500" /> Starred Messages
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem disabled>Manage Sync</DropdownMenuItem>
@@ -586,6 +605,55 @@ export const ChatWidget = () => {
                     </div>
                 </DialogContent>
             </Dialog >
+
+            {/* Starred Messages Dialog */}
+            <Dialog open={isStarredOpen} onOpenChange={setIsStarredOpen}>
+                <DialogContent className="sm:max-w-[500px] h-[600px] flex flex-col bg-white overflow-hidden">
+                    <DialogHeader className="border-b pb-2">
+                        <DialogTitle className="flex items-center gap-2">
+                            <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                            Starred Messages
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                        {loadingStarred ? (
+                            <div className="h-full flex items-center justify-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                            </div>
+                        ) : starredMessages.length === 0 ? (
+                            <div className="text-center text-gray-500 mt-10">
+                                <Star className="h-10 w-10 mx-auto text-gray-200 mb-2" />
+                                <p>No starred messages yet</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {starredMessages.map((msg) => (
+                                    <div key={msg._id} className="border rounded-lg p-3 bg-gray-50 text-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-semibold text-gray-700">
+                                                {/* Requires populate or just show 'User' if not populated fully */}
+                                                {(msg as any).conversationId?.name || "Chat"}
+                                            </span>
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(msg.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <p className="text-gray-800">{msg.content}</p>
+                                        {msg.attachments && msg.attachments.length > 0 && (
+                                            <div className="mt-2 text-xs text-blue-600 flex items-center gap-1">
+                                                <ImageIcon className="h-3 w-3" /> Attachment
+                                            </div>
+                                        )}
+                                        <div className="mt-2 flex justify-end">
+                                            {/* Could add Jump to chat here if needed */}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div >
     );
 };

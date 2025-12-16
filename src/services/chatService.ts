@@ -240,3 +240,15 @@ export const searchUsers = async (query: string, role?: string) => {
     if (!res.ok) throw new Error('Failed to search users');
     return res.json();
 };
+
+export const getStarredMessages = async () => {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_BASE}/api/chat/starred`, {
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    if (!res.ok) throw new Error('Failed to fetch starred messages');
+    return res.json();
+};

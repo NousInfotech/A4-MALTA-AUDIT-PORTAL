@@ -505,7 +505,7 @@ export const EngagementDetails = () => {
               </TabsContent>
 
               <TabsContent value="financial-status-report" className="space-y-6">
-                <FinancialReportParent />
+                <FinancialReportParent engagementId={id} />
               </TabsContent>
 
               <TabsContent value="kyc" className="space-y-6">

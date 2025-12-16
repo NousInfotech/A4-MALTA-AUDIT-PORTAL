@@ -1,16 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { FileText, Upload, CheckCircle, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Upload, CheckCircle, AlertCircle, X, RefreshCw } from "lucide-react";
 import FinancialStatusReport from "./FinancialStatusReport";
-import fsMix from "@/data/fs/fs.json";
 import { Button } from "../ui/button";
+import { useFinancialStatementReview, getLoadingStepLabel, getLoadingStepProgress } from "@/hooks/useFinancialStatementReview";
+import { FSReviewOutput } from "@/types/fs/fs";
 
-export default function FSUploadFlow() {
-  const [step, setStep] = useState<"upload" | "confirm" | "loading" | "report">("upload");
+interface FSUploadFlowProps {
+  engagementId?: string;
+}
+
+export default function FSUploadFlow({ engagementId }: FSUploadFlowProps) {
+  const [step, setStep] = useState<"upload" | "confirm" | "loading" | "report" | "error">("upload");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [reportData, setReportData] = useState<any>(null);
   const [dragActive, setDragActive] = useState(false);
+  
+  const {
+    data: reportData,
+    loading,
+    error,
+    loadingStep,
+    generateReview,
+    reset,
+  } = useFinancialStatementReview();
+
+  // Update step based on hook state
+  useEffect(() => {
+    if (loading) {
+      setStep("loading");
+    } else if (error) {
+      setStep("error");
+    } else if (reportData) {
+      setStep("report");
+    } else if (uploadedFile && !loading && !error) {
+      setStep("confirm");
+    } else if (!uploadedFile && !loading && !error) {
+      setStep("upload");
+    }
+  }, [loading, error, reportData, uploadedFile]);
 
   const handleFileUpload = (file: File | null) => {
     if (!file) return;
@@ -56,18 +84,34 @@ export default function FSUploadFlow() {
   };
 
   const generateReport = async () => {
-    setStep("loading");
+    if (!uploadedFile) return;
+    
+    if (!engagementId) {
+      alert("Engagement ID is required. Please ensure you're viewing an engagement.");
+      return;
+    }
 
-    setTimeout(() => {
-      setReportData(fsMix);
-      setStep("report");
-    }, 10000);
+    try {
+      await generateReview(engagementId, uploadedFile);
+    } catch (err) {
+      // Error is handled by the hook
+      console.error("Failed to generate report:", err);
+    }
   };
 
   const backToUpload = () => {
     setUploadedFile(null);
-    setReportData(null);
+    reset();
     setStep("upload");
+  };
+
+  const handleRetry = () => {
+    reset();
+    if (uploadedFile) {
+      setStep("confirm");
+    } else {
+      setStep("upload");
+    }
   };
 
   return (
@@ -102,14 +146,16 @@ export default function FSUploadFlow() {
             <div className="w-16 h-0.5 bg-gray-300"></div>
             
             <div className={`flex items-center ${
-              step === "loading" || step === "report" ? "text-primary" : 
+              step === "loading" || step === "report" || step === "error" ? "text-primary" : 
               step === "confirm" ? "text-gray-900" : "text-gray-400"
             }`}>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold border-2 ${
                 step === "loading" || step === "report" ? "bg-primary border-primary text-white" :
+                step === "error" ? "bg-red-500 border-red-500 text-white" :
                 step === "confirm" ? "bg-white border-gray-300" : "bg-gray-100 border-gray-300"
               }`}>
-                {step === "loading" || step === "report" ? <CheckCircle className="w-5 h-5" /> : "2"}
+                {step === "loading" || step === "report" ? <CheckCircle className="w-5 h-5" /> : 
+                 step === "error" ? <X className="w-5 h-5" /> : "2"}
               </div>
               <span className="ml-2 font-medium hidden sm:inline">Confirm</span>
             </div>
@@ -245,22 +291,140 @@ export default function FSUploadFlow() {
                 Analyzing Financial Statements
               </h2>
               
-              <p className="text-gray-600 mb-2">
-                Our AI is processing your documents and extracting key insights...
-              </p>
+              {loadingStep && (
+                <>
+                  <p className="text-gray-700 mb-2 font-medium">
+                    {getLoadingStepLabel(loadingStep)}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Step {getLoadingStepProgress(loadingStep)}% complete
+                  </p>
+                </>
+              )}
               
-              <p className="text-sm text-gray-500">
-                This typically takes 5-10 seconds
-              </p>
+              {!loadingStep && (
+                <p className="text-gray-600 mb-2">
+                  Our AI is processing your documents and extracting key insights...
+                </p>
+              )}
               
               <div className="mt-8 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div className="bg-primary h-full rounded-full animate-pulse" style={{ width: "60%" }}></div>
+                <div 
+                  className="bg-primary h-full rounded-full transition-all duration-300" 
+                  style={{ width: `${getLoadingStepProgress(loadingStep)}%` }}
+                ></div>
+              </div>
+              
+              {/* Step indicators */}
+              {loadingStep && (
+                <div className="mt-6 w-full space-y-2">
+                  {[
+                    "uploading",
+                    "extracting-engagement",
+                    "extracting-pdf",
+                    "validating",
+                    "generating-sheets",
+                    "preparing-prompt",
+                    "generating-report",
+                  ].map((stepKey, index) => {
+                    const currentStepIndex = [
+                      "uploading",
+                      "extracting-engagement",
+                      "extracting-pdf",
+                      "validating",
+                      "generating-sheets",
+                      "preparing-prompt",
+                      "generating-report",
+                    ].indexOf(loadingStep);
+                    const isActive = loadingStep === stepKey;
+                    const isCompleted = currentStepIndex > index;
+                    return (
+                      <div
+                        key={stepKey}
+                        className={`flex items-center text-sm transition-all ${
+                          isActive
+                            ? "text-primary font-medium"
+                            : isCompleted
+                            ? "text-gray-500 line-through"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full mr-2 ${
+                            isActive
+                              ? "bg-primary animate-pulse"
+                              : isCompleted
+                              ? "bg-gray-400"
+                              : "bg-gray-300"
+                          }`}
+                        />
+                        {getLoadingStepLabel(stepKey as any)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: ERROR */}
+        {step === "error" && (
+          <div className="bg-white rounded-2xl shadow-xl border border-red-200 p-8 sm:p-12">
+            <div className="text-center max-w-md mx-auto">
+              <div className="mx-auto w-16 h-16 mb-6 bg-red-100 rounded-full flex items-center justify-center">
+                <X className="w-8 h-8 text-red-600" />
+              </div>
+              
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Error Generating Report
+              </h2>
+              
+              <div className="bg-red-50 rounded-xl p-6 mb-8 border border-red-200">
+                <p className="text-red-800 text-sm">
+                  {error || "An unexpected error occurred while processing your financial statements."}
+                </p>
+              </div>
+
+              {uploadedFile && (
+                <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-6 h-6 text-gray-600" />
+                      <div className="text-left">
+                        <p className="font-semibold text-gray-900 truncate max-w-xs">
+                          {uploadedFile.name}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleRetry}
+                  className="flex-1 px-8 py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                  Try Again
+                </button>
+                
+                <button
+                  onClick={backToUpload}
+                  className="flex-1 px-8 py-4 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  Choose Different File
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 4: REPORT */}
+        {/* STEP 5: REPORT */}
         {step === "report" && reportData && (
           <div className="space-y-6">
             <FinancialStatusReport data={reportData} onUploadAgain={backToUpload} />

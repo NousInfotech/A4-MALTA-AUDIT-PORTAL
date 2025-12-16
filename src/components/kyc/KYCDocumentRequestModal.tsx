@@ -95,6 +95,7 @@ interface KYCDocumentRequestModalProps {
   company?: any;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  workflowType?: "Shareholder" | "Representative";  
 }
 
 
@@ -106,6 +107,7 @@ export function KYCDocumentRequestModal({
   company,
   onSuccess,
   trigger,
+  workflowType,
 }: KYCDocumentRequestModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -129,9 +131,18 @@ export function KYCDocumentRequestModal({
   const [viewMode, setViewMode] =
   useState<"shareholders" | "involvements">("shareholders");
 
-useEffect(() => {
+  useEffect(() => {
   console.log("Company passed into modal:", company);
 }, [company]);
+
+  // Sync viewMode with workflowType
+  useEffect(() => {
+    if (workflowType === "Representative") {
+      setViewMode("involvements");
+    } else if (workflowType === "Shareholder") {
+      setViewMode("shareholders");
+    }
+  }, [workflowType]);
 
 
   const handleSubmit = async () => {
@@ -157,6 +168,18 @@ useEffect(() => {
       toast({
         title: "Error",
         description: "Add at least one document",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Enforce person selection if not a General workflow (Shareholder/Representative) or if explicitly required
+    // The user stated "personId is required in the KYC company Section", which typically implies strict person linkage.
+    // We enforce it for Shareholder and Representative types to be safe.
+    if ((workflowType === 'Shareholder' || workflowType === 'Representative') && selectedPersonIds.length === 0) {
+      toast({
+        title: "Error",
+        description: `Please select at least one ${workflowType === 'Shareholder' ? 'Shareholder' : 'Representative'}`,
         variant: "destructive"
       });
       return;
@@ -215,7 +238,8 @@ useEffect(() => {
         companyId: companyId || undefined,
         clientId,
         documentRequests:processedDocumentRequests,
-        companyName: company?.name
+        companyName: company?.name,
+        workflowType: workflowType
       };
 
       console.log("KYC Data: ", kycData);
@@ -333,6 +357,13 @@ useEffect(() => {
       
       
 
+  const filteredPersons = mergedPersons.filter(p => {
+    if (workflowType === "Shareholder") return p.shareholder;
+    if (workflowType === "Representative") return (p.roles ?? []).some(r => r !== "Shareholder");
+    if (viewMode === "shareholders") return p.shareholder;
+    return (p.roles ?? []).some(r => r !== "Shareholder");
+  });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -348,7 +379,7 @@ useEffect(() => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Create KYC Workflow
+            Create KYC Workflow {workflowType ? `(${workflowType})` : ''}
           </DialogTitle>
 
           <DialogDescription>
@@ -392,9 +423,14 @@ useEffect(() => {
           <div className="flex items-center justify-between gap-2">
             <div className='flex flex-col gap-2'>
           <CardTitle className="text-lg">
-          Persons Related to this {engagementId ? "engagement" : "company"} ({mergedPersons.length})
+          Persons Related to this {engagementId ? "engagement" : "company"} ({filteredPersons.length})
           </CardTitle>
 
+          {workflowType ? (
+            <Badge variant="outline" className="text-md">
+              {workflowType === "Representative" ? "Representatives" : "Shareholders"}
+            </Badge>
+          ) : (
           <Select value={viewMode} onValueChange={(v: any) => setViewMode(v)}>
           <SelectTrigger className='w-48 border-gray-300 focus:border-gray-500 rounded-xl'>
           <SelectValue placeholder="Select view" />
@@ -404,24 +440,34 @@ useEffect(() => {
           <SelectItem value="involvements">Involvements</SelectItem>
           </SelectContent>
           </Select>
+          )}
           </div>
            
-           <Button
-            variant="default"
-            onClick={() => {
-            // If all selected → unselect all
-            if (selectedPersonIds.length === mergedPersons.length) {
-            setSelectedPersonIds([]);
-            } else {
-            // Else → select all
-            setSelectedPersonIds(mergedPersons.map(p => p.personId));
-            }
-            }}
-            >
-            {selectedPersonIds.length === mergedPersons.length
-            ? "Unselect All"
-            : "Select All"}
+           {filteredPersons.length > 0 && (
+            <Button
+              variant="default"
+              onClick={() => {
+                // Compare with filteredPersons
+                const allSelected = filteredPersons.every(p => selectedPersonIds.includes(p.personId));
+                
+                if (allSelected) {
+                  // Unselect visible only
+                  setSelectedPersonIds(prev => prev.filter(id => !filteredPersons.find(p => p.personId === id)));
+                } else {
+                  // Select all visible
+                  const newIds = [...selectedPersonIds];
+                  filteredPersons.forEach(p => {
+                    if (!newIds.includes(p.personId)) newIds.push(p.personId);
+                  });
+                  setSelectedPersonIds(newIds);
+                }
+              }}
+              >
+              {filteredPersons.length > 0 && filteredPersons.every(p => selectedPersonIds.includes(p.personId))
+              ? "Unselect All"
+              : "Select All"}
             </Button>
+           )}
           
           </div>
           </CardHeader>
@@ -431,14 +477,18 @@ useEffect(() => {
           {/* ✅ SHAREHOLDERS */}
           {viewMode === "shareholders" && (
           <div className="space-y-3">
-          {mergedPersons
-          .filter(p => p.shareholder)
-          .map(p => (
-          <div
-          key={p.personId}
-          onClick={() => togglePersonSelect(p.personId)}
-          className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer"
-          >
+            {filteredPersons.length === 0 ? (
+              <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+                No shareholders found. Please add shareholders in the Company details.
+              </div>
+            ) : (
+            filteredPersons
+            .map(p => (
+            <div
+            key={p.personId}
+            onClick={() => togglePersonSelect(p.personId)}
+            className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border cursor-pointer"
+            >
           <div>
             <p className="font-medium text-gray-900">{p.name ?? "Unknown"}</p>
             {p.nationality && (
@@ -487,18 +537,27 @@ useEffect(() => {
               />
 
           </div>
-          ))}
+            ))
+            )
+            }
           </div>
           )}
+
+
 
           {/* ✅ INVOLVEMENTS */}
           {viewMode === "involvements" && (
           <div className="space-y-3">
-          {mergedPersons.map(p => {
-          const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
-          if (roles.length === 0) return null;
+            {filteredPersons.length === 0 ? (
+              <div className="text-center p-4 bg-yellow-50 text-yellow-800 rounded-lg border border-yellow-200">
+                No representatives or involvements found. Please add them in the Company details.
+              </div>
+            ) : (
+            filteredPersons.map(p => {
+            const roles = (p.roles ?? []).filter(r => r !== "Shareholder");
+            if (roles.length === 0) return null;
 
-          return (
+            return (
             <div
             key={p.personId}
             onClick={() => togglePersonSelect(p.personId)}
@@ -541,7 +600,9 @@ useEffect(() => {
           </div>
           
           );
-          })}
+          })
+            )
+            }
           </div>
           )}
           </CardContent>
@@ -793,7 +854,7 @@ useEffect(() => {
 
             <Button
               onClick={handleSubmit}
-              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0)}
+              disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || selectedPersonIds.length === 0}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {loading ? (

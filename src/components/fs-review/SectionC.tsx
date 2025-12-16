@@ -23,7 +23,7 @@ export default function SectionC({ items }: { items: CItem[] }) {
             <AccordionTrigger>
               <div className="flex items-center gap-3">
                 <Info className="text-yellow-500" size={18} />
-                <span>{issue.test_id} — {issue.description}</span>
+                <span className="text-left">{issue.test_id} — {issue.description}</span>
               </div>
             </AccordionTrigger>
 

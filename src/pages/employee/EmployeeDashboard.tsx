@@ -101,7 +101,7 @@ export const EmployeeDashboard = () => {
           `
         )
         .order("created_at", { ascending: false })
-        .eq("organization_id",employee?.organizationId);
+        .eq("organization_id", employee?.organizationId);
 
       if (error) {
         console.error("Supabase error:", error);
@@ -223,7 +223,7 @@ export const EmployeeDashboard = () => {
   const getGreetingMessage = () => {
     const hour = new Date().getHours();
     // const userName = currentUser?.name || "User";
-    const userName = "Cleven";
+    const userName = employee?.user_metadata?.name || employee?.email?.split('@')[0] || "User";
 
     if (hour < 12) {
       return `Good morning, ${userName}!`;

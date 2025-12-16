@@ -185,9 +185,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, currentU
 
     return (
         <div className={cn("flex flex-col bg-white relative overflow-hidden", className)}>
-            {/* Search Bar Overlay */}
+            {/* Search Bar Area */}
             {isSearching && (
-                <div className="absolute top-0 left-0 right-0 p-2 bg-white border-b z-10 flex gap-2 animate-in slide-in-from-top-2">
+                <div className="p-2 bg-white border-b flex gap-2 animate-in slide-in-from-top-2 shadow-sm z-10">
                     <Input
                         autoFocus
                         placeholder="Search messages..."
@@ -324,6 +324,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, currentU
                         <Paperclip className="h-4 w-4" />
                     </Button>
 
+                    {!isSearching && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-600 rounded-full shrink-0"
+                            onClick={() => setIsSearching(true)}
+                            title="Search messages"
+                        >
+                            <Search className="h-4 w-4" />
+                        </Button>
+                    )}
+
                     <Input
                         value={editingMessage ? editContent : newMessage}
                         onChange={(e) => editingMessage ? setEditContent(e.target.value) : setNewMessage(e.target.value)}
@@ -343,17 +355,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ conversationId, currentU
                 </div>
             </div>
 
-            {/* Search Trigger */}
-            {!isSearching && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 z-10 h-6 w-6 bg-white/50 hover:bg-white shadow-sm rounded-full backdrop-blur-sm"
-                    onClick={() => setIsSearching(true)}
-                >
-                    <Search className="h-3 w-3 text-gray-500" />
-                </Button>
-            )}
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

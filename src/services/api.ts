@@ -238,6 +238,10 @@ export const documentRequestApi = {
     return apiCall(`/api/document-requests/engagement/${engagementId}`);
   },
 
+  getByCompany: async (companyId: string) => {
+    return apiCall(`/api/document-requests/company/${companyId}`);
+  },
+
   getById: async (id: string) => {
     return apiCall(`/api/document-requests/${id}`);
   },
