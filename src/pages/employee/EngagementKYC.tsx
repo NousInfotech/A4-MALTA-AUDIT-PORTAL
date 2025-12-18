@@ -118,6 +118,8 @@ interface EngagementKYCProps {
   clientId?: string;
   company?: any;
   isClientView?: boolean;
+  showStatusManagement?: boolean;
+  deleteRequest?: boolean;
 }
 
 export function EngagementKYC({ 
@@ -125,7 +127,9 @@ export function EngagementKYC({
   companyId: companyIdProp,
   clientId: clientIdProp,
   company: companyProp,
-  isClientView = false
+  isClientView = false,
+  showStatusManagement = true,
+  deleteRequest=true
 }: EngagementKYCProps = {}) {
   const params = useParams<{ id: string; clientId?: string; companyId?: string }>();
   
@@ -1053,7 +1057,7 @@ export function EngagementKYC({
           {workflows.map((workflow) => (
             <div key={workflow._id} className="space-y-4">
               {/* Status Management – only show when there are document requests */}
-              {workflow.documentRequests && workflow.documentRequests.length > 0 && (
+              {showStatusManagement && workflow.documentRequests && workflow.documentRequests.length > 0 && (
                 <div className="bg-gray-50 rounded-xl p-4">
                   
                   <div className="flex items-center justify-between mb-3">
@@ -1251,7 +1255,7 @@ export function EngagementKYC({
                                     Download All
                                   </Button>
                                 )}
-                                {isClient ? null : (
+                                {deleteRequest &&(
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1271,7 +1275,8 @@ export function EngagementKYC({
                                   <Trash2 className="h-4 w-4 mr-1" />
                                   Delete Request
                                 </Button>
-                                )}
+                                )
+                        }
                               </div>
                             </div>
                         
@@ -1285,11 +1290,13 @@ export function EngagementKYC({
                               onClearMultipleItem={handleClearMultipleItem}
                               onClearMultipleGroup={handleClearMultipleGroup}
                               onDownloadMultipleGroup={handleDownloadMultipleGroup}
-                              onRequestDeleteDialog={(payload) =>
-                                setDeleteDialog({
-                                  open: true,
-                                  ...payload,
-                                })
+                              onRequestDeleteDialog={
+                                (showStatusManagement && deleteRequest) ?
+                                ((payload) =>
+                                  setDeleteDialog({
+                                    open: true,
+                                    ...payload,
+                                  })) : undefined
                               }
                               clientId={workflow.clientId}
                               onDocumentsAdded={fetchKYCWorkflows}
@@ -1732,6 +1739,7 @@ export function EngagementKYC({
                                       Download All
                                     </Button>
                                   )}
+                                  {showStatusManagement && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1751,6 +1759,7 @@ export function EngagementKYC({
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Delete Request
                                   </Button>
+                                  )}
                                 </div>
                                  </div>
                           
@@ -1764,11 +1773,13 @@ export function EngagementKYC({
                                 onClearMultipleItem={handleClearMultipleItem}
                                 onClearMultipleGroup={handleClearMultipleGroup}
                                 onDownloadMultipleGroup={handleDownloadMultipleGroup}
-                                onRequestDeleteDialog={(payload) =>
-                                  setDeleteDialog({
-                                    open: true,
-                                    ...payload,
-                                  })
+                                onRequestDeleteDialog={
+                                  (showStatusManagement && deleteRequest) ? 
+                                  ((payload) =>
+                                    setDeleteDialog({
+                                      open: true,
+                                      ...payload,
+                                    })) : undefined
                                 }
                                 clientId={workflow.clientId}
                                 onDocumentsAdded={fetchKYCWorkflows}

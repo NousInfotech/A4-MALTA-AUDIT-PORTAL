@@ -34,6 +34,7 @@ interface DocumentRequestSingleProps {
   /** Called when user clicks "Clear" button to clear file only */
   onClearDocument?: (requestId: string, documentIndex: number, documentName: string) => void | Promise<void>;
   isDisabled?: boolean;
+  deleteButton?: boolean;
 }
 
 const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
