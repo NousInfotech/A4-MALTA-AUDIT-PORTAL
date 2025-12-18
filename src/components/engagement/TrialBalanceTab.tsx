@@ -1038,22 +1038,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                         <span className="sm:hidden">Field Work</span>
                       </span>
                     </Button> */}
-
-                    <Button
-                      variant={selectedProcedureType === "completion" ? "default" : "outline"}
-                      className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => handleProcedureButtonClick("completion")}
-                    >
-                      <span className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="hidden sm:inline">
-                          Completion Procedures
-                        </span>
-                        <span className="sm:hidden">Completion</span>
-                      </span>
-                    </Button>
-
-                    {etbCount > 0 && (
+                    {/* Extended Trial Balance */}
+                     {etbCount > 0 && (
                       <Button
                         variant={
                           selectedClassification === "ETB"
@@ -1077,6 +1063,8 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </Button>
                     )}
 
+                    {/* Adjustments */}
+
                     <Button
                       variant={
                         selectedClassification === "Adjustments"
@@ -1096,6 +1084,7 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       {adjustmentsCount === 0 ? "" : <Badge variant="secondary">{adjustmentsCount}</Badge>}
                     </Button>
 
+                  {/* Reclassifications */}
                     <Button
                       variant={
                         selectedClassification === "Reclassifications"
@@ -1115,6 +1104,45 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       {reclassificationsCount === 0 ? "" : <Badge variant="secondary">{reclassificationsCount}</Badge>}
                     </Button>
 
+                    {/* Income Statement */}
+                     <Button
+                      variant={
+                        selectedClassification === "IncomeStatement"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => {
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
+                        setSelectedClassification("IncomeStatement");
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Income Statement
+                      </span>
+                    </Button>
+                   
+                   {/* Balance Sheet */}
+                      <Button
+                      variant={
+                        selectedClassification === "BalanceSheet"
+                          ? "default"
+                          : "outline"
+                      }
+                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => {
+                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
+                        setSelectedClassification("BalanceSheet");
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Scale className="h-4 w-4" />
+                        Balance Sheet
+                      </span>
+                    </Button>
+
+                    {/* Exports */}
                     <Button
                       variant={
                         selectedClassification === "Exports"
@@ -1133,42 +1161,20 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                       </span>
                     </Button>
 
+                    {/* Completion */}
                     <Button
-                      variant={
-                        selectedClassification === "IncomeStatement"
-                          ? "default"
-                          : "outline"
-                      }
-                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => {
-                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
-                        setSelectedClassification("IncomeStatement");
-                      }}
+                      variant={selectedProcedureType === "completion" ? "default" : "outline"}
+                      className="w-full justify-between h-auto p-3 bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                      onClick={() => handleProcedureButtonClick("completion")}
                     >
                       <span className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Income Statement
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          Completion Procedures
+                        </span>
+                        <span className="sm:hidden">Completion</span>
                       </span>
                     </Button>
-
-                    <Button
-                      variant={
-                        selectedClassification === "BalanceSheet"
-                          ? "default"
-                          : "outline"
-                      }
-                      className="w-full justify-between h-auto p-3  bg-brand-body hover:bg-amber-100 border border-amber-200 text-gray-900 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                      onClick={() => {
-                        updateProcedureParams({ procedureType: null, mode: null, step: null }, false);
-                        setSelectedClassification("BalanceSheet");
-                      }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Scale className="h-4 w-4" />
-                        Balance Sheet
-                      </span>
-                    </Button>
-
                     {(etbCount > 0 || adjustmentsCount > 0 || reclassificationsCount > 0) && (
                       <div className="text-xs uppercase text-gray-500 px-3 pt-3">
                         Classifications
