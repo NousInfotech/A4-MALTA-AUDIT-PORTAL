@@ -243,7 +243,7 @@ import { ProcedureGeneration } from "../procedures/ProcedureGeneration";
 import { PlanningProcedureGeneration } from "../procedures/PlanningProcedureGeneration";
 import { CompletionProcedureGeneration } from "../procedures/CompletionProcedureGeneration";
 import WorkBookApp from "../audit-workbooks/WorkBookApp";
-import { ExcelViewerWithFullscreen } from "../audit-workbooks/ExcelViewer";
+import { ExcelViewer } from "../audit-workbooks/ExcelViewer";
 import { NEW_CLASSIFICATION_OPTIONS } from "./classificationOptions";
 import { AdjustmentManager } from "../adjustments/AdjustmentManager";
 
@@ -11332,7 +11332,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // ✅ NEW: ExcelViewer for All Workbooks
   const allWorkbookViewer = isAllWorkbookViewerOpen && selectedAllWorkbook ? (
-    <ExcelViewerWithFullscreen
+    <ExcelViewer
       workbook={selectedAllWorkbook}
       mappingsRefreshKey={allWorkbookMappingsRefreshKey}
       setSelectedWorkbook={setSelectedAllWorkbook}

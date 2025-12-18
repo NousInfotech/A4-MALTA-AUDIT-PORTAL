@@ -44,6 +44,7 @@ export interface Mapping {
     end: MappingCoordinates;
   };
   referenceFiles?: MappingReferenceFile[];
+  notes?: string; // ✅ NEW: Notes field for mapping
 }
 
 export interface NamedRange {

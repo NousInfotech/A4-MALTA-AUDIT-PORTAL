@@ -18,7 +18,7 @@ import {
 } from "../../types/audit-workbooks/types";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
-import { ExcelViewerWithFullscreen } from "@/components/audit-workbooks/ExcelViewer";
+import { ExcelViewer } from "@/components/audit-workbooks/ExcelViewer";
 import { Loader2 } from "lucide-react";
 import {
   db_WorkbookApi,
@@ -2263,14 +2263,14 @@ export default function WorkBookApp({
         console.log("WorkBookApp: Current mappings state:", mappings);
         console.log("WorkBookApp: Current namedRanges state:", namedRanges);
 
-        console.log("WorkBookApp: About to render ExcelViewerWithFullscreen with props:", {
+        console.log("WorkBookApp: About to render ExcelViewer with props:", {
           engagementId,
           classification,
           selectedWorkbook: selectedWorkbook?.name
         });
 
         return selectedWorkbook ? (
-          <ExcelViewerWithFullscreen
+          <ExcelViewer
           key={`${selectedWorkbook?.id}-${mappings.length}-${mappingsRefreshKey}-${viewerSelectedSheet}`}
             workbook={selectedWorkbook}
             mappingsRefreshKey={mappingsRefreshKey}
