@@ -171,7 +171,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [totalSharesError, setTotalSharesError] = useState<string>("");
+  const [sharePercentageError, setSharePercentageError] = useState<string>("");
   const [errors, setErrors] = useState({
     name: "",
     registrationNumber: "",
@@ -285,13 +285,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     formData.industry === "Other" ? formData.customIndustry : formData.industry
   ).trim();
 
-  useEffect(() => {
-    if (totalSharesSum <= 0) {
-      setTotalSharesError("Enter at least one share amount greater than 0");
-    } else {
-      setTotalSharesError("");
-    }
-  }, [totalSharesSum]);
+
 
   const handleGeneralValueChange = (
     key: "authorizedShares" | "issuedShares" | "perShareValue",
@@ -483,27 +477,11 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
 
     setErrors(newErrors);
 
-    // Validate total shares using the calculated sum
-    const currentTotalSum = calculateTotalSharesSum(shareClassValues);
-    let sharesError = "";
-    if (currentTotalSum <= 0) {
-      sharesError = "Enter at least one share amount greater than 0";
-    }
-
-    // Check for share class errors
-    const hasShareClassErrors = Object.values(shareClassErrors).some((err) => err !== "");
-    if (hasShareClassErrors) {
-      sharesError = "Please fix share class validation errors";
-    }
-
-    setTotalSharesError(sharesError);
-
     const nameValid = !!formData.name.trim();
     const registrationNumberValid = !!formData.registrationNumber.trim();
     const addressValid = !!formData.address.trim();
-    const totalSharesValid = !sharesError && currentTotalSum > 0 && !hasShareClassErrors;
 
-    return nameValid && registrationNumberValid && addressValid && totalSharesValid;
+    return nameValid && registrationNumberValid && addressValid && !hasShareClassErrors;
   };
 
   useEffect(() => {
@@ -554,13 +532,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
             : Number(company.perShareValue) || 0,
       });
 
-      // Validate totalShares on load
-      const totalSum = calculateTotalSharesSum(parsedShareValues);
-      if (totalSum <= 0) {
-        setTotalSharesError("Enter at least one share amount greater than 0");
-      } else {
-        setTotalSharesError("");
-      }
+
 
       setSupportingDocuments(company.supportingDocuments || []);
       setShareHoldingCompanies(company.shareHoldingCompanies || []);
@@ -949,9 +921,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 );
               })}
             </div>
-            {totalSharesError && (
-              <ErrorMessage message={totalSharesError} />
-            )}
+
           </div>
 
           <div className="space-y-2">
@@ -1039,8 +1009,6 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               type="submit"
               disabled={
                 isSubmitting ||
-                totalSharesSum <= 0 ||
-                !!totalSharesError ||
                 hasShareClassErrors ||
                 !formData.name.trim() ||
                 !formData.registrationNumber.trim() ||
