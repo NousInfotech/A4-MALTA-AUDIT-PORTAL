@@ -469,7 +469,12 @@ export const CompanyDetail: React.FC = () => {
 
 
                {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
-              {company.totalShares && company.totalShares.length > 0 && (
+              {(
+                (company.totalShares && company.totalShares.some(s => Number(s.totalShares) > 0)) || 
+                (Number(company.authorizedShares) > 0) || 
+                (Number(company.issuedShares) > 0) || 
+                (Number(company.perShareValue?.value) > 0)
+              ) && (
                 <div className="flex items-start gap-3 p-4 bg-[#FFB300]/10 border border-[#FFB300] rounded-xl">
                   <PieChart
                     className="h-5 w-5 mt-0.5" />
@@ -480,63 +485,71 @@ export const CompanyDetail: React.FC = () => {
 
                   {/* Authorized Shares */}
                   <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide font-semibold">
-                  Authorized Shares
-                  </p>
-                  <p className="text-lg font-semibold">
-                  {company.authorizedShares.toLocaleString()}
-                  </p>
+                    <p className="text-xs uppercase tracking-wide font-semibold">
+                    Authorized Shares
+                    </p>
+                    <p className="text-lg font-semibold">
+                    {company.authorizedShares && company.authorizedShares > 0 
+                      ? company.authorizedShares.toLocaleString() 
+                      : "-"}
+                    </p>
                   </div>
 
                   {/* Per Share Value */}
                   <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide font-semibold">
-                  Per Share Value
-                  </p>
-                  <p className="text-lg font-semibold">
-                  € {company.perShareValue.value}
-                  </p>
+                    <p className="text-xs uppercase tracking-wide font-semibold">
+                    Per Share Value
+                    </p>
+                    <p className="text-lg font-semibold">
+                    {company.perShareValue?.value && company.perShareValue.value > 0 
+                      ? `€ ${company.perShareValue.value}` 
+                      : "-"}
+                    </p>
                   </div>
 
                   {/* Issued Shares */}
                   <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide font-semibold">
-                  Issued Shares
-                  </p>
-                  <p className="text-lg font-semibold">
-                  {company.issuedShares.toLocaleString()}
-                  </p>
+                    <p className="text-xs uppercase tracking-wide font-semibold">
+                    Issued Shares
+                    </p>
+                    <p className="text-lg font-semibold">
+                    {company.issuedShares && company.issuedShares > 0 
+                      ? company.issuedShares.toLocaleString() 
+                      : "-"}
+                    </p>
                   </div>
                   </div>
 
                   {/* SHARE BREAKDOWN LIST */}
-                  <div className="pt-3 border-t border-gray-100">
-                  <p className="text-xs font-medium mb-2">
-                  Share Breakdown
-                  </p>
+                  {company.totalShares && company.totalShares.some((share) => share.totalShares > 0) && (
+                    <div className="pt-3 border-t border-gray-100">
+                      <p className="text-xs font-medium mb-2">
+                      Share Breakdown
+                      </p>
 
-                  <div className="flex flex-wrap gap-2">
-                  {company.totalShares
-                  .filter((share) => share.totalShares > 0)
-                  .map((share, idx) => {
-                  const className =
-                  share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
+                      <div className="flex flex-wrap gap-2">
+                      {company.totalShares
+                      .filter((share) => share.totalShares > 0)
+                      .map((share, idx) => {
+                      const className =
+                      share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
 
-                  return (
-                  <Badge
-                  key={idx}
-                  variant="outline"
-                  className="px-3 py-1.5 rounded-lg border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 transition"
-                  >
-                  <span className="font-medium text-xs">
-                  {share.class.toLowerCase() !== "ordinary" ? "Class" : ""} {share.class}:{" "}
-                  {share.totalShares.toLocaleString()} Shares
-                  </span>
-                  </Badge>
-                  );
-                  })}
-                  </div>
-                  </div>
+                      return (
+                      <Badge
+                      key={idx}
+                      variant="outline"
+                      className="px-3 py-1.5 rounded-lg border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 transition"
+                      >
+                      <span className="font-medium text-xs">
+                      {share.class.toLowerCase() !== "ordinary" ? "Class" : ""} {share.class}:{" "}
+                      {share.totalShares.toLocaleString()} Shares
+                      </span>
+                      </Badge>
+                      );
+                      })}
+                      </div>
+                    </div>
+                  )}
                   </div>
 
                 </div>
@@ -761,7 +774,7 @@ export const CompanyDetail: React.FC = () => {
                               </Button>
                             )}
                           </div>
-
+                          
                         );
                       })}
                     </div>

@@ -92,7 +92,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   const [supportingDocuments, setSupportingDocuments] = useState<string[]>([]);
   const [shareHoldingCompanies, setShareHoldingCompanies] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [totalSharesError, setTotalSharesError] = useState<string>("");
   const [sharePercentageError, setSharePercentageError] = useState<string>("");
 
  const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
@@ -108,13 +107,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   const totalSharesSum = calculateTotalSharesSum(formData.shareClassValues);
   const hasShareClassErrors = Object.values(shareClassErrors).some(Boolean);
 
-  useEffect(() => {
-    if (totalSharesSum <= 0) {
-      setTotalSharesError("Enter at least one share amount greater than 0");
-    } else {
-      setTotalSharesError("");
-    }
-  }, [totalSharesSum]);
+
  
 
 
@@ -138,7 +131,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       });
       setSupportingDocuments([]);
       setShareHoldingCompanies([]);
-      setTotalSharesError("");
       setSharePercentageError("");
       setShareClassErrors(getDefaultShareClassErrors());
     }
@@ -321,7 +313,6 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
     });
     setSupportingDocuments([]);
     setShareHoldingCompanies([]);
-    setTotalSharesError("");
     setSharePercentageError("");
     setShareClassErrors(getDefaultShareClassErrors());
   };
@@ -524,7 +515,7 @@ export const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
                             handleChange("shareClassValues", values);
                           }}
               onErrorChange={(errs) => setShareClassErrors(errs)}
-                label="Company Total Shares *"
+                label="Company Total Shares"
                 className="mt-2"
             />
             {/* {totalSharesError && (
