@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { FileText, Upload, CheckCircle, AlertCircle, X, RefreshCw } from "lucide-react";
 import FinancialStatusReport from "./FinancialStatusReport";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
+import { Label } from "../ui/label";
 import { useFinancialStatementReview, getLoadingStepLabel, getLoadingStepProgress } from "@/hooks/useFinancialStatementReview";
 import { FSReviewOutput } from "@/types/fs/fs";
 
@@ -11,10 +14,22 @@ interface FSUploadFlowProps {
   engagementId?: string;
 }
 
+const TEST_CATEGORIES = [
+  { value: "AUDIT_REPORT", label: "Audit Report" },
+  { value: "BALANCE_SHEET", label: "Balance Sheet" },
+  { value: "INCOME_STATEMENT", label: "Income Statement" },
+  { value: "GENERAL", label: "General Information" },
+  { value: "NOTES_AND_POLICY", label: "Notes & Policy" },
+  { value: "CROSS_STATEMENT", label: "Cross Statement" },
+  { value: "ALL", label: "All Tests" },
+];
+
 export default function FSUploadFlow({ engagementId }: FSUploadFlowProps) {
   const [step, setStep] = useState<"upload" | "confirm" | "loading" | "report" | "error">("upload");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [includeTests, setIncludeTests] = useState<string[]>(["ALL"]);
+  const [includePortalData, setIncludePortalData] = useState<boolean>(false);
   
   const {
     data: reportData,
@@ -92,15 +107,32 @@ export default function FSUploadFlow({ engagementId }: FSUploadFlowProps) {
     }
 
     try {
-      await generateReview(engagementId, uploadedFile);
+      await generateReview(engagementId, uploadedFile, includeTests, includePortalData);
     } catch (err) {
       // Error is handled by the hook
       console.error("Failed to generate report:", err);
     }
   };
 
+  const handleCategoryToggle = (category: string) => {
+    if (category === "ALL") {
+      setIncludeTests(["ALL"]);
+    } else {
+      setIncludeTests((prev) => {
+        const newTests = prev.includes("ALL") 
+          ? [category] 
+          : prev.includes(category)
+          ? prev.filter((c) => c !== category)
+          : [...prev.filter((c) => c !== "ALL"), category];
+        return newTests.length === 0 ? ["ALL"] : newTests;
+      });
+    }
+  };
+
   const backToUpload = () => {
     setUploadedFile(null);
+    setIncludeTests(["ALL"]);
+    setIncludePortalData(false);
     reset();
     setStep("upload");
   };
@@ -234,44 +266,97 @@ export default function FSUploadFlow({ engagementId }: FSUploadFlowProps) {
         {/* STEP 2: CONFIRM */}
         {step === "confirm" && uploadedFile && (
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-12">
-            <div className="text-center max-w-md mx-auto">
-              <div className="mx-auto w-16 h-16 mb-6 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-              
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                File Ready for Analysis
-              </h2>
-              
-              <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="w-6 h-6 text-gray-600" />
-                    <div className="text-left">
-                      <p className="font-semibold text-gray-900 truncate max-w-xs">
-                        {uploadedFile.name}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
+            <div className="max-w-2xl mx-auto">
+              <div className="text-center mb-6">
+                <div className="mx-auto w-16 h-16 mb-6 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  File Ready for Analysis
+                </h2>
+                
+                <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="w-6 h-6 text-gray-600" />
+                      <div className="text-left">
+                        <p className="font-semibold text-gray-900 truncate max-w-xs">
+                          {uploadedFile.name}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <button
-                onClick={generateReport}
-                className="w-full px-8 py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors shadow-lg hover:shadow-xl mb-4"
-              >
-                Generate Analysis Report
-              </button>
+              {/* Test Categories Selection */}
+              <div className="mb-8">
+                <Label className="text-base font-semibold text-gray-900 mb-4 block">
+                  Select Test Categories
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  {TEST_CATEGORIES.map((category) => (
+                    <div key={category.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`category-${category.value}`}
+                        checked={includeTests.includes(category.value)}
+                        onCheckedChange={() => handleCategoryToggle(category.value)}
+                      />
+                      <Label
+                        htmlFor={`category-${category.value}`}
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        {category.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-              <button
-                onClick={backToUpload}
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-              >
-                ← Choose Different File
-              </button>
+              {/* Portal Data Selection */}
+              <div className="mb-8">
+                <Label className="text-base font-semibold text-gray-900 mb-4 block">
+                  Include Portal Data
+                </Label>
+                <RadioGroup
+                  value={includePortalData ? "yes" : "no"}
+                  onValueChange={(value) => setIncludePortalData(value === "yes")}
+                  className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="yes" id="portal-yes" />
+                    <Label htmlFor="portal-yes" className="text-sm font-normal cursor-pointer">
+                      Yes, include portal data (use portal values as source of truth)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-3">
+                    <RadioGroupItem value="no" id="portal-no" />
+                    <Label htmlFor="portal-no" className="text-sm font-normal cursor-pointer">
+                      No, extract all values from PDF only
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="text-center">
+                <button
+                  onClick={generateReport}
+                  className="w-full px-8 py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors shadow-lg hover:shadow-xl mb-4"
+                >
+                  Generate Analysis Report
+                </button>
+
+                <button
+                  onClick={backToUpload}
+                  className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                >
+                  ← Choose Different File
+                </button>
+              </div>
             </div>
           </div>
         )}

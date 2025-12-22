@@ -17,7 +17,7 @@ interface UseFinancialStatementReviewReturn {
   loading: boolean;
   error: string | null;
   loadingStep: LoadingStep;
-  generateReview: (engagementId: string, file: File) => Promise<void>;
+  generateReview: (engagementId: string, file: File, includeTests?: string[], includePortalData?: boolean) => Promise<void>;
   reset: () => void;
 }
 
@@ -88,7 +88,7 @@ export const useFinancialStatementReview = (): UseFinancialStatementReviewReturn
   }, []);
 
   const generateReview = useCallback(
-    async (engagementId: string, file: File) => {
+    async (engagementId: string, file: File, includeTests: string[] = ["ALL"], includePortalData: boolean = false) => {
       if (!engagementId) {
         setError("Engagement ID is required");
         return;
@@ -105,7 +105,7 @@ export const useFinancialStatementReview = (): UseFinancialStatementReviewReturn
 
       try {
         await simulateProgress(() =>
-          financialStatementReviewApi.generateFinancialStatementReview(engagementId, file)
+          financialStatementReviewApi.generateFinancialStatementReview(engagementId, file, includeTests, includePortalData)
         );
       } catch (err) {
         // Error is already handled in simulateProgress
