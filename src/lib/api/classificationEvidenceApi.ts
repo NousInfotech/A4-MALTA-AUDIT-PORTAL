@@ -41,6 +41,7 @@ export interface EvidenceMapping {
   };
   isActive: boolean;
   referenceFiles?: MappingReferenceFile[];
+  notes?: string; // ✅ NEW: Notes field for mapping
 }
 
 export interface ClassificationEvidence {
@@ -83,6 +84,7 @@ export interface CreateMappingRequest {
     };
   };
   referenceFiles?: MappingReferenceFile[];
+  notes?: string; // ✅ NEW: Notes field for mapping creation
 }
 
 export interface UpdateMappingRequest {
@@ -99,6 +101,7 @@ export interface UpdateMappingRequest {
     };
   };
   isActive?: boolean;
+  notes?: string; // ✅ NEW: Notes field for mapping update
 }
 
 export interface WorkbookMappingInfo {
@@ -331,6 +334,7 @@ export const addReferenceFileToWorkbook = async (
     sheet: string;
     start: { row: number; col: number };
     end?: { row: number; col: number };
+    notes?: string; // ✅ NEW: Notes field for reference files
   }
 ): Promise<{ success: boolean; workbook?: any; error?: string }> => {
   try {
@@ -340,6 +344,7 @@ export const addReferenceFileToWorkbook = async (
         sheet: cellRange.sheet,
         start: cellRange.start,
         end: cellRange.end || cellRange.start,
+        notes: cellRange.notes || undefined, // ✅ NEW: Include notes in request
       }
     );
     return {

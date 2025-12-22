@@ -41,6 +41,7 @@ export interface ETBMapping {
   };
   isActive: boolean;
   referenceFiles?: MappingReferenceFile[];
+  notes?: string; // ✅ NEW: Notes field for mapping
 }
 
 export interface ETBRow {
@@ -80,6 +81,7 @@ export interface CreateMappingRequest {
     };
   };
   referenceFiles?: MappingReferenceFile[];
+  notes?: string; // ✅ NEW: Notes field for mapping creation
 }
 
 export interface UpdateMappingRequest {
@@ -96,6 +98,7 @@ export interface UpdateMappingRequest {
     };
   };
   isActive?: boolean;
+  notes?: string; // ✅ NEW: Notes field for mapping update
 }
 
 export interface WorkbookMappingInfo {
