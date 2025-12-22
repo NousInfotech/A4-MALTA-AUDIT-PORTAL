@@ -808,7 +808,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               </Label>
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600">
-                  Total: {totalSharesSum.toLocaleString()}
+                  Total: {totalSharesSum.toLocaleString()}/ {shareClassValues.issuedShares.toLocaleString()}
                 </span>
                 {hasPurchasedShares && (
                   <span className="text-sm text-amber-600 font-medium">

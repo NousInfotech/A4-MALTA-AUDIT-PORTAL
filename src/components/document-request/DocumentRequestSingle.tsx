@@ -34,7 +34,7 @@ interface DocumentRequestSingleProps {
   /** Called when user clicks "Clear" button to clear file only */
   onClearDocument?: (requestId: string, documentIndex: number, documentName: string) => void | Promise<void>;
   isDisabled?: boolean;
-  deleteButton?: boolean;
+  isClientView?: boolean;
 }
 
 const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
@@ -45,6 +45,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
   onRequestDeleteDialog,
   onClearDocument,
   isDisabled,
+  isClientView = false,
 }) => {
   const { toast } = useToast();
 
@@ -79,7 +80,11 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
               <div>
                 <p className="font-medium text-gray-900">{doc.name}</p>
                 {doc.description && (
-                  <p className="text-xs text-gray-600 mt-0.5">{doc.description}</p>
+                  <div className="flex flex-col gap-1 mt-0.5">
+                    {doc.description.split('\n').map((line, i) => (
+                      <p key={i} className="text-xs text-gray-600">{line}</p>
+                    ))}
+                  </div>
                 )}
                 <div className="flex items-center gap-2 mt-1">
                   {docType === "template" ? (
@@ -102,7 +107,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
                       ? doc.status
                       : String(doc.status || "pending")}
                   </Badge>
-                  {doc.uploadedAt && (
+                  {doc.url && doc.uploadedAt && (
                     <span className="text-xs text-gray-500">
                       Uploaded: {(() => {
                         const date = new Date(doc.uploadedAt);
@@ -239,7 +244,7 @@ const DocumentRequestSingle: React.FC<DocumentRequestSingleProps> = ({
               )}
 
               {/* Full delete of document slot (handled via dialog in parent) */}
-              {onRequestDeleteDialog && (
+              {onRequestDeleteDialog && !isClientView && (
                 <Button
                   size="sm"
                   variant="outline"

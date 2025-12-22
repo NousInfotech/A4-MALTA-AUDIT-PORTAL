@@ -54,6 +54,8 @@ import {
   AlertCircle,
   Play,
   RotateCcw,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
@@ -319,7 +321,44 @@ export const DocumentRequestsTab = ({
   });
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  const toggleRow = (id: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const calculateProgress = (request: any) => {
+    const singleDocs = request.documents || [];
+    const multipleDocs = request.multipleDocuments?.flatMap((m: any) => m.multiple || []) || [];
+    const total = singleDocs.length + multipleDocs.length;
+    if (total === 0) return 0;
+    
+    const completed = singleDocs.filter((d: any) => d.url && d.status !== 'rejected').length +
+                    multipleDocs.filter((d: any) => d.url && d.status !== 'rejected').length;
+    return (completed / total) * 100;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "completed":
+      case "approved":
+        return "bg-green-500 text-green-700";
+      case "submitted":
+      case "uploaded":
+      case "in-review":
+        return "bg-blue-500 text-blue-700";
+      case "rejected":
+        return "bg-red-500 text-red-700";
+      default:
+        return "bg-yellow-500 text-yellow-700";
+    }
+  };
 
   const areActionsDisabled = loading || isUpdating || isActionInProgress || !!uploadingDocument || !!uploadingMultiple;
 
@@ -1166,176 +1205,110 @@ export const DocumentRequestsTab = ({
               </div>
             </CardHeader>
 
-            <CardContent className="p-6 space-y-6">
+            <CardContent className="p-4 space-y-4">
               {documentRequests.map((request) => {
-                const calculatedStatus = calculateDocumentRequestStatus(request);
-                
-                // Count single documents
-                const singleDocsCount = request.documents?.length || 0;
-                const completedSingleDocs = request.documents?.filter((doc: any) => 
-                  doc.url && doc.status !== 'rejected'
-                ).length || 0;
-                
-                // Count multiple document items
-                const multipleDocsItems = request.multipleDocuments?.flatMap((group: any) => 
-                  group.multiple || []
-                ) || [];
-                const multipleDocsCount = multipleDocsItems.length;
-                const completedMultipleDocs = multipleDocsItems.filter((item: any) => 
-                  item.url && item.status !== 'rejected'
-                ).length || 0;
-                
-                // Calculate total progress including both single and multiple documents
-                const totalDocs = singleDocsCount + multipleDocsCount;
-                const completedDocs = completedSingleDocs + completedMultipleDocs;
-                const progressPercentage = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+                const status = calculateDocumentRequestStatus(request);
+                const progress = calculateProgress(request);
+                const statusColor = getStatusColor(status);
 
                 return (
-                  <div key={request._id} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    {/* Request Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-gray-900 text-lg">{request.category}</h3>
-                          {getStatusBadge(calculatedStatus)}
+                  <Card key={request._id} className="overflow-hidden border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-gray-50/50">
+                    <div 
+                      className="cursor-pointer"
+                      onClick={() => toggleRow(request._id)}
+                    >
+                      <div className="p-4 flex items-center gap-4">
+                        <div className={`w-1 self-stretch rounded-full ${statusColor}`} />
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-gray-900 truncate uppercase tracking-wider text-[10px]">
+                              {request.category}
+                            </span>
+                            <Badge variant="outline" className={`${statusColor} border-0 bg-opacity-10 text-[10px] h-5 px-1.5`}>
+                              {status}
+                            </Badge>
+                          </div>
+                          <h3 className="text-sm font-medium text-gray-700 truncate line-clamp-1">
+                            {request.description || request.name}
+                          </h3>
                         </div>
-                        <p className="text-sm text-gray-600">{request.description}</p>
-                        {request.comment && (
-                          <p className="text-xs text-gray-500 mt-1">Comment: {request.comment}</p>
-                        )}
-                         
-                         
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                          <span>Requested: {(() => {
-                            const dateStr = request.requestedAt || request.createdAt;
-                            if (!dateStr) return 'N/A';
-                            const date = new Date(dateStr);
-                            return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy");
-                          })()}</span>
-                          {request.completedAt && (
-                            <span>Completed: {(() => {
-                              const date = new Date(request.completedAt);
-                              return isNaN(date.getTime()) ? 'N/A' : format(date, "MMM dd, yyyy");
-                            })()}</span>
-                          )}
+
+                        <div className="flex items-center gap-6">
+                          <div className="hidden sm:flex flex-col items-end gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${statusColor}`}
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-medium text-gray-500 w-8 text-right">
+                                {Math.round(progress)}%
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadRequest(request._id);
+                              }}
+                              disabled={areActionsDisabled || progress === 0}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteDialog({
+                                    open: true,
+                                    type: 'request',
+                                    documentRequestId: request._id,
+                                    documentName: request.category || 'this document request'
+                                  });
+                              }}
+                              disabled={areActionsDisabled}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <div className="h-8 w-8 flex items-center justify-center">
+                                <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${expandedRows.has(request._id) ? 'rotate-90' : ''}`} />
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {completedDocs > 0 && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleDownloadRequest(request._id)}
-                            className="text-xs"
-                            disabled={areActionsDisabled}
-                            title="Download All Documents In This Request"
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download All
-                          </Button>
-                        )}
-                        <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setDeleteDialog({
-                          open: true,
-                          type: 'request',
-                          documentRequestId: request._id,
-                          documentName: request.category || 'this document request'
-                        })}
-                        className="border-red-300 hover:bg-red-50 hover:text-red-800 text-red-700 text-xs"
-                        title="Delete Document Request"
-                        disabled={areActionsDisabled}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Request
-                      </Button>
                     </div>
-                  </div>
 
-
-                    {/* Status Management */}
-                    {/* <div className="bg-white rounded-xl p-3 mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900 text-sm">Status Management</h4>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {calculatedStatus !== 'active' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusUpdate(request._id, 'active')}
-                            className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-                          >
-                            <Play className="h-4 w-4 mr-1" />
-                            Set Active
-                          </Button>
-                        )}
-                        {calculatedStatus !== 'in-review' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusUpdate(request._id, 'in-review')}
-                            className="border-gray-300 hover:bg-gray-100 hover:text-gray-900 text-gray-700"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Set In Review
-                          </Button>
-                        )}
-                        {calculatedStatus !== 'completed' && (
-                          <Button
-                            size="sm"
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                            onClick={() => handleStatusUpdate(request._id, 'completed')}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Mark Completed
-                          </Button>
-                        )}
-                      </div>
-                    </div> */}
-
-                    {/* Progress Bar */}
-                    {totalDocs > 0 && (
-                      <div className="mb-4 space-y-1">
-                        <div className="flex items-center justify-between text-xs text-gray-600">
-                          <span className="font-medium">Progress: {completedDocs} / {totalDocs} documents</span>
-                          <span className="font-semibold">{Math.round(progressPercentage)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div 
-                            className={`h-2.5 rounded-full transition-all ${
-                              progressPercentage === 100 
-                                ? 'bg-green-600' 
-                                : progressPercentage > 0 
-                                ? 'bg-blue-600' 
-                                : 'bg-gray-300'
-                            }`}
-                            style={{ width: `${progressPercentage}%` }}
-                          />
-                        </div>
-                      </div>
+                    {expandedRows.has(request._id) && (
+                      <CardContent className="border-t border-gray-100 bg-white/40 p-4">
+                        <DocumentRequest
+                          request={request}
+                          uploadingSingle={uploadingDocument}
+                          uploadingMultiple={uploadingMultiple}
+                          onUploadSingle={handleDocumentUpload}
+                          onUploadMultiple={handleUploadMultiple}
+                          onDeleteRequest={handleDeleteRequest}
+                          onClearDocument={handleClearDocument}
+                          onClearMultipleItem={handleClearMultipleItem}
+                          onRequestDeleteDialog={setDeleteDialog}
+                          onDocumentsAdded={fetchDocumentRequests}
+                          engagementId={engagementId}
+                          clientId={engagement?.clientId || ''}
+                          onClearMultipleGroup={handleClearMultipleGroup}
+                          onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                          isDisabled={areActionsDisabled}
+                        />
+                      </CardContent>
                     )}
-
-                    <DocumentRequest
-                      request={request}
-                      uploadingSingle={uploadingDocument}
-                      uploadingMultiple={uploadingMultiple}
-                      onUploadSingle={handleDocumentUpload}
-                      onUploadMultiple={handleUploadMultiple}
-                      onDeleteRequest={handleDeleteRequest}
-                      onClearDocument={handleClearDocument}
-                      onClearMultipleItem={handleClearMultipleItem}
-                      onRequestDeleteDialog={setDeleteDialog}
-                      onDocumentsAdded={fetchDocumentRequests}
-                      engagementId={engagementId}
-                      clientId={engagement?.clientId || ''}
-                      onClearMultipleGroup={handleClearMultipleGroup}
-                      onDownloadMultipleGroup={handleDownloadMultipleGroup}
-                      isDisabled={areActionsDisabled}
-                    />
-
-                  </div>
+                  </Card>
                 );
               })}
             </CardContent>

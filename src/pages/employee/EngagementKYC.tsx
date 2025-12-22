@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ import {
   RotateCcw,
   Play,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { kycApi, engagementApi, documentRequestApi } from "@/services/api";
@@ -171,6 +173,8 @@ export function EngagementKYC({
     multipleDocumentId?: string;
     itemIndex?: number;
   } | null>(null);
+  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
+  const hasExpandedRef = useRef(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -187,6 +191,21 @@ export function EngagementKYC({
       setLoading(false);
     }
   }, [engagementId, companyId]);
+  
+  // Expand all KYC items by default on initial load
+  useEffect(() => {
+    if (kycWorkflows.length > 0 && !hasExpandedRef.current) {
+      const allIds = kycWorkflows
+        .flatMap(w => w.documentRequests || [])
+        .filter(item => item.documentRequest)
+        .map(item => item.documentRequest._id);
+      
+      if (allIds.length > 0) {
+        setExpandedRequests(new Set(allIds));
+        hasExpandedRef.current = true;
+      }
+    }
+  }, [kycWorkflows]);
 
   // Auto-update document request statuses after workflows are fetched (only once per workflow load)
   useEffect(() => {
@@ -358,6 +377,18 @@ export function EngagementKYC({
     }
   };
 
+
+  const toggleRequest = (id: string) => {
+    setExpandedRequests(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const getStatusBadge = (status: string) => {
     // Ensure status is a string
@@ -1210,51 +1241,62 @@ export function EngagementKYC({
                                         "No address"}
                                     </p>
                                   )}
-                                  {request.description && (
-                                    <p className="text-sm text-gray-600 mt-1">
-                                      {request.description}
-                                    </p>
-                                  )}
-                                  {totalDocs > 0 && (
-                                    <div className="mt-3 space-y-1">
-                                      <div className="flex items-center justify-between text-xs text-gray-600">
-                                        <span className="font-medium">
-                                          Progress: {completedDocs} / {totalDocs} documents
-                                        </span>
-                                        <span className="font-semibold">
-                                          {Math.round(progressPercentage)}%
-                                        </span>
+                                    {request.description && (
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        {request.description}
+                                      </p>
+                                    )}
+                                    {totalDocs > 0 && (
+                                      <div className="mt-3 space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-gray-600">
+                                          <span className="font-medium">
+                                            Progress: {completedDocs} / {totalDocs} documents
+                                          </span>
+                                          <span className="font-semibold">
+                                            {Math.round(progressPercentage)}%
+                                          </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                          <div
+                                            className={`h-2.5 rounded-full transition-all ${
+                                              progressPercentage === 100
+                                                ? "bg-green-600"
+                                                : progressPercentage > 0
+                                                ? "bg-blue-600"
+                                                : "bg-gray-300"
+                                            }`}
+                                            style={{ width: `${progressPercentage}%` }}
+                                          />
+                                        </div>
                                       </div>
-                                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                        <div
-                                          className={`h-2.5 rounded-full transition-all ${
-                                            progressPercentage === 100
-                                              ? "bg-green-600"
-                                              : progressPercentage > 0
-                                              ? "bg-blue-600"
-                                              : "bg-gray-300"
-                                          }`}
-                                          style={{ width: `${progressPercentage}%` }}
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {completedDocs > 0 && (
+                                <div className="flex items-center gap-2">
                                   <Button
                                     size="sm"
-                                    variant="default"
-                                    onClick={() => handleDownloadRequest(request._id)}
-                                    disabled={isUpdating}
-                                    title="Download All Documents In This Request"
-                                    className='text-xs'
+                                    variant="ghost"
+                                    onClick={() => toggleRequest(request._id)}
                                   >
-                                    <Download className="h-4 w-4 mr-1" />
-                                    Download All
+                                    {expandedRequests.has(request._id) ? (
+                                      <ChevronUp className="h-5 w-5" />
+                                    ) : (
+                                      <ChevronDown className="h-5 w-5" />
+                                    )}
                                   </Button>
-                                )}
+                                  {completedDocs > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => handleDownloadRequest(request._id)}
+                                      disabled={isUpdating}
+                                      title="Download All Documents In This Request"
+                                      className='text-xs'
+                                    >
+                                      <Download className="h-4 w-4 mr-1" />
+                                      Download All
+                                    </Button>
+                                  )}
                                 {deleteRequest &&(
                                 <Button
                                   size="sm"
@@ -1280,29 +1322,31 @@ export function EngagementKYC({
                               </div>
                             </div>
                         
-                            <DocumentRequest
-                              request={request}
-                              uploadingSingle={uploadingDocument}
-                              uploadingMultiple={uploadingMultiple}
-                              onUploadSingle={handleDocumentUpload}
-                              onUploadMultiple={handleUploadMultiple}
-                              onClearDocument={handleClearSingleDocument}
-                              onClearMultipleItem={handleClearMultipleItem}
-                              onClearMultipleGroup={handleClearMultipleGroup}
-                              onDownloadMultipleGroup={handleDownloadMultipleGroup}
-                              onRequestDeleteDialog={
-                                (showStatusManagement && deleteRequest) ?
-                                ((payload) =>
-                                  setDeleteDialog({
-                                    open: true,
-                                    ...payload,
-                                  })) : undefined
-                              }
-                              clientId={workflow.clientId}
-                              onDocumentsAdded={fetchKYCWorkflows}
-                              isDisabled={loading || isUpdating}
-                              isClientView={isClient}
-                            />
+                            {expandedRequests.has(request._id) && (
+                              <DocumentRequest
+                                request={request}
+                                uploadingSingle={uploadingDocument}
+                                uploadingMultiple={uploadingMultiple}
+                                onUploadSingle={handleDocumentUpload}
+                                onUploadMultiple={handleUploadMultiple}
+                                onClearDocument={handleClearSingleDocument}
+                                onClearMultipleItem={handleClearMultipleItem}
+                                onClearMultipleGroup={handleClearMultipleGroup}
+                                onDownloadMultipleGroup={handleDownloadMultipleGroup}
+                                onRequestDeleteDialog={
+                                  (showStatusManagement && deleteRequest) ?
+                                  ((payload) =>
+                                    setDeleteDialog({
+                                      open: true,
+                                      ...payload,
+                                    })) : undefined
+                                }
+                                clientId={workflow.clientId}
+                                onDocumentsAdded={fetchKYCWorkflows}
+                                isDisabled={loading || isUpdating}
+                                isClientView={isClient}
+                              />
+                            )}
                           </div>
                         );
                       })}
