@@ -24,6 +24,11 @@ export default function SectionA({ items }: { items: AItem[] }) {
               <div className="flex items-center gap-3">
                 <CheckCircle className="text-green-500" size={18} />
                 <span>{item.test_id} — {item.area}</span>
+                {item.category && (
+                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                    {item.category}
+                  </span>
+                )}
               </div>
             </AccordionTrigger>
 
