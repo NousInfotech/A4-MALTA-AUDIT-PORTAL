@@ -1,5 +1,6 @@
 export interface AItem {
   test_id: string;
+  category: string;
   area: string;
   details: string;
 }
@@ -7,6 +8,7 @@ export interface AItem {
 export interface BItem {
   id: string;
   test_id: string;
+  category: string;
   type: string;
   severity: "critical";
   description: string;
@@ -27,6 +29,7 @@ export interface BItem {
 export interface CItem {
   id: string;
   test_id: string;
+  category: string;
   type: string;
   severity: "regulatory" | "presentation";
   description: string;
