@@ -1,11 +1,17 @@
 // @ts-nocheck
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Sparkles, CheckCircle, AlertCircle, Eye, RefreshCw } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { ProcedureTypeSelection } from "./ProcedureTypeSelection"
 import { ProcedureGeneration } from "./ProcedureGeneration" // Fieldwork
 import { PlanningProcedureGeneration } from "./PlanningProcedureGeneration"
@@ -53,7 +59,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
   const { toast } = useToast()
 
   // Helper function to update URL parameters while preserving other params (like section)
-  const updateProcedureParams = (updates: Record<string, string | null>, replace = false) => {
+  const updateProcedureParams = useCallback((updates: Record<string, string | null>, replace = false) => {
     const newParams = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === undefined) {
@@ -63,7 +69,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
       }
     })
     setSearchParams(newParams, { replace })
-  }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     if (!engagement?._id) return;
@@ -136,9 +142,34 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
     }, false) // Create new history entry
   }
 
+  // Helper function to check if procedures exist for the selected type
+  const hasProcedures = useCallback((procedureType: "planning" | "fieldwork" | "completion" | null) => {
+    if (!procedureType) return false
+    
+    if (procedureType === "planning") {
+      return planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0
+    } else if (procedureType === "fieldwork") {
+      return fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0
+    } else if (procedureType === "completion") {
+      return completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0
+    }
+    return false
+  }, [planningProcedure, fieldworkProcedure, completionProcedure])
+
   const handleTabChange = (tab: string) => {
+    // Prevent switching to view tab if no procedures exist
+    if (tab === "view" && !hasProcedures(selectedProcedureType)) {
+      return
+    }
     updateProcedureParams({ procedureTab: tab }, false) // Create new history entry
   }
+
+  // Force generate tab if no procedures exist and user tries to access view tab
+  useEffect(() => {
+    if (activeTab === "view" && selectedProcedureType && !hasProcedures(selectedProcedureType)) {
+      updateProcedureParams({ procedureTab: "generate" }, true)
+    }
+  }, [activeTab, selectedProcedureType, planningProcedure, fieldworkProcedure, completionProcedure, updateProcedureParams, hasProcedures])
 
   const handleProcedureTypeSelect = (type: "planning" | "fieldwork" | "completion") => {
     // Set procedure type and clear mode/step (will be set by the generation component)
@@ -220,12 +251,29 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           <TabsTrigger value="generate" className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" /> Generate Procedures
           </TabsTrigger>
-          <TabsTrigger value="view" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" /> View Procedures
-          </TabsTrigger>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="w-full">
+                  <TabsTrigger 
+                    value="view" 
+                    className="flex items-center justify-center gap-2 w-full" 
+                    disabled={!hasProcedures(selectedProcedureType)}
+                  >
+                    <Eye className="h-4 w-4" /> View Procedures
+                  </TabsTrigger>
+                </div>
+              </TooltipTrigger>
+              {!hasProcedures(selectedProcedureType) && (
+                <TooltipContent>
+                  <p>Generate procedures first</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </TabsList>
 
-        <TabsContent value="generate" className="flex-1 mt-6">
+        <TabsContent value="generate" className="flex-1 mt-6 px-4">
           {!selectedProcedureType ? (
             <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to generate"} />
           ) : selectedProcedureType === "planning" ? (
@@ -258,7 +306,7 @@ export const ProceduresTab: React.FC<ProceduresTabProps> = ({ engagement }) => {
           )}
         </TabsContent>
 
-        <TabsContent value="view" className="flex-1 mt-6">
+        <TabsContent value="view" className="flex-1 mt-6 px-4">
           {!selectedProcedureType ? (
             <ProcedureTypeSelection onTypeSelect={handleProcedureTypeSelect} title={"Choose the type of audit procedures you want to view"} />
           ) : selectedProcedureType === "planning" ? (

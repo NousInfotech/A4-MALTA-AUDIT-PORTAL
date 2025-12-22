@@ -16,6 +16,7 @@ interface ChecklistItem {
   dateValue?: string;
   selectValue?: string;
   selectOptions?: string[];
+  isNotApplicable?: boolean;
 }
 
 export const useChecklist = (engagementId: string | undefined) => {
@@ -52,8 +53,8 @@ export const useChecklist = (engagementId: string | undefined) => {
 
       // Listen for checklist updates
       socket.on('checklist:update', (updatedItem: ChecklistItem) => {
-        setChecklist(prev => 
-          prev.map(item => 
+        setChecklist(prev =>
+          prev.map(item =>
             item._id === updatedItem._id ? updatedItem : item
           )
         );
@@ -68,12 +69,13 @@ export const useChecklist = (engagementId: string | undefined) => {
   }, [engagementId, toast]);
 
   const updateItem = async (
-    id: string, 
-    data: { 
-      completed?: boolean; 
-      textValue?: string; 
-      dateValue?: string; 
-      selectValue?: string; 
+    id: string,
+    data: {
+      completed?: boolean;
+      textValue?: string;
+      dateValue?: string;
+      selectValue?: string;
+      isNotApplicable?: boolean;
     }
   ) => {
     try {

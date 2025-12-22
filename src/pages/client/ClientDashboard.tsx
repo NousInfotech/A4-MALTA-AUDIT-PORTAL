@@ -15,6 +15,8 @@ import { NoticeBoard } from '@/components/notice-board/NoticeBoard';
 
 export const ClientDashboard = () => {
   const { user } = useAuth();
+ 
+  
   const { toast } = useToast();
   const [clientEngagements, setClientEngagements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,8 @@ export const ClientDashboard = () => {
         setLoading(true);
         // Fetch client-specific engagements
         const engagements = await engagementApi.getAll();
+        console.log("engagements", engagements );
+        console.log("user", user);        
         // Filter engagements for current client (in real app, backend would filter)
         const clientFilteredEngagements = engagements.filter(eng => eng.clientId === user?.id);
         setClientEngagements(clientFilteredEngagements);
@@ -37,6 +41,8 @@ export const ClientDashboard = () => {
         const requestsArrays = await Promise.all(requestsPromises);
         const flatRequests = requestsArrays.flat();
         setAllRequests(flatRequests);
+        console.log("flatRequests", flatRequests);
+        
       } catch (error) {
         console.error('Failed to fetch client data:', error);
         toast({
@@ -52,7 +58,33 @@ export const ClientDashboard = () => {
     if (user) {
       fetchClientData();
     }
-  }, [user, toast]);
+  }, []);
+
+  const calculateProgress = (request: any) => {
+    let total = 0;
+    let completed = 0;
+
+    if (request.documents && request.documents.length > 0) {
+      total += request.documents.length;
+      completed += request.documents.filter((doc: any) => doc.url).length;
+    }
+
+    if (request.multipleDocuments && request.multipleDocuments.length > 0) {
+      request.multipleDocuments.forEach((group: any) => {
+        const items = group.multiple || group.items || [];
+        total += items.length;
+        completed += items.filter((item: any) => item.url).length;
+      });
+    }
+
+    return total === 0 ? 0 : (completed / total) * 100;
+  };
+
+  const calculateStatus = (request: any) => {
+    const progress = calculateProgress(request);
+    if (progress === 100) return 'Completed';
+    return 'Pending';
+  };
 
   if (loading) {
     return (
@@ -62,8 +94,8 @@ export const ClientDashboard = () => {
     );
   }
 
-  const pendingRequests = allRequests.filter(req => req.status === 'pending');
-  const completedRequests = allRequests.filter(req => req.status === 'completed');
+  const pendingRequests = allRequests.filter(req => calculateStatus(req) === 'Pending');
+  const completedRequests = allRequests.filter(req => calculateStatus(req) === 'Completed');
 
   const stats = [
     {
@@ -92,7 +124,16 @@ export const ClientDashboard = () => {
     },
     {
       title: 'Total Documents',
-      value: completedRequests.reduce((acc, req) => acc + (req.documents?.length || 0), 0).toString(),
+      value: allRequests.reduce((acc, req) => {
+        let count = 0;
+        if (req.documents) count += req.documents.filter(d => d.url).length;
+        if (req.multipleDocuments) {
+          req.multipleDocuments.forEach(g => {
+            count += (g.multiple || g.items || []).filter(i => i.url).length;
+          });
+        }
+        return acc + count;
+      }, 0).toString(),
       description: 'Files uploaded',
       icon: FileText,
       trend: 'All time',
@@ -108,7 +149,8 @@ export const ClientDashboard = () => {
           <h1 className="text-3xl font-semibold text-brand-body mb-2">
             {(() => {
               const hour = new Date().getHours();
-              const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || "Client";
+              // const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || "Client";
+              const userName = user.name;
               if (hour < 12) return `Good morning, ${userName}!`;
               if (hour < 17) return `Good afternoon, ${userName}!`;
               return `Good evening, ${userName}!`;
@@ -171,6 +213,45 @@ export const ClientDashboard = () => {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
+
+        {/* Client Company */}
+
+        <div className="rounded-xl border bg-white p-6 shadow-sm space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
+        Client Company
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div>
+        <p className="text-gray-500">Company Name</p>
+        <p className="font-medium text-gray-900">
+        {user.companyName || "—"}
+        </p>
+        </div>
+
+        <div>
+        <p className="text-gray-500">Company Registration Number</p>
+        <p className="font-medium text-gray-900">
+        {user.companyNumber || "—"}
+        </p>
+        </div>
+
+        <div>
+        <p className="text-gray-500">Industry</p>
+        <p className="font-medium text-gray-900">
+        {user.industry || "—"}
+        </p>
+        </div>
+        </div>
+
+        <div>
+        <p className="text-gray-500 text-sm">Company Summary</p>
+        <p className="mt-1 text-sm leading-relaxed text-gray-800">
+        {user.summary || "No summary provided"}
+        </p>
+        </div>
+        </div>
+
 
             {/* Recent Engagements */}
             <div className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 animate-slide-in-right">

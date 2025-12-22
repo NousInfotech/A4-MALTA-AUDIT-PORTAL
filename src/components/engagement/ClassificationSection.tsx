@@ -2458,9 +2458,34 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     setProcedureStep(null);
   };
 
+  // Helper function to check if procedures exist for the selected type
+  const hasProcedures = useCallback((procedureType: "planning" | "fieldwork" | "completion" | null) => {
+    if (!procedureType) return false
+    
+    if (procedureType === "planning") {
+      return planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0
+    } else if (procedureType === "fieldwork") {
+      return fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0
+    } else if (procedureType === "completion") {
+      return completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0
+    }
+    return false
+  }, [planningProcedure, fieldworkProcedure, completionProcedure])
+
   const handleProcedureTabChange = (tab: "generate" | "view") => {
+    // Prevent switching to view tab if no procedures exist
+    if (tab === "view" && !hasProcedures(selectedProcedureType)) {
+      return
+    }
     setProcedureTab(tab);
   };
+
+  // Force generate tab if no procedures exist and user tries to access view tab
+  useEffect(() => {
+    if (procedureTab === "view" && selectedProcedureType && !hasProcedures(selectedProcedureType)) {
+      setProcedureTab("generate")
+    }
+  }, [procedureTab, selectedProcedureType, hasProcedures])
 
   const handleRegenerate = () => {
     // Hierarchical back navigation (matching TrialBalanceTab.tsx logic)
@@ -4814,21 +4839,45 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <TabsTrigger value="generate" className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4" /> Generate Procedures
                       </TabsTrigger>
-                      <TabsTrigger value="view" className="flex items-center gap-2">
-                        <Eye className="h-4 w-4" /> View Procedures
-                      </TabsTrigger>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="w-full">
+                              <TabsTrigger 
+                                value="view" 
+                                className="flex items-center justify-center gap-2 w-full"
+                                disabled={!hasProcedures(selectedProcedureType)}
+                              >
+                                <Eye className="h-4 w-4" /> View Procedures
+                              </TabsTrigger>
+                            </div>
+                          </TooltipTrigger>
+                          {!hasProcedures(selectedProcedureType) && (
+                            <TooltipContent>
+                              <p>Generate procedures first</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
                     </TabsList>
 
-                    <TabsContent value="generate" className="flex-1 mt-6">
+                    <TabsContent value="generate" className="flex-1 mt-6 px-4">
                       {selectedProcedureType === "planning" ? (
                         <PlanningProcedureGeneration
                           engagement={engagement}
                           existingProcedure={planningProcedure}
-                          onComplete={() => {
+                          onComplete={(procedureData: any) => {
+                            if (procedureData) {
+                              setPlanningProcedure(procedureData);
+                            }
                             loadProcedure("planning");
-                            setProcedureTab("view");
-                            setProcedureMode(null);
-                            setProcedureStep(null);
+                            // Navigate to view tab and clear procedure generation params
+                            updateProcedureParams({
+                              procedureTab: "view",
+                              procedureType: selectedProcedureType,
+                              mode: null,
+                              step: null
+                            }, false);
                           }}
                           onBack={handleProcedureTypeBack}
                           updateProcedureParams={updateProcedureParams}
@@ -4839,11 +4888,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           engagement={engagement}
                           existingProcedure={fieldworkProcedure}
                           onBack={handleProcedureTypeBack}
-                          onComplete={() => {
+                          onComplete={(procedureData: any) => {
+                            if (procedureData) {
+                              setFieldworkProcedure(procedureData);
+                            }
                             loadProcedure("fieldwork");
-                            setProcedureTab("view");
-                            setProcedureMode(null);
-                            setProcedureStep(null);
+                            // Navigate to view tab and clear procedure generation params
+                            updateProcedureParams({
+                              procedureTab: "view",
+                              procedureType: selectedProcedureType,
+                              mode: null,
+                              step: null
+                            }, false);
                           }}
                           updateProcedureParams={updateProcedureParams}
                           searchParams={procedureSearchParams}
@@ -4853,11 +4909,18 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           engagement={engagement}
                           onBack={handleProcedureTypeBack}
                           existingProcedure={completionProcedure}
-                          onComplete={() => {
+                          onComplete={(procedureData: any) => {
+                            if (procedureData) {
+                              setCompletionProcedure(procedureData);
+                            }
                             loadProcedure("completion");
-                            setProcedureTab("view");
-                            setProcedureMode(null);
-                            setProcedureStep(null);
+                            // Navigate to view tab and clear procedure generation params
+                            updateProcedureParams({
+                              procedureTab: "view",
+                              procedureType: selectedProcedureType,
+                              mode: null,
+                              step: null
+                            }, false);
                           }}
                           updateProcedureParams={updateProcedureParams}
                           searchParams={procedureSearchParams}
@@ -4872,7 +4935,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         ) : <div className="text-muted-foreground">No Planning procedures found.</div>
                       ) : selectedProcedureType === "fieldwork" ? (
                         fieldworkProcedure ? (
-                          <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                          <ProcedureView 
+                            procedure={fieldworkProcedure} 
+                            engagement={engagement} 
+                            onRegenerate={handleRegenerate} 
+                            currentClassification={classification}
+                          />
                         ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
                       ) : completionProcedure ? (
                         <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />

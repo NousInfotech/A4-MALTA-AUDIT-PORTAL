@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,7 +182,7 @@ function PbcUpload({
                           <Label
                             htmlFor={`file-${doc._id}`}
                             className={`cursor-pointer text-blue-600 hover:text-blue-800 hover:bg-blue-100 px-3 py-1 rounded-md transition-all duration-300 ease-in-out flex items-center gap-1 ${
-                              loading ? "opacity-70 cursor-not-allowed" : ""
+                              loading ? "opacity-70=" : ""
                             }`}
                           >
                             {individualFileUploadProgress[doc._id] > 0 &&
@@ -247,6 +248,16 @@ function PbcUpload({
                               <Badge className="ml-2 bg-green-500 text-white text-xs group-hover:bg-green-600 transition-colors duration-300">
                                 {doc.status}
                               </Badge>
+                              {doc.url && doc.uploadedAt && (
+                                <span className="text-xs text-gray-500 ml-2">
+                                  Uploaded: {(() => {
+                                    const date = new Date(doc.uploadedAt);
+                                    return isNaN(date.getTime())
+                                      ? "N/A"
+                                      : format(date, "MMM dd, yyyy HH:mm");
+                                  })()}
+                                </span>
+                              )}
                             </div>
                             <a
                               href={doc.url} // Use doc.url as the href
@@ -348,6 +359,16 @@ function PbcUpload({
                                 <span className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors duration-300">
                                   {doc.name}
                                 </span>
+                                {doc.url && doc.uploadedAt && (
+                                  <span className="text-xs text-gray-500 ml-2">
+                                    Uploaded: {(() => {
+                                      const date = new Date(doc.uploadedAt);
+                                      return isNaN(date.getTime())
+                                        ? "N/A"
+                                        : format(date, "MMM dd, yyyy HH:mm");
+                                    })()}
+                                  </span>
+                                )}
                               </div>
                               <a
                                 href={doc.url} // Use doc.url as the href

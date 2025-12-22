@@ -509,19 +509,14 @@ const [companyError, setCompanyError] = useState<string>('')
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="title" className="text-sm font-medium text-gray-700">Engagement Title *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => handleChange('title', e.target.value)}
-                  placeholder="e.g., Annual Audit-2024, Interim Review Q3 2024"
-                      className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg ${titleError ? 'border-red-500' : ''}`}
-                  required
-                />
-                {titleError && (
-                  <p className="text-sm text-red-600 mt-1">{titleError}</p>
-                )}
-              </div>
+                    <Label className="text-sm font-medium text-gray-700">Engagement Title</Label>
+                    <div className="h-12 flex items-center px-4 bg-gray-50 border border-gray-200 rounded-xl text-lg font-semibold text-gray-900 shadow-sm">
+                      {formData.title || <span className="text-gray-400 font-normal italic">Auto-generated from client and date</span>}
+                    </div>
+                    {titleError && (
+                      <p className="text-sm text-red-600 mt-1">{titleError}</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
