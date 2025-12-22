@@ -32,6 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   GENERAL: "General",
   NOTES_AND_POLICY: "Notes & Policy",
   CROSS_STATEMENT: "Cross Statement",
+  PRESENTATION: "Presentation",
 };
 
 export default function FinancialStatusReport({ data, onUploadAgain }: { data?: FSReviewOutput; onUploadAgain?: () => void }) {
@@ -66,6 +67,9 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
         if (item.category) categories.add(item.category);
       });
     }
+    
+    // Always include PRESENTATION as it's a mandatory category
+    categories.add("PRESENTATION");
     
     return ["ALL", ...Array.from(categories).sort()];
   };
