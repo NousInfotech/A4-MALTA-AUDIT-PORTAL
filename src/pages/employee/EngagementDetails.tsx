@@ -338,13 +338,12 @@ export const EngagementDetails = () => {
                   size="sm"
                   asChild
                 >
-                  <Link to={`/employee/clients/${engagement.clientId}/company/${
-                    typeof engagement.companyId === 'object' 
-                      ? engagement.companyId?._id 
+                  <Link to={`/employee/clients/${engagement.clientId}/company/${typeof engagement.companyId === 'object'
+                      ? engagement.companyId?._id
                       : engagement.companyId
-                  }`}>
-                     <Building2 className="h-4 w-4 mr-2" />
-                     View Company
+                    }`}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    View Company
                   </Link>
                 </Button>
 
@@ -383,11 +382,11 @@ export const EngagementDetails = () => {
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <Tabs value={section} onValueChange={handleTabChange} className="space-y-6">
             <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between">
-              <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none">
-                <TabsList className="min-w-max sm:min-w-0 bg-white border border-gray-200 rounded-xl p-1">
+              <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none w-full">
+                <TabsList className="w-full bg-white border border-gray-200 rounded-xl p-1 grid grid-cols-7 gap-2 h-auto">
                   <TabsTrigger
                     value="overview"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
                     Overview
@@ -395,7 +394,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="checklist"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Checklist
@@ -403,24 +402,24 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="requests"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    Document Requests
+                    Requests
                   </TabsTrigger>
 
 
                   <TabsTrigger
                     value="trial-balance"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-xl py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all font-semibold"
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     Audit
                   </TabsTrigger>
-{/* 
+                  {/* 
                   <TabsTrigger
                     value="procedures"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Procedures
@@ -429,7 +428,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="library"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <Library className="h-4 w-4 mr-2" />
                     Library
@@ -437,7 +436,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="team"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <Users className="h-4 w-4 mr-2" />
                     Team
@@ -445,10 +444,10 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="financial-status-report"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
                   >
                     <IconReport className="h-4 w-4 mr-2" />
-                     AI Review
+                    AI Review
                   </TabsTrigger>
 
                   {/* <TabsTrigger

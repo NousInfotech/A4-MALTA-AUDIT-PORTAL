@@ -849,8 +849,40 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
   };
 
   const handleProcedureTabChange = (tab: "generate" | "view") => {
+    // Prevent switching to view tab if no procedures exist
+    if (tab === "view") {
+      const hasProcedures = selectedProcedureType === "planning" 
+        ? (planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0)
+        : selectedProcedureType === "fieldwork"
+        ? (fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0)
+        : selectedProcedureType === "completion"
+        ? (completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0)
+        : false
+      
+      if (!hasProcedures) {
+        return
+      }
+    }
     updateProcedureParams({ procedureTab: tab }, false);
   };
+
+  // Force generate tab if no procedures exist and user tries to access view tab
+  useEffect(() => {
+    if (procedureTab === "view" && selectedProcedureType) {
+      const hasProcedures = selectedProcedureType === "planning" 
+        ? (planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0)
+        : selectedProcedureType === "fieldwork"
+        ? (fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0)
+        : selectedProcedureType === "completion"
+        ? (completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0)
+        : false
+      
+      if (!hasProcedures) {
+        updateProcedureParams({ procedureTab: "generate" }, true)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [procedureTab, selectedProcedureType, planningProcedure, fieldworkProcedure, completionProcedure])
 
   const handleRegenerate = () => {
     // Hierarchical back navigation (matching EngagementDetails.tsx logic)
@@ -1492,12 +1524,47 @@ export const TrialBalanceTab: React.FC<TrialBalanceTabProps> = ({
                           <TabsTrigger value="generate" className="flex items-center gap-2">
                             <Sparkles className="h-4 w-4" /> Generate Procedures
                           </TabsTrigger>
-                          <TabsTrigger value="view" className="flex items-center gap-2">
-                            <Eye className="h-4 w-4" /> View Procedures
-                          </TabsTrigger>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="w-full">
+                                  <TabsTrigger 
+                                    value="view" 
+                                    className="flex items-center justify-center gap-2 w-full"
+                                    disabled={(() => {
+                                      if (selectedProcedureType === "planning") {
+                                        return !planningProcedure?.procedures || !Array.isArray(planningProcedure.procedures) || planningProcedure.procedures.length === 0
+                                      } else if (selectedProcedureType === "fieldwork") {
+                                        return !fieldworkProcedure?.questions || !Array.isArray(fieldworkProcedure.questions) || fieldworkProcedure.questions.length === 0
+                                      } else if (selectedProcedureType === "completion") {
+                                        return !completionProcedure?.procedures || !Array.isArray(completionProcedure.procedures) || completionProcedure.procedures.length === 0
+                                      }
+                                      return true
+                                    })()}
+                                  >
+                                    <Eye className="h-4 w-4" /> View Procedures
+                                  </TabsTrigger>
+                                </div>
+                              </TooltipTrigger>
+                              {(() => {
+                                const hasProcedures = selectedProcedureType === "planning" 
+                                  ? (planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0)
+                                  : selectedProcedureType === "fieldwork"
+                                  ? (fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0)
+                                  : selectedProcedureType === "completion"
+                                  ? (completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0)
+                                  : false
+                                return !hasProcedures && (
+                                  <TooltipContent>
+                                    <p>Generate procedures first</p>
+                                  </TooltipContent>
+                                )
+                              })()}
+                            </Tooltip>
+                          </TooltipProvider>
                         </TabsList>
 
-                        <TabsContent value="generate" className="flex-1 mt-6">
+                        <TabsContent value="generate" className="flex-1 mt-6 px-4">
                           {!selectedProcedureType ? (
                             <ProcedureTypeSelection 
                               onTypeSelect={handleProcedureTypeSelect} 

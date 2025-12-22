@@ -24,6 +24,11 @@ export default function SectionC({ items }: { items: CItem[] }) {
               <div className="flex items-center gap-3">
                 <Info className="text-yellow-500" size={18} />
                 <span className="text-left">{issue.test_id} — {issue.description}</span>
+                {issue.category && (
+                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                    {issue.category}
+                  </span>
+                )}
               </div>
             </AccordionTrigger>
 

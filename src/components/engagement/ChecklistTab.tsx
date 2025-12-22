@@ -116,7 +116,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 className="mt-1"
                 disabled={isLoading}
               />
-              
+
             </div>
             <div className="flex flex-col md:flex-row gap-4 space-y-2 flex-1">
               <Label className="text-sm font-medium">{item.description}</Label>
@@ -124,9 +124,18 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 placeholder="Enter text..."
                 value={textValues[item._id] ?? item.textValue ?? ""}
                 onChange={(e) => handleTextChange(item._id, e.target.value)}
-                disabled={disabled || isLoading}
+                disabled={disabled || isLoading || item.isNotApplicable}
                 className="w-full"
               />
+            </div>
+            <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+              <Checkbox
+                checked={item.isNotApplicable || false}
+                onCheckedChange={(checked) => handleFieldUpdate(item._id, "isNotApplicable", checked)}
+                disabled={isLoading}
+                id={`na-${item._id}`}
+              />
+              <Label htmlFor={`na-${item._id}`} className="text-xs text-muted-foreground whitespace-nowrap cursor-pointer">No need</Label>
             </div>
           </motion.div>
         )
@@ -147,7 +156,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 className="mt-1"
                 disabled={isLoading}
               />
-              
+
             </div>
             <div className="flex-1 flex flex-col md:flex-row  items-center gap-2">
               <Label className="text-sm font-medium">{item.description}</Label>
@@ -155,10 +164,10 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    disabled={disabled || isLoading}
+                    disabled={disabled || isLoading || item.isNotApplicable}
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      (disabled || isLoading) && "opacity-50 cursor-not-allowed",
+                      (disabled || isLoading || item.isNotApplicable) && "opacity-50 cursor-not-allowed",
                       !item.dateValue && "text-muted-foreground",
                     )}
                   >
@@ -171,11 +180,20 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                     mode="single"
                     selected={item.dateValue ? new Date(item.dateValue) : undefined}
                     onSelect={(date) => handleFieldUpdate(item._id, "dateValue", date?.toISOString())}
-                    disabled={disabled || isLoading}
+                    disabled={disabled || isLoading || item.isNotApplicable}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+            <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+              <Checkbox
+                checked={item.isNotApplicable || false}
+                onCheckedChange={(checked) => handleFieldUpdate(item._id, "isNotApplicable", checked)}
+                disabled={isLoading}
+                id={`na-${item._id}`}
+              />
+              <Label htmlFor={`na-${item._id}`} className="text-xs text-muted-foreground whitespace-nowrap cursor-pointer">No need</Label>
             </div>
           </motion.div>
         )
@@ -196,14 +214,14 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 className="mt-1"
                 disabled={isLoading}
               />
-              
+
             </div>
             <div className="flex-1 flex  flex-col md:flex-row  items-center gap-2">
               <Label className="text-sm font-medium">{item.description}</Label>
               <Select
                 value={item.selectValue || ""}
                 onValueChange={(value) => handleFieldUpdate(item._id, "selectValue", value)}
-                disabled={disabled || isLoading}
+                disabled={disabled || isLoading || item.isNotApplicable}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select an option" />
@@ -216,6 +234,15 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+              <Checkbox
+                checked={item.isNotApplicable || false}
+                onCheckedChange={(checked) => handleFieldUpdate(item._id, "isNotApplicable", checked)}
+                disabled={isLoading}
+                id={`na-${item._id}`}
+              />
+              <Label htmlFor={`na-${item._id}`} className="text-xs text-muted-foreground whitespace-nowrap cursor-pointer">No need</Label>
             </div>
           </motion.div>
         )
@@ -235,9 +262,18 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
                 onCheckedChange={(checked) => handleFieldUpdate(item._id, "completed", checked)}
                 disabled={isLoading}
               />
-              
+
             </div>
-            <Label className="text-sm font-medium">{item.description}</Label>
+            <Label className="text-sm font-medium flex-1">{item.description}</Label>
+            <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+              <Checkbox
+                checked={item.isNotApplicable || false}
+                onCheckedChange={(checked) => handleFieldUpdate(item._id, "isNotApplicable", checked)}
+                disabled={isLoading}
+                id={`na-${item._id}`}
+              />
+              <Label htmlFor={`na-${item._id}`} className="text-xs text-muted-foreground whitespace-nowrap cursor-pointer">No need</Label>
+            </div>
           </motion.div>
         )
     }
@@ -246,7 +282,7 @@ export const ChecklistTab: React.FC<ChecklistTabProps> = ({ engagementId }) => {
   // Compute overall completion stats
   const getCompletionStats = () => {
     const all = Object.values(groupedChecklist).flatMap((cat) => Object.values(cat).flat())
-    const done = all.filter((i) => i.completed).length
+    const done = all.filter((i) => i.completed || i.isNotApplicable).length
     const total = all.length
     return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 }
   }

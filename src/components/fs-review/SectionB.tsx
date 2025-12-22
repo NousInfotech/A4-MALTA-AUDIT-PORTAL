@@ -24,6 +24,11 @@ export default function SectionB({ items }: { items: BItem[] }) {
               <div className="flex gap-3">
                 <AlertTriangle className="text-red-500" size={18} />
                 <span className="text-left">{err.test_id} — {err.description}</span>
+                {err.category && (
+                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                    {err.category}
+                  </span>
+                )}
               </div>
             </AccordionTrigger>
 

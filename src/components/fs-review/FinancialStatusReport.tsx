@@ -24,8 +24,19 @@ const DATASETS = {
   mix: fsMix
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  ALL: "All",
+  AUDIT_REPORT: "Audit Report",
+  BALANCE_SHEET: "Balance Sheet",
+  INCOME_STATEMENT: "Income Statement",
+  GENERAL: "General",
+  NOTES_AND_POLICY: "Notes & Policy",
+  CROSS_STATEMENT: "Cross Statement",
+};
+
 export default function FinancialStatusReport({ data, onUploadAgain }: { data?: FSReviewOutput; onUploadAgain?: () => void }) {
   const [dataset, setDataset] = useState<"allPass" | "allFail" | "mix" | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
   // If user selected a dataset, use it. Otherwise use provided data. Fallback to 'mix'.
   const activeData: FSReviewOutput = dataset 
@@ -33,6 +44,43 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
     : (data || (DATASETS.mix as unknown as FSReviewOutput));
 
   const activeKey = dataset || (data ? null : "mix");
+
+  // Extract all unique categories from the data
+  const getAllCategories = (): string[] => {
+    const categories = new Set<string>();
+    
+    if (activeData?.A?.items) {
+      activeData.A.items.forEach(item => {
+        if (item.category) categories.add(item.category);
+      });
+    }
+    
+    if (activeData?.B?.items) {
+      activeData.B.items.forEach(item => {
+        if (item.category) categories.add(item.category);
+      });
+    }
+    
+    if (activeData?.C?.items) {
+      activeData.C.items.forEach(item => {
+        if (item.category) categories.add(item.category);
+      });
+    }
+    
+    return ["ALL", ...Array.from(categories).sort()];
+  };
+
+  const availableCategories = getAllCategories();
+
+  // Filter items by selected category
+  const filterItemsByCategory = <T extends { category?: string }>(items: T[]): T[] => {
+    if (selectedCategory === "ALL") return items;
+    return items.filter(item => item.category === selectedCategory);
+  };
+
+  const filteredAItems = filterItemsByCategory(activeData?.A?.items || []);
+  const filteredBItems = filterItemsByCategory(activeData?.B?.items || []);
+  const filteredCItems = filterItemsByCategory(activeData?.C?.items || []);
 
   if (!activeData) {
     return (
@@ -46,59 +94,47 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
     <div className="mx-auto px-5">
 
       {/* ------------------- TOGGLE BUTTONS ------------------- */}
-      <div className="flex flex-col items-center gap-2 mb-6">
+      <div className="flex flex-col gap-4 mb-6">
+        {/* Category Filter Toggle Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-700 mr-2">Filter by Category:</span>
+          {availableCategories.map((category) => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`
+                px-4 py-2 rounded-lg border transition-all
+                text-sm font-medium
+                ${
+                  selectedCategory === category
+                    ? "bg-primary text-white border-primary shadow-md"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                }
+              `}
+            >
+              {CATEGORY_LABELS[category] || category}
+            </button>
+          ))}
+        </div>
 
-
-        {/* --- Test Data Notice Tag --- */}
-      <div className="text-sm mt-5 px-3 rounded-md text-gray-600 italic">
-      This is not real data — this is for test purposes only.
-      </div>
-
-        <div className="flex justify-between items-center gap-2 w-full">
-      {/* --- Toggle Buttons --- */}
-      <div className="flex justify-center gap-3">
-      {/* {[
-      { key: "allPass", label: "All Pass", color: "green" },
-      { key: "allFail", label: "All Fail", color: "red" },
-      { key: "mix", label: "Mixed", color: "blue" }
-      ].map((btn) => (
-      <button
-      key={btn.key}
-      onClick={() => setDataset(btn.key as any)}
-      className={`
-      px-4 py-2 rounded-lg border transition 
-      text-sm font-medium
-      ${dataset === btn.key
-      ? `bg-${btn.color}-600 text-white border-${btn.color}-700 shadow`
-      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-      }
-      `}
-      >
-      {btn.label}
-      </button>
-      ))} */}
-      </div>
-
-      <div className="flex gap-2">
-      {onUploadAgain && (
-        <Button variant="default" onClick={onUploadAgain}>
-        <Upload className="w-4 h-4" />
-        Upload Another File
-        </Button>
-      )}
-      
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-2">
+          {onUploadAgain && (
+            <Button variant="default" onClick={onUploadAgain}>
+              <Upload className="w-4 h-4" />
+              Upload Another File
+            </Button>
+          )}
+          
           {/* --- Export PDF Button --- */}
-        <Button
-          variant="default"
-          onClick={() => generateFinancialStatusPDF(activeData)}
-         >
-          <Download className="w-4 h-4" />
-          Export PDF Report
-        </Button>
-      </div>
-      </div>
-
-  
+          <Button
+            variant="default"
+            onClick={() => generateFinancialStatusPDF(activeData)}
+          >
+            <Download className="w-4 h-4" />
+            Export PDF Report
+          </Button>
+        </div>
       </div>
 
       
@@ -106,9 +142,9 @@ export default function FinancialStatusReport({ data, onUploadAgain }: { data?: 
       <VerdictBanner verdict={activeData.E.verdict} />
 
       {/* ------------------- SECTIONS ------------------- */}
-      <SectionA items={activeData.A.items} />
-      <SectionB items={activeData.B.items} />
-      <SectionC items={activeData.C.items} />
+      <SectionA items={filteredAItems} />
+      <SectionB items={filteredBItems} />
+      <SectionC items={filteredCItems} />
       <SectionD tables={activeData.D.tables} />
     </div>
   );
