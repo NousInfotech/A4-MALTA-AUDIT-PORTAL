@@ -904,31 +904,37 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       const [headers, ...rows] = trialBalanceData.data;
 
-      const codeIndex = headers.findIndex((h: string) =>
+      // Ensure headers are strings and filter out null/undefined values
+      const normalizedHeaders = headers.map((h: any) => {
+        if (h == null) return "";
+        return String(h).trim();
+      });
+
+      const codeIndex = normalizedHeaders.findIndex((h: string) =>
         h.toLowerCase().includes("code")
       );
-      const nameIndex = headers.findIndex((h: string) =>
+      const nameIndex = normalizedHeaders.findIndex((h: string) =>
         h.toLowerCase().includes("account name")
       );
-      const currentYearIndex = headers.findIndex((h: string) =>
+      const currentYearIndex = normalizedHeaders.findIndex((h: string) =>
         h.toLowerCase().includes("current year")
       );
-      const priorYearIndex = headers.findIndex((h: string) =>
+      const priorYearIndex = normalizedHeaders.findIndex((h: string) =>
         h.toLowerCase().includes("prior year")
       );
 
       // Find optional grouping column indices
-      const grouping1Index = headers.findIndex((h: string) =>
-        h.toLowerCase().trim() === "grouping 1"
+      const grouping1Index = normalizedHeaders.findIndex((h: string) =>
+        h.toLowerCase() === "grouping 1"
       );
-      const grouping2Index = headers.findIndex((h: string) =>
-        h.toLowerCase().trim() === "grouping 2"
+      const grouping2Index = normalizedHeaders.findIndex((h: string) =>
+        h.toLowerCase() === "grouping 2"
       );
-      const grouping3Index = headers.findIndex((h: string) =>
-        h.toLowerCase().trim() === "grouping 3"
+      const grouping3Index = normalizedHeaders.findIndex((h: string) =>
+        h.toLowerCase() === "grouping 3"
       );
-      const grouping4Index = headers.findIndex((h: string) =>
-        h.toLowerCase().trim() === "grouping 4"
+      const grouping4Index = normalizedHeaders.findIndex((h: string) =>
+        h.toLowerCase() === "grouping 4"
       );
 
       const etbData: ETBRow[] = rows
