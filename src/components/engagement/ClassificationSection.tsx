@@ -4935,7 +4935,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         ) : <div className="text-muted-foreground">No Planning procedures found.</div>
                       ) : selectedProcedureType === "fieldwork" ? (
                         fieldworkProcedure ? (
-                          <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                          <ProcedureView 
+                            procedure={fieldworkProcedure} 
+                            engagement={engagement} 
+                            onRegenerate={handleRegenerate} 
+                            currentClassification={classification}
+                          />
                         ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
                       ) : completionProcedure ? (
                         <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
