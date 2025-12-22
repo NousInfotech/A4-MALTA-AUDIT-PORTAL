@@ -80,8 +80,14 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
     }
 
     const headers = data[0]
+    // Ensure headers are strings and filter out null/undefined values
+    const normalizedHeaders = headers.map((h: any) => {
+      if (h == null) return ""
+      return String(h).trim()
+    })
+
     const missingColumns = REQUIRED_COLUMNS.filter(
-      (col) => !headers.some((header: string) => header.toLowerCase().trim() === col.toLowerCase()),
+      (col) => !normalizedHeaders.some((header: string) => header.toLowerCase() === col.toLowerCase()),
     )
 
     if (missingColumns.length > 0) {
@@ -93,8 +99,8 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       errors.push("No data rows found")
     }
 
-    const currentYearIndex = headers.findIndex((h: string) => h.toLowerCase().trim() === "current year")
-    const priorYearIndex = headers.findIndex((h: string) => h.toLowerCase().trim() === "prior year")
+    const currentYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "current year")
+    const priorYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "prior year")
 
     if (currentYearIndex !== -1 && priorYearIndex !== -1) {
       dataRows.forEach((row: any[], index: number) => {
@@ -118,9 +124,15 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
     if (!data || data.length === 0) return data
 
     const headers = data[0]
-    const codeIndex = headers.findIndex((h: string) => h.toLowerCase().trim().includes("code"))
-    const accountNameIndex = headers.findIndex((h: string) => h.toLowerCase().trim().includes("account name"))
-    const currentYearIndex = headers.findIndex((h: string) => h.toLowerCase().trim() === "current year")
+    // Ensure headers are strings and filter out null/undefined values
+    const normalizedHeaders = headers.map((h: any) => {
+      if (h == null) return ""
+      return String(h).trim()
+    })
+
+    const codeIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase().includes("code"))
+    const accountNameIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase().includes("account name"))
+    const currentYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "current year")
 
     if (codeIndex === -1 || accountNameIndex === -1 || currentYearIndex === -1) {
       // If we can't find required columns, return data as-is
