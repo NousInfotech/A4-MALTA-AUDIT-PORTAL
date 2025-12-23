@@ -138,6 +138,9 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   React.useEffect(() => {
     if (currentClassification) {
       setSelectedClassification(currentClassification)
+    } else {
+      // Clear selectedClassification if currentClassification is removed
+      setSelectedClassification(null)
     }
   }, [currentClassification])
 
@@ -162,7 +165,9 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     return Array.from(classifications).sort()
   }, [procedure?.selectedClassifications, localQuestions])
 
-  // Use selectedClassification if currentClassification is not provided
+  // Use currentClassification if provided, otherwise use selectedClassification
+  // This ensures that when currentClassification is passed from ClassificationSection,
+  // we use that exact value for filtering
   const activeClassification = currentClassification || selectedClassification
 
   const safeTitle = (engagement?.title || "Engagement")
@@ -179,17 +184,58 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   function formatClassificationForDisplay(classification?: string) {
     if (!classification) return "General"
     const parts = classification.split(" > ")
-    const top = parts[0]
-    if (top === "Assets" || top === "Liabilities") return parts[parts.length - 1]
-    return top
+    // For 3+ parts, return the 3rd part (index 2), otherwise return the last part
+    // This matches the logic in TrialBalanceTab.tsx
+    // e.g., "Equity > Equity > Share Capital" -> "Share Capital"
+    return parts.length >= 3 ? parts[2] : parts[parts.length - 1]
+  }
+
+  // Helper function to normalize classification strings for comparison
+  // Normalizes whitespace around ">" separators and trims
+  const normalizeClassification = (classification: string): string => {
+    if (!classification) return ""
+    return classification
+      .trim()
+      .replace(/\s*>\s*/g, " > ") // Normalize spaces around ">"
+      .trim()
   }
 
   // ✅ filter questions to this classification
+  // When currentClassification is provided, match questions that belong to this classification
+  // This handles cases where:
+  // - Sidebar uses level 3 (e.g., "Equity > Equity > Share capital") and questions have the same 3-part classification (exact match)
+  // - Sidebar uses level 3 but questions have longer paths (e.g., "Equity > Equity > Share capital > Sub-category") (prefix match)
+  // - Sidebar uses level 3 but questions might have shorter normalized paths (handled via normalization)
   const filteredQuestions = useMemo(() => {
     const all = Array.isArray(localQuestions) ? localQuestions : []
-    if (!activeClassification) return all
-    return all.filter((q: any) => q.classification === activeClassification)
-  }, [localQuestions, activeClassification])
+    // Use currentClassification if provided (passed from ClassificationSection),
+    // otherwise fall back to activeClassification
+    const filterBy = currentClassification || activeClassification
+    if (!filterBy) return all
+    
+    // Normalize the filter classification
+    const normalizedFilter = normalizeClassification(filterBy)
+    
+    return all.filter((q: any) => {
+      if (!q.classification) return false
+      
+      // Normalize question classification
+      const normalizedQ = normalizeClassification(q.classification)
+      
+      // 1. Exact match (handles 3-part classifications that match exactly)
+      if (normalizedQ === normalizedFilter) return true
+      
+      // 2. Prefix match - question classification is a child of filterBy
+      // e.g., filterBy="Equity > Equity > Share capital", q.classification="Equity > Equity > Share capital > Sub-category"
+      if (normalizedQ.startsWith(normalizedFilter + " > ")) return true
+      
+      // 3. Reverse prefix match - filterBy is a child of question classification
+      // e.g., filterBy="Equity > Equity > Share capital > Sub-category", q.classification="Equity > Equity > Share capital"
+      if (normalizedFilter.startsWith(normalizedQ + " > ")) return true
+      
+      return false
+    })
+  }, [localQuestions, currentClassification, activeClassification])
 
   // group (even though single classification, keeps UI consistent)
   const grouped = useMemo(() => {
@@ -216,19 +262,43 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
     // If recommendations is already an array of checklist items, use it directly
     if (Array.isArray(procedure.recommendations)) {
-      if (!activeClassification) {
+      // Use currentClassification if provided (passed from ClassificationSection),
+      // otherwise fall back to activeClassification
+      const filterBy = currentClassification || activeClassification
+      if (!filterBy) {
         return procedure.recommendations
       }
-      return procedure.recommendations.filter((item: ChecklistItem) => 
-        item.classification === activeClassification
-      )
+      // Normalize the filter classification using the same helper function
+      const normalizedFilter = normalizeClassification(filterBy)
+      
+      return procedure.recommendations.filter((item: ChecklistItem) => {
+        if (!item.classification) return false
+        
+        // Normalize item classification
+        const normalizedItem = normalizeClassification(item.classification)
+        
+        // 1. Exact match (handles 3-part classifications that match exactly)
+        if (normalizedItem === normalizedFilter) return true
+        
+        // 2. Prefix match - item classification is a child of activeClassification
+        if (normalizedItem.startsWith(normalizedFilter + " > ")) return true
+        
+        // 3. Reverse prefix match - activeClassification is a child of item classification
+        if (normalizedFilter.startsWith(normalizedItem + " > ")) return true
+        
+        return false
+      })
     }
 
     // Handle legacy string format
     const text = typeof procedure.recommendations === "string" ? procedure.recommendations : ""
     const byClassFromServer = splitRecommendationsByClassification(text)
 
-    if (!activeClassification) {
+    // Use currentClassification if provided (passed from ClassificationSection),
+    // otherwise fall back to activeClassification
+    const filterBy = currentClassification || activeClassification
+
+    if (!filterBy) {
       // If no current classification, convert entire text to checklist items
       return text.split('\n')
         .filter(line => line.trim())
@@ -240,18 +310,19 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         }))
     }
 
-    // Normalize classification for matching
-    const normalizeClassification = (s: string) => s.toLowerCase().trim()
+    // Normalize classification for matching (lowercase and trim for legacy format)
+    const normalizeClassificationLegacy = (s: string) => s.toLowerCase().trim()
 
     let content = ""
     
     // 1) Exact match on full classification path
-    if (byClassFromServer[activeClassification]) {
-      content = byClassFromServer[activeClassification]
+    if (byClassFromServer[filterBy]) {
+      content = byClassFromServer[filterBy]
     } else {
       // 2) Try matching even with minor variations
+      const normalizedFilterBy = normalizeClassificationLegacy(filterBy)
       for (const key of Object.keys(byClassFromServer)) {
-        if (normalizeClassification(key) === normalizeClassification(activeClassification)) {
+        if (normalizeClassificationLegacy(key) === normalizedFilterBy) {
           content = byClassFromServer[key]
           break
         }
@@ -259,10 +330,10 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       
       // 3) Last resort: Try suffix match for deeper parts of the classification
       if (!content) {
-        const leaf = activeClassification.split(">").pop()?.trim() || ""
-        const wantLeaf = normalizeClassification(leaf)
+        const leaf = filterBy.split(">").pop()?.trim() || ""
+        const wantLeaf = normalizeClassificationLegacy(leaf)
         for (const key of Object.keys(byClassFromServer)) {
-          const keyLeaf = normalizeClassification(key.split(">").pop() || key)
+          const keyLeaf = normalizeClassificationLegacy(key.split(">").pop() || key)
           if (keyLeaf === wantLeaf) {
             content = byClassFromServer[key]
             break
@@ -279,12 +350,12 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           id: `item-${Date.now()}-${index}`,
           text: line.trim(),
           checked: false,
-          classification: activeClassification
+          classification: filterBy
         }))
     }
 
     return []
-  }, [procedure?.recommendations, activeClassification])
+  }, [procedure?.recommendations, currentClassification, activeClassification])
 
   // state to allow in-place editing from the notebook - now as checklist items
   // For multi-classification view, initialize with all recommendations from procedure
