@@ -222,6 +222,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
             onRequestDeleteDialog={onRequestDeleteDialog}
             onClearDocument={onClearDocument}
             isDisabled={isDisabled}
+            isClientView={isClientView}
           />
         )}
 
@@ -237,6 +238,7 @@ const DocumentRequest: React.FC<DocumentRequestProps> = ({
             onClearMultipleGroup={onClearMultipleGroup}
             onDownloadMultipleGroup={onDownloadMultipleGroup}
             isDisabled={isDisabled}
+            isClientView={isClientView}
           />
         )}
 

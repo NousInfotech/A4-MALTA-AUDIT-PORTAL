@@ -1751,20 +1751,102 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   }, [activeTab, engagement?._id]);
 
-  // Load fieldwork procedure when Procedures tab is opened and set default mode to "hybrid"
+  // Separate load functions for initial loading (matching TrialBalanceTab.tsx exactly)
+  const base = import.meta.env.VITE_APIURL;
+  const loadFieldworkSimple = async () => {
+    try {
+      const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
+      const data = await res.json();
+      // Only set if res.ok AND data.procedure exists AND has questions with content
+      if (res.ok && data?.procedure) {
+        const procedure = data.procedure;
+        // Check if procedure has questions array with content
+        if (Array.isArray(procedure.questions) && procedure.questions.length > 0) {
+          setFieldworkProcedure(procedure);
+        } else {
+          // Explicitly set to null if no questions exist (empty array, undefined, or not an array)
+          setFieldworkProcedure(null);
+        }
+      } else {
+        // Explicitly set to null if API call failed (404, etc.) or no procedure
+        setFieldworkProcedure(null);
+      }
+    } catch (error) {
+      console.error("Error fetching fieldwork procedure:", error);
+      // Explicitly set to null on error
+      setFieldworkProcedure(null);
+    }
+  };
+
+  const loadCompletionSimple = async () => {
+    try {
+      const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`);
+      if (res.ok) {
+        const data = await res.json();
+        // Only set if data exists and has procedures array with content
+        if (data && Array.isArray(data.procedures) && data.procedures.length > 0) {
+          setCompletionProcedure(data);
+        } else {
+          // Explicitly set to null if no procedures exist (empty array, undefined, or not an array)
+          setCompletionProcedure(null);
+        }
+      } else {
+        // Explicitly set to null if API call failed (404, etc.)
+        setCompletionProcedure(null);
+      }
+    } catch (error) {
+      console.error("Error fetching completion procedure:", error);
+      // Explicitly set to null on error
+      setCompletionProcedure(null);
+    }
+  };
+
+  const loadPlanningSimple = async () => {
+    try {
+      const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
+      if (res.ok) {
+        const data = await res.json();
+        // Only set if data exists and has procedures array with content
+        if (data && Array.isArray(data.procedures) && data.procedures.length > 0) {
+          setPlanningProcedure(data);
+        } else {
+          // Explicitly set to null if no procedures exist (empty array, undefined, or not an array)
+          setPlanningProcedure(null);
+        }
+      } else {
+        // Explicitly set to null if API call failed (404, etc.)
+        setPlanningProcedure(null);
+      }
+    } catch (error) {
+      console.error("Error fetching planning procedure:", error);
+      // Explicitly set to null on error
+      setPlanningProcedure(null);
+    }
+  };
+
+  // Initial load of all procedures when component mounts (matching TrialBalanceTab.tsx exactly)
   useEffect(() => {
-    if (activeTab === "procedures" && selectedProcedureType === "fieldwork") {
-      // Set default mode to "hybrid" if not already set
-      if (!procedureMode) {
+    if (!engagement?._id) return;
+    loadFieldworkSimple();
+    loadPlanningSimple();
+    loadCompletionSimple();
+  }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load procedures when Procedures tab is opened (additional loading for refresh)
+  useEffect(() => {
+    if (activeTab === "procedures" && engagement?._id) {
+      // Always load all procedures when Procedures tab is active (like TrialBalanceTab.tsx)
+      loadFieldworkSimple();
+      loadPlanningSimple();
+      loadCompletionSimple();
+      
+      // Set default mode to "hybrid" for fieldwork if not already set
+      if (selectedProcedureType === "fieldwork" && !procedureMode) {
         setProcedureMode("hybrid");
         setProcedureStep("0");
       }
-      // Load procedure if not already loaded
-      if (!fieldworkProcedure && engagement?._id) {
-        loadProcedure("fieldwork");
-      }
     }
-  }, [activeTab, selectedProcedureType, engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const generateAnswersForClassification = async () => {
 
@@ -2463,14 +2545,99 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     if (!procedureType) return false
     
     if (procedureType === "planning") {
-      return planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0
+      return !!(planningProcedure?.procedures && Array.isArray(planningProcedure.procedures) && planningProcedure.procedures.length > 0)
     } else if (procedureType === "fieldwork") {
-      return fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0
+      return !!(fieldworkProcedure?.questions && Array.isArray(fieldworkProcedure.questions) && fieldworkProcedure.questions.length > 0)
     } else if (procedureType === "completion") {
-      return completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0
+      return !!(completionProcedure?.procedures && Array.isArray(completionProcedure.procedures) && completionProcedure.procedures.length > 0)
     }
     return false
   }, [planningProcedure, fieldworkProcedure, completionProcedure])
+
+  // Helper function to normalize classification strings for comparison (matching ProcedureView.tsx)
+  const normalizeClassification = (classification: string): string => {
+    if (!classification) return ""
+    return classification
+      .trim()
+      .replace(/\s*>\s*/g, " > ") // Normalize spaces around ">"
+      .trim()
+  }
+
+  // Helper function to check if a question/procedure matches a classification (matching ProcedureView.tsx filtering logic)
+  const matchesClassification = (itemClassification: string | undefined | null, filterClassification: string): boolean => {
+    if (!itemClassification || !filterClassification) return false
+    
+    const normalizedFilter = normalizeClassification(filterClassification)
+    const normalizedItem = normalizeClassification(itemClassification)
+    
+    // 1. Exact match
+    if (normalizedItem === normalizedFilter) return true
+    
+    // 2. Prefix match - item classification is a child of filterClassification
+    if (normalizedItem.startsWith(normalizedFilter + " > ")) return true
+    
+    // 3. Reverse prefix match - filterClassification is a child of item classification
+    if (normalizedFilter.startsWith(normalizedItem + " > ")) return true
+    
+    return false
+  }
+
+  // Compute disabled state for View Procedures tab (reactive to procedure state changes)
+  // IMPORTANT: Check filtered procedures by classification, not just whether procedures exist
+  const isViewProceduresDisabled = useMemo(() => {
+    // If no procedure type selected, disable
+    if (!selectedProcedureType) return true
+    
+    // Check based on selected procedure type, filtering by classification
+    if (selectedProcedureType === "planning") {
+      // If planningProcedure is null, disable
+      if (!planningProcedure) return true
+      
+      // Check if there are procedures that match the classification
+      const procedures = planningProcedure.procedures || []
+      if (!Array.isArray(procedures) || procedures.length === 0) return true
+      
+      // Filter procedures by classification - check if any procedure has fields with matching classification
+      const matchingProcedures = procedures.filter((proc: any) => {
+        // Planning procedures have sections with fields, check if classification matches
+        // For now, check if any procedure exists (planning/completion may not filter by classification in the same way)
+        // But we should check if there are any fields/questions in the procedures
+        return proc?.fields && Array.isArray(proc.fields) && proc.fields.length > 0
+      })
+      
+      return matchingProcedures.length === 0
+    } else if (selectedProcedureType === "fieldwork") {
+      // If fieldworkProcedure is null, disable
+      if (!fieldworkProcedure) return true
+      
+      // Check if there are questions that match the classification
+      const questions = fieldworkProcedure.questions || []
+      if (!Array.isArray(questions) || questions.length === 0) return true
+      
+      // Filter questions by classification (same logic as ProcedureView.tsx)
+      const matchingQuestions = questions.filter((q: any) => {
+        return matchesClassification(q.classification, classification)
+      })
+      
+      return matchingQuestions.length === 0
+    } else if (selectedProcedureType === "completion") {
+      // If completionProcedure is null, disable
+      if (!completionProcedure) return true
+      
+      // Check if there are procedures that match the classification
+      const procedures = completionProcedure.procedures || []
+      if (!Array.isArray(procedures) || procedures.length === 0) return true
+      
+      // Filter procedures by classification - check if any procedure has fields with matching classification
+      const matchingProcedures = procedures.filter((proc: any) => {
+        // Completion procedures have sections with fields, check if classification matches
+        return proc?.fields && Array.isArray(proc.fields) && proc.fields.length > 0
+      })
+      
+      return matchingProcedures.length === 0
+    }
+    return true
+  }, [selectedProcedureType, planningProcedure, fieldworkProcedure, completionProcedure, classification])
 
   const handleProcedureTabChange = (tab: "generate" | "view") => {
     // Prevent switching to view tab if no procedures exist
@@ -2555,24 +2722,54 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         const res = await authFetch(`${base}/api/planning-procedures/${engagement._id}`);
         if (res.ok) {
           const data = await res.json();
-          setPlanningProcedure(data);
+          // Only set if data has procedures array with content
+          if (data && Array.isArray(data.procedures) && data.procedures.length > 0) {
+            setPlanningProcedure(data);
+          } else {
+            setPlanningProcedure(null);
+          }
+        } else {
+          setPlanningProcedure(null);
         }
       } else if (procedureType === "fieldwork") {
         const res = await authFetch(`${base}/api/procedures/${engagement._id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setFieldworkProcedure(data?.procedure || data);
+        const data = await res.json();
+        // Only set if res.ok AND data.procedure exists AND has questions with content
+        if (res.ok && data?.procedure) {
+          const procedure = data.procedure;
+          if (Array.isArray(procedure.questions) && procedure.questions.length > 0) {
+            setFieldworkProcedure(procedure);
+          } else {
+            setFieldworkProcedure(null);
+          }
+        } else {
+          setFieldworkProcedure(null);
         }
       } else if (procedureType === "completion") {
         const res = await authFetch(`${base}/api/completion-procedures/${engagement._id}`);
         if (res.ok) {
           const data = await res.json();
-          setCompletionProcedure(data);
+          // Only set if data has procedures array with content
+          if (data && Array.isArray(data.procedures) && data.procedures.length > 0) {
+            setCompletionProcedure(data);
+          } else {
+            setCompletionProcedure(null);
+          }
+        } else {
+          setCompletionProcedure(null);
         }
       }
     } catch (error) {
       console.error("Error loading procedure:", error);
       toast.error("Failed to load procedure data");
+      // Explicitly set to null on error
+      if (procedureType === "planning") {
+        setPlanningProcedure(null);
+      } else if (procedureType === "fieldwork") {
+        setFieldworkProcedure(null);
+      } else if (procedureType === "completion") {
+        setCompletionProcedure(null);
+      }
     } finally {
       setProcedureTypeLoading(false);
     }
@@ -4846,13 +5043,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                               <TabsTrigger 
                                 value="view" 
                                 className="flex items-center justify-center gap-2 w-full"
-                                disabled={!hasProcedures(selectedProcedureType)}
+                                disabled={isViewProceduresDisabled}
                               >
                                 <Eye className="h-4 w-4" /> View Procedures
                               </TabsTrigger>
                             </div>
                           </TooltipTrigger>
-                          {!hasProcedures(selectedProcedureType) && (
+                          {isViewProceduresDisabled && (
                             <TooltipContent>
                               <p>Generate procedures first</p>
                             </TooltipContent>
@@ -4866,11 +5063,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <PlanningProcedureGeneration
                           engagement={engagement}
                           existingProcedure={planningProcedure}
-                          onComplete={(procedureData: any) => {
-                            if (procedureData) {
+                          onComplete={async (procedureData: any) => {
+                            // Check if procedureData has actual content before setting
+                            if (procedureData && Array.isArray(procedureData.procedures) && procedureData.procedures.length > 0) {
                               setPlanningProcedure(procedureData);
+                            } else {
+                              setPlanningProcedure(null);
                             }
-                            loadProcedure("planning");
+                            // Reload from API to get latest state
+                            await loadProcedure("planning");
                             // Navigate to view tab and clear procedure generation params
                             updateProcedureParams({
                               procedureTab: "view",
@@ -4888,11 +5089,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           engagement={engagement}
                           existingProcedure={fieldworkProcedure}
                           onBack={handleProcedureTypeBack}
-                          onComplete={(procedureData: any) => {
-                            if (procedureData) {
+                          onComplete={async (procedureData: any) => {
+                            // Check if procedureData has actual content before setting
+                            if (procedureData && Array.isArray(procedureData.questions) && procedureData.questions.length > 0) {
                               setFieldworkProcedure(procedureData);
+                            } else {
+                              setFieldworkProcedure(null);
                             }
-                            loadProcedure("fieldwork");
+                            // Reload from API to get latest state
+                            await loadProcedure("fieldwork");
                             // Navigate to view tab and clear procedure generation params
                             updateProcedureParams({
                               procedureTab: "view",
@@ -4909,11 +5114,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                           engagement={engagement}
                           onBack={handleProcedureTypeBack}
                           existingProcedure={completionProcedure}
-                          onComplete={(procedureData: any) => {
-                            if (procedureData) {
+                          onComplete={async (procedureData: any) => {
+                            // Check if procedureData has actual content before setting
+                            if (procedureData && Array.isArray(procedureData.procedures) && procedureData.procedures.length > 0) {
                               setCompletionProcedure(procedureData);
+                            } else {
+                              setCompletionProcedure(null);
                             }
-                            loadProcedure("completion");
+                            // Reload from API to get latest state
+                            await loadProcedure("completion");
                             // Navigate to view tab and clear procedure generation params
                             updateProcedureParams({
                               procedureTab: "view",
@@ -4935,7 +5144,12 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         ) : <div className="text-muted-foreground">No Planning procedures found.</div>
                       ) : selectedProcedureType === "fieldwork" ? (
                         fieldworkProcedure ? (
-                          <ProcedureView procedure={fieldworkProcedure} engagement={engagement} onRegenerate={handleRegenerate} />
+                          <ProcedureView 
+                            procedure={fieldworkProcedure} 
+                            engagement={engagement} 
+                            onRegenerate={handleRegenerate} 
+                            currentClassification={classification}
+                          />
                         ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
                       ) : completionProcedure ? (
                         <CompletionProcedureView procedure={completionProcedure} engagement={engagement} onRegenerate={handleRegenerate} />

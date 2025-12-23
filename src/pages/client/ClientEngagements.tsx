@@ -107,6 +107,32 @@ export const ClientEngagements = () => {
     }
   }, [user, toast]);
 
+  const calculateProgress = (request: any) => {
+    let total = 0;
+    let completed = 0;
+
+    if (request.documents && request.documents.length > 0) {
+      total += request.documents.length;
+      completed += request.documents.filter((doc: any) => doc.url).length;
+    }
+
+    if (request.multipleDocuments && request.multipleDocuments.length > 0) {
+      request.multipleDocuments.forEach((group: any) => {
+        const items = group.multiple || group.items || [];
+        total += items.length;
+        completed += items.filter((item: any) => item.url).length;
+      });
+    }
+
+    return total === 0 ? 0 : (completed / total) * 100;
+  };
+
+  const calculateStatus = (request: any) => {
+    const progress = calculateProgress(request);
+    if (progress === 100) return 'Completed';
+    return 'Pending';
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -162,10 +188,10 @@ export const ClientEngagements = () => {
           {filteredEngagements.map((engagement) => {
             const requests = engagementRequests[engagement._id] || [];
             const pendingRequests = requests.filter(
-              (r) => r.status === "pending"
+              (r) => calculateStatus(r) === "Pending"
             ).length;
             const completedRequests = requests.filter(
-              (r) => r.status === "completed"
+              (r) => calculateStatus(r) === "Completed"
             ).length;
 
             return (

@@ -43,11 +43,13 @@ import { Link, useSearchParams, useNavigate } from "react-router-dom"; // Import
 import PbcUpload from "./components/PbcUpload";
 import KycUpload from "./components/KycUpload";
 import { EngagementKYC } from "../employee/EngagementKYC";
+import { useSidebarStats } from "@/contexts/SidebarStatsContext";
 
 export const DocumentRequests = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams(); // Get setSearchParams
+  const { refetch: refetchSidebarStats } = useSidebarStats();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate(); // Initialize useNavigate
   const [clientEngagements, setClientEngagements] = useState([]);
   const [allRequests, setAllRequests] = useState([]);
@@ -267,6 +269,8 @@ export const DocumentRequests = () => {
       setAllRequests((prev) =>
         prev.map((req) => (req._id === requestId ? updatedReq : req))
       );
+      
+      refetchSidebarStats?.();
 
       // Clear the comment after successful upload
       setUploadComments((prev) => ({ ...prev, [requestId]: "" }));
@@ -369,10 +373,10 @@ export const DocumentRequests = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-semibold text-brand-body mb-2 animate-fade-in">
-                Document Requests
+                KYC
               </h1>
               <p className="text-gray-700 animate-fade-in-delay">
-                View and respond to document requests from your auditors
+                View the Company KYC documents
               </p>
             </div>
             <Button
@@ -869,6 +873,7 @@ export const DocumentRequests = () => {
                   }
                 };
                 fetchClientData();
+                refetchSidebarStats?.();
               }}
             />
             ) : (

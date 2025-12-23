@@ -23,6 +23,32 @@ export const useSidebarStats = () => {
       return;
     }
 
+    const calculateProgress = (request: any) => {
+      let total = 0;
+      let completed = 0;
+
+      if (request.documents && request.documents.length > 0) {
+        total += request.documents.length;
+        completed += request.documents.filter((doc: any) => doc.url).length;
+      }
+
+      if (request.multipleDocuments && request.multipleDocuments.length > 0) {
+        request.multipleDocuments.forEach((group: any) => {
+          const items = group.multiple || group.items || [];
+          total += items.length;
+          completed += items.filter((item: any) => item.url).length;
+        });
+      }
+
+      return total === 0 ? 0 : (completed / total) * 100;
+    };
+
+    const calculateStatus = (request: any) => {
+      const progress = calculateProgress(request);
+      if (progress === 100) return 'Completed';
+      return 'Pending';
+    };
+
     try {
       setLoading(true);
 
@@ -43,7 +69,9 @@ export const useSidebarStats = () => {
           }
         });
         const allRequests = (await Promise.all(allRequestsPromises)).flat();
-        pendingRequests = allRequests.filter(req => req.status === 'pending').length;
+        pendingRequests = allRequests.filter(req => 
+          calculateStatus(req) === 'Pending' && req.category !== 'kyc'
+        ).length;
       }
 
       let totalClients = 0;
@@ -88,7 +116,7 @@ export const useSidebarStats = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, isAuthLoading, toast]);
+  }, [isAuthLoading, toast]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined; // Declare interval here
@@ -104,7 +132,7 @@ export const useSidebarStats = () => {
         clearInterval(interval);
       }
     };
-  }, [user, isAuthLoading, fetchStats]);
+  }, [isAuthLoading, fetchStats]);
 
   return {
     stats,
