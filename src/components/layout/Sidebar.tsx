@@ -183,14 +183,24 @@ const navItems: NavItem[] = [
     roles: ['client'],
     description: 'Your Audit Engagements'
   },
+
   { 
     title: 'Document Requests', 
-    href: '/client/requests', 
+    href: '/client/document-requests', 
     icon: FileText, 
     roles: ['client'],
     description: 'Requested Documents',
     getBadge: (stats) => `${stats.pendingRequests} Pending`
   },
+
+  { 
+    title: 'KYC', 
+    href: '/client/requests', 
+    icon: FileText, 
+    roles: ['client'],
+    description: 'Company KYC Documents',
+  },
+
   { 
     title: 'Integrations', 
     href: '/client/accounts', 

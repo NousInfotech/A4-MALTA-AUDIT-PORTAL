@@ -65,6 +65,7 @@ interface DocumentRequestMultipleProps {
     items: MultipleDocumentItem[]
   ) => void | Promise<void>;
   isDisabled?: boolean;
+  isClientView?: boolean;
 }
 
 const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
@@ -77,6 +78,7 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
   onClearMultipleGroup,
   onDownloadMultipleGroup,
   isDisabled,
+  isClientView = false,
 }) => {
   const { toast } = useToast();
 
@@ -144,7 +146,11 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                     {renderTypeBadge(groupType)}
                   </div>
                   {group.instruction && (
-                    <p className="text-xs text-gray-600">{group.instruction}</p>
+                    <div className="flex flex-col gap-1 mt-1">
+                      {group.instruction.split('\n').map((line, i) => (
+                        <p key={i} className="text-xs text-gray-600">{line}</p>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -195,7 +201,7 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                 )}
 
                 {/* Delete Group button - delete the entire multiple document group */}
-                {onRequestDeleteDialog && (
+                {onRequestDeleteDialog && !isClientView && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -239,15 +245,18 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
                       <p className="text-md">
                         {item.label}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {item.template?.instruction}
-                      </p>
+                      {item.template?.instruction && (
+                        <div className="flex flex-col gap-1 mt-1">
+                          {item.template.instruction.split('\n').map((line, i) => (
+                            <p key={i} className="text-xs text-gray-500">{line}</p>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                         {renderItemStatus(item)}
-                        {item.uploadedAt && (
-                          <span>
-                            Uploaded:{" "}
-                            {(() => {
+                        {item.url && item.uploadedAt && (
+                          <span className="text-xs text-gray-500">
+                            Uploaded: {(() => {
                               const date = new Date(item.uploadedAt);
                               return isNaN(date.getTime())
                                 ? "N/A"
@@ -385,7 +394,7 @@ const DocumentRequestDouble: React.FC<DocumentRequestMultipleProps> = ({
 
 
                       {/* Full delete of document item (handled via dialog in parent) */}
-                      {onRequestDeleteDialog && (
+                      {onRequestDeleteDialog && !isClientView && (
                         <Button
                           size="sm"
                           variant="outline"

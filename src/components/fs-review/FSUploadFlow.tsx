@@ -21,6 +21,7 @@ const TEST_CATEGORIES = [
   { value: "GENERAL", label: "General Information" },
   { value: "NOTES_AND_POLICY", label: "Notes & Policy" },
   { value: "CROSS_STATEMENT", label: "Cross Statement" },
+  { value: "PRESENTATION", label: "Presentation" },
   { value: "ALL", label: "All Tests" },
 ];
 

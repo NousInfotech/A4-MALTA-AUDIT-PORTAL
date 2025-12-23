@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -470,9 +471,14 @@ function KycUpload({
                                   <Eye className="h-4 w-4 mr-1" />
                                   View Document
                                 </Button>
-                                {doc.uploadedAt && (
+                                {doc.url && doc.uploadedAt && (
                                   <span className="text-xs text-gray-500">
-                                    Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                                    Uploaded: {(() => {
+                                      const date = new Date(doc.uploadedAt);
+                                      return isNaN(date.getTime())
+                                        ? "N/A"
+                                        : format(date, "MMM dd, yyyy HH:mm");
+                                    })()}
                                   </span>
                                 )}
                               </div>

@@ -73,6 +73,7 @@ import { EmployeeSettingsPage } from "./pages/settings/EmployeeSettingsPage";
 import { AdminSettingsPage } from "./pages/settings/AdminSettingsPage";
 import { ClientSettingsPage } from "./pages/settings/ClientSettingsPage";
 import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
+import { DocumentRequestsEngagement } from "./pages/client/DocumentRequestsEngagement";
 
 
 
@@ -185,8 +186,8 @@ const App = () => (
                       >
                         <Route index element={<ClientDashboard />} />
                         <Route path="engagements" element={<ClientEngagements />} />
+                        <Route path="document-requests" element={<DocumentRequestsEngagement />} />
                         <Route path="requests" element={<DocumentRequests />} />
-
                         <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                         <Route path="settings/notifications" element={<NotificationSettingsPage />} />
                         <Route path="settings" element={<ClientSettingsPage />} />
