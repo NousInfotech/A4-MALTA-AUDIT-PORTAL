@@ -481,6 +481,9 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   
   // Ref to track the menu element
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  // Ref to track last hovered cell to prevent redundant state updates
+  const lastHoveredCellRef = useRef<{ row: number; col: number }>({ row: -1, col: -1 });
 
   // Save dialog states
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -4831,194 +4834,148 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         filter: true,
         resizable: true,
         editable: false,
-        cellStyle: (params: any) => {
-          // --- CRITICAL CHANGE: Pull state from context, not closure ---
-          const { selections, selectedSheet, hoveredMappingId, hoveredReferenceId } = params.context || { 
-            selections: [], 
-            selectedSheet: '', 
-            hoveredMappingId: null, 
-            hoveredReferenceId: null 
-          };
-          const rowIndex = params.data._rowIndex;
-          const excelColIndex = colIndex - 1;
-          
-          // Check if cell is part of a mapping
-          const mapping = allMappings.find((m) => {
-            if (!m.details) return false;
-            const { sheet, start, end } = m.details;
-            if (sheet !== selectedSheet) return false;
-            
-            const startRow = start.row;
-            const endRow = end?.row ?? startRow;
-            const startCol = start.col;
-            const endCol = end?.col ?? startCol;
-            
-            return (
-              rowIndex >= startRow &&
-              rowIndex <= endRow &&
-              excelColIndex >= startCol &&
-              excelColIndex <= endCol
+        // CRITICAL: CellClassRules handle the logic WITHOUT redrawRows() - Much faster!
+        cellClassRules: {
+          'cell-selected': (params: any) => {
+            const { selections, selectedSheet } = params.context || { selections: [], selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            return selections.some((s: Selection) => 
+              s.sheet === selectedSheet &&
+              rowIndex >= Math.min(s.start.row, s.end.row) &&
+              rowIndex <= Math.max(s.start.row, s.end.row) &&
+              colIdx >= Math.min(s.start.col, s.end.col) &&
+              colIdx <= Math.max(s.start.col, s.end.col)
             );
-          });
-          
-          // Check if cell has reference files
-          const referenceFile = (props.workbook.referenceFiles || []).find((ref: any) => {
-            if (!ref || typeof ref !== 'object' || !ref.details) return false;
-            if (ref.details.sheet !== selectedSheet) return false;
-            
+          },
+          'cell-mapped': (params: any) => {
+            const { selectedSheet } = params.context || { selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            return allMappings.some((m: any) => 
+              m.details?.sheet === selectedSheet &&
+              rowIndex >= m.details.start.row && 
+              rowIndex <= (m.details.end?.row ?? m.details.start.row) &&
+              colIdx >= m.details.start.col && 
+              colIdx <= (m.details.end?.col ?? m.details.start.col)
+            );
+          },
+          'cell-reference': (params: any) => {
+            const { selectedSheet } = params.context || { selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            return (props.workbook.referenceFiles || []).some((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return false;
+              if (ref.details.sheet !== selectedSheet) return false;
+              const { start, end } = ref.details;
+              if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
+              const startRow = start.row;
+              const endRow = (end && typeof end.row === 'number') ? end.row : startRow;
+              const startCol = start.col;
+              const endCol = (end && typeof end.col === 'number') ? end.col : startCol;
+              return (
+                rowIndex >= startRow &&
+                rowIndex <= endRow &&
+                colIdx >= startCol &&
+                colIdx <= endCol &&
+                (ref.evidence || []).length > 0
+              );
+            });
+          },
+          'cell-hover-mapping': (params: any) => {
+            const { hoveredMappingId, selectedSheet } = params.context || { hoveredMappingId: null, selectedSheet: '' };
+            if (!hoveredMappingId) return false;
+            const mapping = allMappings.find((m: any) => m._id === hoveredMappingId);
+            if (!mapping?.details || mapping.details.sheet !== selectedSheet) return false;
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            const { start, end } = mapping.details;
+            return (
+              rowIndex >= start.row && 
+              rowIndex <= (end?.row ?? start.row) &&
+              colIdx >= start.col && 
+              colIdx <= (end?.col ?? start.col)
+            );
+          },
+          'cell-hover-reference': (params: any) => {
+            const { hoveredReferenceId, selectedSheet } = params.context || { hoveredReferenceId: null, selectedSheet: '' };
+            if (!hoveredReferenceId) return false;
+            const ref = (props.workbook.referenceFiles || []).find((r: any) => r._id === hoveredReferenceId);
+            if (!ref?.details || ref.details.sheet !== selectedSheet) return false;
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
             const { start, end } = ref.details;
             if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
-            
             const startRow = start.row;
             const endRow = (end && typeof end.row === 'number') ? end.row : startRow;
             const startCol = start.col;
             const endCol = (end && typeof end.col === 'number') ? end.col : startCol;
-            
             return (
               rowIndex >= startRow &&
               rowIndex <= endRow &&
-              excelColIndex >= startCol &&
-              excelColIndex <= endCol &&
+              colIdx >= startCol &&
+              colIdx <= endCol &&
               (ref.evidence || []).length > 0
             );
-          });
-          
-          // Check if cell is selected FIRST (selections have highest priority)
-          const isSelected = selections.some((s: Selection) => {
-            if (s.sheet !== selectedSheet) return false;
-            const minRow = Math.min(s.start.row, s.end.row);
-            const maxRow = Math.max(s.start.row, s.end.row);
-            const minCol = Math.min(s.start.col, s.end.col);
-            const maxCol = Math.max(s.start.col, s.end.col);
-            return (
-              rowIndex >= minRow &&
-              rowIndex <= maxRow &&
-              excelColIndex >= minCol &&
-              excelColIndex <= maxCol
+          },
+          'cell-selected-mapped': (params: any) => {
+            const { selections, selectedSheet } = params.context || { selections: [], selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            const isSelected = selections.some((s: Selection) => 
+              s.sheet === selectedSheet &&
+              rowIndex >= Math.min(s.start.row, s.end.row) &&
+              rowIndex <= Math.max(s.start.row, s.end.row) &&
+              colIdx >= Math.min(s.start.col, s.end.col) &&
+              colIdx <= Math.max(s.start.col, s.end.col)
             );
-          });
-          
-          // HIGHLIGHT LOGIC: Increase border if the mapping/reference is hovered anywhere
-          const isMappingHovered = mapping && hoveredMappingId === mapping._id;
-          const isRefHovered = referenceFile && hoveredReferenceId === referenceFile._id;
-          
-          // Determine if this cell is on the edge of a mapping or reference area
-          let borderStyle: any = {};
-          let backgroundColor = '';
-          
-          // If selected, use selection style with higher priority
-          if (isSelected) {
-            // If also part of mapping/reference, blend background colors
-            if (mapping) {
-              // Blend selection orange with mapping blue for a unique color
-              backgroundColor = "#ffe0b2"; // Lighter orange that hints at both selection and mapping
-            } else if (referenceFile) {
-              // Blend selection orange with reference green for a unique color
-              backgroundColor = "#fff9c4"; // Light yellow-orange that hints at both selection and reference
-            } else {
-              backgroundColor = "#fff3e0"; // Light orange for selection only
-            }
-            
-            return {
-              backgroundColor: backgroundColor,
-              border: "3px solid #ff9800", // Orange border for selection (always prominent)
-              zIndex: 15 // Higher z-index for selections to ensure visibility
-            };
+            const isMapped = allMappings.some((m: any) => 
+              m.details?.sheet === selectedSheet &&
+              rowIndex >= m.details.start.row && 
+              rowIndex <= (m.details.end?.row ?? m.details.start.row) &&
+              colIdx >= m.details.start.col && 
+              colIdx <= (m.details.end?.col ?? m.details.start.col)
+            );
+            return isSelected && isMapped;
+          },
+          'cell-selected-reference': (params: any) => {
+            const { selections, selectedSheet } = params.context || { selections: [], selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            const isSelected = selections.some((s: Selection) => 
+              s.sheet === selectedSheet &&
+              rowIndex >= Math.min(s.start.row, s.end.row) &&
+              rowIndex <= Math.max(s.start.row, s.end.row) &&
+              colIdx >= Math.min(s.start.col, s.end.col) &&
+              colIdx <= Math.max(s.start.col, s.end.col)
+            );
+            const isRef = (props.workbook.referenceFiles || []).some((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return false;
+              if (ref.details.sheet !== selectedSheet) return false;
+              const { start, end } = ref.details;
+              if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
+              const startRow = start.row;
+              const endRow = (end && typeof end.row === 'number') ? end.row : startRow;
+              const startCol = start.col;
+              const endCol = (end && typeof end.col === 'number') ? end.col : startCol;
+              return (
+                rowIndex >= startRow &&
+                rowIndex <= endRow &&
+                colIdx >= startCol &&
+                colIdx <= endCol &&
+                (ref.evidence || []).length > 0
+              );
+            });
+            return isSelected && isRef;
           }
+        },
+        // Simple cellStyle for grid lines only (lightweight)
+        cellStyle: (params: any) => {
+          const rowIndex = params.data._rowIndex;
+          const excelColIndex = colIndex - 1;
           
-          // Not selected, check for mapping/reference
-          if (mapping) {
-            const { start, end } = mapping.details;
-            const startRow = start.row;
-            const endRow = end?.row ?? startRow;
-            const startCol = start.col;
-            const endCol = end?.col ?? startCol;
-            
-            // Use thicker border when hovered
-            const borderWeight = isMappingHovered ? "3px" : "2px";
-            
-            // Set mapping borders on edges, grid lines on non-edges
-            if (rowIndex === startRow) {
-              borderStyle.borderTop = `${borderWeight} solid #2196f3`;
-            } else {
-              borderStyle.borderTop = 'none';
-            }
-            
-            if (rowIndex === endRow) {
-              borderStyle.borderBottom = `${borderWeight} solid #2196f3`;
-            } else {
-              borderStyle.borderBottom = "1px solid #e0e0e0"; // Grid line
-            }
-            
-            if (excelColIndex === startCol) {
-              borderStyle.borderLeft = `${borderWeight} solid #2196f3`;
-            } else if (excelColIndex === 0) {
-              borderStyle.borderLeft = "1px solid #e0e0e0"; // First column grid line
-            } else {
-              borderStyle.borderLeft = 'none';
-            }
-            
-            if (excelColIndex === endCol) {
-              borderStyle.borderRight = `${borderWeight} solid #2196f3`;
-            } else {
-              borderStyle.borderRight = "1px solid #e0e0e0"; // Grid line
-            }
-            
-            return {
-              backgroundColor: "#e3f2fd", // Light blue for mapping
-              ...borderStyle,
-              ...(isMappingHovered ? { zIndex: 10 } : {})
-            };
-          }
-          
-          if (referenceFile) {
-            const { start, end } = referenceFile.details;
-            const startRow = start.row;
-            const endRow = end?.row ?? startRow;
-            const startCol = start.col;
-            const endCol = end?.col ?? startCol;
-            
-            // Use thicker border when hovered
-            const borderWeight = isRefHovered ? "3px" : "2px";
-            
-            // Set reference borders on edges, grid lines on non-edges
-            if (rowIndex === startRow) {
-              borderStyle.borderTop = `${borderWeight} solid #4caf50`;
-            } else {
-              borderStyle.borderTop = 'none';
-            }
-            
-            if (rowIndex === endRow) {
-              borderStyle.borderBottom = `${borderWeight} solid #4caf50`;
-            } else {
-              borderStyle.borderBottom = "1px solid #e0e0e0"; // Grid line
-            }
-            
-            if (excelColIndex === startCol) {
-              borderStyle.borderLeft = `${borderWeight} solid #4caf50`;
-            } else if (excelColIndex === 0) {
-              borderStyle.borderLeft = "1px solid #e0e0e0"; // First column grid line
-            } else {
-              borderStyle.borderLeft = 'none';
-            }
-            
-            if (excelColIndex === endCol) {
-              borderStyle.borderRight = `${borderWeight} solid #4caf50`;
-            } else {
-              borderStyle.borderRight = "1px solid #e0e0e0"; // Grid line
-            }
-            
-            return {
-              backgroundColor: "#e8f5e9", // Light green for reference
-              ...borderStyle,
-              ...(isRefHovered ? { zIndex: 10 } : {})
-            };
-          }
-          
-          // Normal cells: show grid lines (column and row borders)
-          // First data column (A) gets a left border
+          // Only handle grid lines - styling is done via CSS classes
           const defaultStyle: any = { 
-            backgroundColor: 'transparent',
             borderTop: 'none',
             borderRight: '1px solid #e0e0e0', // Column line (vertical)
             borderBottom: '1px solid #e0e0e0' // Row line (horizontal)
@@ -5099,6 +5056,14 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     
     return columns;
   }, [currentSheetData, allMappings, props.workbook.referenceFiles]);
+
+  // Memoize grid context to prevent unnecessary re-renders
+  const gridContext = useMemo(() => ({ 
+    selections, 
+    selectedSheet, 
+    hoveredMappingId, 
+    hoveredReferenceId 
+  }), [selections, selectedSheet, hoveredMappingId, hoveredReferenceId]);
 
   // AG Grid: Event handlers
   const onGridReady = useCallback((params: any) => {
@@ -5250,80 +5215,78 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     
     const rowIndex = event.data._rowIndex;
     const colLetter = event.colDef.field;
-    if (colLetter === "_rowNumber") return;
+    if (colLetter === "_rowNumber" || !event.event) return;
     const excelColIndex = excelColToZeroIndex(colLetter);
 
-    // 1. Handle Selection Dragging (Existing logic)
+    // Optimization: Only proceed if we moved to a NEW cell
+    if (lastHoveredCellRef.current.row === rowIndex && lastHoveredCellRef.current.col === excelColIndex) {
+      return;
+    }
+    lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
+
+    // 1. Handle Drag Selection
     if (isSelecting && anchorSelectionStart.current) {
       setSelections(prev => {
         if (prev.length === 0) return prev;
-        const updatedSelections = [...prev];
-        const lastSelection = updatedSelections[updatedSelections.length - 1];
-        updatedSelections[updatedSelections.length - 1] = {
-          ...lastSelection,
-          end: { row: rowIndex, col: excelColIndex }
-        };
-        return updatedSelections;
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        // Optimization: Only update if the end cell actually changed
+        if (last.end.row === rowIndex && last.end.col === excelColIndex) return prev;
+        updated[updated.length - 1] = { ...last, end: { row: rowIndex, col: excelColIndex } };
+        return updated;
       });
+      // Don't show hover menu while selecting
+      if (hoverMenu.visible) {
+        setHoverMenu(prev => ({ ...prev, visible: false }));
+        setHoveredMappingId(null);
+        setHoveredReferenceId(null);
+      }
+      return;
     }
 
-    // 2. Identify Mapping/Reference
+    // 2. Handle Hover Menu (Mappings/References)
     const mapping = allMappings.find((m) => {
       if (!m.details || m.details.sheet !== selectedSheet) return false;
       const { start, end } = m.details;
-      return rowIndex >= start.row && rowIndex <= (end?.row ?? start.row) && excelColIndex >= start.col && excelColIndex <= (end?.col ?? start.col);
+      return rowIndex >= start.row && rowIndex <= (end?.row ?? start.row) && 
+             excelColIndex >= start.col && excelColIndex <= (end?.col ?? start.col);
     });
 
     const refFile = (props.workbook.referenceFiles || []).find((ref: any) => {
       if (!ref?.details || ref.details.sheet !== selectedSheet) return false;
       const { start, end } = ref.details;
       if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
-      return rowIndex >= start.row && rowIndex <= (end?.row ?? start.row) && excelColIndex >= start.col && excelColIndex <= (end?.col ?? start.col) && (ref.evidence || []).length > 0;
+      return rowIndex >= start.row && rowIndex <= (end?.row ?? start.row) && 
+             excelColIndex >= start.col && excelColIndex <= (end?.col ?? start.col) && 
+             (ref.evidence || []).length > 0;
     });
 
-    const currentAreaId = mapping?._id || refFile?._id || null;
+    const areaId = mapping?._id || refFile?._id || null;
 
-    if (currentAreaId) {
-      // ALWAYS cancel the hide timeout if we are over a valid area
-      if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
-      
-      // Set visual hover states for borders
-      setHoveredMappingId(mapping?._id || null);
-      setHoveredReferenceId(refFile?._id || null);
-
-      // Update active hover ID
-      if (currentAreaId !== activeHoverIdRef.current) {
-        activeHoverIdRef.current = currentAreaId;
-      }
-      
-      // Get the cell element to calculate its position
-      const cellElement = event.event.target.closest('.ag-cell');
-      let menuX = event.event.clientX;
-      let menuY = event.event.clientY;
-      
-      if (cellElement) {
-        const cellRect = cellElement.getBoundingClientRect();
-        // Position menu directly below the cell with no gap, centered horizontally
-        menuX = cellRect.left + (cellRect.width / 2);
-        menuY = cellRect.bottom; // No gap - directly below the cell
+    // Only update state if the actual mapping/reference ID changed (throttling)
+    if (areaId !== activeHoverIdRef.current) {
+      activeHoverIdRef.current = areaId;
+      if (areaId) {
+        if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+        setHoveredMappingId(mapping?._id || null);
+        setHoveredReferenceId(refFile?._id || null);
+        
+        const cellElement = event.event.target.closest('.ag-cell');
+        if (cellElement) {
+          const rect = cellElement.getBoundingClientRect();
+          setHoverMenu({
+            visible: true,
+            x: rect.left + rect.width / 2,
+            y: rect.bottom,
+            type: mapping ? 'mapping' : 'reference',
+            data: mapping || refFile
+          });
+        }
       } else {
-        // Fallback to cursor position if cell element not found
-        menuX = event.event.clientX;
-        menuY = event.event.clientY + 20;
+        hideMenuWithDelay();
       }
-      
-      // Always update menu position to appear below the hovered cell
-      setHoverMenu({
-        visible: true,
-        x: menuX,
-        y: menuY,
-        type: mapping ? 'mapping' : 'reference',
-        data: mapping || refFile
-      });
-    } else {
-      hideMenuWithDelay();
     }
-  }, [isSelecting, setSelections, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay, hoverMenu.visible]);
+  }, [isSelecting, setSelections, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
   
   // Add callback to clear hover effects when mouse leaves a cell
   const onCellMouseLeave = useCallback(() => {
@@ -5507,14 +5470,9 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     };
   }, [setSelections, gridApi]);
 
-  // Force AG Grid to re-calculate styles every time selections or hover states change
-  useEffect(() => {
-    if (gridApi) {
-      // force: true is required because AG Grid won't re-render 
-      // a cell if the data (text) inside hasn't changed.
-      gridApi.refreshCells({ force: true });
-    }
-  }, [selections, gridApi, selectedSheet, hoveredMappingId, hoveredReferenceId]); // Added hover states
+  // REMOVED: This useEffect was causing flickering
+  // cellClassRules in column definitions automatically handle visual updates
+  // when params.context changes, without destroying the whole row.
 
   // Export functions (using xlsx library for Excel export since enterprise features not available)
   const exportToExcel = useCallback(() => {
@@ -5693,10 +5651,59 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             background-color: transparent !important;
           }
 
-          /* 3. Ensure your Orange/Blue selection has !important background to win the specificity war */
+          /* 3. Faster Selection Highlighting - GPU-accelerated CSS */
+          .cell-selected {
+            background-color: rgba(255, 152, 0, 0.15) !important;
+            border: 2px solid #ff9800 !important;
+            z-index: 2 !important;
+          }
+          
+          /* Mapping Area Style */
+          .cell-mapped {
+            background-color: rgba(33, 150, 243, 0.1) !important;
+            border-bottom: 1px solid rgba(33, 150, 243, 0.2) !important;
+            border-right: 1px solid rgba(33, 150, 243, 0.2) !important;
+          }
+          
+          /* Reference Area Style */
+          .cell-reference {
+            background-color: rgba(76, 175, 80, 0.1) !important;
+            border-bottom: 1px solid rgba(76, 175, 80, 0.2) !important;
+            border-right: 1px solid rgba(76, 175, 80, 0.2) !important;
+          }
+          
+          /* Hovered Mapping - thicker border */
+          .cell-hover-mapping {
+            border: 3px solid #2196f3 !important;
+            z-index: 10 !important;
+          }
+          
+          /* Hovered Reference - thicker border */
+          .cell-hover-reference {
+            border: 3px solid #4caf50 !important;
+            z-index: 10 !important;
+          }
+          
+          /* Selected + Mapped combination */
+          .cell-selected-mapped {
+            background-color: rgba(255, 224, 178, 0.8) !important;
+            border: 3px solid #ff9800 !important;
+            z-index: 15 !important;
+          }
+          
+          /* Selected + Reference combination */
+          .cell-selected-reference {
+            background-color: rgba(255, 249, 196, 0.8) !important;
+            border: 3px solid #ff9800 !important;
+            z-index: 15 !important;
+          }
+          
+          /* Ensure cells have smooth transitions */
           .ag-cell {
-            transition: background-color 0.05s ease, border-width 0.1s ease-in-out;
-            overflow: visible !important; /* Allows buttons to be seen if they overlap cell boundaries */
+            transition: background-color 0.1s ease, border-color 0.1s ease !important;
+            overflow: visible !important;
+            border-right: 1px solid #e2e8f0 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
           }
           
           /* Row number column styling */
@@ -5709,11 +5716,24 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             font-weight: 600;
           }
           
-  .ag-cell-value {
-    overflow: hidden !important;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
+          .ag-cell-value {
+            overflow: hidden !important;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+          }
+          
+          /* Smooth Context Menu transition */
+          .custom-context-menu-wrapper {
+            transition: opacity 0.15s ease-out, transform 0.1s ease-out;
+            will-change: transform, opacity;
+          }
+          
+          /* Hide AG Grid default focus to prevent "ghost" boxes */
+          .ag-cell-focus, .ag-cell-no-focus {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+          }
           
           /* Ensure hovered cells sit higher than their neighbors */
           .ag-cell:hover {
@@ -5754,7 +5774,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               editable: false,
               suppressMovable: false
             }}
-            context={{ selections, selectedSheet, hoveredMappingId, hoveredReferenceId }}
+            context={gridContext}
             onGridReady={onGridReady}
             onSelectionChanged={onSelectionChanged}
             onCellMouseDown={onCellMouseDown}
