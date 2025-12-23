@@ -24,6 +24,8 @@ import {
   Delete,
   Pencil,
   Users,
+  BookA,
+  AlertCircle,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -339,8 +341,8 @@ export const EngagementDetails = () => {
                   asChild
                 >
                   <Link to={`/employee/clients/${engagement.clientId}/company/${typeof engagement.companyId === 'object'
-                      ? engagement.companyId?._id
-                      : engagement.companyId
+                    ? engagement.companyId?._id
+                    : engagement.companyId
                     }`}>
                     <Building2 className="h-4 w-4 mr-2" />
                     View Company
@@ -381,12 +383,12 @@ export const EngagementDetails = () => {
         {/* Tabs Section */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
           <Tabs value={section} onValueChange={handleTabChange} className="space-y-6">
-            <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between">
-              <div className="overflow-x-auto overflow-y-hidden -mx-2 px-2 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent sm:scrollbar-none w-full">
-                <TabsList className="w-full bg-white border border-gray-200 rounded-xl p-1 grid grid-cols-7 gap-2 h-auto">
+            <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between overflow-visible">
+              <div className="w-full overflow-visible -mx-2 px-2 sm:mx-0 sm:px-0">
+                <TabsList className="w-full flex justify-between gap-1 bg-white border border-gray-200 rounded-xl p-1 overflow-visible">
                   <TabsTrigger
                     value="overview"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
                     Overview
@@ -394,7 +396,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="checklist"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Checklist
@@ -402,24 +404,27 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="requests"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    Requests
+                    Document Requests
                   </TabsTrigger>
 
 
                   <TabsTrigger
                     value="trial-balance"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-xl py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all font-semibold"
+                    className="relative flex-1 whitespace-nowrap rounded-lg font-black font-serif tracking-widest text-lg border-2 border-gray-900 bg-transparent text-gray-900 data-[state=active]:bg-gray-900 data-[state=active]:text-white hover:bg-gray-100 transition-all shadow-sm overflow-visible"
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Audit
+                    <div className="absolute -top-3 -right-3 h-6 w-6 bg-red-600 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse z-10">
+                      <AlertCircle className="h-4 w-4 text-white" />
+                    </div>
+                    <BookA className="h-5 w-5 mr-2" />
+                    AUDIT
                   </TabsTrigger>
                   {/* 
                   <TabsTrigger
                     value="procedures"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Procedures
@@ -428,7 +433,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="library"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <Library className="h-4 w-4 mr-2" />
                     Library
@@ -436,7 +441,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="team"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <Users className="h-4 w-4 mr-2" />
                     Team
@@ -444,7 +449,7 @@ export const EngagementDetails = () => {
 
                   <TabsTrigger
                     value="financial-status-report"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg py-2.5"
+                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
                   >
                     <IconReport className="h-4 w-4 mr-2" />
                     AI Review
