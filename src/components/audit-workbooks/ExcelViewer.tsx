@@ -5276,14 +5276,36 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       hoveredReferenceIdRef.current = null;
       prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
       isMenuHoveredRef.current = false; // Reset menu hover state
-    }, 800); // Increased to 800ms for better user experience and to prevent accidental closing
+    }, 150); // REDUCED DELAY: Changed from 800ms to 150ms for better responsiveness
+  }, []);
+
+  // Helper function to force reset hover state
+  const resetHoverState = useCallback(() => {
+    console.log('🔄 Resetting hover state (Dialog closed)');
+    // Clear hover IDs
+    hoveredMappingIdRef.current = null;
+    hoveredReferenceIdRef.current = null;
+    // Reset menu hover flag
+    isMenuHoveredRef.current = false;
+    // Clear previously hovered nodes
+    prevHoveredRowNodesRef.current = [];
+    // Force menu to hide
+    setHoverMenu(prev => ({ ...prev, visible: false }));
+    // Clear any pending timeout
+    if (menuTimeoutRef.current) {
+      clearTimeout(menuTimeoutRef.current);
+      menuTimeoutRef.current = null;
+    }
   }, []);
 
   // Add onCellMouseOver as a proper callback function for drag selection and hover effects
   const onCellMouseOver = useCallback((event: any) => {
-    // Ignore hover events if mouse is over the context menu
+    // ✅ FIX 1: Guard against "stale menu" state
+    // If isMenuHoveredRef is true, it means we are "inside" the menu area.
+    // In that case, we must completely ignore grid hover events.
+    // This prevents the menu from "flickering" or reacting to stale IDs.
     if (isMenuHoveredRef.current) {
-      return; // Don't process hover effects when mouse is over the menu
+      return; 
     }
     
     const target = event.event?.target as HTMLElement;
@@ -5293,24 +5315,23 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       const menuElement = target.closest('.custom-context-menu');
       if (menuWrapper || menuElement) {
         isMenuHoveredRef.current = true;
-        // Cancel any hide timeout when mouse is over menu
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
         // Stop propagation to prevent hover effects on cells underneath
         if (event.stopPropagation) event.stopPropagation();
         if (event.nativeEvent?.stopPropagation) event.nativeEvent.stopPropagation();
-        return; // Don't process hover effects when mouse is over the menu
+        return; 
       }
+      
       // Also check if the target is within the menu by checking class names
       if (target.classList.contains('custom-context-menu-wrapper') || 
           target.classList.contains('custom-context-menu') ||
           target.classList.contains('context-menu-item')) {
         isMenuHoveredRef.current = true;
-        // Cancel any hide timeout when mouse is over menu
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
         // Stop propagation to prevent hover effects on cells underneath
         if (event.stopPropagation) event.stopPropagation();
         if (event.nativeEvent?.stopPropagation) event.nativeEvent.stopPropagation();
-        return; // Don't process hover effects when mouse is over the menu
+        return; 
       }
       
       // Additional check: If menu is visible, check if mouse position is over the menu element
@@ -5339,23 +5360,17 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     if (colLetter === "_rowNumber" || !event.event) return;
     const excelColIndex = excelColToZeroIndex(colLetter);
 
-    // Optimization: Only proceed if we moved to a NEW cell
-    if (lastHoveredCellRef.current.row === rowIndex && lastHoveredCellRef.current.col === excelColIndex) {
-      return;
-    }
-    lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
-
     // 1. Handle Drag Selection
     if (isSelecting && anchorSelectionStart.current) {
       setSelections(prev => {
         if (prev.length === 0) return prev;
         const updated = [...prev];
         const last = updated[updated.length - 1];
-        // Optimization: Only update if the end cell actually changed
         if (last.end.row === rowIndex && last.end.col === excelColIndex) return prev;
         updated[updated.length - 1] = { ...last, end: { row: rowIndex, col: excelColIndex } };
         return updated;
       });
+      
       // Don't show hover menu while selecting
       if (hoverMenu.visible) {
         // Clear hover state from grid using targeted refresh
@@ -5375,36 +5390,32 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       return;
     }
 
-    // 3. HIGH-PERFORMANCE HOVER LOGIC
-    // O(1) Lookup - Extremely Fast
+    // 2. PERFORMANCE OPTIMIZATION: Track Previous State to minimize refreshes
+    // We only want to refresh the rows that actually change appearance
     const cellKey = `${rowIndex}_${excelColIndex}`;
     const newMappingId = mappingLookupMap.get(cellKey) || null;
-    
-    // Reference lookup (O(1) using lookup map)
     const newRefId = referenceLookupMap.get(cellKey) || null;
+    
+    const prevMappingId = hoveredMappingIdRef.current;
+    const prevRefId = hoveredReferenceIdRef.current;
+    const prevRowIndex = lastHoveredCellRef.current.row;
 
-    // GATED CHECK: Only update if the target area has changed
-    if (newMappingId !== hoveredMappingIdRef.current || newRefId !== hoveredReferenceIdRef.current) {
-      hoveredMappingIdRef.current = newMappingId;
-      hoveredReferenceIdRef.current = newRefId;
+    // 3. CRITICAL FIX: PREVENT MENU DISAPPEARING
+    // Logic: If we are moving within the SAME mapping/ref area, DO NOT hide the menu.
+    // Only hide if we move to a different area OR an empty area.
+    const isSameMappingArea = (newMappingId !== null) && (newMappingId === prevMappingId);
+    const isSameReferenceArea = (newRefId !== null) && (newRefId === prevRefId);
+    const isInSameActiveArea = isSameMappingArea || isSameReferenceArea;
 
-      // Targeted Row Refresh (Buttery Smooth)
-      const nodesToRefresh: any[] = [];
-      gridApiRef.current.forEachNode((node: any) => {
-        const rIdx = node.data._rowIndex;
-        const inMapping = newMappingId && allMappings.some(m => m._id === newMappingId && rIdx >= m.details.start.row && rIdx <= (m.details.end?.row ?? m.details.start.row));
-        const inRef = newRefId && (props.workbook.referenceFiles || []).some((r: any) => r._id === newRefId && rIdx >= r.details.start.row && rIdx <= (r.details.end?.row ?? r.details.start.row));
-        if (inMapping || inRef) nodesToRefresh.push(node);
-      });
-
-      const combinedNodes = Array.from(new Set([...nodesToRefresh, ...prevHoveredRowNodesRef.current]));
-      gridApiRef.current.refreshCells({ rowNodes: combinedNodes, force: true, suppressFlash: true });
-
-      prevHoveredRowNodesRef.current = nodesToRefresh;
-
-      // Update Hover Menu
-      if (newMappingId || newRefId) {
-        if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+    if (newMappingId || newRefId) {
+      // We are over a valid area.
+      if (isInSameActiveArea) {
+        // We are staying in the same area. DO NOT hide the menu.
+        // Just update the position and data (e.g., if mapping has notes).
+        // We DO NOT call hideMenuWithDelay here.
+        // Update lastHoveredCellRef for visual refresh logic to work correctly
+        lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
+        if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current); // Ensure no hide timer is running
         const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
         setHoverMenu({
           visible: true,
@@ -5415,15 +5426,98 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
                 (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
         });
       } else {
-        hideMenuWithDelay();
+        // We switched to a different area (or the IDs changed).
+        // Update state and refresh normally.
+        hoveredMappingIdRef.current = newMappingId;
+        hoveredReferenceIdRef.current = newRefId;
+        lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
+
+        // Update Hover Menu
+        if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+        const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
+        setHoverMenu({
+          visible: true,
+          x: rect.left + rect.width / 2,
+          y: rect.bottom,
+          type: newMappingId ? 'mapping' : 'reference',
+          data: allMappings.find(m => m._id === newMappingId) || 
+                (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
+        });
       }
+    } else {
+      // We moved to an empty area.
+      // Hide menu and clear refs.
+      hoveredMappingIdRef.current = null;
+      hoveredReferenceIdRef.current = null;
+      lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
+      hideMenuWithDelay();
+    }
+
+    // 4. VISUAL REFRESH STRATEGY (Keep existing logic but ensure it works with the new "Stay Visible" check)
+    // If we moved to a new cell, we need to refresh.
+    const nodesToRefresh: any[] = [];
+    
+    // Get Current Row Node
+    let currNode = null;
+    gridApiRef.current?.forEachNode((node: any) => {
+      if (node.data._rowIndex === rowIndex) {
+        currNode = node;
+      }
+    });
+
+    // Get Previous Row Node
+    let prevNode = null;
+    if (prevRowIndex !== rowIndex && prevRowIndex >= 0) {
+      gridApiRef.current?.forEachNode((node: any) => {
+        if (node.data._rowIndex === prevRowIndex) {
+          prevNode = node;
+        }
+      });
+    }
+
+    // Scenario A: Moved within same mapping/ref (or to empty area within same mapping/ref)
+    // Only need to refresh current and previous row
+    if ((newMappingId === prevMappingId && newRefId === prevRefId) && (newMappingId || newRefId)) {
+      if (currNode) nodesToRefresh.push(currNode);
+      if (prevNode) nodesToRefresh.push(prevNode);
+      // Track current row for potential future mapping switch
+      prevHoveredRowNodesRef.current = currNode ? [currNode] : [];
+    } 
+    // Scenario B: Switched Mappings/Refs completely
+    // Must refresh previous area (to remove highlight) and current area (to add highlight)
+    else {
+      // 1. Clear previous highlight from previous row (immediate response)
+      if (prevNode) nodesToRefresh.push(prevNode);
+      
+      // 2. Clear previous highlight from ENTIRE old area (to avoid ghosting)
+      // We only need to do this once per area switch.
+      // Optimization: Only clear if we LEFT mapping completely.
+      if (prevMappingId && newMappingId !== prevMappingId) {
+        // Refresh the previous set of nodes we tracked.
+        nodesToRefresh.push(...prevHoveredRowNodesRef.current);
+      }
+      if (prevRefId && newRefId !== prevRefId) {
+        nodesToRefresh.push(...prevHoveredRowNodesRef.current);
+      }
+
+      // 3. Add highlight to new area
+      // We refresh CURRENT ROW for instant feedback
+      if (currNode) nodesToRefresh.push(currNode);
+      
+      // Track the new nodes for next time
+      prevHoveredRowNodesRef.current = currNode ? [currNode] : [];
+    }
+
+    if (nodesToRefresh.length > 0) {
+      gridApiRef.current?.refreshCells({ rowNodes: nodesToRefresh, force: true, suppressFlash: true });
     }
   }, [isSelecting, mappingLookupMap, referenceLookupMap, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
   
   // Add callback to clear hover effects when mouse leaves a cell
   const onCellMouseLeave = useCallback(() => {
-    hideMenuWithDelay();
-  }, [hideMenuWithDelay]);
+    // REMOVED: This was causing the menu to flicker when moving between cells.
+    // Logic is now handled entirely within onCellMouseOver to prevent disappearing.
+  }, []); // Empty dependency array
 
   // Let's also update the onCellClicked handler to ensure proper selection clearing
   const onCellClicked = useCallback(() => {
@@ -5601,6 +5695,17 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       document.removeEventListener('click', handleClickOutside);
     };
   }, [setSelections, gridApi]);
+
+  // ✅ NEW: Add effect to watch dialog states and reset hover state when they close
+  // This ensures that after closing any dialog, the hover logic is fresh
+  // and will trigger correctly when moving the mouse over mapped areas again.
+  useEffect(() => {
+    // If any of these dialogs are open, we do nothing.
+    // If they are ALL closed, we reset the hover state.
+    if (!isETBMappingsDialogOpen && !isReferenceFilesDialogOpen && !viewNotesDialogOpen && !isDualOptionsDialogOpen && !isUploadReferenceFilesDialogOpen && !isCreateETBMappingOpen) {
+      resetHoverState();
+    }
+  }, [isETBMappingsDialogOpen, isReferenceFilesDialogOpen, viewNotesDialogOpen, isDualOptionsDialogOpen, isUploadReferenceFilesDialogOpen, isCreateETBMappingOpen, resetHoverState]);
 
   // REMOVED: This useEffect was causing flickering
   // cellClassRules in column definitions automatically handle visual updates
@@ -5790,34 +5895,32 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             z-index: 2 !important;
           }
           
-          /* Mapping Area Style */
+          /* UPDATED COLORS: Light Blue for Mappings, Light Green for References */
           .cell-mapped {
-            background-color: rgba(33, 150, 243, 0.1) !important;
+            background-color: #e3f2fd !important; /* Light Blue */
             border-bottom: 1px solid rgba(33, 150, 243, 0.2) !important;
             border-right: 1px solid rgba(33, 150, 243, 0.2) !important;
           }
           
           /* Reference Area Style */
           .cell-reference {
-            background-color: rgba(76, 175, 80, 0.1) !important;
+            background-color: #e8f5e9 !important; /* Light Green */
             border-bottom: 1px solid rgba(76, 175, 80, 0.2) !important;
             border-right: 1px solid rgba(76, 175, 80, 0.2) !important;
           }
           
-          /* Hovered Mapping - thicker border */
+          /* Hovered Mapping - distinct border */
           .cell-hover-mapping {
-            border: 3px solid #2196f3 !important;
+            border: 2px solid #2196f3 !important;
             z-index: 10 !important;
-            /* Add a slight drop shadow to make it feel more responsive */
-            box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+            background-color: #bbdefb !important; /* Darker blue on hover */
           }
           
-          /* Hovered Reference - thicker border */
+          /* Hovered Reference - distinct border */
           .cell-hover-reference {
-            border: 3px solid #4caf50 !important;
+            border: 2px solid #4caf50 !important;
             z-index: 10 !important;
-            /* Add a slight drop shadow to make it feel more responsive */
-            box-shadow: inset 0 0 0 2px rgba(76, 175, 80, 0.5) !important;
+            background-color: #c8e6c9 !important; /* Darker green on hover */
           }
           
           /* Selected + Mapped combination */
@@ -6541,16 +6644,39 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               e.nativeEvent.stopImmediatePropagation();
             }
           }}
+          // ✅ UPDATED onMouseLeave Handler
+          // FIX: We make the check very permissive to avoid clearing the flag incorrectly.
+          // We only clear isMenuHoveredRef if relatedTarget is a button (inside menu).
+          // If relatedTarget is a cell (inside grid), we assume we are moving within the menu area or re-entering it.
           onMouseLeave={(e) => {
-            // Only hide if we're actually leaving the menu area (not just moving within it)
-            // Check if the related target is still within the menu
             const relatedTarget = e.relatedTarget as HTMLElement;
-            if (!relatedTarget || 
-                (!relatedTarget.closest('.custom-context-menu-wrapper') && 
-                 !relatedTarget.closest('.custom-context-menu'))) {
-              // Reset flag when mouse leaves the wrapper completely
-              isMenuHoveredRef.current = false;
-              hideMenuWithDelay();
+            // If relatedTarget is a button (e.g., "Close", "Save"), we assume user is clicking inside menu.
+            // We do NOT clear isMenuHoveredRef.
+            // If relatedTarget is the menu wrapper itself, do nothing.
+            // We only clear isMenuHoveredRef if relatedTarget is likely a cell (null wrapper or generic).
+            const isButton = relatedTarget && (
+              relatedTarget.tagName === 'BUTTON' || 
+              relatedTarget.tagName === 'A' || 
+              relatedTarget.tagName === 'INPUT'
+            );
+            const isMenuWrapper = relatedTarget && relatedTarget.closest('.custom-context-menu-wrapper');
+            const isMenu = relatedTarget && relatedTarget.closest('.custom-context-menu');
+            
+            if (!isButton && !isMenuWrapper && !isMenu) {
+              // Clear hover state from grid using targeted refresh before clearing refs
+              const nodesToClear = prevHoveredRowNodesRef.current;
+              if (gridApiRef.current && nodesToClear.length > 0) {
+                gridApiRef.current.refreshCells({ 
+                  rowNodes: nodesToClear,
+                  force: true,
+                  suppressFlash: true
+                });
+              }
+              setHoverMenu(prev => ({ ...prev, visible: false }));
+              hoveredMappingIdRef.current = null;
+              hoveredReferenceIdRef.current = null;
+              prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
+              isMenuHoveredRef.current = false; // Reset menu hover state
             }
           }}
           onMouseDown={(e) => {
