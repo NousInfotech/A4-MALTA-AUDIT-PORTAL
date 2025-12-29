@@ -19,6 +19,52 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Checkbox } from "@/components/ui/checkbox"
 import { supabase } from "@/integrations/supabase/client"
 
+// Helper function to sanitize data before JSON.stringify (removes circular references and React internals)
+function sanitizeForJSON(obj: any, seen = new WeakSet()): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  // Handle circular references
+  if (seen.has(obj)) {
+    return undefined;
+  }
+  seen.add(obj);
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForJSON(item, seen)).filter(item => item !== undefined);
+  }
+
+  // Handle plain objects
+  const sanitized: any = {};
+  for (const key in obj) {
+    // Skip React internal properties
+    if (key.startsWith('__reactFiber$') || 
+        key.startsWith('__reactInternalInstance$') || 
+        key.startsWith('__reactInternalContainer$') ||
+        key === '__uid' ||
+        key === 'stateNode' ||
+        typeof obj[key] === 'function') {
+      continue;
+    }
+
+    // Skip DOM elements and other non-serializable objects
+    if (obj[key] instanceof HTMLElement || 
+        obj[key] instanceof Event ||
+        (typeof obj[key] === 'object' && obj[key] !== null && obj[key].constructor && 
+         obj[key].constructor.name !== 'Object' && obj[key].constructor.name !== 'Array')) {
+      continue;
+    }
+
+    const value = sanitizeForJSON(obj[key], seen);
+    if (value !== undefined) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 // Add these helpers near the top of ProcedureView.tsx (outside the component)
 function normalizeKey(s: string) {
   return (s || "")
@@ -120,6 +166,12 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [localQuestions, setLocalQuestions] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("questions")
+  const activeTabRef = React.useRef("questions")
+  
+  // Update ref when activeTab changes
+  React.useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
   const [generatingClassification, setGeneratingClassification] = useState<string | null>(null)
   const [generatingQuestions, setGeneratingQuestions] = useState(false)
   const [generatingAnswers, setGeneratingAnswers] = useState(false)
@@ -127,10 +179,80 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [selectedClassification, setSelectedClassification] = useState<string | null>(currentClassification || null)
   const [classificationTabs, setClassificationTabs] = useState<Record<string, string>>({})
 
+  // Track if we're in the middle of generating to prevent reset
+  const isGeneratingRef = React.useRef(false)
+  const lastProcedureQuestionsRef = React.useRef<string>("")
+  const localQuestionsRef = React.useRef(localQuestions)
+  
+  // Update ref when localQuestions changes
+  React.useEffect(() => {
+    localQuestionsRef.current = localQuestions
+  }, [localQuestions])
+  
   // Initialize local questions when procedure changes
+  // But don't reset if we just generated answers (to prevent losing them)
   React.useEffect(() => {
     if (procedure?.questions) {
-      setLocalQuestions([...procedure.questions])
+      const currentQuestions = Array.isArray(procedure.questions) ? procedure.questions : []
+      const currentQuestionsStr = JSON.stringify(currentQuestions)
+      
+      // Only update if:
+      // 1. We're not in the middle of generating, AND
+      // 2. The procedure questions actually changed (not just a re-render)
+      const questionsChanged = currentQuestionsStr !== lastProcedureQuestionsRef.current
+      
+      if (!isGeneratingRef.current && questionsChanged) {
+        const localQs = localQuestionsRef.current
+        
+        // Check if localQuestions has answers that procedure doesn't have
+        const hasLocalAnswers = localQs.some((q: any) => q.answer && q.answer.trim() !== "")
+        const procedureHasAnswers = currentQuestions.some((q: any) => q.answer && q.answer.trim() !== "")
+        
+        // If local has answers but procedure doesn't, merge them intelligently
+        if (hasLocalAnswers) {
+          // Create a map of local questions by their key/id for quick lookup
+          const localMap = new Map()
+          localQs.forEach((q: any) => {
+            const key = q.id || q.key || q._id || q.__uid
+            if (key) {
+              localMap.set(String(key), q)
+            }
+          })
+          
+          // Merge: use procedure questions as base, but preserve answers from local if they exist
+          const mergedQuestions = currentQuestions.map((procQ: any) => {
+            const key = procQ.id || procQ.key || procQ._id || procQ.__uid
+            const localQ = key ? localMap.get(String(key)) : null
+            
+            // If local question has an answer and procedure question doesn't, use local answer
+            if (localQ && localQ.answer && localQ.answer.trim() !== "" && (!procQ.answer || procQ.answer.trim() === "")) {
+              return { ...procQ, answer: localQ.answer }
+            }
+            
+            // Otherwise use procedure question (it might have a newer answer from API)
+            return procQ
+          })
+          
+          // Add any local questions that aren't in procedure (shouldn't happen, but just in case)
+          localQs.forEach((localQ: any) => {
+            const key = localQ.id || localQ.key || localQ._id || localQ.__uid
+            if (key && !mergedQuestions.some((q: any) => (q.id || q.key || q._id || q.__uid) === key)) {
+              mergedQuestions.push(localQ)
+            }
+          })
+          
+          setLocalQuestions(mergedQuestions)
+          lastProcedureQuestionsRef.current = currentQuestionsStr
+          return
+        }
+        
+        // If no local answers, just use procedure questions
+        setLocalQuestions([...currentQuestions])
+        lastProcedureQuestionsRef.current = currentQuestionsStr
+      } else if (questionsChanged) {
+        // Update the ref even if we're generating
+        lastProcedureQuestionsRef.current = currentQuestionsStr
+      }
     }
   }, [procedure?.questions])
 
@@ -169,6 +291,16 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   // This ensures that when currentClassification is passed from ClassificationSection,
   // we use that exact value for filtering
   const activeClassification = currentClassification || selectedClassification
+  
+  // Debug: Log activeClassification when it changes
+  React.useEffect(() => {
+    console.log("ProcedureView - activeClassification updated:", {
+      currentClassification,
+      selectedClassification,
+      activeClassification,
+      activeClassificationType: typeof activeClassification
+    });
+  }, [currentClassification, selectedClassification, activeClassification])
 
   const safeTitle = (engagement?.title || "Engagement")
   const yEnd = engagement?.yearEndDate ? new Date(engagement.yearEndDate) : null
@@ -450,12 +582,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         ];
       }
       
-      const body= JSON.stringify({
-          ...procedure,
-          status:"completed",
-          questions: localQuestions,
-          recommendations: finalRecommendations,
-        });
+      // Sanitize procedure data before sending
+      const sanitizedProcedure = sanitizeForJSON({
+        ...procedure,
+        status:"completed",
+        questions: localQuestions,
+        recommendations: finalRecommendations,
+      });
+      const body = JSON.stringify(sanitizedProcedure);
       const response = await authFetch(url, { method, body });
 
       if (response.ok) {
@@ -502,7 +636,8 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   // Generate/Regenerate questions for classification
   const handleGenerateQuestions = async (classification?: string) => {
     const targetClassification = classification || activeClassification
-    if (!targetClassification) {
+    // Ensure classification is a valid non-empty string
+    if (!targetClassification || typeof targetClassification !== 'string' || targetClassification.trim() === '') {
       toast({ title: "No Classification Selected", description: "Please select a classification to generate questions.", variant: "destructive" })
       return
     }
@@ -510,14 +645,35 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     setGeneratingQuestions(true)
     try {
       const base = import.meta.env.VITE_APIURL
+      // Ensure all required fields are present and valid before sanitizing
+      const payloadData = {
+        engagementId: engagement?._id,
+        materiality: procedure?.materiality,
+        classification: String(targetClassification).trim(), // Ensure it's a string
+        validitySelections: Array.isArray(procedure?.validitySelections) ? procedure.validitySelections : [],
+      };
+      
+      // Validate required fields
+      if (!payloadData.engagementId || !payloadData.classification) {
+        throw new Error("Missing required fields: engagementId or classification");
+      }
+      
+      // Sanitize payload before sending
+      const payload = sanitizeForJSON(payloadData);
+      
+      // Double-check classification is still present after sanitization
+      if (!payload || !payload.classification) {
+        console.error("Payload after sanitization:", payload);
+        console.error("Original targetClassification:", targetClassification);
+        throw new Error("Classification was removed during sanitization");
+      }
+      
+      // Log the payload being sent for debugging
+      console.log("Sending generate questions request with classification:", payload.classification);
+      
       const res = await authFetch(`${base}/api/procedures/ai/classification-questions`, {
         method: "POST",
-        body: JSON.stringify({
-          engagementId: engagement?._id,
-          materiality: procedure.materiality,
-          classification: targetClassification,
-          validitySelections: procedure.validitySelections || [],
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -549,10 +705,61 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         return { ...q, __uid, id, key, classification: targetClassification }
       })
 
+      // Set flag to prevent useEffect from resetting localQuestions
+      isGeneratingRef.current = true
+      
       setLocalQuestions(prev => {
         const filtered = prev.filter(q => q.classification !== targetClassification)
         return [...filtered, ...newQuestions]
       })
+
+      // Auto-save after generating questions (without triggering onProcedureUpdate)
+      try {
+        const base = import.meta.env.VITE_APIURL
+        const url = activeClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`
+        
+        // Prepare recommendations
+        let finalRecommendations = recommendations
+        if (activeClassification && Array.isArray(procedure?.recommendations)) {
+          const otherClassificationRecommendations = procedure.recommendations.filter(
+            (item: ChecklistItem) => item.classification !== activeClassification
+          )
+          finalRecommendations = [...otherClassificationRecommendations, ...recommendations]
+        }
+        
+        const updatedLocalQuestions = localQuestions.filter(q => q.classification !== targetClassification).concat(newQuestions)
+        
+        // Sanitize and save
+        const sanitizedProcedure = sanitizeForJSON({
+          ...procedure,
+          status: "completed",
+          questions: updatedLocalQuestions,
+          recommendations: finalRecommendations,
+        })
+        
+        const response = await authFetch(url, {
+          method: "POST",
+          body: JSON.stringify(sanitizedProcedure),
+        })
+        
+        if (response.ok) {
+          toast({
+            title: "Questions Saved",
+            description: "Questions have been saved successfully.",
+          })
+          // Don't call onProcedureUpdate to prevent reload
+        } else {
+          throw new Error("Failed to save questions")
+        }
+        
+        // Reset flag after save completes
+        setTimeout(() => {
+          isGeneratingRef.current = false
+        }, 1000)
+      } catch (error) {
+        console.error("Failed to auto-save after generating questions:", error)
+        isGeneratingRef.current = false
+      }
 
       toast({
         title: "AI Questions Ready",
@@ -568,8 +775,27 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
   // Generate/Regenerate answers
   const handleGenerateAnswers = async (classification?: string) => {
+    // Debug: Log all classification values
+    console.log("handleGenerateAnswers - classification parameter:", classification);
+    console.log("handleGenerateAnswers - currentClassification prop:", currentClassification);
+    console.log("handleGenerateAnswers - selectedClassification state:", selectedClassification);
+    console.log("handleGenerateAnswers - activeClassification:", activeClassification);
+    
     const targetClassification = classification || activeClassification
-    if (!targetClassification) {
+    
+    console.log("handleGenerateAnswers - targetClassification:", targetClassification);
+    console.log("handleGenerateAnswers - targetClassification type:", typeof targetClassification);
+    
+    // Ensure classification is a valid non-empty string
+    if (!targetClassification || typeof targetClassification !== 'string' || targetClassification.trim() === '') {
+      console.error("handleGenerateAnswers - Classification validation failed:", {
+        targetClassification,
+        type: typeof targetClassification,
+        trimmed: targetClassification?.trim(),
+        currentClassification,
+        selectedClassification,
+        activeClassification
+      });
       toast({ title: "No Classification Selected", description: "Please select a classification to generate answers.", variant: "destructive" })
       return
     }
@@ -594,11 +820,16 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         return
       }
 
+      // Sanitize questions before sending
+      const sanitizedQuestions = questionsWithoutAnswers
+        .map(({ answer, __uid, ...rest }) => sanitizeForJSON(rest))
+        .filter((q: any) => q !== undefined);
+      
       const res = await authFetch(`${base}/api/procedures/ai/classification-answers`, {
         method: "POST",
         body: JSON.stringify({
           engagementId: engagement._id,
-          questions: questionsWithoutAnswers.map(({ answer, __uid, ...rest }) => rest),
+          questions: sanitizedQuestions,
         }),
       })
 
@@ -633,7 +864,62 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
         updatedQuestions = [...otherQuestions, ...updatedClassificationQuestions]
       }
 
+      // Set flag to prevent useEffect from resetting localQuestions
+      isGeneratingRef.current = true
+      
       setLocalQuestions(updatedQuestions)
+      
+      // Ensure we stay on the answers tab after generating
+      // Use both state and ref to ensure it persists through re-renders
+      setActiveTab("answers")
+      activeTabRef.current = "answers"
+
+      // Auto-save after generating answers (but don't trigger onProcedureUpdate to prevent reload)
+      try {
+        const base = import.meta.env.VITE_APIURL
+        const url = activeClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`
+        
+        // Prepare recommendations
+        let finalRecommendations = recommendations
+        if (activeClassification && Array.isArray(procedure?.recommendations)) {
+          const otherClassificationRecommendations = procedure.recommendations.filter(
+            (item: ChecklistItem) => item.classification !== activeClassification
+          )
+          finalRecommendations = [...otherClassificationRecommendations, ...recommendations]
+        }
+        
+        // Sanitize and save
+        const sanitizedProcedure = sanitizeForJSON({
+          ...procedure,
+          status: "completed",
+          questions: updatedQuestions,
+          recommendations: finalRecommendations,
+        })
+        
+        const response = await authFetch(url, {
+          method: "POST",
+          body: JSON.stringify(sanitizedProcedure),
+        })
+        
+        if (response.ok) {
+          toast({
+            title: "Answers Saved",
+            description: "Answers have been saved successfully.",
+          })
+          // Don't call onProcedureUpdate here to prevent reload that resets state
+          // The parent will reload when user navigates away or manually refreshes
+        } else {
+          throw new Error("Failed to save answers")
+        }
+        
+        // Reset flag after save completes
+        setTimeout(() => {
+          isGeneratingRef.current = false
+        }, 1000)
+      } catch (error) {
+        console.error("Failed to auto-save after generating answers:", error)
+        isGeneratingRef.current = false
+      }
 
       toast({
         title: "Answers Generated",
@@ -669,8 +955,27 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
 
   // Generate/Regenerate procedures (recommendations)
   const handleGenerateProcedures = async (classification?: string) => {
+    // Debug: Log all classification values
+    console.log("handleGenerateProcedures - classification parameter:", classification);
+    console.log("handleGenerateProcedures - currentClassification prop:", currentClassification);
+    console.log("handleGenerateProcedures - selectedClassification state:", selectedClassification);
+    console.log("handleGenerateProcedures - activeClassification:", activeClassification);
+    
     const targetClassification = classification || activeClassification
-    if (!targetClassification) {
+    
+    console.log("handleGenerateProcedures - targetClassification:", targetClassification);
+    console.log("handleGenerateProcedures - targetClassification type:", typeof targetClassification);
+    
+    // Ensure classification is a valid non-empty string
+    if (!targetClassification || typeof targetClassification !== 'string' || targetClassification.trim() === '') {
+      console.error("handleGenerateProcedures - Classification validation failed:", {
+        targetClassification,
+        type: typeof targetClassification,
+        trimmed: targetClassification?.trim(),
+        currentClassification,
+        selectedClassification,
+        activeClassification
+      });
       toast({ title: "No Classification Selected", description: "Please select a classification to generate procedures.", variant: "destructive" })
       return
     }
@@ -688,6 +993,11 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       // Generate recommendations
       const base = import.meta.env.VITE_APIURL
       const questionsWithAnswersForClassification = questionsForClassification.filter((q: any) => q.answer && q.answer.trim() !== "")
+      // Sanitize questions before sending
+      const sanitizedQuestions = questionsWithAnswersForClassification
+        .map(({ __uid, ...rest }) => sanitizeForJSON(rest))
+        .filter((q: any) => q !== undefined);
+      
       const res = await authFetch(`${base}/api/procedures/recommendations`, {
         method: "POST",
         body: JSON.stringify({
@@ -695,7 +1005,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           procedureId: procedure._id,
           framework: procedure.framework || "IFRS",
           classifications: [targetClassification],
-          questions: questionsWithAnswersForClassification.map(({ __uid, ...rest }) => rest),
+          questions: sanitizedQuestions,
         }),
       })
 
@@ -745,6 +1055,55 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           })
         }
         
+        // Set flag to prevent useEffect from resetting localQuestions
+        isGeneratingRef.current = true
+        
+        // Auto-save after generating procedures (without triggering onProcedureUpdate)
+        try {
+          const base = import.meta.env.VITE_APIURL
+          const url = activeClassification?`${base}/api/procedures/${engagement._id}/section`:`${base}/api/procedures/${engagement._id}`
+          
+          // Prepare recommendations (use the updated recs from above)
+          let finalRecommendations = recs
+          if (activeClassification && Array.isArray(procedure?.recommendations)) {
+            const otherClassificationRecommendations = procedure.recommendations.filter(
+              (item: ChecklistItem) => item.classification !== activeClassification
+            )
+            finalRecommendations = [...otherClassificationRecommendations, ...recs]
+          }
+          
+          // Sanitize and save
+          const sanitizedProcedure = sanitizeForJSON({
+            ...procedure,
+            status: "completed",
+            questions: localQuestions, // Use current localQuestions (which should have answers)
+            recommendations: finalRecommendations,
+          })
+          
+          const response = await authFetch(url, {
+            method: "POST",
+            body: JSON.stringify(sanitizedProcedure),
+          })
+          
+          if (response.ok) {
+            toast({
+              title: "Procedures Saved",
+              description: "Procedures have been saved successfully.",
+            })
+            // Don't call onProcedureUpdate to prevent reload
+          } else {
+            throw new Error("Failed to save procedures")
+          }
+          
+          // Reset flag after save completes
+          setTimeout(() => {
+            isGeneratingRef.current = false
+          }, 1000)
+        } catch (error) {
+          console.error("Failed to auto-save after generating procedures:", error)
+          isGeneratingRef.current = false
+        }
+
         toast({
           title: "Procedures Generated",
           description: `Generated ${recs.length} recommendations for ${formatClassificationForDisplay(targetClassification)}.`,
@@ -1007,10 +1366,17 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={() => handleGenerateQuestions(currentClassification)}
+                onClick={() => {
+                  const classificationToUse = currentClassification || activeClassification;
+                  if (classificationToUse) {
+                    handleGenerateQuestions(classificationToUse);
+                  } else {
+                    toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                  }
+                }}
                 disabled={!!generatingClassification}
               >
-                {generatingClassification === currentClassification ? (
+                {generatingClassification === (currentClassification || activeClassification) ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Generating...
@@ -1025,7 +1391,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(value) => {
+                setActiveTab(value)
+                activeTabRef.current = value
+              }} 
+              className="w-full"
+            >
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="questions">Questions</TabsTrigger>
               <TabsTrigger value="answers">Answers</TabsTrigger>
@@ -1045,7 +1418,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleGenerateQuestions}
+                      onClick={() => {
+                        const classificationToUse = currentClassification || activeClassification;
+                        if (classificationToUse) {
+                          handleGenerateQuestions(classificationToUse);
+                        } else {
+                          toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                        }
+                      }}
                       disabled={generatingQuestions}
                     >
                       {generatingQuestions ? (
@@ -1059,7 +1439,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={handleGenerateQuestions}
+                      onClick={() => {
+                        const classificationToUse = currentClassification || activeClassification;
+                        if (classificationToUse) {
+                          handleGenerateQuestions(classificationToUse);
+                        } else {
+                          toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                        }
+                      }}
                       disabled={generatingQuestions}
                     >
                       {generatingQuestions ? (
@@ -1172,7 +1559,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={handleGenerateAnswers}
+                        onClick={() => {
+                          const classificationToUse = currentClassification || activeClassification;
+                          if (classificationToUse) {
+                            handleGenerateAnswers(classificationToUse);
+                          } else {
+                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                          }
+                        }}
                         disabled={generatingAnswers}
                       >
                         {generatingAnswers ? (
@@ -1186,7 +1580,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={handleGenerateAnswers}
+                        onClick={() => {
+                          const classificationToUse = currentClassification || activeClassification;
+                          if (classificationToUse) {
+                            handleGenerateAnswers(classificationToUse);
+                          } else {
+                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                          }
+                        }}
                         disabled={generatingAnswers}
                       >
                         {generatingAnswers ? (
@@ -1309,7 +1710,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleGenerateProcedures}
+                        onClick={() => {
+                          const classificationToUse = currentClassification || activeClassification;
+                          if (classificationToUse) {
+                            handleGenerateProcedures(classificationToUse);
+                          } else {
+                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                          }
+                        }}
                         disabled={generatingProcedures}
                       >
                         {generatingProcedures ? (
@@ -1323,7 +1731,14 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={handleGenerateProcedures}
+                        onClick={() => {
+                          const classificationToUse = currentClassification || activeClassification;
+                          if (classificationToUse) {
+                            handleGenerateProcedures(classificationToUse);
+                          } else {
+                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                          }
+                        }}
                         disabled={generatingProcedures}
                       >
                         {generatingProcedures ? (

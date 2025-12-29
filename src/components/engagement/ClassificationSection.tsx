@@ -739,6 +739,52 @@ function setTabInSearch(tab: "lead-sheet" | "working-papers" | "evidence" | "pro
 
 // Helper functions for procedure answers
 
+// Helper function to sanitize data before JSON.stringify (removes circular references and React internals)
+function sanitizeForJSON(obj: any, seen = new WeakSet()): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  // Handle circular references
+  if (seen.has(obj)) {
+    return undefined;
+  }
+  seen.add(obj);
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForJSON(item, seen)).filter(item => item !== undefined);
+  }
+
+  // Handle plain objects
+  const sanitized: any = {};
+  for (const key in obj) {
+    // Skip React internal properties
+    if (key.startsWith('__reactFiber$') || 
+        key.startsWith('__reactInternalInstance$') || 
+        key.startsWith('__reactInternalContainer$') ||
+        key === '__uid' ||
+        key === 'stateNode' ||
+        typeof obj[key] === 'function') {
+      continue;
+    }
+
+    // Skip DOM elements and other non-serializable objects
+    if (obj[key] instanceof HTMLElement || 
+        obj[key] instanceof Event ||
+        (typeof obj[key] === 'object' && obj[key] !== null && obj[key].constructor && 
+         obj[key].constructor.name !== 'Object' && obj[key].constructor.name !== 'Array')) {
+      continue;
+    }
+
+    const value = sanitizeForJSON(obj[key], seen);
+    if (value !== undefined) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 function normalize(items?: any[]) {
 
   if (!Array.isArray(items)) return [];
@@ -855,6 +901,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   loadExistingData,
 }) => {
+  // Debug: Log classification when component renders or classification changes
+  useEffect(() => {
+    console.log("ClassificationSection - classification prop:", classification);
+    console.log("ClassificationSection - classification type:", typeof classification);
+    console.log("ClassificationSection - classification trimmed:", classification?.trim());
+    if (!classification || typeof classification !== 'string' || classification.trim() === '') {
+      console.warn("ClassificationSection - WARNING: classification is missing or invalid!");
+    }
+  }, [classification]);
   console.log('classification:', classification);
 
 
@@ -1852,21 +1907,56 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     if (!procedure || !engagement?._id) return;
 
+    // Debug: Log classification value
+    console.log("generateAnswersForClassification - classification prop:", classification);
+    console.log("generateAnswersForClassification - classification type:", typeof classification);
+    console.log("generateAnswersForClassification - procedure:", procedure);
+    
+    // Try to get classification from procedure questions if prop is missing
+    let classificationToUse = classification;
+    if (!classificationToUse || typeof classificationToUse !== 'string' || classificationToUse.trim() === '') {
+      // Try to get classification from procedure questions
+      const firstQuestion = procedure?.questions?.[0];
+      if (firstQuestion?.classification) {
+        classificationToUse = firstQuestion.classification;
+        console.log("generateAnswersForClassification - Using classification from procedure questions:", classificationToUse);
+      } else {
+        console.error("Classification is missing or invalid:", classification);
+        toast.error("Please select a classification to generate answers. Classification is required.");
+        return;
+      }
+    }
 
+    // Ensure classification is a valid string
+    classificationToUse = String(classificationToUse).trim();
+    if (!classificationToUse) {
+      console.error("Classification is empty after trimming:", classification);
+      toast.error("Please select a classification to generate answers. Classification cannot be empty.");
+      return;
+    }
 
     setGeneratingAnswers(true);
 
     try {
 
-      // Filter questions by classification and remove answers
+      // Filter questions by classification and remove answers and React internals
+      // classificationToUse is already validated above
 
       const classificationQuestions = procedure.questions
 
-        ?.filter((q: any) => q.classification === classification)
+        ?.filter((q: any) => q.classification === classificationToUse)
 
-        .map(({ answer, ...rest }) => rest) || []; // This removes the answer property
+        .map(({ answer, __uid, ...rest }) => {
+          // Sanitize each question to remove any circular references or React internals
+          return sanitizeForJSON(rest);
+        })
+        .filter((q: any) => q !== undefined) || []; // Filter out undefined values
 
-
+      if (classificationQuestions.length === 0) {
+        toast.error("No questions found for this classification. Please generate questions first.");
+        setGeneratingAnswers(false);
+        return;
+      }
 
       const res = await authFetch(
 
@@ -1888,7 +1978,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
             questions: classificationQuestions,
 
-            classification: classification,
+            classification: classificationToUse, // Use validated classification
 
           }),
 
@@ -1920,7 +2010,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           procedure.questions,
 
-          classification,
+          classificationToUse,
 
           updatedClassificationQs
 
@@ -1934,7 +2024,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           procedure.questions,
 
-          classification,
+          classificationToUse,
 
           data.questions
 
@@ -1958,7 +2048,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
 
-      toast.success(`Answers for ${formatClassificationForDisplay(classification)} have been generated.`);
+      toast.success(`Answers for ${formatClassificationForDisplay(classificationToUse)} have been generated.`);
 
     } catch (error: any) {
 
@@ -2062,13 +2152,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     // Save to backend
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      // Sanitize procedure data before sending
+      const sanitizedProcedure = sanitizeForJSON({
+        ...procedure,
+        questions: updatedQuestions,
+      });
       await authFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...procedure,
-          questions: updatedQuestions,
-        }),
+        body: JSON.stringify(sanitizedProcedure),
       });
       toast.success("Question saved successfully");
     } catch (error: any) {
@@ -2092,13 +2184,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     // Save to backend
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      // Sanitize procedure data before sending
+      const sanitizedProcedure = sanitizeForJSON({
+        ...procedure,
+        questions: updatedQuestions,
+      });
       await authFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...procedure,
-          questions: updatedQuestions,
-        }),
+        body: JSON.stringify(sanitizedProcedure),
       });
       toast.success("Question deleted successfully");
     } catch (error: any) {
@@ -2115,16 +2209,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       const question = procedure.questions.find((q: any) => q.id === questionId);
       if (!question) return;
 
+      // Sanitize question before sending
+      const sanitizedQuestion = sanitizeForJSON({
+        ...question,
+        answer: undefined
+      });
+
       const res = await authFetch(
         `${import.meta.env.VITE_APIURL}/api/procedures/ai/classification-answers/separate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            engagementId: engagement._id,
-            questions: [{ ...question, answer: undefined }],
-            classification: classification,
-          }),
+            body: JSON.stringify({
+              engagementId: engagement._id,
+              questions: [sanitizedQuestion],
+              classification: String(classification).trim(), // Ensure it's a string
+            }),
         }
       );
 
@@ -2154,18 +2254,53 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const handleGenerateQuestions = async () => {
     if (!engagement?._id) return;
 
+    // Debug: Log classification value
+    console.log("handleGenerateQuestions - classification prop:", classification);
+    console.log("handleGenerateQuestions - classification type:", typeof classification);
+    
+    // Try to get classification from procedure if prop is missing
+    let classificationToUse = classification;
+    if (!classificationToUse || typeof classificationToUse !== 'string' || classificationToUse.trim() === '') {
+      // Try to get classification from procedure questions
+      const firstQuestion = procedure?.questions?.[0];
+      if (firstQuestion?.classification) {
+        classificationToUse = firstQuestion.classification;
+        console.log("handleGenerateQuestions - Using classification from procedure questions:", classificationToUse);
+      } else {
+        console.error("handleGenerateQuestions - Classification is missing or invalid:", classification);
+        toast.error("Please select a classification to generate questions. Classification is required.");
+        return;
+      }
+    }
+
+    // Ensure classification is a valid string
+    classificationToUse = String(classificationToUse).trim();
+    if (!classificationToUse) {
+      console.error("handleGenerateQuestions - Classification is empty after trimming:", classification);
+      toast.error("Please select a classification to generate questions. Classification cannot be empty.");
+      return;
+    }
+
     setGeneratingQuestions(true);
     try {
       const base = import.meta.env.VITE_APIURL;
+      // Use the validated classificationToUse
+      // Sanitize payload before sending
+      const payload = sanitizeForJSON({
+        mode: "ai",
+        materiality: procedure?.materiality || engagement?.materiality,
+        selectedClassifications: [classificationToUse],
+        validitySelections: {},
+      });
+      
+      // Validate payload after sanitization
+      if (!payload || !payload.selectedClassifications || payload.selectedClassifications.length === 0) {
+        throw new Error("Classification was removed during sanitization");
+      }
       const res = await authFetch(`${base}/api/procedures/${engagement._id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "ai",
-          materiality: procedure?.materiality || engagement?.materiality,
-          selectedClassifications: [classification],
-          validitySelections: {},
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -2191,10 +2326,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       // Replace questions for this classification
       let updatedQuestions = procedure?.questions || [];
-      const otherQuestions = updatedQuestions.filter((q: any) => q.classification !== classification);
+      const otherQuestions = updatedQuestions.filter((q: any) => q.classification !== classificationToUse);
       const newQuestions = normalizedQuestions.map((q: any) => ({
         ...q,
-        classification: classification,
+        classification: classificationToUse,
       }));
 
       updatedQuestions = [...otherQuestions, ...newQuestions];
@@ -2205,7 +2340,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         materiality: procedure?.materiality || engagement?.materiality,
       });
 
-      toast.success(`Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classification)}`);
+      toast.success(`Generated ${newQuestions.length} questions for ${formatClassificationForDisplay(classificationToUse)}`);
     } catch (error: any) {
       toast.error(`Failed to generate questions: ${error.message}`);
     } finally {
@@ -2224,14 +2359,16 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       // Preserve existing status or use "draft" (valid enum values: "draft" or "completed")
       const currentStatus = procedure.status === "completed" ? "completed" : "draft";
 
+      // Sanitize procedure data before sending
+      const sanitizedProcedure = sanitizeForJSON({
+        ...procedure,
+        questions: procedure.questions,
+        status: currentStatus,
+      });
       const response = await authFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...procedure,
-          questions: procedure.questions,
-          status: currentStatus,
-        }),
+        body: JSON.stringify(sanitizedProcedure),
       });
 
       if (response.ok) {
@@ -2254,13 +2391,40 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const handleGenerateProcedures = async () => {
     if (!procedure || !engagement?._id) return;
 
+    // Debug: Log classification value
+    console.log("handleGenerateProcedures - classification prop:", classification);
+    console.log("handleGenerateProcedures - classification type:", typeof classification);
+    
+    // Try to get classification from procedure if prop is missing
+    let classificationToUse = classification;
+    if (!classificationToUse || typeof classificationToUse !== 'string' || classificationToUse.trim() === '') {
+      // Try to get classification from procedure questions
+      const firstQuestion = procedure?.questions?.[0];
+      if (firstQuestion?.classification) {
+        classificationToUse = firstQuestion.classification;
+        console.log("handleGenerateProcedures - Using classification from procedure questions:", classificationToUse);
+      } else {
+        console.error("handleGenerateProcedures - Classification is missing or invalid:", classification);
+        toast.error("Please select a classification to generate procedures. Classification is required.");
+        return;
+      }
+    }
+
+    // Ensure classification is a valid string
+    classificationToUse = String(classificationToUse).trim();
+    if (!classificationToUse) {
+      console.error("handleGenerateProcedures - Classification is empty after trimming:", classification);
+      toast.error("Please select a classification to generate procedures. Classification cannot be empty.");
+      return;
+    }
+
     setGeneratingProcedures(true);
     try {
       const base = import.meta.env.VITE_APIURL;
 
       // First ensure we have questions
       const classificationQuestions = procedure.questions?.filter(
-        (q: any) => q.classification === classification
+        (q: any) => q.classification === classificationToUse
       ) || [];
 
       if (classificationQuestions.length === 0) {
@@ -2277,7 +2441,11 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       let updatedQuestions = procedure.questions;
 
       if (questionsWithoutAnswers.length > 0) {
-        // Generate answers first
+        // Generate answers first - sanitize questions before sending
+        const sanitizedQuestions = questionsWithoutAnswers
+          .map(({ answer, __uid, ...rest }) => sanitizeForJSON(rest))
+          .filter((q: any) => q !== undefined);
+        
         const res = await authFetch(
           `${base}/api/procedures/ai/classification-answers/separate`,
           {
@@ -2285,8 +2453,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               engagementId: engagement._id,
-              questions: questionsWithoutAnswers.map(({ answer, ...rest }) => rest),
-              classification: classification,
+              questions: sanitizedQuestions,
+              classification: classificationToUse, // Use validated classification
             }),
           }
         );
@@ -2298,14 +2466,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         const updatedClassificationQs = mergeAiAnswers(questionsWithoutAnswers, answerData.aiAnswers || []);
         updatedQuestions = replaceClassificationQuestions(
           procedure.questions,
-          classification,
+          classificationToUse,
           updatedClassificationQs
         );
       }
 
       // Get questions with answers for recommendations
       const questionsWithAnswers = updatedQuestions.filter(
-        (q: any) => q.classification === classification && q.answer && q.answer.trim() !== ""
+        (q: any) => q.classification === classificationToUse && q.answer && q.answer.trim() !== ""
       );
 
       // Recommendations are typically generated along with answers
@@ -2322,12 +2490,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       setProcedure(updatedProcedure);
 
-      // Save everything
+      // Save everything - sanitize before sending
       const saveUrl = `${base}/api/procedures/${engagement._id}/section`;
+      const sanitizedProcedure = sanitizeForJSON(updatedProcedure);
       await authFetch(saveUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedProcedure),
+        body: JSON.stringify(sanitizedProcedure),
       });
 
       toast.success("Procedures generated and saved successfully");
@@ -2422,13 +2591,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
     try {
       const url = `${import.meta.env.VITE_APIURL}/api/procedures/${engagement._id}/section`;
+      // Sanitize procedure data before sending
+      const sanitizedProcedure = sanitizeForJSON({
+        ...procedure,
+        recommendations: finalRecommendations,
+      });
       await authFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...procedure,
-          recommendations: finalRecommendations,
-        }),
+        body: JSON.stringify(sanitizedProcedure),
       });
 
       setProcedure({ ...procedure, recommendations: finalRecommendations });
@@ -5148,7 +5319,13 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             procedure={fieldworkProcedure} 
                             engagement={engagement} 
                             onRegenerate={handleRegenerate} 
-                            currentClassification={classification}
+                            currentClassification={classification && typeof classification === 'string' && classification.trim() !== '' ? classification : undefined}
+                            onProcedureUpdate={async (updatedProcedure: any) => {
+                              // Update local state
+                              setFieldworkProcedure(updatedProcedure);
+                              // Reload from API to get latest state
+                              await loadProcedure("fieldwork");
+                            }}
                           />
                         ) : <div className="text-muted-foreground">No Fieldwork procedures found.</div>
                       ) : completionProcedure ? (
