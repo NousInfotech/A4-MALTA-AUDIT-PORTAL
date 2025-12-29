@@ -12,6 +12,7 @@ export interface Message {
     _id: string;
     conversationId: string;
     senderId: string;
+    senderName?: string; // Added for group chats
     content: string;
     attachments?: {
         url: string;
@@ -250,5 +251,33 @@ export const getStarredMessages = async () => {
     });
 
     if (!res.ok) throw new Error('Failed to fetch starred messages');
+    return res.json();
+};
+
+// Leave a group chat
+export const leaveGroup = async (conversationId: string) => {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_BASE}/api/chat/conversations/${conversationId}/leave`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    if (!res.ok) throw new Error('Failed to leave group');
+    return res.json();
+};
+
+// Delete a group chat (admin only)
+export const deleteGroup = async (conversationId: string) => {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_BASE}/api/chat/conversations/${conversationId}`, {
+        method: "DELETE",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    if (!res.ok) throw new Error('Failed to delete group');
     return res.json();
 };

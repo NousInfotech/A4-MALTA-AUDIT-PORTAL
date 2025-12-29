@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-    startDirectChat, getConversations, searchUsers, Conversation,
+    startDirectChat, createGroupChat, getConversations, searchUsers, Conversation,
     togglePinConversation, toggleArchiveConversation, getStarredMessages, Message // Added services
 } from '@/services/chatService';
 import { ChatWindow } from './ChatWindow';
@@ -62,6 +62,9 @@ export const ChatWidget = () => {
 
     // New Chat Dialog State
     const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+    const [chatMode, setChatMode] = useState<'direct' | 'group'>('direct'); // New state for chat mode
+    const [groupName, setGroupName] = useState(""); // Group name state
+    const [selectedUsers, setSelectedUsers] = useState<string[]>([]); // Selected users for group
     const [searchRole, setSearchRole] = useState("all");
     const [userSearchQuery, setUserSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -225,10 +228,39 @@ export const ChatWidget = () => {
             handleOpenChat(conversation);
             setIsNewChatOpen(false);
             setListSearchQuery("");
+            setChatMode('direct');
+            setSelectedUsers([]);
+            setGroupName("");
             loadConversations();
         } catch (error) {
             console.error("Failed to start chat", error);
         }
+    };
+
+    const handleCreateGroup = async () => {
+        if (!groupName.trim() || selectedUsers.length === 0) {
+            return;
+        }
+        try {
+            const conversation = await createGroupChat(groupName.trim(), selectedUsers);
+            handleOpenChat(conversation);
+            setIsNewChatOpen(false);
+            setListSearchQuery("");
+            setChatMode('direct');
+            setSelectedUsers([]);
+            setGroupName("");
+            loadConversations();
+        } catch (error) {
+            console.error("Failed to create group", error);
+        }
+    };
+
+    const toggleUserSelection = (userId: string) => {
+        setSelectedUsers(prev => 
+            prev.includes(userId) 
+                ? prev.filter(id => id !== userId)
+                : [...prev, userId]
+        );
     };
 
     const toggleNotifications = () => {
@@ -356,7 +388,9 @@ export const ChatWidget = () => {
                             <ChatWindow
                                 conversationId={conversation._id}
                                 currentUserId={currentUserId}
+                                conversationType={conversation.type}
                                 className="flex-1 rounded-b-lg border-0"
+                                onClose={() => handleCloseChat(conversation._id)}
                             />
                         )}
                     </div>
@@ -539,12 +573,73 @@ export const ChatWidget = () => {
             </div>
 
             {/* New Chat Dialog (Reused but styled) */}
-            < Dialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen} >
-                <DialogContent className="sm:max-w-[400px] bg-white gap-0 p-0 overflow-hidden rounded-lg">
+            < Dialog open={isNewChatOpen} onOpenChange={(open) => {
+                setIsNewChatOpen(open);
+                if (!open) {
+                    setChatMode('direct');
+                    setSelectedUsers([]);
+                    setGroupName("");
+                }
+            }}>
+                <DialogContent className="sm:max-w-[450px] bg-white gap-0 p-0 overflow-hidden rounded-lg">
                     <DialogHeader className="px-4 py-3 border-b">
-                        <DialogTitle className="text-base font-semibold">New message</DialogTitle>
+                        <DialogTitle className="text-base font-semibold">
+                            {chatMode === 'group' ? 'New group' : 'New message'}
+                        </DialogTitle>
                     </DialogHeader>
                     <div className="p-4 space-y-4">
+                        {/* Mode Toggle - Direct or Group */}
+                        <div className="flex gap-2 border-b pb-3">
+                            <Button
+                                variant={chatMode === 'direct' ? 'default' : 'outline'}
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => {
+                                    setChatMode('direct');
+                                    setSelectedUsers([]);
+                                    setGroupName("");
+                                }}
+                            >
+                                Direct Chat
+                            </Button>
+                            <Button
+                                variant={chatMode === 'group' ? 'default' : 'outline'}
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => setChatMode('group')}
+                            >
+                                New Group
+                            </Button>
+                        </div>
+
+                        {/* Group Name Input (only for group mode) */}
+                        {chatMode === 'group' && (
+                            <div className="space-y-2">
+                                <Input
+                                    placeholder="Group name..."
+                                    className="bg-gray-50 border-gray-200"
+                                    value={groupName}
+                                    onChange={(e) => setGroupName(e.target.value)}
+                                />
+                                {selectedUsers.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedUsers.map(userId => {
+                                            const user = searchResults.find(u => (u.user_id || u.id || u._id) === userId);
+                                            return user ? (
+                                                <Badge key={userId} variant="secondary" className="flex items-center gap-1">
+                                                    {user.name}
+                                                    <X 
+                                                        className="h-3 w-3 cursor-pointer" 
+                                                        onClick={() => toggleUserSelection(userId)}
+                                                    />
+                                                </Badge>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             {/* Role Filter */}
                             <Select value={searchRole} onValueChange={setSearchRole}>
@@ -581,27 +676,57 @@ export const ChatWidget = () => {
                                     <p>No results found</p>
                                 </div>
                             ) : (
-                                searchResults.map((user) => (
-                                    <div
-                                        key={user.id || user._id}
-                                        className="flex items-center gap-3 p-3 hover:bg-green-50 cursor-pointer transition-colors"
-                                        onClick={() => handleStartNewChat(user.user_id || user.id || user._id)}
-                                    >
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarImage src={user.avatarUrl} />
-                                            <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex flex-col">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium text-gray-900">{user.name}</span>
-                                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 capitalize">{user.role}</Badge>
+                                searchResults.map((user) => {
+                                    const userId = user.user_id || user.id || user._id;
+                                    const isSelected = selectedUsers.includes(userId);
+                                    return (
+                                        <div
+                                            key={userId}
+                                            className={`flex items-center gap-3 p-3 hover:bg-green-50 cursor-pointer transition-colors ${
+                                                isSelected ? 'bg-green-100' : ''
+                                            }`}
+                                            onClick={() => {
+                                                if (chatMode === 'group') {
+                                                    toggleUserSelection(userId);
+                                                } else {
+                                                    handleStartNewChat(userId);
+                                                }
+                                            }}
+                                        >
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarImage src={user.avatarUrl} />
+                                                <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900">{user.name}</span>
+                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 capitalize">{user.role}</Badge>
+                                                </div>
+                                                <span className="text-xs text-gray-500">{user.email}</span>
                                             </div>
-                                            <span className="text-xs text-gray-500">{user.email}</span>
+                                            {chatMode === 'group' && (
+                                                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                                                    isSelected ? 'bg-primary border-primary' : 'border-gray-300'
+                                                }`}>
+                                                    {isSelected && <Check className="h-3 w-3 text-white" />}
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
+
+                        {/* Create Group Button */}
+                        {chatMode === 'group' && (
+                            <Button
+                                className="w-full bg-primary hover:bg-primary/90"
+                                onClick={handleCreateGroup}
+                                disabled={!groupName.trim() || selectedUsers.length === 0}
+                            >
+                                Create Group ({selectedUsers.length})
+                            </Button>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog >

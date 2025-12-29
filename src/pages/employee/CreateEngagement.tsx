@@ -22,6 +22,7 @@ export const CreateEngagement = () => {
     companyId: '',
     title: '',
     yearEndDate: '',
+    deadline: '', // Add deadline field
     trialBalanceUrl: '',
     createdBy:user.name
   });
@@ -506,6 +507,19 @@ const [companyError, setCompanyError] = useState<string>('')
                 {yearError && (
                   <p className="text-sm text-red-600 mt-1">{yearError}</p>
                 )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="deadline" className="text-sm font-medium text-gray-700">Deadline (Optional)</Label>
+                    <Input
+                      id="deadline"
+                      type="date"
+                      value={formData.deadline}
+                      onChange={(e) => handleChange('deadline', e.target.value)}
+                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg"
+                      placeholder="Select deadline"
+                    />
+                    <p className="text-xs text-gray-500">Set a deadline to track engagement completion progress</p>
                   </div>
 
                   <div className="space-y-3">

@@ -26,6 +26,8 @@ import {
   Filter,
   TrendingUp,
   Clock,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
@@ -346,6 +348,43 @@ export const EngagementManagement = () => {
                         Year End: {new Date(engagement.yearEndDate).toLocaleDateString()}
                       </span>
                     </div>
+                    {engagement.deadline && (() => {
+                      const deadline = new Date(engagement.deadline);
+                      const today = new Date();
+                      const daysDiff = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                      const isOverdue = daysDiff < 0;
+                      const isDueSoon = daysDiff >= 0 && daysDiff <= 7;
+                      const isOnTime = daysDiff > 7;
+                      
+                      return (
+                        <div className={`flex items-center gap-3 p-3 rounded-xl ${
+                          isOverdue ? 'bg-red-50' : isDueSoon ? 'bg-yellow-50' : 'bg-green-50'
+                        }`}>
+                          {isOverdue ? (
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                          ) : isDueSoon ? (
+                            <Clock className="h-5 w-5 text-yellow-600" />
+                          ) : (
+                            <CheckCircle2 className="h-5 w-5 text-green-600" />
+                          )}
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-700">
+                              Deadline: {deadline.toLocaleDateString()}
+                            </span>
+                            <span className={`text-xs ml-2 font-semibold ${
+                              isOverdue ? 'text-red-600' : isDueSoon ? 'text-yellow-600' : 'text-green-600'
+                            }`}>
+                              {isOverdue 
+                                ? `${Math.abs(daysDiff)} day(s) overdue`
+                                : isDueSoon
+                                ? `${daysDiff} day(s) remaining`
+                                : `${daysDiff} day(s) remaining`
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                       <FileText className="h-5 w-5 text-gray-600" />
                       <span className="text-sm text-gray-700 font-medium">
