@@ -415,9 +415,6 @@ export const EngagementDetails = () => {
                     value="trial-balance"
                     className="relative flex-1 whitespace-nowrap rounded-lg font-black font-serif tracking-widest text-lg border-2 border-gray-900 bg-transparent text-gray-900 data-[state=active]:bg-gray-900 data-[state=active]:text-white hover:bg-gray-100 transition-all shadow-sm overflow-visible"
                   >
-                    <div className="absolute -top-3 -right-3 h-6 w-6 bg-red-600 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse z-10">
-                      <AlertCircle className="h-4 w-4 text-white" />
-                    </div>
                     <BookA className="h-5 w-5 mr-2" />
                     AUDIT
                   </TabsTrigger>

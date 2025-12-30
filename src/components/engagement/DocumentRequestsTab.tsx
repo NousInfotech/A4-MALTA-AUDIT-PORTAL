@@ -322,6 +322,7 @@ export const DocumentRequestsTab = ({
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [notificationEmails, setNotificationEmails] = useState<string>('');
   const { toast } = useToast();
 
   const toggleRow = (id: string) => {
@@ -1055,12 +1056,19 @@ export const DocumentRequestsTab = ({
         };
       });
 
+      // Parse notification emails (comma-separated)
+      const notificationEmailsArray = notificationEmails
+        .split(',')
+        .map(email => email.trim())
+        .filter(email => email.length > 0 && email.includes('@'));
+
       const documentRequestData = {
         engagementId: engagementId!,
         clientId: engagement?.clientId || '',
         category: documentRequest.category,
         description: documentRequest.description,
         comment: documentRequest.comment || '',
+        notificationEmails: notificationEmailsArray.length > 0 ? notificationEmailsArray : undefined,
         documents: processedDocuments.map((doc: any) => {
           const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
           return {
@@ -1093,6 +1101,7 @@ export const DocumentRequestsTab = ({
         }
       });
       setCurrentTemplateFile(null);
+      setNotificationEmails('');
       setDocumentRequest({ category: '', description: '', comment: '' });
       setAddRequestModalOpen(false);
       
@@ -1415,6 +1424,18 @@ export const DocumentRequestsTab = ({
                       placeholder="Add any additional notes or instructions..."
                       rows={2}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="notificationEmails">Notification Emails (Optional)</Label>
+                    <Input
+                      id="notificationEmails"
+                      value={notificationEmails}
+                      onChange={(e) => setNotificationEmails(e.target.value)}
+                      placeholder="Enter email addresses separated by commas (e.g., email1@example.com, email2@example.com)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Send email notifications to these addresses when the document request is created
+                    </p>
                   </div>
                 </CardContent>
               </Card>
