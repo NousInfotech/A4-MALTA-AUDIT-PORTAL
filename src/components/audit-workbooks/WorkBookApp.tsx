@@ -2042,8 +2042,19 @@ export default function WorkBookApp({
       if (response.success) {
         toast({
           title: "Workbook Deleted",
-          description: `Successfully deleted workbook: ${workbookName}.`,
+          description: `Successfully deleted workbook: ${workbookName}. All mappings, reference files, and notes have been removed.`,
         });
+        
+        // ✅ Refresh parent data (ETB/WorkingPaper/Evidence) to reflect deleted workbook
+        if (onRefreshData) {
+          try {
+            await onRefreshData();
+            console.log('WorkBookApp: Parent data refreshed after workbook deletion');
+          } catch (refreshError) {
+            console.warn('WorkBookApp: Failed to refresh parent data after workbook deletion:', refreshError);
+          }
+        }
+        
         setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger re-fetch of workbooks AND logs
         if (selectedWorkbook?.id === workbookId) {
           setSelectedWorkbook(null);

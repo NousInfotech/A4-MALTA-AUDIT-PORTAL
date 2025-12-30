@@ -466,7 +466,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     visible: boolean;
     x: number;
     y: number;
-    type: 'mapping' | 'reference' | null;
+    type: 'mapping' | 'reference' | 'notes' | null;
     data: any;
   }>({ visible: false, x: 0, y: 0, type: null, data: null });
   
@@ -492,6 +492,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Refs for high-performance hover tracking without triggering full grid re-renders
   const hoveredMappingIdRef = useRef<string | null>(null);
   const hoveredReferenceIdRef = useRef<string | null>(null);
+  const hoveredNotesIdRef = useRef<string | null>(null);
   // Track previously hovered rows to clear them efficiently
   const prevHoveredRowNodesRef = useRef<any[]>([]);
   
@@ -587,6 +588,11 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   const [isEditingNotes, setIsEditingNotes] = useState(false); // ✅ NEW: Edit mode for notes
   const [editedNotes, setEditedNotes] = useState<string>(""); // ✅ NEW: Edited notes content
   const [isUpdatingNotes, setIsUpdatingNotes] = useState(false); // ✅ NEW: Loading state for notes update
+  
+  // ✅ NEW: State for standalone notes (without mapping or reference files)
+  const [isAddNotesDialogOpen, setIsAddNotesDialogOpen] = useState(false);
+  const [standaloneNotes, setStandaloneNotes] = useState<string>("");
+  const [isSavingStandaloneNotes, setIsSavingStandaloneNotes] = useState(false);
 
   // File preview state
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
@@ -1829,6 +1835,142 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     setIsEditWorkbookMappingOpen(false);
     setEditingWorkbookMapping(null);
   }, [props.workbook.id]);
+
+  // ✅ NEW: Handler for saving standalone notes (without mapping or reference files)
+  const handleSaveStandaloneNotes = useCallback(async () => {
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const workbook = props.workbook;
+    const setSelectedWorkbook = (props as any).setSelectedWorkbook;
+    const onRefreshMappings = (props as any).onRefreshMappings;
+
+    if (!engagementId || !classification || !workbook?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Engagement ID, classification, and workbook are required to add notes",
+      });
+      return;
+    }
+
+    if (selections.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select cells before adding notes",
+      });
+      return;
+    }
+
+    if (!standaloneNotes.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter some notes",
+      });
+      return;
+    }
+
+    const lastSelection = selections[selections.length - 1];
+    if (!lastSelection || lastSelection.sheet !== selectedSheet) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid selection",
+      });
+      return;
+    }
+
+    setIsSavingStandaloneNotes(true);
+
+    try {
+      // Get classification ID
+      const classificationId = await getClassificationId(classification, engagementId);
+      
+      // Create a minimal evidence entry for notes-only cases
+      // We'll create a text file and upload it to storage
+      const noteText = `Note: ${standaloneNotes.trim()}`;
+      const textBlob = new Blob([noteText], { type: 'text/plain' });
+      
+      // Create a File-like object that uploadFileToStorage can accept
+      // Using a workaround since File constructor might have type issues
+      const textFile = {
+        ...textBlob,
+        name: 'note.txt',
+        lastModified: Date.now(),
+        size: textBlob.size,
+        type: 'text/plain'
+      } as unknown as File;
+      
+      // Upload the text file to storage
+      const uploadResult = await uploadFileToStorage(textFile);
+      
+      // Create evidence record with the uploaded file URL
+      // Note: The backend will store this, but it's just a placeholder for notes-only entries
+      const evidenceData = {
+        engagementId: engagementId,
+        classificationId: classificationId,
+        evidenceUrl: uploadResult.url
+      };
+
+      const response = await createClassificationEvidence(evidenceData);
+      const evidenceId = response.evidence._id;
+
+      // Add reference file to workbook with notes
+      const addRefResult = await addReferenceFileToWorkbook(
+        workbook.id,
+        evidenceId,
+        {
+          sheet: lastSelection.sheet,
+          start: {
+            row: lastSelection.start.row,
+            col: lastSelection.start.col,
+          },
+          end: {
+            row: lastSelection.end.row,
+            col: lastSelection.end.col,
+          },
+          notes: standaloneNotes.trim(),
+        }
+      );
+
+      if (!addRefResult.success) {
+        throw new Error(addRefResult.error || 'Failed to add notes to workbook');
+      }
+
+      // Update workbook state
+      if (setSelectedWorkbook && addRefResult.workbook) {
+        const updatedWorkbook = {
+          ...addRefResult.workbook,
+          id: addRefResult.workbook._id || addRefResult.workbook.id,
+        };
+        setSelectedWorkbook(updatedWorkbook);
+      }
+
+      // Refresh mappings to show the new notes
+      if (onRefreshMappings) {
+        await onRefreshMappings(workbook.id);
+      }
+
+      toast({
+        title: "Success",
+        description: "Notes added successfully",
+      });
+
+      // Close dialog and clear notes
+      setIsAddNotesDialogOpen(false);
+      setStandaloneNotes("");
+    } catch (error: any) {
+      console.error('Error saving standalone notes:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save notes",
+      });
+    } finally {
+      setIsSavingStandaloneNotes(false);
+    }
+  }, [selections, selectedSheet, standaloneNotes, props, toast, setIsSavingStandaloneNotes, setIsAddNotesDialogOpen, setStandaloneNotes]);
 
   // Get engagementId for use in handleCreateETBMapping
   const engagementId = (props as any).engagementId;
@@ -4002,6 +4144,40 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     const map = new Map<string, string>();
     (props.workbook.referenceFiles || []).forEach((ref: any) => {
       if (!ref?.details || ref.details.sheet !== selectedSheet) return;
+      // Exclude notes-only areas - those go in notesLookupMap
+      // A notes-only area is one that has notes and exactly one evidence (the placeholder file)
+      // OR has notes but no evidence at all
+      const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+      const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+      const evidenceCount = evidenceArray.length;
+      // Skip if this is a notes-only area: has notes AND (no evidence OR exactly one evidence)
+      // Notes-only areas created via "Add Notes" have exactly one placeholder evidence file
+      if (hasNotes && (evidenceCount === 0 || evidenceCount === 1)) return;
+      const { start, end } = ref.details;
+      if (!start || typeof start.row !== 'number') return;
+      const endRow = end?.row ?? start.row;
+      const endCol = end?.col ?? start.col;
+      for (let r = start.row; r <= endRow; r++) {
+        for (let c = start.col; c <= endCol; c++) {
+          map.set(`${r}_${c}`, ref._id);
+        }
+      }
+    });
+    return map;
+  }, [props.workbook.referenceFiles, selectedSheet]);
+
+  // Notes-only lookup map: reference files that have notes but only placeholder evidence (or no evidence)
+  const notesLookupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (props.workbook.referenceFiles || []).forEach((ref: any) => {
+      if (!ref?.details || ref.details.sheet !== selectedSheet) return;
+      // Check if this is notes-only: has notes AND (no evidence OR exactly one evidence placeholder)
+      // Notes-only areas created via "Add Notes" have exactly one placeholder evidence file
+      const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+      const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+      const evidenceCount = evidenceArray.length;
+      // Only include if has notes AND (no evidence OR exactly one evidence - the placeholder)
+      if (!hasNotes || evidenceCount > 1) return; // Skip if no notes or has multiple evidence files
       const { start, end } = ref.details;
       if (!start || typeof start.row !== 'number') return;
       const endRow = end?.row ?? start.row;
@@ -5274,6 +5450,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       setHoverMenu(prev => ({ ...prev, visible: false }));
       hoveredMappingIdRef.current = null;
       hoveredReferenceIdRef.current = null;
+      hoveredNotesIdRef.current = null;
       prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
       isMenuHoveredRef.current = false; // Reset menu hover state
     }, 150); // REDUCED DELAY: Changed from 800ms to 150ms for better responsiveness
@@ -5285,6 +5462,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     // Clear hover IDs
     hoveredMappingIdRef.current = null;
     hoveredReferenceIdRef.current = null;
+    hoveredNotesIdRef.current = null;
     // Reset menu hover flag
     isMenuHoveredRef.current = false;
     // Clear previously hovered nodes
@@ -5385,6 +5563,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         setHoverMenu(prev => ({ ...prev, visible: false }));
         hoveredMappingIdRef.current = null;
         hoveredReferenceIdRef.current = null;
+        hoveredNotesIdRef.current = null;
         prevHoveredRowNodesRef.current = [];
       }
       return;
@@ -5394,20 +5573,26 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     // We only want to refresh the rows that actually change appearance
     const cellKey = `${rowIndex}_${excelColIndex}`;
     const newMappingId = mappingLookupMap.get(cellKey) || null;
-    const newRefId = referenceLookupMap.get(cellKey) || null;
+    // Check for notes-only areas FIRST (priority: mapping > notes > reference)
+    // Notes-only areas should never show "View Reference Files"
+    const newNotesId = notesLookupMap.get(cellKey) || null;
+    // Only check referenceLookupMap if not in notes-only area
+    const newRefId = !newNotesId ? (referenceLookupMap.get(cellKey) || null) : null;
     
     const prevMappingId = hoveredMappingIdRef.current;
     const prevRefId = hoveredReferenceIdRef.current;
+    const prevNotesId = hoveredNotesIdRef.current;
     const prevRowIndex = lastHoveredCellRef.current.row;
 
     // 3. CRITICAL FIX: PREVENT MENU DISAPPEARING
-    // Logic: If we are moving within the SAME mapping/ref area, DO NOT hide the menu.
+    // Logic: If we are moving within the SAME mapping/ref/notes area, DO NOT hide the menu.
     // Only hide if we move to a different area OR an empty area.
     const isSameMappingArea = (newMappingId !== null) && (newMappingId === prevMappingId);
     const isSameReferenceArea = (newRefId !== null) && (newRefId === prevRefId);
-    const isInSameActiveArea = isSameMappingArea || isSameReferenceArea;
+    const isSameNotesArea = (newNotesId !== null) && (newNotesId === prevNotesId);
+    const isInSameActiveArea = isSameMappingArea || isSameReferenceArea || isSameNotesArea;
 
-    if (newMappingId || newRefId) {
+    if (newMappingId || newRefId || newNotesId) {
       // We are over a valid area.
       if (isInSameActiveArea) {
         // We are staying in the same area. DO NOT hide the menu.
@@ -5417,31 +5602,58 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current); // Ensure no hide timer is running
         const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
+        // Determine type and data based on priority: mapping > notes > reference
+        // Notes-only areas should never show "View Reference Files"
+        let menuType: 'mapping' | 'reference' | 'notes' = 'notes';
+        let menuData: any = null;
+        if (newMappingId) {
+          menuType = 'mapping';
+          menuData = allMappings.find(m => m._id === newMappingId);
+        } else if (newNotesId) {
+          menuType = 'notes';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newNotesId);
+        } else if (newRefId) {
+          menuType = 'reference';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId);
+        }
         setHoverMenu({
           visible: true,
           x: rect.left + rect.width / 2,
           y: rect.bottom,
-          type: newMappingId ? 'mapping' : 'reference',
-          data: allMappings.find(m => m._id === newMappingId) || 
-                (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
+          type: menuType as 'mapping' | 'reference' | 'notes',
+          data: menuData
         });
       } else {
         // We switched to a different area (or the IDs changed).
         // Update state and refresh normally.
         hoveredMappingIdRef.current = newMappingId;
         hoveredReferenceIdRef.current = newRefId;
+        hoveredNotesIdRef.current = newNotesId;
         lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
 
         // Update Hover Menu
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
         const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
+        // Determine type and data based on priority: mapping > notes > reference
+        // Notes-only areas should never show "View Reference Files"
+        let menuType: 'mapping' | 'reference' | 'notes' = 'notes';
+        let menuData: any = null;
+        if (newMappingId) {
+          menuType = 'mapping';
+          menuData = allMappings.find(m => m._id === newMappingId);
+        } else if (newNotesId) {
+          menuType = 'notes';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newNotesId);
+        } else if (newRefId) {
+          menuType = 'reference';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId);
+        }
         setHoverMenu({
           visible: true,
           x: rect.left + rect.width / 2,
           y: rect.bottom,
-          type: newMappingId ? 'mapping' : 'reference',
-          data: allMappings.find(m => m._id === newMappingId) || 
-                (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
+          type: menuType as 'mapping' | 'reference' | 'notes',
+          data: menuData
         });
       }
     } else {
@@ -5449,6 +5661,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       // Hide menu and clear refs.
       hoveredMappingIdRef.current = null;
       hoveredReferenceIdRef.current = null;
+      hoveredNotesIdRef.current = null;
       lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
       hideMenuWithDelay();
     }
@@ -5475,15 +5688,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       });
     }
 
-    // Scenario A: Moved within same mapping/ref (or to empty area within same mapping/ref)
+    // Scenario A: Moved within same mapping/ref/notes (or to empty area within same area)
     // Only need to refresh current and previous row
-    if ((newMappingId === prevMappingId && newRefId === prevRefId) && (newMappingId || newRefId)) {
+    if ((newMappingId === prevMappingId && newRefId === prevRefId && newNotesId === prevNotesId) && (newMappingId || newRefId || newNotesId)) {
       if (currNode) nodesToRefresh.push(currNode);
       if (prevNode) nodesToRefresh.push(prevNode);
-      // Track current row for potential future mapping switch
+      // Track current row for potential future area switch
       prevHoveredRowNodesRef.current = currNode ? [currNode] : [];
     } 
-    // Scenario B: Switched Mappings/Refs completely
+    // Scenario B: Switched Mappings/Refs/Notes completely
     // Must refresh previous area (to remove highlight) and current area (to add highlight)
     else {
       // 1. Clear previous highlight from previous row (immediate response)
@@ -5491,12 +5704,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       
       // 2. Clear previous highlight from ENTIRE old area (to avoid ghosting)
       // We only need to do this once per area switch.
-      // Optimization: Only clear if we LEFT mapping completely.
+      // Optimization: Only clear if we LEFT area completely.
       if (prevMappingId && newMappingId !== prevMappingId) {
         // Refresh the previous set of nodes we tracked.
         nodesToRefresh.push(...prevHoveredRowNodesRef.current);
       }
       if (prevRefId && newRefId !== prevRefId) {
+        nodesToRefresh.push(...prevHoveredRowNodesRef.current);
+      }
+      if (prevNotesId && newNotesId !== prevNotesId) {
         nodesToRefresh.push(...prevHoveredRowNodesRef.current);
       }
 
@@ -5511,7 +5727,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     if (nodesToRefresh.length > 0) {
       gridApiRef.current?.refreshCells({ rowNodes: nodesToRefresh, force: true, suppressFlash: true });
     }
-  }, [isSelecting, mappingLookupMap, referenceLookupMap, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
+  }, [isSelecting, mappingLookupMap, referenceLookupMap, notesLookupMap, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
   
   // Add callback to clear hover effects when mouse leaves a cell
   const onCellMouseLeave = useCallback(() => {
@@ -5614,16 +5830,38 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         }
       });
       
-      // Add a separator
-      const separator = document.createElement('div');
-      separator.style.height = '1px';
-      separator.style.backgroundColor = '#e0e0e0';
-      separator.style.margin = '4px 0';
+      // ✅ NEW: Add Notes menu item
+      const addNotesItem = document.createElement('div');
+      addNotesItem.className = 'context-menu-item';
+      addNotesItem.style.padding = '8px 16px';
+      addNotesItem.style.cursor = 'pointer';
+      addNotesItem.style.fontSize = '14px';
+      addNotesItem.style.transition = 'background-color 0.2s';
+      addNotesItem.innerHTML = 'Add Notes';
+      addNotesItem.addEventListener('click', () => {
+        setIsAddNotesDialogOpen(true);
+        if (document.body.contains(contextMenu)) {
+          document.body.removeChild(contextMenu);
+        }
+      });
+      
+      // Add separators
+      const separator1 = document.createElement('div');
+      separator1.style.height = '1px';
+      separator1.style.backgroundColor = '#e0e0e0';
+      separator1.style.margin = '4px 0';
+      
+      const separator2 = document.createElement('div');
+      separator2.style.height = '1px';
+      separator2.style.backgroundColor = '#e0e0e0';
+      separator2.style.margin = '4px 0';
       
       // Add items to menu
       contextMenu.appendChild(createMappingItem);
-      contextMenu.appendChild(separator);
+      contextMenu.appendChild(separator1);
       contextMenu.appendChild(addReferenceFilesItem);
+      contextMenu.appendChild(separator2);
+      contextMenu.appendChild(addNotesItem);
       
       // Add menu to DOM
       document.body.appendChild(contextMenu);
@@ -5656,7 +5894,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     setTimeout(() => {
       showContextMenu(nativeEvent);
     }, 0);
-  }, [selectedSheet, selections, setSelections, gridApi, loadingEvidenceFiles, uploadingFiles, setIsCreateETBMappingOpen, setIsUploadReferenceFilesDialogOpen]);
+  }, [selectedSheet, selections, setSelections, gridApi, loadingEvidenceFiles, uploadingFiles, setIsCreateETBMappingOpen, setIsUploadReferenceFilesDialogOpen, setIsAddNotesDialogOpen]);
 
   // Add global mouse up handler to stop selection when mouse is released anywhere
   useEffect(() => {
@@ -5677,16 +5915,64 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Add click-outside handler to clear selections when clicking outside the grid
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
       // Check if click is outside the grid
       const gridElement = document.querySelector('.ag-root-wrapper');
-      if (gridElement && !gridElement.contains(event.target as Node)) {
-        // Clear selections when clicking outside
-        setSelections([]);
-        if (gridApi) {
-          gridApi.deselectAll();
-          gridApi.clearRangeSelection();
-          gridApi.refreshCells({ force: true });
+      if (!gridElement || gridElement.contains(target)) {
+        return; // Click is inside the grid, don't clear selections
+      }
+
+      // ✅ FIX: Don't clear selections if any dialogs are open or clicking on dialog/select elements
+      // First, check if any dialogs are currently open - if so, don't clear selections
+      const isAnyDialogOpen = isCreateETBMappingOpen || isEditETBMappingOpen || isUploadReferenceFilesDialogOpen || 
+          isReferenceFilesDialogOpen || isDualOptionsDialogOpen || viewNotesDialogOpen || 
+          isAddNotesDialogOpen || isETBMappingsDialogOpen || isWorkbookMappingsDialogOpen ||
+          isNamedRangesDialogOpen || isCreateNamedRangeOpen || isEditNamedRangeOpen ||
+          isSaveDialogOpen;
+
+      // Check if there's an open Select dropdown in the DOM (even if state hasn't updated yet)
+      const hasOpenSelect = document.querySelector('[data-radix-select-content][data-state="open"]') !== null ||
+                            document.querySelector('[data-radix-select-viewport]') !== null;
+
+      if (isAnyDialogOpen || hasOpenSelect) {
+        // Check if the click is on any dialog, modal, select dropdown, or popover element
+        const isDialogElement = (target as Element).closest('[role="dialog"]') ||
+                                (target as Element).closest('.dialog') ||
+                                (target as Element).closest('[data-radix-dialog-content]') ||
+                                (target as Element).closest('[data-radix-select-content]') ||
+                                (target as Element).closest('[data-radix-select-viewport]') ||
+                                (target as Element).closest('[data-radix-select-item]') ||
+                                (target as Element).closest('[data-radix-select-trigger]') ||
+                                (target as Element).closest('[data-radix-popover-content]') ||
+                                (target as Element).closest('[data-radix-portal]') ||
+                                (target as Element).closest('.custom-context-menu') ||
+                                (target as Element).closest('.custom-context-menu-wrapper') ||
+                                (target as Element).closest('.ag-popup') ||
+                                (target as Element).closest('[class*="Dialog"]') ||
+                                (target as Element).closest('[class*="dialog"]') ||
+                                (target as Element).closest('[class*="Modal"]') ||
+                                (target as Element).closest('[class*="modal"]') ||
+                                // Check for Radix UI Select portal (rendered outside dialog)
+                                (target as Element).closest('[id*="radix-select"]') ||
+                                // Check if parent has any dialog-related attributes
+                                document.querySelector('[role="dialog"][data-state="open"]')?.contains(target) ||
+                                document.querySelector('[data-radix-select-content]')?.contains(target);
+
+        if (isDialogElement) {
+          return; // Click is on a dialog/modal/select, don't clear selections
         }
+        // If a dialog is open but click is not on dialog elements, still don't clear
+        // (prevents clearing when clicking outside while dialog is open)
+        return;
+      }
+
+      // Clear selections when clicking outside grid and no dialogs are open
+      setSelections([]);
+      if (gridApi) {
+        gridApi.deselectAll();
+        gridApi.clearRangeSelection();
+        gridApi.refreshCells({ force: true });
       }
     };
 
@@ -5694,7 +5980,10 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [setSelections, gridApi]);
+  }, [setSelections, gridApi, isCreateETBMappingOpen, isEditETBMappingOpen, isUploadReferenceFilesDialogOpen, 
+      isReferenceFilesDialogOpen, isDualOptionsDialogOpen, viewNotesDialogOpen, isAddNotesDialogOpen, 
+      isETBMappingsDialogOpen, isWorkbookMappingsDialogOpen, isNamedRangesDialogOpen, isCreateNamedRangeOpen, 
+      isEditNamedRangeOpen, isSaveDialogOpen]);
 
   // ✅ NEW: Add effect to watch dialog states and reset hover state when they close
   // This ensures that after closing any dialog, the hover logic is fresh
@@ -5702,10 +5991,10 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   useEffect(() => {
     // If any of these dialogs are open, we do nothing.
     // If they are ALL closed, we reset the hover state.
-    if (!isETBMappingsDialogOpen && !isReferenceFilesDialogOpen && !viewNotesDialogOpen && !isDualOptionsDialogOpen && !isUploadReferenceFilesDialogOpen && !isCreateETBMappingOpen) {
+    if (!isETBMappingsDialogOpen && !isReferenceFilesDialogOpen && !viewNotesDialogOpen && !isDualOptionsDialogOpen && !isUploadReferenceFilesDialogOpen && !isCreateETBMappingOpen && !isAddNotesDialogOpen) {
       resetHoverState();
     }
-  }, [isETBMappingsDialogOpen, isReferenceFilesDialogOpen, viewNotesDialogOpen, isDualOptionsDialogOpen, isUploadReferenceFilesDialogOpen, isCreateETBMappingOpen, resetHoverState]);
+  }, [isETBMappingsDialogOpen, isReferenceFilesDialogOpen, viewNotesDialogOpen, isDualOptionsDialogOpen, isUploadReferenceFilesDialogOpen, isCreateETBMappingOpen, isAddNotesDialogOpen, resetHoverState]);
 
   // REMOVED: This useEffect was causing flickering
   // cellClassRules in column definitions automatically handle visual updates
@@ -6675,6 +6964,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               setHoverMenu(prev => ({ ...prev, visible: false }));
               hoveredMappingIdRef.current = null;
               hoveredReferenceIdRef.current = null;
+              hoveredNotesIdRef.current = null;
               prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
               isMenuHoveredRef.current = false; // Reset menu hover state
             }
@@ -6719,11 +7009,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             <div className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 rounded-t-lg select-none">
               {hoverMenu.type === 'mapping' ? (
                 <Link className="h-3 w-3 text-blue-500" />
+              ) : hoverMenu.type === 'notes' ? (
+                <StickyNote className="h-3 w-3 text-yellow-600" />
               ) : (
                 <FileText className="h-3 w-3 text-green-500" />
               )}
               <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                {hoverMenu.type === 'mapping' ? 'Mapping' : 'Reference'}
+                {hoverMenu.type === 'mapping' ? 'Mapping' : hoverMenu.type === 'notes' ? 'Notes' : 'Reference'}
               </span>
             </div>
 
@@ -6823,6 +7115,23 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
                     </div>
                   )}
                 </>
+              )}
+
+              {hoverMenu.type === 'notes' && (
+                <div 
+                  className="context-menu-item text-yellow-700 hover:bg-yellow-50" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Cancel hide timeout when clicking menu item
+                    if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+                    setViewingNotes({ type: 'reference', data: hoverMenu.data });
+                    setViewNotesDialogOpen(true);
+                    setHoverMenu(prev => ({ ...prev, visible: false }));
+                  }}
+                >
+                  <StickyNote className="h-4 w-4 mr-2" /> View Notes
+                </div>
               )}
             </div>
           </div>
@@ -7166,6 +7475,67 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               disabled={uploadingFiles}
             >
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ NEW: Add Notes Dialog */}
+      <Dialog open={isAddNotesDialogOpen} onOpenChange={setIsAddNotesDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Notes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              Add notes to the selected cells. Notes can be viewed and edited later.
+            </p>
+            {selections.length > 0 && (
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm font-medium">Selected Range:</p>
+                <p className="text-sm">
+                  {getSelectionText(selections[selections.length - 1])}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="standalone-notes">Notes</Label>
+              <Textarea
+                id="standalone-notes"
+                placeholder="Enter your notes here..."
+                value={standaloneNotes}
+                onChange={(e) => setStandaloneNotes(e.target.value)}
+                className="min-h-[120px]"
+                disabled={isSavingStandaloneNotes}
+              />
+              <p className="text-xs text-gray-500">
+                Add notes to provide context or additional information about the selected cells.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStandaloneNotes("");
+                setIsAddNotesDialogOpen(false);
+              }}
+              disabled={isSavingStandaloneNotes}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveStandaloneNotes}
+              disabled={!standaloneNotes.trim() || isSavingStandaloneNotes}
+            >
+              {isSavingStandaloneNotes ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Notes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
