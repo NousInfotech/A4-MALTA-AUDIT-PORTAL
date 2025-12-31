@@ -5194,6 +5194,37 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             const rid = hoveredReferenceIdRef.current;
             return rid && referenceLookupMap.get(`${params.data._rowIndex}_${colIndex - 1}`) === rid;
           },
+          'cell-notes': (params: any) => {
+            const { referenceFiles, selectedSheet } = params.context || { referenceFiles: [], selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            return (referenceFiles || []).some((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return false;
+              if (ref.details.sheet !== selectedSheet) return false;
+              // Check if this is notes-only: has notes AND (no evidence OR exactly one evidence placeholder)
+              const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+              const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+              const evidenceCount = evidenceArray.length;
+              // Only include if has notes AND (no evidence OR exactly one evidence - the placeholder)
+              if (!hasNotes || evidenceCount > 1) return false;
+              const { start, end } = ref.details;
+              if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
+              const startRow = start.row;
+              const endRow = (end && typeof end.row === 'number') ? end.row : startRow;
+              const startCol = start.col;
+              const endCol = (end && typeof end.col === 'number') ? end.col : startCol;
+              return (
+                rowIndex >= startRow &&
+                rowIndex <= endRow &&
+                colIdx >= startCol &&
+                colIdx <= endCol
+              );
+            });
+          },
+          'cell-hover-notes': (params: any) => {
+            const nid = hoveredNotesIdRef.current;
+            return nid && notesLookupMap.get(`${params.data._rowIndex}_${colIndex - 1}`) === nid;
+          },
           'cell-selected-mapped': (params: any) => {
             const { selections, allMappings, selectedSheet } = params.context || { selections: [], allMappings: [], selectedSheet: '' };
             const rowIndex = params.data._rowIndex;
@@ -6216,6 +6247,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             border-right: 1px solid rgba(76, 175, 80, 0.2) !important;
           }
           
+          /* Notes-only Area Style */
+          .cell-notes {
+            background-color: #ffebee !important; /* Light Red */
+            border-bottom: 1px solid rgba(244, 67, 54, 0.2) !important;
+            border-right: 1px solid rgba(244, 67, 54, 0.2) !important;
+          }
+          
           /* Hovered Mapping - distinct border */
           .cell-hover-mapping {
             border: 2px solid #2196f3 !important;
@@ -6228,6 +6266,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             border: 2px solid #4caf50 !important;
             z-index: 10 !important;
             background-color: #c8e6c9 !important; /* Darker green on hover */
+          }
+          
+          /* Hovered Notes - distinct border */
+          .cell-hover-notes {
+            border: 2px solid #f44336 !important; /* Light red border */
+            z-index: 10 !important;
+            background-color: #ffcdd2 !important; /* Darker red on hover */
           }
           
           /* Selected + Mapped combination */
