@@ -4053,6 +4053,9 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Combine workbook mappings with ETB mappings for display
   const allMappings = React.useMemo(() => {
     const workbookMappings = props.mappings || [];
+    
+    // ✅ CRITICAL: Get current workbook ID to filter mappings
+    const currentWorkbookId = props.workbook?.id || props.workbook?._id;
 
     // Determine source rows based on rowType
     let sourceRows: any[] =
@@ -4065,29 +4068,42 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       sourceRows = fallbackRows;
     }
 
+    // ✅ CRITICAL FIX: Filter mappings to only include those for the current workbook
     const etbMappings =
       sourceRows?.flatMap((row) =>
-        row.mappings?.map((mapping: any) => ({
-          ...mapping,
-          details: mapping.details,
-          color: mapping.color,
-          isActive: mapping.isActive !== false,
-          referenceFiles: mapping.referenceFiles || [],
-          notes: mapping.notes && typeof mapping.notes === 'string' && mapping.notes.trim().length > 0 ? mapping.notes : undefined, // ✅ NEW: Only include notes if non-empty
-          workbookId:
-            mapping.workbookId && typeof mapping.workbookId === 'string'
-              ? {
-                  _id: mapping.workbookId,
-                  name: props.workbook.name || 'Unknown Workbook',
-                }
-              : mapping.workbookId,
-          _evidenceId: props.rowType === 'evidence' ? row.code : undefined,
-        })) || []
+        row.mappings
+          ?.filter((mapping: any) => {
+            // Get workbookId from mapping (could be string ID or object with _id)
+            const mappingWorkbookId = 
+              typeof mapping.workbookId === 'string' 
+                ? mapping.workbookId 
+                : (mapping.workbookId?._id || mapping.workbookId?.id || null);
+            
+            // Only include mappings that belong to the current workbook
+            return mappingWorkbookId && mappingWorkbookId.toString() === currentWorkbookId?.toString();
+          })
+          ?.map((mapping: any) => ({
+            ...mapping,
+            details: mapping.details,
+            color: mapping.color,
+            isActive: mapping.isActive !== false,
+            referenceFiles: mapping.referenceFiles || [],
+            notes: mapping.notes && typeof mapping.notes === 'string' && mapping.notes.trim().length > 0 ? mapping.notes : undefined, // ✅ NEW: Only include notes if non-empty
+            workbookId:
+              mapping.workbookId && typeof mapping.workbookId === 'string'
+                ? {
+                    _id: mapping.workbookId,
+                    name: props.workbook.name || 'Unknown Workbook',
+                  }
+                : mapping.workbookId,
+            _evidenceId: props.rowType === 'evidence' ? row.code : undefined,
+          })) || []
       ) || [];
 
     const combined = [...workbookMappings, ...etbMappings];
     console.log('🔍 allMappings recalculated:', {
       rowType: props.rowType,
+      currentWorkbookId,
       workbookMappingsCount: workbookMappings.length,
       etbMappingsCount: etbMappings.length,
       totalCount: combined.length,
@@ -4108,6 +4124,8 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     parentEtbData,
     selectedSheet,
     props.rowType,
+    props.workbook.id,
+    props.workbook._id,
     props.workbook.name,
     (props.workbook as any)?._mappingsUpdateTimestamp,
     (etbData as any)?._updateTimestamp,
@@ -5968,11 +5986,11 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       }
 
       // Clear selections when clicking outside grid and no dialogs are open
-      setSelections([]);
-      if (gridApi) {
-        gridApi.deselectAll();
-        gridApi.clearRangeSelection();
-        gridApi.refreshCells({ force: true });
+        setSelections([]);
+        if (gridApi) {
+          gridApi.deselectAll();
+          gridApi.clearRangeSelection();
+          gridApi.refreshCells({ force: true });
       }
     };
 

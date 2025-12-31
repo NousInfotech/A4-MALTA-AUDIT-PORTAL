@@ -298,6 +298,7 @@ export default function WorkBookApp({
   const [etbData, setEtbData] = useState<ETBData | null>(null);
   const [etbLoading, setEtbLoading] = useState(false);
   const [etbError, setEtbError] = useState<string | null>(null);
+  const [deletingWorkbookId, setDeletingWorkbookId] = useState<string | null>(null); // ✅ NEW: Track which workbook is being deleted
 
   const { toast } = useToast();
 
@@ -1123,7 +1124,7 @@ export default function WorkBookApp({
     }
   };
 
-  const handleSelectWorkbook = async (workbook: Workbook) => {
+  const handleSelectWorkbook = async (workbook: any) => {
     setIsLoadingWorkbookData(true);
     try {
       toast({
@@ -1191,6 +1192,7 @@ export default function WorkBookApp({
       }
 
       // ✅ CRITICAL: Normalize referenceFiles structure from backend
+      // ✅ FIX: Always use referenceFiles from the fetched workbook, not from the old workbook object
       let normalizedReferenceFiles: any[] = [];
       if (fullWorkbookFromDB.referenceFiles && Array.isArray(fullWorkbookFromDB.referenceFiles)) {
         normalizedReferenceFiles = fullWorkbookFromDB.referenceFiles.map((ref: any) => {
@@ -1210,12 +1212,27 @@ export default function WorkBookApp({
         }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
       }
 
+      // ✅ CRITICAL FIX: Build updated workbook from backend data, not from the old workbook object
+      // This ensures referenceFiles, mappings, and other data are properly isolated per workbook
       const updatedWorkbook = {
-        ...workbook,
+        id: fullWorkbookFromDB._id || fullWorkbookFromDB.id || workbook.id,
+        _id: fullWorkbookFromDB._id || workbook.id,
+        name: fullWorkbookFromDB.name || workbook.name,
+        cloudFileId: fullWorkbookFromDB.cloudFileId || workbook.cloudFileId,
+        webUrl: fullWorkbookFromDB.webUrl || workbook.webUrl,
+        engagementId: fullWorkbookFromDB.engagementId || workbook.engagementId,
+        classification: fullWorkbookFromDB.classification || workbook.classification,
+        category: fullWorkbookFromDB.category || workbook.category,
+        uploadedBy: fullWorkbookFromDB.uploadedBy || workbook.uploadedBy,
+        uploadedDate: fullWorkbookFromDB.uploadedDate || workbook.uploadedDate,
+        lastModifiedBy: fullWorkbookFromDB.lastModifiedBy || workbook.lastModifiedBy,
+        lastModifiedDate: fullWorkbookFromDB.lastModifiedDate || workbook.lastModifiedDate,
         fileData: fetchedFileData,
         namedRanges: fullWorkbookFromDB.namedRanges || [],
         mappings: fetchedMappings, // ✅ Use fetched mappings from correct model
-        referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles from backend
+        referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Use ONLY referenceFiles from backend for this workbook
+        sheets: fullWorkbookFromDB.sheets || workbook.sheets || [],
+        version: fullWorkbookFromDB.version || workbook.version,
       };
 
       setWorkbooks((prev) =>
@@ -2036,6 +2053,7 @@ export default function WorkBookApp({
     workbookId: string,
     workbookName: string
   ) => {
+    setDeletingWorkbookId(workbookId); // ✅ Set loading state
     try {
       const response = await db_WorkbookApi.deleteWorkbook(workbookId);
 
@@ -2076,6 +2094,8 @@ export default function WorkBookApp({
           }`,
         variant: "destructive",
       });
+    } finally {
+      setDeletingWorkbookId(null); // ✅ Clear loading state
     }
   };
 
@@ -2263,6 +2283,7 @@ export default function WorkBookApp({
             classification={classification}
             rowType={rowType} // ✅ Pass rowType to MainDashboard
             parentEtbData={etbData} // ✅ CRITICAL FIX: Pass parent's prepared data
+            deletingWorkbookId={deletingWorkbookId} // ✅ NEW: Pass deleting state
           />
         );
       case "viewer":
