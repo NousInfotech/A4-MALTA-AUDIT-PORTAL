@@ -426,6 +426,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   autoFullscreen?: boolean; // ✅ NEW: Automatically open in fullscreen mode
 }> = (props) => {
   const { toast } = useToast();
+  
+  // ✅ CRITICAL: Log when component receives initialSheet prop
+  console.log(`ExcelViewer: Component mounted/re-rendered with initialSheet prop:`, {
+    initialSheet: props.initialSheet,
+    workbookId: props.workbook?.id,
+    workbookName: props.workbook?.name,
+    hasInitialSheet: !!props.initialSheet
+  });
+  
   const [isFullscreen, setIsFullscreen] = useState(props.autoFullscreen || false);
   const parentOnRefreshETBData = props.onRefreshETBData;
 
@@ -440,17 +449,51 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   const [mappingsDialogRefreshKey, setMappingsDialogRefreshKey] = useState(0);
 
   // Sheet selection state
-  const [selectedSheet, setSelectedSheet] = useState<string>("");
+  // ✅ CRITICAL: Initialize with initialSheet prop if available, otherwise empty string
+  const [selectedSheet, setSelectedSheet] = useState<string>(props.initialSheet || "");
   const isInitializingRef = useRef(true); // Track if we're still initializing
+  const initializedWorkbookIdRef = useRef<string | null>(null); // Track which workbook has been initialized
+  const userManuallyChangedSheetRef = useRef(false); // Track if user manually changed the sheet
+  const defaultSheetForWorkbookRef = useRef<string | null>(null); // Track the default (first) sheet for current workbook
 
   // ✅ NEW: Wrapper function to handle sheet changes and notify parent
   const handleSheetChangeWrapper = useCallback((sheetName: string) => {
+    console.log(`📝 ExcelViewer: handleSheetChangeWrapper called`, {
+      sheetName,
+      isInitializing: isInitializingRef.current,
+      hasOnSheetChange: !!props.onSheetChange,
+      workbookId: props.workbook?.id,
+      currentSheet: selectedSheet
+    });
+    
     setSelectedSheet(sheetName);
-    // Only save preference if not initializing (user actually changed the sheet)
-    if (!isInitializingRef.current && props.onSheetChange && props.workbook?.id) {
-      props.onSheetChange(props.workbook.id, sheetName);
+    
+    // Mark that user manually changed the sheet (only if not during initialization)
+    if (!isInitializingRef.current) {
+      userManuallyChangedSheetRef.current = true;
+      console.log(`📝 ExcelViewer: Marked as manual sheet change`);
     }
-  }, [props.onSheetChange, props.workbook?.id]);
+    
+    // Only save preference if not initializing (user actually changed the sheet)
+    // ✅ CRITICAL: Use _id if available (MongoDB format), otherwise use id
+    const workbookIdToUse = props.workbook?._id || props.workbook?.id;
+    if (!isInitializingRef.current && props.onSheetChange && workbookIdToUse) {
+      console.log(`📝 ExcelViewer: Calling onSheetChange to save preference`, {
+        workbookId: workbookIdToUse,
+        workbook_id: props.workbook?._id,
+        workbookId_prop: props.workbook?.id,
+        sheetName: sheetName,
+        workbookIdType: typeof workbookIdToUse
+      });
+      props.onSheetChange(workbookIdToUse, sheetName);
+    } else {
+      console.log(`📝 ExcelViewer: NOT saving preference`, {
+        isInitializing: isInitializingRef.current,
+        hasOnSheetChange: !!props.onSheetChange,
+        hasWorkbookId: !!props.workbook?.id
+      });
+    }
+  }, [props.onSheetChange, props.workbook?.id, selectedSheet]);
 
   // Cell selection states
   const [selections, setSelections] = useState<Selection[]>([]);
@@ -606,6 +649,8 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // ✅ IMPROVED: Ref for immediate mouse position access (avoids state delay)
   const currentMousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const autoScrollAnimationFrameRef = useRef<number | null>(null);
+  // Ref to track last updated cell during auto-scroll to avoid unnecessary state updates
+  const lastUpdatedCellRef = useRef<{ row: number; col: number } | null>(null);
 
   // AG Grid state
   const [gridApi, setGridApi] = useState<any>(null);
@@ -1483,15 +1528,16 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     }
   }, [props, selections, selectedSheet, fetchEvidenceFilesForRange, toast]);
 
-  // Auto-scrolling: Handle mouse move and mouse up events during selection
+  // ✅ Global mouse event tracking for auto-scrolling
+  // This ensures we track mouse position even when dragging over scrollbars or outside the grid
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      // Only track mouse position if mouse button is pressed (dragging)
+      // Update the ref immediately for the auto-scroll loop to use
+      currentMousePositionRef.current = { x: e.clientX, y: e.clientY };
+      
+      // Track button state
       if (e.buttons === 1) {
         isMouseDownRef.current = true;
-        // Update both state and ref for immediate access
-        currentMousePositionRef.current = { x: e.clientX, y: e.clientY };
-        setMousePosition({ x: e.clientX, y: e.clientY });
       } else {
         isMouseDownRef.current = false;
       }
@@ -1503,42 +1549,25 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
 
     const handleMouseUp = () => {
       isMouseDownRef.current = false;
-      // Stop auto-scrolling
-      if (autoScrollAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollAnimationFrameRef.current);
-        autoScrollAnimationFrameRef.current = null;
-      }
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-        setAutoScrollInterval(null);
-      }
+      lastUpdatedCellRef.current = null; // Reset selection tracking
     };
 
-    if (isSelecting) {
-      document.addEventListener('mousedown', handleMouseDown);
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
+    // Use capture: true to catch events even if they hit the scrollbar
+    document.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('mousemove', handleMouseMove, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
 
     return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mousemove', handleMouseMove, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
       isMouseDownRef.current = false;
-      if (autoScrollAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollAnimationFrameRef.current);
-        autoScrollAnimationFrameRef.current = null;
-      }
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-        setAutoScrollInterval(null);
-      }
     };
-  }, [isSelecting, autoScrollInterval, setAutoScrollInterval]);
+  }, []); // Empty dependency array as we only touch refs
 
-  // ✅ IMPROVED: Smooth auto-scrolling logic using requestAnimationFrame
+  // ✅ EXCEL-LIKE AUTO-SCROLLING: Smooth, accelerated auto-scrolling during selection
   useEffect(() => {
-    if (!isSelecting || !spreadsheetContainerRef.current) {
+    if (!isSelecting || !spreadsheetContainerRef.current || !gridApiRef.current) {
       // Stop scrolling if not selecting
       if (autoScrollAnimationFrameRef.current !== null) {
         cancelAnimationFrame(autoScrollAnimationFrameRef.current);
@@ -1547,27 +1576,120 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       return;
     }
 
-    const container = spreadsheetContainerRef.current;
-    const edgeThreshold = 50; // pixels from edge to trigger scrolling
-    const maxScrollSpeed = 25; // maximum pixels per frame
-    const minScrollSpeed = 2; // minimum pixels per frame (slightly increased)
+    // Helper function to find the actual scrollable container within AG Grid
+    const getScrollableContainer = (): HTMLElement | null => {
+      if (!spreadsheetContainerRef.current) return null;
+      
+      // AG Grid uses .ag-body-viewport as the main scrollable container for rows
+      // And .ag-center-cols-viewport for columns if virtualized
+      let viewport = spreadsheetContainerRef.current.querySelector('.ag-body-viewport') as HTMLElement;
+      if (viewport) return viewport;
+      
+      // Fallback check for horizontal viewport
+      viewport = spreadsheetContainerRef.current.querySelector('.ag-center-cols-viewport') as HTMLElement;
+      if (viewport) return viewport;
 
-    // Smooth scrolling function using requestAnimationFrame
+      // Last resort: outer container
+      return spreadsheetContainerRef.current as HTMLElement;
+    };
+
+    // Helper function to get cell data at a specific screen coordinate
+    // This works even if the mouse is technically outside the grid bounds
+    const getCellAtPosition = (x: number, y: number): { row: number; col: number } | null => {
+      try {
+        const elementAtPoint = document.elementFromPoint(x, y);
+        if (!elementAtPoint) return null;
+
+        // Traverse up to find the AG Grid cell
+        const agCell = elementAtPoint.closest('.ag-cell') as HTMLElement;
+        if (!agCell) return null;
+
+        // Extract row index from the cell's attribute
+        const rowIndexAttr = agCell.getAttribute('row-index');
+        if (rowIndexAttr === null) return null;
+
+        // Ensure we have the row node from AG Grid to get correct Excel coordinates
+        const rowNode = gridApiRef.current.getRowNode(rowIndexAttr);
+        if (!rowNode || !rowNode.data || rowNode.data._rowIndex === undefined) return null;
+
+        const rowIndex = rowNode.data._rowIndex;
+
+        // Get column ID from the cell's attribute
+        const colId = agCell.getAttribute('col-id');
+        if (!colId || colId === '_rowNumber') return null;
+
+        // Convert column ID (e.g., "A", "B") to zero-based index
+        const excelColIndex = excelColToZeroIndex(colId);
+        if (excelColIndex === null || excelColIndex === undefined) return null;
+
+        return { row: rowIndex, col: excelColIndex };
+      } catch (error) {
+        // Silently fail (expected when mouse is over floating UI or scrollbars)
+        return null;
+      }
+    };
+
+    // Helper to update selection state based on current mouse position
+    const updateSelectionFromMousePosition = (mouseX: number, mouseY: number) => {
+      if (!anchorSelectionStart.current) return;
+
+      const cell = getCellAtPosition(mouseX, mouseY);
+      
+      // Only update state if we actually found a cell and it's different from the last one
+      // This prevents unnecessary re-renders
+      if (!cell) return;
+
+      const { row, col } = cell;
+      
+      if (lastUpdatedCellRef.current && 
+          lastUpdatedCellRef.current.row === row && 
+          lastUpdatedCellRef.current.col === col) {
+        return;
+      }
+
+      lastUpdatedCellRef.current = cell;
+
+      // Update the React state to extend the selection
+      setSelections(prev => {
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        
+        // Update the 'end' coordinate of the current selection
+        updated[updated.length - 1] = {
+          ...last,
+          end: { row, col }
+        };
+        return updated;
+      });
+    };
+
+    // Configuration for scroll behavior
+    const edgeThreshold = 20; // Pixels from edge to START scrolling
+    const maxScrollDistance = 100; // Distance where MAX speed is reached
+    const minScrollSpeed = 3; // Pixels per frame
+    const maxScrollSpeed = 30; // Pixels per frame (fast!)
+
+    // The main animation loop
     const smoothScroll = () => {
-      // Only scroll if mouse button is actually pressed (dragging)
-      if (!isMouseDownRef.current || !container) {
+      // Stop if user stopped dragging
+      if (!isMouseDownRef.current) {
         autoScrollAnimationFrameRef.current = null;
         return;
       }
 
-      // Use ref for immediate access without state delay
+      const container = getScrollableContainer();
+      if (!container) {
+        // Retry next frame if container wasn't found yet
+        autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
+        return;
+      }
+
       const mouseX = currentMousePositionRef.current.x;
       const mouseY = currentMousePositionRef.current.y;
+      const rect = container.getBoundingClientRect();
 
-      // Get container's position and dimensions relative to viewport
-      const containerRect = container.getBoundingClientRect();
-
-      // Check if container can scroll in each direction
+      // Determine if we can scroll in each direction
       const canScrollHorizontally = container.scrollWidth > container.clientWidth;
       const canScrollVertically = container.scrollHeight > container.clientHeight;
 
@@ -1575,89 +1697,69 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       let scrollY = 0;
       let needsScroll = false;
 
-      // ✅ FIXED HORIZONTAL SCROLLING: Logic now handles dragging outside container
+      // --- HORIZONTAL SCROLLING ---
       if (canScrollHorizontally) {
-        // Check right edge (Distance is positive if inside, negative if outside)
-        const distRight = containerRect.right - mouseX;
-
-        // Scroll if we are within the threshold distance OR outside (negative distance)
-        if (distRight < edgeThreshold) {
-          // Calculate speed: Closer to edge (or further outside) = Faster
-          // If distRight is negative (outside), max(0, distRight) becomes 0, resulting in max speed
-          const normalizedDist = Math.max(0, distRight) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2); // Quadratic easing
-
-          scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+        // Check Right Edge
+        if (mouseX > rect.right) {
+          const dist = Math.min(mouseX - rect.right, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8); // Slightly eased curve
           needsScroll = true;
         }
-
-        // Check left edge
-        const distLeft = mouseX - containerRect.left;
-
-        if (distLeft < edgeThreshold) {
-          const normalizedDist = Math.max(0, distLeft) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+        // Check Left Edge
+        else if (mouseX < rect.left) {
+          const dist = Math.min(rect.left - mouseX, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8));
           needsScroll = true;
         }
       }
 
-      // ✅ FIXED VERTICAL SCROLLING: Logic now handles dragging outside container
+      // --- VERTICAL SCROLLING ---
       if (canScrollVertically) {
-        // Check bottom edge
-        const distBottom = containerRect.bottom - mouseY;
-
-        if (distBottom < edgeThreshold) {
-          const normalizedDist = Math.max(0, distBottom) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+        // Check Bottom Edge
+        if (mouseY > rect.bottom) {
+          const dist = Math.min(mouseY - rect.bottom, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8);
           needsScroll = true;
         }
-
-        // Check top edge
-        const distTop = mouseY - containerRect.top;
-
-        if (distTop < edgeThreshold) {
-          const normalizedDist = Math.max(0, distTop) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+        // Check Top Edge
+        else if (mouseY < rect.top) {
+          const dist = Math.min(rect.top - mouseY, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8));
           needsScroll = true;
         }
       }
 
-      // Apply smooth scrolling
+      // Apply scrolling if needed
       if (needsScroll) {
-        // Check scroll limits before scrolling
-        const maxScrollLeft = container.scrollWidth - container.clientWidth;
-        const maxScrollTop = container.scrollHeight - container.clientHeight;
+        // 1. Scroll the container
+        container.scrollBy({
+          left: scrollX,
+          top: scrollY,
+          behavior: 'auto' // 'auto' allows instant scrolling per frame
+        });
 
-        // Allow scrolling if not at boundaries
-        const canScrollRight = scrollX > 0 && container.scrollLeft < maxScrollLeft;
-        const canScrollLeft = scrollX < 0 && container.scrollLeft > 0;
-        const canScrollDown = scrollY > 0 && container.scrollTop < maxScrollTop;
-        const canScrollUp = scrollY < 0 && container.scrollTop > 0;
-
-        if ((scrollX !== 0 && (canScrollRight || canScrollLeft)) ||
-          (scrollY !== 0 && (canScrollDown || canScrollUp))) {
-          container.scrollBy({
-            left: scrollX,
-            top: scrollY,
-            behavior: 'auto'
-          });
-        }
+        // 2. Update Selection
+        // We use requestAnimationFrame here to ensure the DOM has scrolled 
+        // before we try to detect the cell at the new mouse position
+        requestAnimationFrame(() => {
+          updateSelectionFromMousePosition(mouseX, mouseY);
+        });
+      } else {
+        // Even if not scrolling, update selection if mouse is moving inside grid
+        // This ensures selection follows mouse correctly during normal drag
+        updateSelectionFromMousePosition(mouseX, mouseY);
       }
 
-      // Continue animation loop
+      // Schedule next frame
       autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
     };
 
-    // Start the smooth scrolling loop when selecting
-    if (isSelecting) {
-      autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
-    }
+    // Start the loop
+    autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
 
     return () => {
       if (autoScrollAnimationFrameRef.current !== null) {
@@ -1665,7 +1767,12 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         autoScrollAnimationFrameRef.current = null;
       }
     };
-  }, [isSelecting, spreadsheetContainerRef]);
+  }, [
+    isSelecting, 
+    anchorSelectionStart,
+    setSelections,
+    selectedSheet
+  ]);
 
   const resolveFullscreenRowIdentifier = useCallback(
     (row?: Partial<ETBRow>, fallback?: string) => {
@@ -1778,37 +1885,258 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     }
   }, [selectedSheet, props.workbook?.id, loadSheetDataOnDemand]);
 
-  // ✅ NEW: Initialize sheet selection when workbook changes
-  // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
+  // ✅ NEW: Fetch user preference for last selected sheet when workbook opens
+  // This is a fallback if parent doesn't provide initialSheet prop
+  const [fetchedInitialSheet, setFetchedInitialSheet] = useState<string | undefined>(undefined);
+  const preferenceFetchedRef = useRef<string | null>(null); // Track which workbook we've fetched preference for
+  const lastInitialSheetRef = useRef<string | undefined>(undefined); // Track last initialSheet prop value
+  
   useEffect(() => {
     if (!props.workbook?.id) return;
+    
+    // Only fetch if initialSheet prop is not provided (parent hasn't fetched it yet)
+    // This ensures we don't make redundant API calls
+    if (props.initialSheet !== undefined) {
+      // Parent provided initialSheet, clear fetched preference
+      if (preferenceFetchedRef.current !== props.workbook.id) {
+        setFetchedInitialSheet(undefined);
+        preferenceFetchedRef.current = props.workbook.id; // Mark as handled
+      }
+      return;
+    }
 
+    // Only fetch once per workbook ID
+    if (preferenceFetchedRef.current === props.workbook.id) {
+      return; // Already fetched for this workbook
+    }
+
+    // Fetch preference from backend
+    const fetchPreference = async () => {
+      try {
+        preferenceFetchedRef.current = props.workbook.id; // Mark as fetching/fetched
+        const preferenceResponse = await db_WorkbookApi.getUserWorkbookPreference(props.workbook.id);
+        if (preferenceResponse.success && preferenceResponse.data?.lastSelectedSheet) {
+          const savedSheet = preferenceResponse.data.lastSelectedSheet;
+          
+          // Verify the saved sheet exists in the workbook
+          // Note: fileData might not be loaded yet, so we'll validate in the initialization effect
+          const sheetNames = props.workbook.fileData
+            ? Object.keys(props.workbook.fileData)
+            : (props.workbook.sheets?.map((s: any) => s.name || s) || []);
+          
+          if (sheetNames.length > 0 && sheetNames.includes(savedSheet)) {
+            setFetchedInitialSheet(savedSheet);
+            console.log(`ExcelViewer: Fetched last selected sheet preference: ${savedSheet}`);
+          } else if (sheetNames.length === 0) {
+            // FileData not loaded yet, store the preference anyway - will validate in initialization effect
+            setFetchedInitialSheet(savedSheet);
+            console.log(`ExcelViewer: Fetched preference "${savedSheet}" (will validate when fileData loads)`);
+          } else {
+            console.log(`ExcelViewer: Saved sheet "${savedSheet}" no longer exists in workbook`);
+            setFetchedInitialSheet(undefined);
+          }
+        } else {
+          setFetchedInitialSheet(undefined);
+        }
+      } catch (error) {
+        console.warn('ExcelViewer: Failed to fetch sheet preference:', error);
+        setFetchedInitialSheet(undefined);
+        preferenceFetchedRef.current = props.workbook.id; // Still mark as attempted
+      }
+    };
+
+    fetchPreference();
+  }, [props.workbook?.id, props.initialSheet]); // Only depend on workbook ID and initialSheet prop
+
+  // ✅ NEW: Initialize sheet selection when workbook changes
+  // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
+  // This only runs when the workbook ID changes, not when user manually changes sheets
+  useEffect(() => {
+    if (!props.workbook?.id) {
+      console.log('ExcelViewer: No workbook ID, skipping sheet initialization');
+      return;
+    }
+
+    // Get sheet names from fileData or sheets array
     const sheetNames = props.workbook.fileData
       ? Object.keys(props.workbook.fileData)
-      : (props.workbook.sheets?.map((s: any) => s.name) || []);
+      : (props.workbook.sheets?.map((s: any) => s.name || s) || []);
 
-    if (sheetNames.length === 0) return;
-
-    // Use initialSheet from props (saved preference) if provided and valid
-    // Otherwise use first sheet
-    const sheetToSelect = (props.initialSheet && sheetNames.includes(props.initialSheet))
-      ? props.initialSheet
-      : sheetNames[0];
-
-    // Only set if different from current (to avoid unnecessary updates)
-    if (selectedSheet !== sheetToSelect) {
-      isInitializingRef.current = true; // Mark as initializing
-      setSelectedSheet(sheetToSelect);
-      console.log(`ExcelViewer: Initialized sheet to ${sheetToSelect} (from ${props.initialSheet ? 'saved preference' : 'default'})`);
-      // Mark initialization complete after a short delay
-      setTimeout(() => {
-        isInitializingRef.current = false;
-      }, 100);
+    // If no sheets available yet, wait for data to load
+    if (sheetNames.length === 0) {
+      console.log('ExcelViewer: No sheets available yet, waiting for workbook data...', {
+        hasFileData: !!props.workbook.fileData,
+        hasSheets: !!props.workbook.sheets,
+        workbookId: props.workbook.id
+      });
+      return;
     }
-  }, [props.workbook.id, props.initialSheet]); // Run when workbook ID or initialSheet changes
+
+    const defaultSheet = sheetNames[0];
+    defaultSheetForWorkbookRef.current = defaultSheet; // Store default sheet for this workbook
+
+    console.log('ExcelViewer: Sheet initialization check', {
+      workbookId: props.workbook.id,
+      initializedWorkbookId: initializedWorkbookIdRef.current,
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      availableSheets: sheetNames,
+      defaultSheet: defaultSheet
+    });
+
+    // ✅ CRITICAL: Check if initialSheet prop just changed from undefined to a value
+    // This handles the case where the prop arrives after the component has already initialized
+    const initialSheetJustArrived = lastInitialSheetRef.current === undefined && 
+                                     props.initialSheet !== undefined && 
+                                     props.initialSheet !== '';
+    
+    // ✅ CRITICAL: Only initialize once per workbook ID
+    // If we've already initialized this workbook, check if we should update to preferred sheet
+    if (initializedWorkbookIdRef.current === props.workbook.id) {
+      // If user hasn't manually changed the sheet AND we have a preferred sheet that's valid
+      // AND the preferred sheet is different from current, update to preferred sheet
+      // This handles the case where initialSheet prop or fetched preference arrives after initialization
+      const preferredSheet = props.initialSheet || fetchedInitialSheet;
+      console.log('ExcelViewer: Workbook already initialized, checking if should update to preferred sheet', {
+        preferredSheet: preferredSheet,
+        userManuallyChanged: userManuallyChangedSheetRef.current,
+        preferredSheetValid: preferredSheet && sheetNames.includes(preferredSheet),
+        currentSheet: selectedSheet,
+        defaultSheet: defaultSheet,
+        initialSheetJustArrived: initialSheetJustArrived,
+        lastInitialSheet: lastInitialSheetRef.current,
+        currentInitialSheet: props.initialSheet
+      });
+      
+      // ✅ CRITICAL: Force update if initialSheet just arrived OR if we have a valid preferred sheet
+      const shouldForceUpdate = initialSheetJustArrived && 
+                                 props.initialSheet && 
+                                 sheetNames.includes(props.initialSheet);
+      
+      // ✅ CRITICAL: Always check using function form of setState to avoid stale closures
+      // Update if: initialSheet just arrived, OR we have a preferred sheet and user hasn't manually changed
+      if (shouldForceUpdate || (!userManuallyChangedSheetRef.current && 
+          preferredSheet && 
+          sheetNames.includes(preferredSheet))) {
+        // Use a function form of setState to get the current value and avoid stale closures
+        setSelectedSheet((currentSheet) => {
+          const targetSheet = shouldForceUpdate ? props.initialSheet! : preferredSheet!;
+          
+          // ✅ CRITICAL: Always update if we're on default sheet OR if sheet doesn't match
+          // This ensures we update even if currentSheet is empty string or default
+          const needsUpdate = !currentSheet || 
+                              currentSheet === '' || 
+                              currentSheet === defaultSheet || 
+                              currentSheet !== targetSheet;
+          
+          if (needsUpdate) {
+            isInitializingRef.current = true; // Temporarily mark as initializing to prevent preference save
+            const source = props.initialSheet ? 'from parent prop (saved preference)' : 'from fetched preference';
+            console.log(`ExcelViewer: ✅ Updated to preferred sheet "${targetSheet}" (${source}, ${initialSheetJustArrived ? 'just arrived' : 'loaded after initialization'})`, {
+              previousSheet: currentSheet,
+              preferredSheet: targetSheet,
+              defaultSheet: defaultSheet,
+              wasDefault: currentSheet === defaultSheet,
+              wasEmpty: !currentSheet || currentSheet === '',
+              forcedUpdate: shouldForceUpdate,
+              needsUpdate: needsUpdate
+            });
+            // Mark initialization complete after a short delay
+            setTimeout(() => {
+              isInitializingRef.current = false;
+            }, 100);
+            return targetSheet;
+          }
+          console.log(`ExcelViewer: Already on preferred sheet "${currentSheet}", no update needed`);
+          return currentSheet; // Don't change if already on preferred sheet
+        });
+      } else {
+        console.log('ExcelViewer: Not updating sheet', {
+          reason: !preferredSheet ? 'no preferred sheet' : 
+                  !sheetNames.includes(preferredSheet || '') ? 'preferred sheet not in available sheets' :
+                  userManuallyChangedSheetRef.current ? 'user manually changed sheet' : 'unknown',
+          preferredSheet: preferredSheet,
+          availableSheets: sheetNames,
+          userManuallyChanged: userManuallyChangedSheetRef.current,
+          initialSheetJustArrived: initialSheetJustArrived
+        });
+      }
+      
+      // Update the last initialSheet ref
+      lastInitialSheetRef.current = props.initialSheet;
+      return; // Don't re-initialize if workbook already initialized
+    }
+
+    // ✅ SIMPLIFIED: Use initialSheet from props (saved preference) if provided and valid
+    // Otherwise use fetchedInitialSheet (if we fetched it ourselves)
+    // Otherwise use first sheet
+    const preferredSheet = props.initialSheet || fetchedInitialSheet;
+    const sheetToSelect = (preferredSheet && sheetNames.includes(preferredSheet))
+      ? preferredSheet
+      : defaultSheet;
+
+    // ✅ CRITICAL: Initialize the sheet selection immediately
+    console.log(`ExcelViewer: 🚀 Initializing sheet selection for workbook ${props.workbook.id}`, {
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      preferredSheet: preferredSheet,
+      sheetToSelect: sheetToSelect,
+      availableSheets: sheetNames,
+      defaultSheet: defaultSheet,
+      currentSelectedSheet: selectedSheet,
+      willSelect: sheetToSelect
+    });
+
+    // ✅ CRITICAL: Only set initialized flag AFTER we've set the sheet
+    // This ensures we can update if initialSheet arrives later
+    isInitializingRef.current = true; // Mark as initializing
+    userManuallyChangedSheetRef.current = false; // Reset manual change flag for new workbook
+    
+    // ✅ Set the sheet immediately
+    setSelectedSheet(sheetToSelect);
+    
+    // ✅ Mark workbook as initialized AFTER setting sheet
+    initializedWorkbookIdRef.current = props.workbook.id;
+    lastInitialSheetRef.current = props.initialSheet; // Track the initialSheet value
+    
+    const source = preferredSheet && sheetNames.includes(preferredSheet) 
+      ? (props.initialSheet ? 'from parent prop (saved preference)' : 'from fetched preference')
+      : 'default first sheet';
+    
+    console.log(`ExcelViewer: ✅ Initialized sheet to "${sheetToSelect}" (${source})`, {
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      preferredSheet: preferredSheet,
+      availableSheets: sheetNames,
+      selectedSheet: sheetToSelect,
+      workbookId: props.workbook.id
+    });
+    
+    // Mark initialization complete after a short delay
+    setTimeout(() => {
+      isInitializingRef.current = false;
+      console.log(`ExcelViewer: ✅ Initialization complete, isInitializing set to false`);
+    }, 100);
+  }, [
+    props.workbook?.id,        // ✅ Only re-run when workbook ID changes
+    props.workbook?.fileData,  // ✅ Re-run when fileData loads (for new workbook)
+    props.workbook?.sheets,    // ✅ Re-run when sheets array loads (for new workbook)
+    props.initialSheet,        // ✅ Re-run when initialSheet prop changes (preference loads)
+    fetchedInitialSheet        // ✅ Re-run when we fetch the preference ourselves
+    // ❌ REMOVED: selectedSheet - don't include this, it causes the effect to reset on manual changes
+  ]);
 
   // Reset states when workbook changes
   useEffect(() => {
+    // ✅ CRITICAL: Reset initialization tracking when workbook changes
+    // This allows the initialization effect to run for the new workbook
+    initializedWorkbookIdRef.current = null;
+    userManuallyChangedSheetRef.current = false; // Reset manual change flag
+    defaultSheetForWorkbookRef.current = null; // Reset default sheet tracking
+    setFetchedInitialSheet(undefined); // Reset fetched preference
+    preferenceFetchedRef.current = null; // Reset preference fetch tracking
+    lastInitialSheetRef.current = undefined; // Reset initialSheet tracking
+    
     setSelections([]);
     setIsSelecting(false);
     anchorSelectionStart.current = null;

@@ -867,20 +867,38 @@ export const db_WorkbookApi = {
   // ✅ NEW: Save user's last selected sheet for a workbook
   saveUserWorkbookPreference: async (workbookId: string, sheetName: string) => {
     try {
+      console.log(`💾 workbookApi: Saving preference`, {
+        workbookId,
+        sheetName,
+        workbookIdType: typeof workbookId,
+        url: `${BASE_PATH}/${workbookId}/user-preference`
+      });
+      
       const response = await axiosInstance.post(
         `${BASE_PATH}/${workbookId}/user-preference`,
         { lastSelectedSheet: sheetName }
       );
+      
+      console.log(`💾 workbookApi: Save preference API response:`, {
+        status: response.status,
+        data: response.data,
+        success: response.data?.success
+      });
+      
       return response.data;
-    } catch (error) {
-      console.error(
-        `Error saving user preference for workbook ${workbookId}:`,
-        error
-      );
+    } catch (error: any) {
+      console.error(`💾 workbookApi: ❌ Error saving user preference for workbook ${workbookId}:`, error);
+      console.error(`💾 workbookApi: Error details:`, {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText
+      });
+      
       return {
         success: false,
         error:
-          (error as any).response?.data?.error ||
+          error?.response?.data?.error ||
           "Failed to save user workbook preference.",
       };
     }
@@ -889,26 +907,34 @@ export const db_WorkbookApi = {
   // ✅ NEW: Get user's last selected sheet for a workbook
   getUserWorkbookPreference: async (workbookId: string) => {
     try {
+      console.log(`📡 workbookApi: Fetching preference for workbook: ${workbookId}`);
       const response = await axiosInstance.get(
         `${BASE_PATH}/${workbookId}/user-preference`
       );
+      console.log(`📡 workbookApi: Preference API response:`, {
+        status: response.status,
+        data: response.data,
+        hasLastSelectedSheet: !!response.data?.data?.lastSelectedSheet,
+        lastSelectedSheet: response.data?.data?.lastSelectedSheet
+      });
       return response.data;
-    } catch (error) {
-      // If preference doesn't exist, return null (not an error)
-      if ((error as any).response?.status === 404) {
+    } catch (error: any) {
+      // If preference doesn't exist, return a response indicating no preference (not an error)
+      if (error.response?.status === 404) {
+        console.log(`📡 workbookApi: No preference found (404) for workbook: ${workbookId}`);
         return {
-          success: true,
-          data: { lastSelectedSheet: null },
+          success: false, // ✅ Changed to false to indicate no preference exists
+          data: null, // ✅ Return null data instead of { lastSelectedSheet: null }
         };
       }
       console.error(
-        `Error fetching user preference for workbook ${workbookId}:`,
+        `📡 workbookApi: Error fetching user preference for workbook ${workbookId}:`,
         error
       );
       return {
         success: false,
         error:
-          (error as any).response?.data?.error ||
+          error.response?.data?.error ||
           "Failed to fetch user workbook preference.",
       };
     }
