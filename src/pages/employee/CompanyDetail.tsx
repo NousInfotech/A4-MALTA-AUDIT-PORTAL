@@ -604,7 +604,7 @@ export const CompanyDetail: React.FC = () => {
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <Calendar className="h-5 w-5 text-gray-600 mt-0.5" />
                   <div>
-                    <p className="text-sm text-gray-500 font-medium">Company Started At</p>
+                    <p className="text-sm text-gray-500 font-medium">Incorporation Date</p>
                     <p className="text-gray-900">{new Date(company.companyStartedAt).toLocaleDateString()}</p>
                   </div>
                 </div>

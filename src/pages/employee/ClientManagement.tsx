@@ -323,8 +323,8 @@ export const ClientManagement = () => {
                     const totalEngagements = engagements.filter(eng => eng.clientId === client.id).length;
                     
                     return (
-                      <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
-                        <div className="flex flex-col gap-4">
+                      <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 h-full flex flex-col">
+                        <div className="flex flex-col h-full justify-between">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                               <Building2 className="h-6 w-6 text-primary-foreground" />
@@ -340,7 +340,7 @@ export const ClientManagement = () => {
                           <div className="space-y-4">
                             <Badge 
                               variant="outline" 
-                              className="rounded-xl px-4 py-2 text-sm font-semibold"
+                              className="rounded-xl px-4 py-2 text-sm font-semibold mt-2"
                             >
                               {client.industry || 'N/A'}
                             </Badge>
@@ -373,7 +373,7 @@ export const ClientManagement = () => {
                             </span>
                           </div>
                           
-                          <div className="flex gap-2 items-center">
+                          <div className="flex gap-2 items-center mt-auto">
                           <Button 
                               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
                               size="sm" 
@@ -419,8 +419,8 @@ export const ClientManagement = () => {
               const totalEngagements = engagements.filter(eng => eng.clientId === client.id).length;
               
               return (
-                <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30">
-                  <div className="flex flex-col gap-4">
+                <div key={client.id} className="bg-white/80 border border-white/50 rounded-2xl p-6 hover:bg-white/90 shadow-lg shadow-gray-300/30 h-full flex flex-col">
+                  <div className="flex flex-col gap-4 flex-1">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                         <Building2 className="h-6 w-6 text-primary-foreground" />
@@ -469,7 +469,7 @@ export const ClientManagement = () => {
                       </span>
                     </div>
                     
-                    <div className="flex gap-2 iteme">
+                    <div className="flex gap-2 items-center mt-auto">
                     <Button 
                         className="w-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto" 
                         size="sm" 
