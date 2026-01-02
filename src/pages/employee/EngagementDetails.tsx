@@ -85,7 +85,7 @@ export const EngagementDetails = () => {
 
   const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false);
-  
+
   // Refs and state for responsive tabs with scroll arrows
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -99,13 +99,13 @@ export const EngagementDetails = () => {
   const handleClosePBC = () => {
     setIsPBCModalOpen(false);
   };
-  const { logViewEngagement, logUploadDocument, logUpdateEngagement } = useActivityLogger();
+  const { logViewEngagement, logUploadDocument, logUpdateEngagement } =
+    useActivityLogger();
 
   useEffect(() => {
     if (!searchParams.get("section")) {
       setSearchParams({ section: "overview" }, { replace: true });
     }
-
   }, []);
 
   // Check if scrolling is possible to show/hide arrows
@@ -152,14 +152,16 @@ export const EngagementDetails = () => {
         console.log(engagement);
 
         // Log engagement view
-        logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
+        logViewEngagement(
+          `Viewed engagement details for: ${engagementData.title}`
+        );
 
         // Fetch client company name
         try {
           const { data: clientData, error: clientError } = await supabase
-            .from('profiles')
-            .select('company_name')
-            .eq('user_id', engagementData.clientId)
+            .from("profiles")
+            .select("company_name")
+            .eq("user_id", engagementData.clientId)
             .single();
 
           if (!clientError && clientData) {
@@ -238,7 +240,9 @@ export const EngagementDetails = () => {
       }));
 
       // Log trial balance upload
-      logUploadDocument(`Uploaded trial balance for engagement: ${engagement?.title}`);
+      logUploadDocument(
+        `Uploaded trial balance for engagement: ${engagement?.title}`
+      );
 
       toast({
         title: "Success",
@@ -273,7 +277,9 @@ export const EngagementDetails = () => {
       setDocumentRequest({ category: "", description: "", comment: "" });
 
       // Log document request creation
-      logUploadDocument(`Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`);
+      logUploadDocument(
+        `Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`
+      );
 
       toast({
         title: "Success",
@@ -373,7 +379,9 @@ export const EngagementDetails = () => {
                 <Briefcase className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">{engagement.title}</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">
+                  {engagement.title}
+                </h1>
                 {clientCompanyName && (
                   <p className="text-sm sm:text-base text-gray-600 mt-1 font-medium flex items-center gap-2">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
@@ -383,15 +391,14 @@ export const EngagementDetails = () => {
               </div>
 
               <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2 xl:gap-3 w-full xl:w-auto">
-                <Button
-                  variant="default"
-                  size="sm"
-                  asChild
-                >
-                  <Link to={`/employee/clients/${engagement.clientId}/company/${typeof engagement.companyId === 'object'
-                    ? engagement.companyId?._id
-                    : engagement.companyId
-                    }`}>
+                <Button variant="default" size="sm" asChild>
+                  <Link
+                    to={`/employee/clients/${engagement.clientId}/company/${
+                      typeof engagement.companyId === "object"
+                        ? engagement.companyId?._id
+                        : engagement.companyId
+                    }`}
+                  >
                     <Building2 className="h-4 w-4 mr-2" />
                     View Company
                   </Link>
@@ -430,9 +437,12 @@ export const EngagementDetails = () => {
 
         {/* Tabs Section */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs value={section} onValueChange={handleTabChange} className="space-y-0">
+          <Tabs
+            value={section}
+            onValueChange={handleTabChange}
+            className="space-y-0"
+          >
             <div className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6 relative group">
-              
               {/* Navigation Arrows */}
               {showLeftArrow && (
                 <button
@@ -455,7 +465,7 @@ export const EngagementDetails = () => {
               )}
 
               {/* Scrollable Container */}
-              <div 
+              <div
                 ref={scrollRef}
                 onScroll={checkScroll}
                 className="overflow-x-auto no-scrollbar scroll-smooth"
@@ -495,6 +505,14 @@ export const EngagementDetails = () => {
                     AUDIT
                   </TabsTrigger>
 
+                  {/* <TabsTrigger
+                    value="procedures"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    Procedures
+                  </TabsTrigger> */}
+
                   <TabsTrigger
                     value="library"
                     className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
@@ -518,8 +536,19 @@ export const EngagementDetails = () => {
                     <IconReport className="h-4 w-4 mr-1.5 sm:mr-2" />
                     AI Review
                   </TabsTrigger>
+
+                  {/* <TabsTrigger
+                    value="kyc"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <Shield className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    KYC
+                  </TabsTrigger> */}
                 </TabsList>
               </div>
+              {/* <button onClick={handleOpenPBC} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary">
+              See the PBC Work Flow
+            </button> */}
             </div>
 
             <div className="p-4 sm:p-6 h-[calc(100vh-200px)] sm:h-[calc(100vh-250px)] overflow-y-auto">
@@ -561,7 +590,10 @@ export const EngagementDetails = () => {
                 <ChecklistTab engagementId={id!} />
               </TabsContent>
 
-              <TabsContent value="financial-status-report" className="space-y-6">
+              <TabsContent
+                value="financial-status-report"
+                className="space-y-6"
+              >
                 <FinancialReportParent engagementId={id} />
               </TabsContent>
 
@@ -572,7 +604,6 @@ export const EngagementDetails = () => {
               <TabsContent value="team" className="space-y-6">
                 <TeamTab engagementId={id!} />
               </TabsContent>
-
             </div>
           </Tabs>
         </div>
