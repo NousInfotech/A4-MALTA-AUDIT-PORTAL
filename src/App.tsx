@@ -76,6 +76,7 @@ import { AdminSettingsPage } from "./pages/settings/AdminSettingsPage";
 import { ClientSettingsPage } from "./pages/settings/ClientSettingsPage";
 import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
 import { DocumentRequestsEngagement } from "./pages/client/DocumentRequestsEngagement";
+import { DocumentKYCNew } from "./pages/client/DocumentKYCNew";
 
 
 
@@ -189,7 +190,7 @@ const App = () => (
                         <Route index element={<ClientDashboard />} />
                         <Route path="engagements" element={<ClientEngagements />} />
                         <Route path="document-requests" element={<DocumentRequestsEngagement />} />
-                        <Route path="requests" element={<DocumentRequests />} />
+                        <Route path="requests" element={<DocumentKYCNew />} />
                         <Route path="companies" element={<ClientCompanies />} />
                         <Route path="companies/:companyId" element={<ClientCompanyDetail />} />
                         <Route path="accounts" element={<RoleBasedAccountDataTab />} />
