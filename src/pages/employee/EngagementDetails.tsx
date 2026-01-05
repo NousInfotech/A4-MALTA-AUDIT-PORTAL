@@ -505,13 +505,13 @@ export const EngagementDetails = () => {
                     AUDIT
                   </TabsTrigger>
 
-                  {/* <TabsTrigger
+                  <TabsTrigger
                     value="procedures"
                     className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
                     <CheckCircle className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Procedures
-                  </TabsTrigger> */}
+                  </TabsTrigger>
 
                   <TabsTrigger
                     value="library"

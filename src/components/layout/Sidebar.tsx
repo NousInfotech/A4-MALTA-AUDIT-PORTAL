@@ -119,6 +119,22 @@ const navItems: NavItem[] = [
     getBadge: (stats) => `${stats.totalClients} Total`
   },
   { 
+    title: 'KYC Management', 
+    href: '/employee/kyc', 
+    icon: UserCheck, 
+    roles: ['employee'],
+    description: 'Know Your Client Workflows',
+    badge: 'New'
+  },
+  { 
+    title: 'Document request template', 
+    href: '/employee/document-request-template', 
+    icon: FileText, 
+    roles: ['employee'],
+    description: 'Document Request Templates',
+    badge: 'New'
+  },
+  { 
     title: 'Engagements', 
     href: '/employee/engagements', 
     icon: Briefcase, 
@@ -149,22 +165,7 @@ const navItems: NavItem[] = [
     description: 'Quality Management Assessment',
     badge: 'New'
   },
-  { 
-    title: 'KYC Management', 
-    href: '/employee/kyc', 
-    icon: UserCheck, 
-    roles: ['employee'],
-    description: 'Know Your Client Workflows',
-    badge: 'New'
-  },
-  { 
-    title: 'Document request template', 
-    href: '/employee/document-request-template', 
-    icon: FileText, 
-    roles: ['employee'],
-    description: 'Document Request Templates',
-    badge: 'New'
-  },
+  
   
 
   // Client

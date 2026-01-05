@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import FloatingNotesButton from "./FloatingNotesButton"
 import NotebookInterface from "./NotebookInterface"
-import { Download, Save, X, Plus, Sparkles, Edit2, Trash2, Loader2, RefreshCw, FileText } from "lucide-react"
+import { Download, Save, X, Plus, Edit2, Trash2, Loader2, RefreshCw, FileText, CheckCircle, Edit, Sparkles, Trash2 as TrashIcon } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -349,6 +352,7 @@ export const CompletionProcedureView: React.FC<{
   const [pendingQuestions, setPendingQuestions] = useState<Set<string>>(new Set())
   // Track active tab for each section
   const [sectionTabs, setSectionTabs] = useState<Record<string, string>>({})
+  const [proceduresViewMode, setProceduresViewMode] = useState<Record<string, 'procedures' | 'reviews'>>({})
   // Track editing question IDs
   const [editingQuestionIds, setEditingQuestionIds] = useState<Record<string, string>>({})
   const [editQuestionTexts, setEditQuestionTexts] = useState<Record<string, string>>({})
@@ -584,6 +588,278 @@ export const CompletionProcedureView: React.FC<{
   const [generatingAnswers, setGeneratingAnswers] = useState(false)
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  
+  // Review state
+  const [reviewStatus, setReviewStatus] = useState<string>(proc?.reviewStatus || "in-progress")
+  const [reviewComments, setReviewComments] = useState<string>(proc?.reviewComments || "")
+  const [isSavingReview, setIsSavingReview] = useState(false)
+  const [editingOverallComments, setEditingOverallComments] = useState<Record<string, boolean>>({})
+  const [editOverallCommentValues, setEditOverallCommentValues] = useState<Record<string, string>>({})
+  
+  // Advanced Review & Sign-off state
+  const [reviewerId, setReviewerId] = useState<string>(proc?.reviewerId || "")
+  const [reviewedAt, setReviewedAt] = useState<string>(proc?.reviewedAt ? new Date(proc.reviewedAt).toISOString().split('T')[0] : "")
+  const [approvedBy, setApprovedBy] = useState<string>(proc?.approvedBy || "")
+  const [approvedAt, setApprovedAt] = useState<string>(proc?.approvedAt ? new Date(proc.approvedAt).toISOString().split('T')[0] : "")
+  const [signedOffBy, setSignedOffBy] = useState<string>(proc?.signedOffBy || "")
+  const [signedOffAt, setSignedOffAt] = useState<string>(proc?.signedOffAt ? new Date(proc.signedOffAt).toISOString().split('T')[0] : "")
+  const [signOffComments, setSignOffComments] = useState<string>(proc?.signOffComments || "")
+  const [isSignedOff, setIsSignedOff] = useState<boolean>(proc?.isSignedOff || false)
+  const [isLocked, setIsLocked] = useState<boolean>(proc?.isLocked || false)
+  const [lockedAt, setLockedAt] = useState<string>(proc?.lockedAt ? new Date(proc.lockedAt).toISOString().split('T')[0] : "")
+  const [lockedBy, setLockedBy] = useState<string>(proc?.lockedBy || "")
+  const [reopenedAt, setReopenedAt] = useState<string>(proc?.reopenedAt ? new Date(proc.reopenedAt).toISOString().split('T')[0] : "")
+  const [reopenedBy, setReopenedBy] = useState<string>(proc?.reopenedBy || "")
+  const [reopenReason, setReopenReason] = useState<string>(proc?.reopenReason || "")
+  const [reviewVersion, setReviewVersion] = useState<number>(proc?.reviewVersion || 1)
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  const [reviews, setReviews] = useState<any[]>([])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+  const [userNamesMap, setUserNamesMap] = useState<Record<string, string>>({})
+  const [editingReview, setEditingReview] = useState<any>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editReviewStatus, setEditReviewStatus] = useState<string>("")
+  const [editReviewComments, setEditReviewComments] = useState<string>("")
+  const [isUpdatingReview, setIsUpdatingReview] = useState(false)
+  const [isDeletingReview, setIsDeletingReview] = useState<string | null>(null)
+
+  // Get current user ID
+  React.useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data?.session?.user?.id) {
+        setCurrentUserId(data.session.user.id)
+      }
+    }
+    getCurrentUser()
+  }, [])
+
+  // Fetch user name from Supabase profiles
+  const fetchUserName = async (userId: string): Promise<string> => {
+    if (!userId || userNamesMap[userId]) return userNamesMap[userId] || userId
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', userId)
+        .single()
+      if (!error && data?.name) {
+        setUserNamesMap(prev => ({ ...prev, [userId]: data.name }))
+        return data.name
+      }
+    } catch (error) {
+      console.error('Error fetching user name:', error)
+    }
+    return userId
+  }
+
+  // Fetch user names for all user IDs in reviews
+  const fetchUserNames = async (reviews: any[]) => {
+    const userIds = new Set<string>()
+    reviews.forEach(review => {
+      if (review.reviewedBy) userIds.add(review.reviewedBy)
+      if (review.assignedReviewer) userIds.add(review.assignedReviewer)
+      if (review.approvedBy) userIds.add(review.approvedBy)
+      if (review.signedOffBy) userIds.add(review.signedOffBy)
+      if (review.lockedBy) userIds.add(review.lockedBy)
+      if (review.reopenedBy) userIds.add(review.reopenedBy)
+    })
+    
+    const namesMap: Record<string, string> = {}
+    await Promise.all(
+      Array.from(userIds).map(async (userId) => {
+        if (!userNamesMap[userId]) {
+          const name = await fetchUserName(userId)
+          namesMap[userId] = name
+        } else {
+          namesMap[userId] = userNamesMap[userId]
+        }
+      })
+    )
+    setUserNamesMap(prev => ({ ...prev, ...namesMap }))
+  }
+
+  // Fetch reviews for engagement (filtered by itemType: "completion-procedure")
+  const fetchReviews = async () => {
+    if (!engagement?._id) return
+    setIsLoadingReviews(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/engagement/${engagement._id}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Filter reviews by itemType: "completion-procedure" for CompletionProcedureView
+        const filteredReviews = (data.workflows || []).filter((w: any) => w.itemType === 'completion-procedure')
+        setReviews(filteredReviews)
+        // Fetch user names for all reviewers
+        await fetchUserNames(filteredReviews)
+      }
+    } catch (error: any) {
+      console.error('Error fetching reviews:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch reviews.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }
+
+  // Fetch reviews when engagement or review tab is active
+  React.useEffect(() => {
+    if (engagement?._id) {
+      // Check if any section has review tab active
+      const hasReviewTabActive = Object.values(sectionTabs).some(tab => tab === "review")
+      if (hasReviewTabActive) {
+        fetchReviews()
+      }
+    }
+  }, [engagement?._id, sectionTabs])
+
+  // Fetch reviews when switching to reviews view mode in procedures tab
+  React.useEffect(() => {
+    if (engagement?._id) {
+      // Check if any section is in reviews view mode
+      const hasReviewsMode = Object.values(proceduresViewMode).some(mode => mode === 'reviews')
+      if (hasReviewsMode) {
+        fetchReviews()
+      }
+    }
+  }, [engagement?._id, proceduresViewMode])
+
+  // Check if user owns a review
+  const isReviewOwner = (review: any) => {
+    if (!currentUserId) return false
+    return (
+      review.reviewedBy === currentUserId ||
+      review.approvedBy === currentUserId ||
+      review.signedOffBy === currentUserId ||
+      review.reopenedBy === currentUserId ||
+      review.assignedReviewer === currentUserId
+    )
+  }
+
+  // Handle edit review
+  const handleEditReview = (review: any) => {
+    setEditingReview(review)
+    setEditReviewStatus(review.status || '')
+    setEditReviewComments(review.reviewComments || '')
+    setIsEditDialogOpen(true)
+  }
+
+  // Handle update review
+  const handleUpdateReview = async () => {
+    if (!editingReview) return
+    
+    setIsUpdatingReview(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/${editingReview._id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: editReviewStatus,
+          reviewComments: editReviewComments,
+          reviewerId: currentUserId, // Always send current user ID
+        }),
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        throw new Error(text || `Failed to update review (HTTP ${response.status})`)
+      }
+
+      await fetchReviews()
+      setIsEditDialogOpen(false)
+      setEditingReview(null)
+      
+      toast({
+        title: "Review Updated",
+        description: "Your review has been updated successfully.",
+      })
+    } catch (error: any) {
+      console.error("Update review error:", error)
+      toast({
+        title: "Update failed",
+        description: error.message || "Could not update review.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingReview(false)
+    }
+  }
+
+  // Handle delete review
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+      return
+    }
+
+    setIsDeletingReview(reviewId)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/${reviewId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        throw new Error(text || `Failed to delete review (HTTP ${response.status})`)
+      }
+
+      await fetchReviews()
+      
+      toast({
+        title: "Review Deleted",
+        description: "Your review has been deleted successfully.",
+      })
+    } catch (error: any) {
+      console.error("Delete review error:", error)
+      toast({
+        title: "Delete failed",
+        description: error.message || "Could not delete review.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingReview(null)
+    }
+  }
+
+  // Sync review data from procedure prop (when loaded from backend)
+  React.useEffect(() => {
+    if (proc) {
+      if (proc.reviewStatus) {
+        setReviewStatus(proc.reviewStatus)
+      }
+      if (proc.reviewComments !== undefined) {
+        setReviewComments(proc.reviewComments || "")
+      }
+      // Advanced review fields - auto-set to current user
+      if (currentUserId) {
+        if (!proc.reviewerId) setReviewerId(currentUserId)
+        if (!proc.approvedBy) setApprovedBy(currentUserId)
+        if (!proc.signedOffBy) setSignedOffBy(currentUserId)
+        if (!proc.lockedBy) setLockedBy(currentUserId)
+        if (!proc.reopenedBy) setReopenedBy(currentUserId)
+      }
+      // Update existing values if present
+      if (proc.reviewerId) setReviewerId(proc.reviewerId)
+      if (proc.reviewedAt) setReviewedAt(new Date(proc.reviewedAt).toISOString().split('T')[0])
+      if (proc.approvedBy) setApprovedBy(proc.approvedBy)
+      if (proc.approvedAt) setApprovedAt(new Date(proc.approvedAt).toISOString().split('T')[0])
+      if (proc.signedOffBy) setSignedOffBy(proc.signedOffBy)
+      if (proc.signedOffAt) setSignedOffAt(new Date(proc.signedOffAt).toISOString().split('T')[0])
+      if (proc.signOffComments !== undefined) setSignOffComments(proc.signOffComments || "")
+      if (proc.isSignedOff !== undefined) setIsSignedOff(proc.isSignedOff)
+      if (proc.isLocked !== undefined) setIsLocked(proc.isLocked)
+      if (proc.lockedAt) setLockedAt(new Date(proc.lockedAt).toISOString().split('T')[0])
+      if (proc.lockedBy) setLockedBy(proc.lockedBy)
+      if (proc.reopenedAt) setReopenedAt(new Date(proc.reopenedAt).toISOString().split('T')[0])
+      if (proc.reopenedBy) setReopenedBy(proc.reopenedBy)
+      if (proc.reopenReason !== undefined) setReopenReason(proc.reopenReason || "")
+      if (proc.reviewVersion) setReviewVersion(proc.reviewVersion)
+    }
+  }, [proc, currentUserId])
 
   const handleGenerateSectionQuestions = async (sectionId: string) => {
     setGeneratingSections(prev => {
@@ -1499,120 +1775,413 @@ export const CompletionProcedureView: React.FC<{
                   </TabsContent>
                   
                   <TabsContent value="procedures" className="space-y-3 mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold">Audit Recommendations</h4>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          onClick={handleSaveProcedures}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                          )}
-                          Save Procedures
-                        </Button>
-                          {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer) ? (
-                            (() => {
+                    {(() => {
+                      const currentViewMode = proceduresViewMode[sectionId] || 'procedures'
                               const currentSectionId = String(sec.sectionId || sec.id || sectionId).trim()
+                      
+                      // Pre-calculate recommendations for this section to avoid nested IIFEs
                               const allRecs = Array.isArray(recommendations) ? recommendations : []
                               const sectionRecs = allRecs.filter((rec: any) => {
                                 const recSection = String(rec.section || rec.sectionId || "").trim()
                                 return recSection === currentSectionId && recSection !== ""
                               })
-                              return sectionRecs.length > 0 ? (
+
+                      const hasAnswers = (sec.fields || []).length > 0 && (sec.fields || []).some((f: any) => f.answer)
+
+                      // 1. REVIEWS VIEW MODE
+                      if (currentViewMode === 'reviews') {
+                        return (
+                          <div className="space-y-3 overflow-x-hidden w-full">
+                            <div className="flex flex-col gap-2 mb-4 w-full">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleGenerateProcedures(currentSectionId)}
-                                disabled={generatingProcedures}
+                                onClick={() => setProceduresViewMode(prev => ({ ...prev, [sectionId]: 'procedures' }))}
+                                className="w-full"
                               >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4 mr-2" />
-                                )}
-                                Regenerate Procedures
+                                <FileText className="h-4 w-4 mr-2" />
+                                Back to Procedures
                               </Button>
-                            ) : (
+                              <div className="flex items-center justify-between w-full">
+                                <h4 className="text-lg font-semibold">Overall Review</h4>
+                                <div className="flex items-center gap-2">
+                                  <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                                    <SelectTrigger className="w-[180px]">
+                                      <SelectValue placeholder="Review Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="in-progress">In Progress</SelectItem>
+                                      <SelectItem value="ready-for-review">Ready for Review</SelectItem>
+                                      <SelectItem value="under-review">Under Review</SelectItem>
+                                      <SelectItem value="approved">Approved</SelectItem>
+                                      <SelectItem value="rejected">Rejected</SelectItem>
+                                      <SelectItem value="signed-off">Signed Off</SelectItem>
+                                      <SelectItem value="re-opened">Re-opened</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => handleGenerateProcedures(String(sec.sectionId || sec.id || sectionId).trim())}
-                                disabled={generatingProcedures}
-                              >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
+                                    onClick={async () => {
+                                      setIsSavingReview(true)
+                                      try {
+                                        const base = import.meta.env.VITE_APIURL
+                                        const formData = new FormData()
+                                        const now = new Date()
+                                        const currentVersion = (reviewVersion || 1) + 1
+                                        
+                                        let autoFields: any = { reviewVersion: currentVersion, reviewerId: currentUserId }
+                                        
+                                        if (['in-progress', 'ready-for-review', 'under-review', 'rejected'].includes(reviewStatus)) {
+                                          autoFields.reviewedAt = now.toISOString()
+                                        }
+                                        if (reviewStatus === 'approved') {
+                                          autoFields.approvedBy = currentUserId
+                                          autoFields.approvedAt = now.toISOString()
+                                        }
+                                        if (reviewStatus === 'signed-off') {
+                                          autoFields.signedOffBy = currentUserId
+                                          autoFields.signedOffAt = now.toISOString()
+                                          autoFields.isSignedOff = true
+                                          autoFields.signOffComments = reviewComments || signOffComments || undefined
+                                        }
+                                        if (reviewStatus === 're-opened') {
+                                          autoFields.reopenedBy = currentUserId
+                                          autoFields.reopenedAt = now.toISOString()
+                                          autoFields.reopenReason = reviewComments || reopenReason || undefined
+                                        }
+                                        
+                                        const payload = {
+                                          ...proc,
+                                          reviewStatus,
+                                          reviewComments,
+                                          sectionId,
+                                          ...autoFields,
+                                        }
+                                        formData.append("data", JSON.stringify(payload))
+                                        const response = await authFetch(`${base}/api/completion-procedures/${engagement._id}/save`, {
+                                          method: "POST",
+                                          body: formData,
+                                        })
+
+                                        if (!response.ok) throw new Error("Failed to save review")
+                                        setReviewVersion(currentVersion)
+                                        if (onProcedureUpdate) onProcedureUpdate(await response.json())
+                                        await fetchReviews()
+                                        toast({ title: "Review Saved", description: "Your review has been saved." })
+                                      } catch (error: any) {
+                                        toast({ title: "Save failed", description: error.message, variant: "destructive" })
+                                      } finally { setIsSavingReview(false) }
+                                    }}
+                                    disabled={isSavingReview}
+                                  >
+                                    {isSavingReview ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                                    Save Review
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mb-4 w-full">
+                              <Label htmlFor={`review-comments-${sectionId}`}>Overall Review Comments</Label>
+                              <Textarea
+                                id={`review-comments-${sectionId}`}
+                                value={reviewComments}
+                                onChange={(e) => setReviewComments(e.target.value)}
+                                placeholder="Add your review comments here..."
+                                className="min-h-[100px] mt-2 w-full resize-none border border-input focus:border-input focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+                                style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}
+                              />
+                            </div>
+
+                            <ScrollArea className="h-[500px] border rounded-md p-4">
+                              <div className="space-y-6">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h5 className="text-md font-semibold flex items-center gap-2">
+                                    <FileText className="h-4 w-4" />
+                                    Reviews ({reviews.filter(r => (r.sectionId || (proc.procedures?.[0]?.sectionId || proc.procedures?.[0]?.id)) === sectionId).length} reviews)
+                                  </h5>
+                                  <Button variant="outline" size="sm" onClick={fetchReviews} disabled={isLoadingReviews}>
+                                    {isLoadingReviews ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                                    Refresh
+                                  </Button>
+                                </div>
+                                
+                                {(() => {
+                                  const filteredReviews = reviews.filter((review: any) => {
+                                    const reviewSectionId = review.sectionId || null
+                                    return reviewSectionId === sectionId || (!reviewSectionId && sectionId === (proc.procedures?.[0]?.sectionId || proc.procedures?.[0]?.id))
+                                  })
+                                  
+                                  if (isLoadingReviews) {
+                                    return (
+                                      <Card>
+                                        <CardContent className="pt-6">
+                                          <div className="text-center text-muted-foreground py-8">
+                                            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                            Loading reviews...
+                                          </div>
+                                        </CardContent>
+                                      </Card>
+                                    )
+                                  }
+                                  
+                                  if (filteredReviews.length === 0) {
+                                    return (
+                                      <Card>
+                                        <CardContent className="pt-6">
+                                          <div className="text-center text-muted-foreground py-8">
+                                            No reviews found for this section.
+                                          </div>
+                                        </CardContent>
+                                      </Card>
+                                    )
+                                  }
+                                  
+                                  return (
+                                    <>
+                                      {filteredReviews.map((review: any, idx: number) => {
+                                          const statusColors: Record<string, string> = {
+                                            'in-progress': 'bg-gray-100 text-gray-800',
+                                            'ready-for-review': 'bg-blue-100 text-blue-800',
+                                            'under-review': 'bg-yellow-100 text-yellow-800',
+                                            'approved': 'bg-green-100 text-green-800',
+                                            'rejected': 'bg-red-100 text-red-800',
+                                            'signed-off': 'bg-purple-100 text-purple-800',
+                                            're-opened': 'bg-orange-100 text-orange-800',
+                                          }
+                                          
+                                          const isOwner = isReviewOwner(review)
+                                          
+                                          return (
+                                            <Card key={review._id || idx} className="mb-4">
+                                              <CardContent className="pt-6 pb-6">
+                                                <div className="space-y-3">
+                                                  <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                      <div className="flex items-center gap-2 mb-2">
+                                                        <Badge className={statusColors[review.status] || 'bg-gray-100 text-gray-800'}>
+                                                          {review.status || 'N/A'}
+                                                        </Badge>
+                                                        <span className="text-sm text-muted-foreground">
+                                                          {review.itemType || 'N/A'}
+                                                        </span>
+                                                      </div>
+                                                      {review.reviewComments && (
+                                                        <div className="text-sm text-muted-foreground mb-2">
+                                                          {review.reviewComments}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                    {isOwner && (
+                                                      <div className="flex gap-2">
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="sm"
+                                                          onClick={() => handleEditReview(review)}
+                                                          disabled={isDeletingReview === review._id}
+                                                        >
+                                                          <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                          variant="ghost"
+                                                          size="sm"
+                                                          onClick={() => handleDeleteReview(review._id)}
+                                                          disabled={isDeletingReview === review._id}
+                                                        >
+                                                          {isDeletingReview === review._id ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                          ) : (
+                                                            <TrashIcon className="h-4 w-4 text-destructive" />
+                                                          )}
+                                                        </Button>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  <div className="grid grid-cols-2 gap-4 text-sm">
+                                                    <div>
+                                                      <span className="font-medium">Reviewer:</span>{' '}
+                                                      <span className="text-muted-foreground">
+                                                        {(() => {
+                                                          // Determine reviewer based on status - check all possible reviewer fields
+                                                          let reviewerId = null
+                                                          if (review.status === 'approved') {
+                                                            reviewerId = review.approvedBy || review.reviewedBy || review.assignedReviewer
+                                                          } else if (review.status === 'signed-off') {
+                                                            reviewerId = review.signedOffBy || review.approvedBy || review.reviewedBy || review.assignedReviewer
+                                                          } else if (review.status === 're-opened') {
+                                                            reviewerId = review.reopenedBy || review.reviewedBy || review.assignedReviewer
+                                                          } else {
+                                                            // For all other statuses (in-progress, ready-for-review, under-review, rejected)
+                                                            reviewerId = review.reviewedBy || review.assignedReviewer
+                                                          }
+                                                          // If still no reviewer found, try to get from any available field (for backward compatibility)
+                                                          if (!reviewerId) {
+                                                            reviewerId = review.reviewedBy || review.assignedReviewer || review.approvedBy || review.signedOffBy || review.reopenedBy
+                                                          }
+                                                          return reviewerId ? (userNamesMap[reviewerId] || reviewerId) : 'Not assigned'
+                                                        })()}
+                                                      </span>
+                                                    </div>
+                                                    {review.reviewedAt && (review.status === 'ready-for-review' || review.status === 'under-review') && (
+                                                      <div>
+                                                        <span className="font-medium">Reviewed At:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {new Date(review.reviewedAt).toLocaleDateString()}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 'approved' && review.approvedBy && (
+                                                      <div>
+                                                        <span className="font-medium">Approved By:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {userNamesMap[review.approvedBy] || review.approvedBy}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 'approved' && review.approvedAt && (
+                                                      <div>
+                                                        <span className="font-medium">Approved At:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {new Date(review.approvedAt).toLocaleDateString()}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 'signed-off' && review.signedOffBy && (
+                                                      <div>
+                                                        <span className="font-medium">Signed Off By:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {userNamesMap[review.signedOffBy] || review.signedOffBy}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 'signed-off' && review.signedOffAt && (
+                                                      <div>
+                                                        <span className="font-medium">Signed Off At:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {new Date(review.signedOffAt).toLocaleDateString()}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.isLocked && (
+                                                      <div>
+                                                        <span className="font-medium">Locked:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {review.lockedBy ? `Yes (by ${userNamesMap[review.lockedBy] || review.lockedBy})` : 'Yes'}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 're-opened' && review.reopenedBy && (
+                                                      <div>
+                                                        <span className="font-medium">Reopened By:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {userNamesMap[review.reopenedBy] || review.reopenedBy}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.status === 're-opened' && review.reopenedAt && (
+                                                      <div>
+                                                        <span className="font-medium">Reopened At:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {new Date(review.reopenedAt).toLocaleDateString()}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                    {review.reviewVersion && (
+                                                      <div>
+                                                        <span className="font-medium">Version:</span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                          {review.reviewVersion}
+                                                        </span>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </CardContent>
+                                            </Card>
+                                          )
+                                        })
+                                      }
+                                    </>
+                                  )
+                                })()}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        )
+                      } else {
+                        // 2. PROCEDURES VIEW MODE (Default)
+                        return (
+                        <>
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setProceduresViewMode(prev => ({ ...prev, [sectionId]: 'reviews' }))}>
                                   <FileText className="h-4 w-4 mr-2" />
-                                )}
+                                Reviews
+                              </Button>
+                              
+                              <Button variant="default" size="sm" onClick={handleSaveProcedures} disabled={isSaving}>
+                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                                Save Procedures
+                              </Button>
+
+                              {hasAnswers ? (
+                                sectionRecs.length > 0 ? (
+                                  <Button variant="outline" size="sm" onClick={() => handleGenerateProcedures(currentSectionId)} disabled={generatingProcedures}>
+                                    {generatingProcedures ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                                    Regenerate Procedures
+                                  </Button>
+                                ) : (
+                                  <Button variant="default" size="sm" onClick={() => handleGenerateProcedures(currentSectionId)} disabled={generatingProcedures}>
+                                    {generatingProcedures ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
                                 Generate Procedures
                               </Button>
                             )
-                          })()
                         ) : (
                           <div className="text-muted-foreground text-sm">
-                            {((sec.fields || []).length === 0) ? "Generate questions first." : "Generate answers first."}
+                                  {(sec.fields || []).length === 0 ? "Generate questions first." : "Generate answers first."}
                           </div>
                         )}
+
                         <Button variant="outline" size="sm" onClick={() => {
                           const newRec = {
                             id: `rec-${Date.now()}`,
                             text: "New recommendation",
                             checked: false,
-                            section: String(sec.sectionId || sec.id || sectionId).trim(),
-                            sectionId: String(sec.sectionId || sec.id || sectionId).trim()
+                                  section: currentSectionId,
+                                  sectionId: currentSectionId
                           }
                           setRecommendations(prev => [...prev, newRec])
                         }}>
                           <Plus className="h-4 w-4 mr-2" />
                           Add Procedures
                         </Button>
+
                         <Button 
                           variant="default" 
                           size="sm" 
                           onClick={() => save(true)}
-                          disabled={isSaving || (sec.fields || []).length === 0 || !(sec.fields || []).some((f: any) => f.answer)}
+                                disabled={isSaving || !hasAnswers}
                         >
-                          {isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                          )}
+                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                           Save & Complete
                         </Button>
                       </div>
                     </div>
+
                     <ScrollArea className="h-[500px]">
                       <div className="space-y-3">
-                        {(() => {
-                          // Filter recommendations by current section - strict isolation
-                          const currentSectionId = String(sec.sectionId || sec.id || sectionId).trim()
-                          const allRecs = Array.isArray(recommendations) ? recommendations : []
-                          const sectionRecs = allRecs.filter((rec: any) => {
-                            const recSection = String(rec.section || rec.sectionId || "").trim()
-                            // Only show recommendations that are explicitly tagged to this section
-                            return recSection === currentSectionId && recSection !== ""
-                          })
-                          
-                          if (sectionRecs.length === 0) {
-                            return (
+                              {sectionRecs.length === 0 ? (
                               <div className="text-center py-8 text-muted-foreground">
-                                {((sec.fields || []).length > 0) && (sec.fields || []).some((f: any) => f.answer)
-                                  ? "No recommendations generated yet for this section. Click 'Generate Procedures' to create recommendations."
-                                  : "Generate questions and answers first, then generate procedures."}
+                                  {hasAnswers 
+                                    ? "No recommendations generated yet. Click 'Generate Procedures'." 
+                                    : "Generate questions and answers first."}
                               </div>
-                            )
-                          }
-                          
-                          return sectionRecs.map((rec: any, idx: number) => {
+                              ) : (
+                                sectionRecs.map((rec: any, idx: number) => {
                             const recId = rec.id || rec.__uid || `rec-${idx}`
-                            const recText = typeof rec === 'string' 
-                              ? rec 
-                              : rec.text || rec.content || String(rec) || "—"
+                                  const recText = typeof rec === 'string' ? rec : (rec.text || rec.content || String(rec))
                             const isEditing = editingQuestionIds[`rec-${recId}`] === recId
                             const editText = editQuestionTexts[`rec-${recId}`] ?? recText
                               
@@ -1625,106 +2194,50 @@ export const CompletionProcedureView: React.FC<{
                                           <div className="font-medium">{idx + 1}.</div>
                                           <div className="flex gap-2">
                                             <Button size="sm" onClick={() => {
-                                              setRecommendations(prev =>
-                                                prev.map((r: any, i: number) => {
-                                                  const rId = r.id || r.__uid || `rec-${i}`
-                                                  if (rId === recId) {
-                                                    if (typeof r === 'string') {
-                                                      return editText
-                                                    }
-                                                    return { ...r, text: editText }
-                                                  }
-                                                  return r
-                                                })
-                                              )
-                                              setEditingQuestionIds(prev => {
-                                                const next = { ...prev }
-                                                delete next[`rec-${recId}`]
-                                                return next
-                                              })
-                                              setEditQuestionTexts(prev => {
-                                                const next = { ...prev }
-                                                delete next[`rec-${recId}`]
-                                                return next
-                                              })
+                                                  setRecommendations(prev => prev.map(r => (r.id === recId || r.__uid === recId) ? { ...r, text: editText } : r))
+                                                  setEditingQuestionIds(prev => { const n = { ...prev }; delete n[`rec-${recId}`]; return n; })
                                             }}>
-                                              <Save className="h-4 w-4 mr-1" />
-                                              Save
+                                                  <Save className="h-4 w-4 mr-1" /> Save
                                             </Button>
                                             <Button size="sm" variant="outline" onClick={() => {
-                                              setEditingQuestionIds(prev => {
-                                                const next = { ...prev }
-                                                delete next[`rec-${recId}`]
-                                                return next
-                                              })
-                                              setEditQuestionTexts(prev => {
-                                                const next = { ...prev }
-                                                delete next[`rec-${recId}`]
-                                                return next
-                                              })
+                                                  setEditingQuestionIds(prev => { const n = { ...prev }; delete n[`rec-${recId}`]; return n; })
                                             }}>
-                                              <X className="h-4 w-4 mr-1" />
-                                              Cancel
+                                                  <X className="h-4 w-4 mr-1" /> Cancel
                                             </Button>
                                           </div>
                                         </div>
-                                        <Textarea
-                                          value={editText}
-                                          onChange={(e) => setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: e.target.value }))}
-                                          placeholder="Recommendation"
-                                          className="min-h-[100px]"
-                                        />
+                                            <Textarea value={editText} onChange={(e) => setEditQuestionTexts(p => ({ ...p, [`rec-${recId}`]: e.target.value }))} className="min-h-[100px]" />
                                       </div>
                                     ) : (
-                                      <>
                                         <div className="flex justify-between items-start">
                                           <div className="flex items-start space-x-3 flex-1">
-                                            <Checkbox
-                                              checked={rec.checked || false}
-                                              onCheckedChange={() => {
-                                                const rId = rec.id || rec.__uid || `rec-${idx}`
-                                                handleCheckboxToggle(rId)
-                                              }}
-                                              className="mt-1"
-                                            />
-                                            <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
-                                              {recText}
-                                            </span>
+                                              <Checkbox checked={rec.checked || false} onCheckedChange={() => handleCheckboxToggle(recId)} className="mt-1" />
+                                              <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>{recText}</span>
                                           </div>
                                           <div className="flex gap-2">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setEditingQuestionIds(prev => ({ ...prev, [`rec-${recId}`]: recId }))
-                                                setEditQuestionTexts(prev => ({ ...prev, [`rec-${recId}`]: recText }))
-                                              }}
-                                            >
+                                              <Button variant="ghost" size="sm" onClick={() => {
+                                                setEditingQuestionIds(p => ({ ...p, [`rec-${recId}`]: recId }))
+                                                setEditQuestionTexts(p => ({ ...p, [`rec-${recId}`]: recText }))
+                                              }}>
                                               <Edit2 className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setRecommendations(prev => prev.filter((r: any, i: number) => {
-                                                  const rId = r.id || r.__uid || `rec-${i}`
-                                                  return rId !== recId
-                                                }))
-                                              }}
-                                            >
+                                              <Button variant="ghost" size="sm" onClick={() => setRecommendations(prev => prev.filter(r => (r.id || r.__uid) !== recId))}>
                                               <Trash2 className="h-4 w-4" />
                                             </Button>
                                           </div>
                                         </div>
-                                      </>
                                     )}
                                   </CardContent>
                                 </Card>
                               )
                             })
-                        })()}
+                              )}
                       </div>
                     </ScrollArea>
+                        </>
+                        )
+                      } // This closing brace for the 'else' block
+                    })()}
                   </TabsContent>
                 </Tabs>
                 </AccordionContent>
@@ -1765,6 +2278,59 @@ export const CompletionProcedureView: React.FC<{
         onSave={handleSaveRecommendations}
         isPlanning={false}
       />
+
+      {/* Edit Review Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Review</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-review-status">Status</Label>
+              <Select value={editReviewStatus} onValueChange={setEditReviewStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="ready-for-review">Ready for Review</SelectItem>
+                  <SelectItem value="under-review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="signed-off">Signed Off</SelectItem>
+                  <SelectItem value="re-opened">Re-opened</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-review-comments">Review Comments</Label>
+              <Textarea
+                id="edit-review-comments"
+                value={editReviewComments}
+                onChange={(e) => setEditReviewComments(e.target.value)}
+                placeholder="Enter review comments..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateReview} disabled={isUpdatingReview}>
+              {isUpdatingReview ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Review"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
