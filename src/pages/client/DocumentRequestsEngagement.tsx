@@ -1259,29 +1259,18 @@ export const DocumentRequestsEngagement = () => {
                         ? clientEngagements.find(e => e._id === engagementId)
                         : clientEngagements[0];
                     
-                    if (activeEngagement) {
-                        return (
-                            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-3xl p-1 shadow-xl">
-                                <EngagementKYC 
-                                    engagementId={activeEngagement._id}
-                                    companyId={activeEngagement.companyId} 
-                                    clientId={user?.id}
-                                    showStatusManagement={false}
-                                    deleteRequest={false}
-                                    isClientView={true}
-                                />
-                            </div>
-                        );
-                    } else {
-                        return (
-                            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg">
-                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Shield className="h-8 w-8 text-gray-400" />
-                                </div>
-                                <p className="text-gray-500">No active engagement found to display KYC workflows.</p>
-                            </div>
-                        );
-                    }
+                    return (
+                        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-3xl p-1 shadow-xl">
+                            <EngagementKYC 
+                                engagementId={activeEngagement?._id}
+                                companyId={activeEngagement?.companyId || user?.organizationId} 
+                                clientId={user?.id}
+                                showStatusManagement={false}
+                                deleteRequest={false}
+                                isClientView={true}
+                            />
+                        </div>
+                    );
                 })()}
             </div>
           </TabsContent>

@@ -94,6 +94,7 @@ interface PersonListProps {
   clientId: string;
   company: any;
   onUpdate: () => void;
+  readOnly?: boolean;
 }
 
 export const PersonList: React.FC<PersonListProps> = ({
@@ -101,6 +102,7 @@ export const PersonList: React.FC<PersonListProps> = ({
   clientId,
   company,
   onUpdate,
+  readOnly = false,
 }) => {
   const navigate = useNavigate();
   const [persons, setPersons] = useState<Person[]>([]);
@@ -2424,8 +2426,7 @@ export const PersonList: React.FC<PersonListProps> = ({
 
 
           </TabsList>
-          {/* Show buttons at top only when there are items */}
-          {((activeTab === "representatives" && (sortedRepresentatives.length > 0 || validCompanyRepresentatives.length > 0)) ||
+          {!readOnly && ((activeTab === "representatives" && (sortedRepresentatives.length > 0 || validCompanyRepresentatives.length > 0)) ||
             (activeTab === "shareholders" && combinedShareholders.length > 0)) && (
             <div className="flex gap-5 mt-4">
               {activeTab === "representatives" ? (
@@ -2711,24 +2712,26 @@ export const PersonList: React.FC<PersonListProps> = ({
                             </div>
                           </div>
 
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditPerson(person)}
-                              className="rounded-xl"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteClick(person, true)}
-                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {!readOnly && (
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditPerson(person)}
+                                className="rounded-xl"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteClick(person, true)}
+                                className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -2740,23 +2743,25 @@ export const PersonList: React.FC<PersonListProps> = ({
                 <div className="text-center py-12 bg-gray-50 rounded-xl">
                   <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">No representatives yet</p>
-                  <div className="flex gap-2 justify-center">
-                    <Button
-                      onClick={() => setActiveInlineForm("person-representative")}
-                      className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Person
-                    </Button>
-                    <Button
-                      onClick={() => setActiveInlineForm("company-representative")}
-                      variant="outline"
-                      className="rounded-xl"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Company
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={() => setActiveInlineForm("person-representative")}
+                        className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Person
+                      </Button>
+                      <Button
+                        onClick={() => setActiveInlineForm("company-representative")}
+                        variant="outline"
+                        className="rounded-xl"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Company
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )
             )}
@@ -2862,32 +2867,36 @@ export const PersonList: React.FC<PersonListProps> = ({
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              {/* Edit Button - Open edit modal */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditCompanyRep(repCompany);
-                                }}
-                                className="rounded-xl"
-                                title="Edit Company"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              {/* Delete Button - Show confirmation dialog */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteCompanyRepClick(repCompany);
-                                }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-                                title="Delete Company Representative"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {!readOnly && (
+                                <>
+                                  {/* Edit Button - Open edit modal */}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditCompanyRep(repCompany);
+                                    }}
+                                    className="rounded-xl"
+                                    title="Edit Company"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  {/* Delete Button - Show confirmation dialog */}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteCompanyRepClick(repCompany);
+                                    }}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+                                    title="Delete Company Representative"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </CardContent>
@@ -3031,36 +3040,38 @@ export const PersonList: React.FC<PersonListProps> = ({
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  // Find the person object from rawPersonShareholders
-                                  const person = rawPersonShareholders.find(
-                                    (p: any) => String(p._id || p.id) === entry.id
-                                  );
-                                  if (person) handleEditPerson(person);
-                                }}
-                                className="rounded-xl"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                  // Find the person object from rawPersonShareholders
-                                  const person = rawPersonShareholders.find(
-                                    (p: any) => String(p._id || p.id) === entry.id
-                                  );
-                                  if (person) handleDeleteClick(person, false);
-                                }}
-                                className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            {!readOnly && (
+                              <div className="flex gap-2 ml-4">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Find the person object from rawPersonShareholders
+                                    const person = rawPersonShareholders.find(
+                                      (p: any) => String(p._id || p.id) === entry.id
+                                    );
+                                    if (person) handleEditPerson(person);
+                                  }}
+                                  className="rounded-xl"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Find the person object from rawPersonShareholders
+                                    const person = rawPersonShareholders.find(
+                                      (p: any) => String(p._id || p.id) === entry.id
+                                    );
+                                    if (person) handleDeleteClick(person, false);
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -3141,32 +3152,36 @@ export const PersonList: React.FC<PersonListProps> = ({
                             <Button variant="ghost" size="sm" onClick={() => handleNavigateToCompany(entry.companyId, entry.clientId)} className="rounded-xl">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditCompanyShare(entry);
-                              }}
-                              className="rounded-xl"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Find the company share object
-                                const companyShare = shareholdingCompanies.find(
-                                  (cs: any) => String(cs.companyId) === String(entry.companyId)
-                                );
-                                if (companyShare) handleDeleteCompanyShareClick(companyShare);
-                              }}
-                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!readOnly && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditCompanyShare(entry);
+                                  }}
+                                  className="rounded-xl"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Find the company share object
+                                    const companyShare = shareholdingCompanies.find(
+                                      (cs: any) => String(cs.companyId) === String(entry.companyId)
+                                    );
+                                    if (companyShare) handleDeleteCompanyShareClick(companyShare);
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -3175,27 +3190,29 @@ export const PersonList: React.FC<PersonListProps> = ({
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 bg-gray-50 rounded-xl">
-                <Percent className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">No shareholders yet</p>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={() => setActiveInlineForm("person-shareholder")}
-                    className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Person
-                  </Button>
-                  <Button
-                    onClick={() => setActiveInlineForm("company-shareholder")}
-                    variant="outline"
-                    className="rounded-xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Company
-                  </Button>
+                <div className="text-center py-12 bg-gray-50 rounded-xl">
+                  <Percent className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 mb-4">No shareholders yet</p>
+                  {!readOnly && (
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={() => setActiveInlineForm("person-shareholder")}
+                        className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Person
+                      </Button>
+                      <Button
+                        onClick={() => setActiveInlineForm("company-shareholder")}
+                        variant="outline"
+                        className="rounded-xl"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Company
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
             )}
               </div>
             )}

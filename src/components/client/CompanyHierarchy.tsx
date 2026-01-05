@@ -667,7 +667,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
       return {
         maxX: totalWidth,
-        maxY: onlyRepresentatives.length > 0 ? maxRepresentativesY : maxShareholdersY,
+        maxY: (onlyRepresentatives.length > 0 ? maxRepresentativesY : maxShareholdersY) + 300, // Add 300 to account for node height
       };
     };
 
@@ -866,9 +866,11 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
   const wrapperStyle: React.CSSProperties = {
     width: "100%",
-    height: Math.max(bounds.height, 600),
+    height: Math.max(bounds.height, 700), // Increased min-height
     overflow: "hidden",
     position: "relative",
+    border: "1px solid #e5e7eb",
+    borderRadius: "0.75rem",
   };
 
 return (

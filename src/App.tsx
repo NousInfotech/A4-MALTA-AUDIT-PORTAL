@@ -48,6 +48,8 @@ import KYCLibrary from "@/pages/employee/KYCLibrary";
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
 import { ClientEngagements } from "@/pages/client/ClientEngagements";
 import { DocumentRequests } from "@/pages/client/DocumentRequests";
+import { ClientCompanies } from "@/pages/client/ClientCompanies";
+import { ClientCompanyDetail } from "@/pages/client/ClientCompanyDetail";
 
 
 import Index from "./pages/Index";
@@ -188,6 +190,8 @@ const App = () => (
                         <Route path="engagements" element={<ClientEngagements />} />
                         <Route path="document-requests" element={<DocumentRequestsEngagement />} />
                         <Route path="requests" element={<DocumentRequests />} />
+                        <Route path="companies" element={<ClientCompanies />} />
+                        <Route path="companies/:companyId" element={<ClientCompanyDetail />} />
                         <Route path="accounts" element={<RoleBasedAccountDataTab />} />
                         <Route path="settings/notifications" element={<NotificationSettingsPage />} />
                         <Route path="settings" element={<ClientSettingsPage />} />
