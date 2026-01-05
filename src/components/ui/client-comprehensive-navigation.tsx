@@ -17,6 +17,7 @@ import {
   Shield,
   Settings,
   Bell,
+  Building2,
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -56,6 +57,15 @@ export const ClientComprehensiveNavigation: React.FC<ClientComprehensiveNavigati
       bgColor: "bg-primary",
       percentage: 100,
       description: "Overview & Analytics"
+    },
+    {
+      title: "Companies",
+      href: "/client/companies",
+      icon: Building2,
+      color: "text-gray-800",
+      bgColor: "bg-primary",
+      percentage: 100,
+      description: "Manage Your Corporate Entities"
     },
     {
       title: "Engagements",

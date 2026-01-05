@@ -178,6 +178,13 @@ const navItems: NavItem[] = [
     badge: 'Live'
   },
   { 
+    title: 'Company', 
+    href: '/client/companies', 
+    icon: Building2, 
+    roles: ['client'],
+    description: 'Your Corporate Entities'
+  },
+  { 
     title: 'My Engagements', 
     href: '/client/engagements', 
     icon: FolderOpen, 
