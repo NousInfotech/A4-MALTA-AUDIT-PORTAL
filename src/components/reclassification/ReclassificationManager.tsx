@@ -40,6 +40,7 @@ interface ReclassificationManagerProps {
   engagement: any;
   etbRows: ETBRow[];
   etbId: string;
+  isReadOnly?: boolean;
 }
 
 // Helper to safely get row identifier - use _id, id, or code as fallback
@@ -52,6 +53,7 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
   engagement,
   etbRows,
   etbId,
+  isReadOnly = false,
 }) => {
   // Debug: Log ETB rows to see their structure
   useEffect(() => {
@@ -827,7 +829,7 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
           <h2 className="text-2xl font-bold">Reclassifications</h2>
           <p className="text-gray-500">Manage audit reclassifications for this engagement</p>
         </div>
-        {!isCreating && !isViewingHistory && (
+        {!isReadOnly && !isCreating && !isViewingHistory && (
           <div className="flex items-center gap-2">
             {reclassifications.length > 0 && (
               <Button
@@ -1163,7 +1165,8 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                       </div>
 
                       {/* Evidence Files Section */}
-                      <div className="mt-3 pt-3 border-t">
+                      {!isReadOnly && 
+                        <div className="mt-3 pt-3 border-t">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Paperclip className="h-4 w-4 text-gray-500" />
@@ -1177,8 +1180,8 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                             variant="ghost"
                             onClick={() => handleOpenEvidenceDialog(adj)}
                           >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Manage
+                            <Eye className="h-3 w-3 mr-1" />
+                            {isReadOnly ? "View Attached Files" : "Manage"}
                           </Button>
                         </div>
                         {adj.evidenceFiles && adj.evidenceFiles.length > 0 && (
@@ -1219,10 +1222,11 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                         {(!adj.evidenceFiles || adj.evidenceFiles.length === 0) && (
                           <p className="text-xs text-gray-400">No evidence files linked</p>
                         )}
-                      </div>
+                      </div>}
                     </div>
 
                     {/* Actions */}
+                    {!isReadOnly && 
                     <div className="flex flex-col gap-2 ml-4">
                       {/* History Button */}
                       <Button
@@ -1234,40 +1238,44 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                         History
                       </Button>
 
-                      {/* TEMPORARY: Allow editing posted reclassifications */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditDraft(adj)}
-                      >
-                        <Edit2 className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      
-                      {adj.status === "draft" && (
-                        <Button
-                          size="sm"
-                          onClick={() => handlePostDraft(adj._id)}
-                          disabled={isPosting}
-                        >
-                          {isPosting ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          ) : (
-                            <Check className="h-3 w-3 mr-1" />
+                      {!isReadOnly && (
+                        <>
+                          {/* TEMPORARY: Allow editing posted reclassifications */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditDraft(adj)}
+                          >
+                            <Edit2 className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                          
+                          {adj.status === "draft" && (
+                            <Button
+                              size="sm"
+                              onClick={() => handlePostDraft(adj._id)}
+                              disabled={isPosting}
+                            >
+                              {isPosting ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Check className="h-3 w-3 mr-1" />
+                              )}
+                              Post
+                            </Button>
                           )}
-                          Post
-                        </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(adj._id)}
+                            title={adj.status === "posted" ? "Delete and reverse ETB impact" : "Delete reclassification"}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            {adj.status === "posted" ? "Delete & Reverse" : "Delete"}
+                          </Button>
+                        </>
                       )}
-                      
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(adj._id)}
-                        title={adj.status === "posted" ? "Delete and reverse ETB impact" : "Delete reclassification"}
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        {adj.status === "posted" ? "Delete & Reverse" : "Delete"}
-                      </Button>
                       
                       {adj.status === "posted" && (
                         <Badge variant="default" className="whitespace-nowrap mt-2">
@@ -1275,7 +1283,7 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                           Posted
                         </Badge>
                       )}
-                    </div>
+                    </div>}
                   </div>
                 </CardContent>
               </Card>
@@ -1300,28 +1308,30 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
 
           <div className="space-y-4">
             {/* Upload Section */}
-            <div>
-              <Label htmlFor="evidence-upload">Upload Evidence File</Label>
-              <Input
-                id="evidence-upload"
-                type="file"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleUploadEvidence(file);
-                    e.target.value = ""; // Reset input
-                  }
-                }}
-                disabled={uploadingEvidence}
-                className="mt-1"
-              />
-              {uploadingEvidence && (
-                <p className="text-xs text-gray-500 mt-1">
-                  <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
-                  Uploading...
-                </p>
-              )}
-            </div>
+            {!isReadOnly && (
+              <div>
+                <Label htmlFor="evidence-upload">Upload Evidence File</Label>
+                <Input
+                  id="evidence-upload"
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleUploadEvidence(file);
+                      e.target.value = ""; // Reset input
+                    }
+                  }}
+                  disabled={uploadingEvidence}
+                  className="mt-1"
+                />
+                {uploadingEvidence && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    <Loader2 className="h-3 w-3 inline animate-spin mr-1" />
+                    Uploading...
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Existing Files */}
             <div>
@@ -1360,14 +1370,16 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleRemoveEvidence(file._id)}
-                          title="Remove file"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        {!isReadOnly && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveEvidence(file._id)}
+                            title="Remove file"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}

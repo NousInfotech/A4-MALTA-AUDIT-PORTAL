@@ -298,6 +298,14 @@ export const ClientEngagements = () => {
                       </span>
                     </div>
                   )}
+
+                  <div className="flex justify-end pt-2">
+                    <Button asChild variant="default" className="rounded-xl">
+                      <Link to={`/client/engagements/${engagement._id}`}>
+                        View Details
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
