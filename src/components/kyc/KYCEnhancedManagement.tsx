@@ -71,6 +71,7 @@ import { format } from "date-fns";
 import { KYCDocumentRequestModal } from "./KYCDocumentRequestModal";
 import { KYCClientDocumentUpload } from "./KYCClientDocumentUpload";
 import { AddDocumentRequestModal } from "./AddDocumentRequestModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface KYCWorkflow {
   _id: string;
@@ -145,6 +146,7 @@ export const KYCEnhancedManagement = ({
   const [showDetails, setShowDetails] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [clientNames, setClientNames] = useState<Record<string, string>>({});
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     documentRequestId?: string;
@@ -156,6 +158,13 @@ export const KYCEnhancedManagement = ({
   useEffect(() => {
     fetchKYCWorkflows();
   }, [engagementId]);
+
+  // Fetch client name when selectedKYC changes
+  useEffect(() => {
+    if (selectedKYC?.clientId && !clientNames[selectedKYC.clientId]) {
+      fetchClientNames([selectedKYC.clientId]);
+    }
+  }, [selectedKYC]);
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -206,6 +215,35 @@ export const KYCEnhancedManagement = ({
     return kyc;
   };
 
+  // Fetch client names for all unique client IDs
+  const fetchClientNames = async (clientIds: string[]) => {
+    const uniqueClientIds = [...new Set(clientIds)].filter(Boolean);
+    if (uniqueClientIds.length === 0) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, name, company_name')
+        .in('user_id', uniqueClientIds);
+
+      if (error) {
+        console.error('Error fetching client names:', error);
+        return;
+      }
+
+      const namesMap: Record<string, string> = {};
+      data?.forEach((profile: any) => {
+        // Prefer company_name, fallback to name
+        const clientName = profile.company_name || profile.name || 'Unknown Client';
+        namesMap[profile.user_id] = clientName;
+      });
+
+      setClientNames(prev => ({ ...prev, ...namesMap }));
+    } catch (error) {
+      console.error('Error fetching client names:', error);
+    }
+  };
+
   const fetchKYCWorkflows = async () => {
     try {
       setLoading(true);
@@ -222,6 +260,12 @@ export const KYCEnhancedManagement = ({
         : [transformKYCData(workflows)];
       
       setKycWorkflows(transformedWorkflows);
+
+      // Fetch client names for all workflows
+      const clientIds = transformedWorkflows
+        .map(w => w.clientId)
+        .filter(Boolean);
+      await fetchClientNames(clientIds);
     } catch (error: any) {
       console.error('Error fetching KYC workflows:', error);
       toast({
@@ -402,6 +446,11 @@ export const KYCEnhancedManagement = ({
       const transformedKYC = transformKYCData(fullKYC);
       setSelectedKYC(transformedKYC);
       setShowDetails(true);
+      
+      // Ensure client name is fetched for this workflow
+      if (transformedKYC.clientId && !clientNames[transformedKYC.clientId]) {
+        await fetchClientNames([transformedKYC.clientId]);
+      }
     } catch (error: any) {
       console.error('Error fetching KYC details:', error);
       toast({
@@ -573,7 +622,7 @@ export const KYCEnhancedManagement = ({
                     <div>
                       <CardTitle className="text-xl text-gray-900">{workflow.engagement?.title || workflow.company?.name || "Untitled Workflow"}</CardTitle>
                       <p className="text-sm text-gray-700">
-                        Client: {workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
+                        Client: {clientNames[workflow.clientId] || workflow.clientId} • Created: {format(new Date(workflow.createdAt), "MMM dd, yyyy")}
                       </p>
                     </div>
                   </div>
@@ -601,9 +650,23 @@ export const KYCEnhancedManagement = ({
                         <Calendar className="h-4 w-4 text-gray-500" />
                         <span>Year End: {workflow.engagement?.yearEndDate ? format(new Date(workflow.engagement.yearEndDate), "MMM dd, yyyy") : "N/A"}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Building2 className="h-4 w-4 text-gray-500" />
-                        <span>Client ID: {workflow.clientId}</span>
+                      <div className="flex items-start gap-2 text-sm text-gray-700">
+                        <Building2 className="h-4 w-4 text-gray-500 mt-0.5" />
+                        <div className="flex flex-col">
+                          {clientNames[workflow.clientId] ? (
+                            <>
+                              <span className="font-medium text-gray-900">{clientNames[workflow.clientId]}</span>
+                              <span className="text-gray-500 text-xs">Client ID: {workflow.clientId}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-gray-500 text-xs">Client ID: {workflow.clientId}</span>
+                              {workflow.clientId && (
+                                <span className="text-gray-400 text-xs italic mt-0.5">Loading name...</span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
