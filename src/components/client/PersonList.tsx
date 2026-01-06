@@ -3091,11 +3091,7 @@ export const PersonList: React.FC<PersonListProps> = ({
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
                           <div
-                            className="flex-1 cursor-pointer"
-                            onClick={() =>
-                              handleNavigateToCompany(entry.companyId)
-                            }
-                          >
+                            className="flex-1">
                             <div className="flex items-center gap-3 mb-3">
                               <Building2 className="h-5 w-5 text-gray-600" />
                               <h4 className="text-lg font-semibold text-gray-900 hover:text-brand-hover transition-colors">
@@ -3149,9 +3145,10 @@ export const PersonList: React.FC<PersonListProps> = ({
                             )}
                           </div>
                           <div className="flex gap-2 items-center">
+                            {!readOnly &&
                             <Button variant="ghost" size="sm" onClick={() => handleNavigateToCompany(entry.companyId, entry.clientId)} className="rounded-xl">
                               <Eye className="h-4 w-4" />
-                            </Button>
+                            </Button>}
                             {!readOnly && (
                               <>
                                 <Button
