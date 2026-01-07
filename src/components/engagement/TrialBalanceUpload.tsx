@@ -46,6 +46,9 @@ const OPTIONAL_COLUMNS = ["Grouping 1", "Grouping 2", "Grouping 3", "Grouping 4"
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
   
+  // Handle hyphen as zero
+  if (value === "-" || String(value).trim() === "-") return 0;
+  
   // If already a number, round and return it
   if (typeof value === "number") return Math.round(value);
   
@@ -55,11 +58,22 @@ const parseAccountingNumber = (value: any): number => {
   // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
   str = str.replace(/[(),\$€£¥]/g, "").trim();
   
+  // If empty after cleaning (e.g., was just a hyphen), return 0
+  if (str === "" || str === "-") return 0;
+  
   // Parse to number
   const num = Number(str);
   
   // Return rounded number (no negative conversion for parentheses)
   return isNaN(num) ? 0 : Math.round(num);
+};
+
+// Format difference for error messages: negative numbers in parentheses, e.g., -2500 → (2,500)
+const formatDifference = (value: number): string => {
+  if (value === 0) return "0";
+  const absValue = Math.abs(value);
+  const formatted = absValue.toLocaleString();
+  return value < 0 ? `(${formatted})` : formatted;
 };
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {
@@ -102,13 +116,13 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
 
     // Validate Current Year tie-out
     if (currentYearTotal !== 0) {
-      const difference = currentYearTotal.toLocaleString()
+      const difference = formatDifference(currentYearTotal)
       errors.push(`Upload failed: Current Year does not tie out. Difference: ${difference}.`)
     }
 
     // Validate Prior Year tie-out
     if (priorYearTotal !== 0) {
-      const difference = priorYearTotal.toLocaleString()
+      const difference = formatDifference(priorYearTotal)
       errors.push(`Upload failed: Prior Year does not tie out. Difference: ${difference}.`)
     }
 
@@ -157,11 +171,18 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         const priorYear = row[priorYearIndex]
         
         // Try to parse accounting format - if result is NaN, it's invalid
-        if (currentYear && currentYear !== "" && isNaN(parseAccountingNumber(currentYear))) {
-          errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
+        // Allow hyphens, empty strings, null, undefined (they will be treated as 0)
+        if (currentYear != null && currentYear !== "" && currentYear !== "-") {
+          const parsed = parseAccountingNumber(currentYear)
+          if (isNaN(parsed)) {
+            errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
+          }
         }
-        if (priorYear && priorYear !== "" && isNaN(parseAccountingNumber(priorYear))) {
-          errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
+        if (priorYear != null && priorYear !== "" && priorYear !== "-") {
+          const parsed = parseAccountingNumber(priorYear)
+          if (isNaN(parsed)) {
+            errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
+          }
         }
       })
     }

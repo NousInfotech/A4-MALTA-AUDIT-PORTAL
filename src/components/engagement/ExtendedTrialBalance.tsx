@@ -1114,6 +1114,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     });
   }, [refreshClassificationSummary, etbRows.length]);
 
+  // Format difference for error messages: negative numbers in parentheses, e.g., -2500 → (2,500)
+  const formatDifference = useCallback((value: number): string => {
+    if (value === 0) return "0";
+    const absValue = Math.abs(value);
+    const formatted = absValue.toLocaleString();
+    return value < 0 ? `(${formatted})` : formatted;
+  }, []);
+
   // Validate tie-out: Calculate totals for Current Year and Prior Year columns
   // Both columns must independently net to zero
   const validateTieOut = useCallback((rows: ETBRow[]): { isValid: boolean; errors: string[] } => {
@@ -1143,13 +1151,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
     // Validate Current Year tie-out
     if (currentYearTotal !== 0) {
-      const difference = currentYearTotal.toLocaleString()
+      const difference = formatDifference(currentYearTotal)
       errors.push(`Cannot save changes: Current Year is out of balance by ${difference}.`)
     }
 
     // Validate Prior Year tie-out
     if (priorYearTotal !== 0) {
-      const difference = priorYearTotal.toLocaleString()
+      const difference = formatDifference(priorYearTotal)
       errors.push(`Cannot save changes: Prior Year is out of balance by ${difference}.`)
     }
 
@@ -1159,7 +1167,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     }
 
     return { isValid: errors.length === 0, errors }
-  }, [])
+  }, [formatDifference])
 
   // Get tie-out status for display (memoized to avoid recalculation on every render)
   const tieOutStatus = useMemo(() => {
