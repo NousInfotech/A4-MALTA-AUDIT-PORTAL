@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCheck, UserX, Loader2, Trash2, Users, RefreshCw, ArrowLeft, Shield, Plus, Briefcase } from "lucide-react";
+import { Search, UserCheck, UserX, Loader2, Trash2, Users, RefreshCw, ArrowLeft, Shield, Plus, Briefcase, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Link } from "react-router-dom";
@@ -445,13 +445,23 @@ export const UserManagement = () => {
             <h1 className="text-3xl font-semibold text-brand-body mb-2">User Management</h1>
             <p className="text-brand-body">Manage user registrations, approvals, and account status</p>
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto">
-                <Plus className="h-5 w-5 mr-2" />
-                Create Employee
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-3">
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto"
+              asChild
+            >
+              <Link to="/admin/clients/new">
+                <Building2 className="h-5 w-5 mr-2" />
+                Create Client
+              </Link>
+            </Button>
+            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg hover:shadow-xl px-6 py-3 h-auto">
+                  <Plus className="h-5 w-5 mr-2" />
+                  Create Employee
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Employee</DialogTitle>
@@ -517,6 +527,7 @@ export const UserManagement = () => {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Action Buttons */}

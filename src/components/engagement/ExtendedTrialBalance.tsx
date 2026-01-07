@@ -1114,9 +1114,82 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     });
   }, [refreshClassificationSummary, etbRows.length]);
 
+  // Format difference for error messages: negative numbers in parentheses, e.g., -2500 → (2,500)
+  const formatDifference = useCallback((value: number): string => {
+    if (value === 0) return "0";
+    const absValue = Math.abs(value);
+    const formatted = absValue.toLocaleString();
+    return value < 0 ? `(${formatted})` : formatted;
+  }, []);
+
+  // Validate tie-out: Calculate totals for Current Year and Prior Year columns
+  // Both columns must independently net to zero
+  const validateTieOut = useCallback((rows: ETBRow[]): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = []
+    
+    let currentYearTotal = 0
+    let priorYearTotal = 0
+
+    // Calculate totals for both columns (exclude rows with code starting with "TOTALS")
+    rows.forEach((row) => {
+      const code = (row.code || "").toString().trim().toUpperCase()
+      // Skip total rows
+      if (code.startsWith("TOTALS")) {
+        return
+      }
+      
+      const currentYearValue = Math.round(Number(row.currentYear) || 0)
+      const priorYearValue = Math.round(Number(row.priorYear) || 0)
+      
+      currentYearTotal += currentYearValue
+      priorYearTotal += priorYearValue
+    })
+
+    // Round totals to handle floating point precision issues
+    currentYearTotal = Math.round(currentYearTotal)
+    priorYearTotal = Math.round(priorYearTotal)
+
+    // Validate Current Year tie-out
+    if (currentYearTotal !== 0) {
+      const difference = formatDifference(currentYearTotal)
+      errors.push(`Cannot save changes: Current Year is out of balance by ${difference}.`)
+    }
+
+    // Validate Prior Year tie-out
+    if (priorYearTotal !== 0) {
+      const difference = formatDifference(priorYearTotal)
+      errors.push(`Cannot save changes: Prior Year is out of balance by ${difference}.`)
+    }
+
+    // If both columns are out of balance, add a combined message
+    if (currentYearTotal !== 0 && priorYearTotal !== 0) {
+      errors.push("Please add offsetting entries or adjust existing rows to ensure both Current Year and Prior Year tie out.")
+    }
+
+    return { isValid: errors.length === 0, errors }
+  }, [formatDifference])
+
+  // Get tie-out status for display (memoized to avoid recalculation on every render)
+  const tieOutStatus = useMemo(() => {
+    return validateTieOut(etbRows)
+  }, [etbRows, validateTieOut])
+
   // Save ETB (optionally mute toast, optionally pass custom rows)
   const saveETB = useCallback(async (showToast = true, customRows?: ETBRow[], skipLoadExistingData = false) => {
     const rowsToSave = customRows || etbRows;
+
+    // Validate tie-out before saving
+    const tieOutValidation = validateTieOut(rowsToSave)
+    if (!tieOutValidation.isValid) {
+      if (showToast) {
+        toast({
+          title: "Save blocked: Trial Balance out of balance",
+          description: tieOutValidation.errors.join(" "),
+          variant: "destructive",
+        })
+      }
+      return // Block save
+    }
 
     // Round all financial values before saving to backend
     const roundedRows = roundETBRowsFinancialValues(rowsToSave);
@@ -1171,7 +1244,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         }
       }
     }
-  }, [etbRows, isPushingToCloud, refreshClassificationSummary, engId, toast, loadExistingData]);
+  }, [etbRows, isPushingToCloud, refreshClassificationSummary, engagement._id, toast, loadExistingData, validateTieOut]);
 
   // Actually delete the row after all checks
   const proceedWithRowDeletion = useCallback((id: string) => {
@@ -1961,31 +2034,39 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                   </>
                 )}
 
-                <Button
-                  variant="outline"
-                  onClick={() => saveETB(true)}
-                  disabled={saving}
-                  size="sm"
-                  className="text-xs sm:text-sm"
-                >
-                  {saving ? (
-                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  )}
-                  Save ETB
-                </Button>
-                <Button
-                  onClick={addNewRow}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs sm:text-sm bg-transparent"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  Add Row
-                </Button>
-              </div>
-            )}
+              {!tieOutStatus.isValid && (
+                <Alert variant="destructive" className="py-2 px-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {tieOutStatus.errors[0]}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => saveETB(true)}
+                disabled={saving || !tieOutStatus.isValid}
+                size="sm"
+                className="text-xs sm:text-sm"
+                title={!tieOutStatus.isValid ? "Trial Balance must tie out before saving" : ""}
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                )}
+                Save ETB
+              </Button>
+              <Button
+                onClick={addNewRow}
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm bg-transparent"
+              >
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Add Row
+              </Button>
+            </div>)}
           </div>
         </CardHeader>
 
@@ -2337,32 +2418,39 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 );
               })}
             </div>
-            {!isReadOnly && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={addNewRow}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs sm:text-sm bg-transparent"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  Add Row
-                </Button>
-                <Button
-                  onClick={() => saveETB(true)}
-                  disabled={saving}
-                  size="sm"
-                  className="text-xs sm:text-sm"
-                >
-                  {saving ? (
-                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  )}
-                  Save
-                </Button>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={addNewRow}
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm bg-transparent"
+              >
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                Add Row
+              </Button>
+              {!tieOutStatus.isValid && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {tieOutStatus.errors[0]}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Button
+                onClick={() => saveETB(true)}
+                disabled={saving || !tieOutStatus.isValid}
+                size="sm"
+                className="text-xs sm:text-sm"
+                title={!tieOutStatus.isValid ? "Trial Balance must tie out before saving" : ""}
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                )}
+                Save
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

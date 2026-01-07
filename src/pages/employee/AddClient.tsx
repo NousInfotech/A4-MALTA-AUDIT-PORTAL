@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -125,9 +125,13 @@ export const AddClient = () => {
   const { signup, isLoading, user } = useAuth();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { logCreateClient } = useActivityLogger();
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Check if accessed from admin route
+  const isAdminRoute = location.pathname.startsWith('/admin');
   
   // Company number validation state
   const [isCheckingCompanyNumber, setIsCheckingCompanyNumber] = useState(false);
@@ -496,7 +500,7 @@ export const AddClient = () => {
         title: "Client created",
         description: "The client account is pending admin approval.",
       });
-      navigate("/employee/clients");
+      navigate(isAdminRoute ? "/admin/users" : "/employee/clients");
     } catch (err) {
       console.error("Error creating client:", err);
       setError(err.message || "Failed to create client. Please try again.");
