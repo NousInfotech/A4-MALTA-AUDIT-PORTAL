@@ -143,6 +143,13 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
     return { totalDr, totalCr, balance };
   }, [entries]);
 
+  // Sort adjustments in ascending order (AA1, AA2, AA3...)
+  const sortedAdjustments = useMemo(() => {
+    return [...adjustments].sort((a, b) => 
+      a.adjustmentNo.localeCompare(b.adjustmentNo, undefined, { numeric: true })
+    );
+  }, [adjustments]);
+
   // Check if adjustment is balanced
   const isBalanced = totals.balance === 0 && entries.length > 0;
 
@@ -1106,7 +1113,7 @@ export const AdjustmentManager: React.FC<AdjustmentManagerProps> = ({
           </Card>
         ) : (
           <div className="space-y-3">
-            {adjustments.map((adj) => (
+            {sortedAdjustments.map((adj) => (
               <Card key={adj._id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">

@@ -143,6 +143,12 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
     return { totalDr, totalCr, balance };
   }, [entries]);
 
+  const sortedReclassifications = useMemo(() => {
+    return [...reclassifications].sort((a, b) => 
+      a.reclassificationNo.localeCompare(b.reclassificationNo, undefined, { numeric: true })
+    );
+  }, [reclassifications]);
+
   // Check if reclassification is balanced
   const isBalanced = totals.balance === 0 && entries.length > 0;
 
@@ -1106,7 +1112,7 @@ export const ReclassificationManager: React.FC<ReclassificationManagerProps> = (
           </Card>
         ) : (
           <div className="space-y-3">
-            {reclassifications.map((adj) => (
+            {sortedReclassifications.map((adj) => (
               <Card key={adj._id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
