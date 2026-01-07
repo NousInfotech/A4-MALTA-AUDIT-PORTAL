@@ -267,15 +267,16 @@ function SearchableSelect({
 
 interface DocumentRequestsTabProps {
   requests: any[];
-  documentRequest: {
+  documentRequest?: {
     category: string;
     description: string;
     comment?: string;
     attachment?: File;
   };
-  setDocumentRequest: (request: any) => void;
-  handleSendDocumentRequest: () => void;
+  setDocumentRequest?: (request: any) => void;
+  handleSendDocumentRequest?: () => void;
   engagement?: any;
+  isReadOnly?: boolean;
 }
 
 export const DocumentRequestsTab = ({
@@ -284,6 +285,7 @@ export const DocumentRequestsTab = ({
   setDocumentRequest,
   handleSendDocumentRequest,
   engagement,
+  isReadOnly = false,
 }: DocumentRequestsTabProps) => {
   const { id: engagementId } = useParams<{ id: string }>();
   const [documentRequests, setDocumentRequests] = useState<any[]>([]);
@@ -1071,9 +1073,9 @@ export const DocumentRequestsTab = ({
   };
 
   const canSend =
-    (documentRequest.category?.trim()?.length || 0) > 0 &&
-    (documentRequest.description?.trim()?.length || 0) > 0;
-  const descLen = documentRequest.description?.length || 0;
+    (documentRequest?.category?.trim()?.length || 0) > 0 &&
+    (documentRequest?.description?.trim()?.length || 0) > 0;
+  const descLen = documentRequest?.description?.length || 0;
   const DESC_MAX = 800;
 
   const handleKYCComplete = (kycData: any) => {
@@ -1142,7 +1144,7 @@ export const DocumentRequestsTab = ({
   };
 
   const handleCreateDocumentRequest = async () => {
-    if (!documentRequest.category || !documentRequest.description) {
+    if (!documentRequest?.category || !documentRequest?.description) {
       toast({
         title: "Error",
         description: "Category and description are required",
@@ -1238,9 +1240,9 @@ export const DocumentRequestsTab = ({
       const documentRequestData = {
         engagementId: engagementId!,
         clientId: engagement?.clientId || '',
-        category: documentRequest.category,
-        description: documentRequest.description,
-        comment: documentRequest.comment || '',
+        category: documentRequest?.category,
+        description: documentRequest?.description,
+        comment: documentRequest?.comment || '',
         notificationEmails: notificationEmailsArray.length > 0 ? notificationEmailsArray : undefined,
         documents: processedDocuments.map((doc: any) => {
           const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
@@ -1275,7 +1277,7 @@ export const DocumentRequestsTab = ({
       });
       setCurrentTemplateFile(null);
       setNotificationEmails('');
-      setDocumentRequest({ category: '', description: '', comment: '' });
+      setDocumentRequest?.({ category: '', description: '', comment: '' });
       setAddRequestModalOpen(false);
       
       await fetchDocumentRequests();
@@ -1375,14 +1377,16 @@ export const DocumentRequestsTab = ({
                       </Button>
                     );
                   })()}
-                  <Button
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                    onClick={() => setAddRequestModalOpen(true)}
-                    disabled={areActionsDisabled}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Document Request
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                      onClick={() => setAddRequestModalOpen(true)}
+                      disabled={areActionsDisabled}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Document Request
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -1444,23 +1448,25 @@ export const DocumentRequestsTab = ({
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteDialog({
-                                    open: true,
-                                    type: 'request',
-                                    documentRequestId: request._id,
-                                    documentName: request.category || 'this document request'
-                                  });
-                              }}
-                              disabled={areActionsDisabled}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!isReadOnly && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteDialog({
+                                      open: true,
+                                      type: 'request',
+                                      documentRequestId: request._id,
+                                      documentName: request.category || 'this document request'
+                                    });
+                                }}
+                                disabled={areActionsDisabled}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                             <div className="h-8 w-8 flex items-center justify-center">
                                 <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${expandedRows.has(request._id) ? 'rotate-90' : ''}`} />
                             </div>
@@ -1487,6 +1493,7 @@ export const DocumentRequestsTab = ({
                           onClearMultipleGroup={handleClearMultipleGroup}
                           onDownloadMultipleGroup={handleDownloadMultipleGroup}
                           isDisabled={areActionsDisabled}
+                          isClientView={isReadOnly}
                         />
                       </CardContent>
                     )}
@@ -1503,15 +1510,17 @@ export const DocumentRequestsTab = ({
                 <p className="text-gray-500 text-sm">
                   No document requests sent yet
                 </p>
-                <div className="mt-6">
-                  <Button
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                    onClick={() => setAddRequestModalOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Document Request
-                  </Button>
-                </div>
+                {!isReadOnly && (
+                  <div className="mt-6">
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                      onClick={() => setAddRequestModalOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Document Request
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1548,9 +1557,9 @@ export const DocumentRequestsTab = ({
                   <div>
                     <Label htmlFor="modalCategory">Category *</Label>
                     <Select
-                      value={documentRequest.category}
-                      onValueChange={(value) =>
-                        setDocumentRequest((prev: any) => ({
+                      value={documentRequest?.category}
+                       onValueChange={(value) =>
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           category: value,
                         }))
@@ -1572,9 +1581,9 @@ export const DocumentRequestsTab = ({
                     <Label htmlFor="modalDescription">Description *</Label>
                     <Textarea
                       id="modalDescription"
-                      value={documentRequest.description}
+                      value={documentRequest?.description}
                       onChange={(e) =>
-                        setDocumentRequest((prev: any) => ({
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           description: e.target.value.slice(0, DESC_MAX),
                         }))
@@ -1587,9 +1596,9 @@ export const DocumentRequestsTab = ({
                     <Label htmlFor="modalComment">Additional Comments (Optional)</Label>
                     <Textarea
                       id="modalComment"
-                      value={documentRequest.comment || ""}
+                      value={documentRequest?.comment || ""}
                       onChange={(e) =>
-                        setDocumentRequest((prev: any) => ({
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           comment: e.target.value,
                         }))
@@ -1983,7 +1992,7 @@ export const DocumentRequestsTab = ({
               </Button>
               <Button
                 onClick={handleCreateDocumentRequest}
-                disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || !documentRequest.category || !documentRequest.description}
+                disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || !documentRequest?.category || !documentRequest?.description}
                 className="bg-blue-600 hover:bg-blue-700 text-white hover:text-white"
               >
                 {loading ? (

@@ -38,6 +38,7 @@ interface IncomeStatementSectionProps {
   etbRows: ETBRow[];
   financialYearStart?: string;
   financialYearEnd?: string;
+  isReadOnly?: boolean;
 }
 
 interface GroupedRows {
@@ -84,6 +85,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   etbRows,
   financialYearStart,
   financialYearEnd,
+  isReadOnly = false,
 }) => {
   const [isCalculating, setIsCalculating] = useState(true);
   const [groupedData, setGroupedData] = useState<GroupedRows>({});

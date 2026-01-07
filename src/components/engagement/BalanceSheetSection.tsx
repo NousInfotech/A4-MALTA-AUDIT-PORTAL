@@ -46,6 +46,7 @@ interface BalanceSheetSectionProps {
   etbRows: ETBRow[];
   financialYearStart?: string;
   financialYearEnd?: string;
+  isReadOnly?: boolean;
 }
 
 interface GroupedRows {
@@ -65,6 +66,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
   etbRows,
   financialYearStart,
   financialYearEnd,
+  isReadOnly = false,
 }) => {
   const [isCalculating, setIsCalculating] = useState(true);
   const [groupedData, setGroupedData] = useState<GroupedRows>({});

@@ -77,6 +77,8 @@ import { ClientSettingsPage } from "./pages/settings/ClientSettingsPage";
 import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
 import { DocumentRequestsEngagement } from "./pages/client/DocumentRequestsEngagement";
 import { DocumentKYCNew } from "./pages/client/DocumentKYCNew";
+import { ClientEngagementDetails } from "@/pages/client/engagement-details/ClientEngagementDetails";
+// No separate import for ClientPbcDocumentsModal needed here if not used as a route element
 
 
 
@@ -194,8 +196,9 @@ const App = () => (
                         <Route path="companies" element={<ClientCompanies />} />
                         <Route path="companies/:companyId" element={<ClientCompanyDetail />} />
                         <Route path="accounts" element={<RoleBasedAccountDataTab />} />
-                        <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-                        <Route path="settings" element={<ClientSettingsPage />} />
+                         <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                         <Route path="settings" element={<ClientSettingsPage />} />
+                         <Route path="engagements/:id" element={<ClientEngagementDetails />} />
 
                       </Route>
 
