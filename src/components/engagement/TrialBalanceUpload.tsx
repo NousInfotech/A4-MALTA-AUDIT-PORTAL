@@ -71,6 +71,55 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
   const { refetch } = useSidebarStats(); // shared instance
   const { toast } = useToast()
 
+  // Validate tie-out: Calculate totals for Current Year and Prior Year columns
+  // Both columns must independently net to zero
+  const validateTieOut = (data: any[], normalizedHeaders: string[]): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = []
+    const currentYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "current year")
+    const priorYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "prior year")
+
+    if (currentYearIndex === -1 || priorYearIndex === -1) {
+      // If columns are missing, skip tie-out validation (will be caught by column validation)
+      return { isValid: true, errors: [] }
+    }
+
+    const dataRows = data.slice(1)
+    let currentYearTotal = 0
+    let priorYearTotal = 0
+
+    // Calculate totals for both columns
+    dataRows.forEach((row: any[]) => {
+      const currentYearValue = parseAccountingNumber(row[currentYearIndex])
+      const priorYearValue = parseAccountingNumber(row[priorYearIndex])
+      
+      currentYearTotal += currentYearValue
+      priorYearTotal += priorYearValue
+    })
+
+    // Round totals to handle floating point precision issues
+    currentYearTotal = Math.round(currentYearTotal)
+    priorYearTotal = Math.round(priorYearTotal)
+
+    // Validate Current Year tie-out
+    if (currentYearTotal !== 0) {
+      const difference = currentYearTotal.toLocaleString()
+      errors.push(`Upload failed: Current Year does not tie out. Difference: ${difference}.`)
+    }
+
+    // Validate Prior Year tie-out
+    if (priorYearTotal !== 0) {
+      const difference = priorYearTotal.toLocaleString()
+      errors.push(`Upload failed: Prior Year does not tie out. Difference: ${difference}.`)
+    }
+
+    // If both columns are out of balance, add a combined message
+    if (currentYearTotal !== 0 && priorYearTotal !== 0) {
+      errors.push("Upload failed: Current Year and Prior Year must both tie out before submission.")
+    }
+
+    return { isValid: errors.length === 0, errors }
+  }
+
   const validateTrialBalance = (data: any[]): ValidationResult => {
     const errors: string[] = []
 
@@ -115,6 +164,12 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
           errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
         }
       })
+    }
+
+    // If there are no data format errors, validate tie-out
+    if (errors.length === 0) {
+      const tieOutValidation = validateTieOut(data, normalizedHeaders)
+      errors.push(...tieOutValidation.errors)
     }
 
     return { isValid: errors.length === 0, errors, data: errors.length === 0 ? data : undefined }
@@ -212,6 +267,18 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       if (filteredData.length <= 1) {
         // Only headers or no data rows after filtering
         throw new Error("No valid data rows found (all rows have Code, Account Name, and Current Year empty/zero)")
+      }
+
+      // Re-validate tie-out after filtering (filtering might affect totals)
+      const headers = filteredData[0]
+      const normalizedHeaders = headers.map((h: any) => {
+        if (h == null) return ""
+        return String(h).trim()
+      })
+      const tieOutValidation = validateTieOut(filteredData, normalizedHeaders)
+      if (!tieOutValidation.isValid) {
+        setValidationErrors(tieOutValidation.errors)
+        return
       }
 
       // delete existing TB (if your API supports it)
