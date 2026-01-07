@@ -71,6 +71,13 @@ const navItems: NavItem[] = [
     description: 'Monitor Auditor Activities'
   },
   { 
+    title: 'Engagement Management', 
+    href: '/admin/engagements', 
+    icon: Briefcase, 
+    roles: ['admin'],
+    description: 'Manage Engagements'
+  },
+  { 
     title: 'ISQM', 
     href: '/admin/isqm', 
     icon: FileText, 
