@@ -3015,12 +3015,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                                     Share Percentage: {sharePercentage}%
                                   </Badge>
 
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
-                                  >
-                                    Paid Up: {entry.paidUpSharesPercentage}%
-                                  </Badge>
+                                  {entry.paidUpSharesPercentage && entry.paidUpSharesPercentage > 0 ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                    >
+                                      Paid Up: {entry.paidUpSharesPercentage}%
+                                    </Badge>
+                                  ) : null}
                                   </div>
                                 </div>
                               </div>
@@ -3128,12 +3130,14 @@ export const PersonList: React.FC<PersonListProps> = ({
                                 >
                                   Share Percentage: {sharePercentage}%
                                 </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
-                                >
-                                  Paid Up: {entry.paidUpSharesPercentage}%
-                                </Badge>
+                                {entry.paidUpSharesPercentage && entry.paidUpSharesPercentage > 0 ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-purple-100 text-purple-700 border-purple-200 rounded-lg px-3 py-1 text-sm font-semibold"
+                                  >
+                                    Paid Up: {entry.paidUpSharesPercentage}%
+                                  </Badge>
+                                ) : null}
                                 </div>
                               </div>
                             </div>
