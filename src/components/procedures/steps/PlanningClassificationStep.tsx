@@ -214,10 +214,12 @@ export const PlanningClassificationStep: React.FC<PlanningClassificationStepProp
         <CardHeader>
           <CardTitle className="font-heading text-xl text-foreground flex items-center gap-2">
             <Filter className="h-5 w-5 text-primary" />
-            Account Selection
+            Account Selection & Classifications
           </CardTitle>
           <p className="text-muted-foreground font-body">
             Review and adjust the accounts selected based on your materiality threshold of{" "}
+            <strong>{formatCurrency(stepData.materiality)}</strong>. Then confirm the classifications for procedure
+            generation.
           </p>
         </CardHeader>
         <CardContent>
@@ -243,6 +245,10 @@ export const PlanningClassificationStep: React.FC<PlanningClassificationStepProp
             <div className="flex items-center gap-3">
               <div className="p-2 bg-secondary/10 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-secondary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground font-body">Classifications</p>
+                <p className="text-xl font-body-semibold text-foreground">{selectedClassifications.length}</p>
               </div>
             </div>
           </div>

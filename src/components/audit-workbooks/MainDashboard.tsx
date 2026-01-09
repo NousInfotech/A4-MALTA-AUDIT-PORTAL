@@ -65,6 +65,7 @@ interface MainDashboardProps {
   classification: string;
   rowType?: 'etb' | 'working-paper' | 'evidence'; // Type of rows being worked with
   parentEtbData?: ETBData | null; // ✅ CRITICAL: Receive data from parent instead of fetching
+  deletingWorkbookId?: string | null; // ✅ NEW: Track which workbook is being deleted
 }
 
 export const MainDashboard: React.FC<MainDashboardProps> = ({
@@ -79,6 +80,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   classification,
   rowType = 'etb', // Default to ETB for backward compatibility
   parentEtbData = null, // ✅ CRITICAL: Receive parent data
+  deletingWorkbookId = null, // ✅ NEW: Track which workbook is being deleted
 }) => {
   const { toast } = useToast();
   const [etbData, setEtbData] = useState<ETBData | null>(parentEtbData); // ✅ Initialize with parent data
@@ -811,10 +813,20 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                           e.stopPropagation();
                           onDeleteWorkbook(wb.id, wb.name);
                         }}
-                        className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={deletingWorkbookId === wb.id}
+                        className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                        {deletingWorkbookId === wb.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>

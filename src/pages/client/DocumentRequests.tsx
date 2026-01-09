@@ -914,20 +914,12 @@ export const DocumentRequests = () => {
 
         {/* <h1 className="text-lg text-red-500 text-center underline">Under Development</h1> */}
         {/* KYC Component */}
-        {clientEngagements.length > 0 ? (
-           <EngagementKYC 
-             companyId={clientEngagements[0].companyId} 
-             clientId={user?.id}
-             showStatusManagement={false}
-             deleteRequest={false}
-           />
-        ) : (
-           <div className="flex justify-center p-12">
-             <div className="text-center">
-               <p className="text-gray-500">No active engagement found.</p>
-             </div>
-           </div>
-        )}
+        <EngagementKYC 
+          companyId={clientEngagements.length > 0 ? clientEngagements[0].companyId : user?.organizationId} 
+          clientId={user?.id}
+          showStatusManagement={false}
+          deleteRequest={false}
+        />
           
       </div>
     </div>

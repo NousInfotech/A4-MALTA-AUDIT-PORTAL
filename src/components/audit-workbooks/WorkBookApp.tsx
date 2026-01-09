@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"; // Add useCallback
+import React, { useState, useEffect, useCallback, useRef } from "react"; // Add useCallback and useRef
 import { MainDashboard } from "@/components/audit-workbooks/MainDashboard";
 import { AuditLog } from "@/components/audit-workbooks/AuditLog";
 import { UploadModal } from "@/components/audit-workbooks/UploadModal";
@@ -273,6 +273,8 @@ export default function WorkBookApp({
   const [viewerSelectedSheet, setViewerSelectedSheet] = useState<
     string | undefined
   >(undefined);
+  // ✅ NEW: Ref to store initial sheet immediately (synchronously available)
+  const initialSheetRef = useRef<string | undefined>(undefined);
 
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(
     null
@@ -298,6 +300,7 @@ export default function WorkBookApp({
   const [etbData, setEtbData] = useState<ETBData | null>(null);
   const [etbLoading, setEtbLoading] = useState(false);
   const [etbError, setEtbError] = useState<string | null>(null);
+  const [deletingWorkbookId, setDeletingWorkbookId] = useState<string | null>(null); // ✅ NEW: Track which workbook is being deleted
 
   const { toast } = useToast();
 
@@ -1123,7 +1126,7 @@ export default function WorkBookApp({
     }
   };
 
-  const handleSelectWorkbook = async (workbook: Workbook) => {
+  const handleSelectWorkbook = async (workbook: any) => {
     setIsLoadingWorkbookData(true);
     try {
       toast({
@@ -1191,6 +1194,7 @@ export default function WorkBookApp({
       }
 
       // ✅ CRITICAL: Normalize referenceFiles structure from backend
+      // ✅ FIX: Always use referenceFiles from the fetched workbook, not from the old workbook object
       let normalizedReferenceFiles: any[] = [];
       if (fullWorkbookFromDB.referenceFiles && Array.isArray(fullWorkbookFromDB.referenceFiles)) {
         normalizedReferenceFiles = fullWorkbookFromDB.referenceFiles.map((ref: any) => {
@@ -1210,12 +1214,27 @@ export default function WorkBookApp({
         }).filter((ref: any) => ref !== null && ref.details && ref.details.sheet);
       }
 
+      // ✅ CRITICAL FIX: Build updated workbook from backend data, not from the old workbook object
+      // This ensures referenceFiles, mappings, and other data are properly isolated per workbook
       const updatedWorkbook = {
-        ...workbook,
+        id: fullWorkbookFromDB._id || fullWorkbookFromDB.id || workbook.id,
+        _id: fullWorkbookFromDB._id || workbook.id,
+        name: fullWorkbookFromDB.name || workbook.name,
+        cloudFileId: fullWorkbookFromDB.cloudFileId || workbook.cloudFileId,
+        webUrl: fullWorkbookFromDB.webUrl || workbook.webUrl,
+        engagementId: fullWorkbookFromDB.engagementId || workbook.engagementId,
+        classification: fullWorkbookFromDB.classification || workbook.classification,
+        category: fullWorkbookFromDB.category || workbook.category,
+        uploadedBy: fullWorkbookFromDB.uploadedBy || workbook.uploadedBy,
+        uploadedDate: fullWorkbookFromDB.uploadedDate || workbook.uploadedDate,
+        lastModifiedBy: fullWorkbookFromDB.lastModifiedBy || workbook.lastModifiedBy,
+        lastModifiedDate: fullWorkbookFromDB.lastModifiedDate || workbook.lastModifiedDate,
         fileData: fetchedFileData,
         namedRanges: fullWorkbookFromDB.namedRanges || [],
         mappings: fetchedMappings, // ✅ Use fetched mappings from correct model
-        referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Include referenceFiles from backend
+        referenceFiles: normalizedReferenceFiles, // ✅ CRITICAL: Use ONLY referenceFiles from backend for this workbook
+        sheets: fullWorkbookFromDB.sheets || workbook.sheets || [],
+        version: fullWorkbookFromDB.version || workbook.version,
       };
 
       setWorkbooks((prev) =>
@@ -1224,34 +1243,89 @@ export default function WorkBookApp({
 
       setSelectedWorkbook(updatedWorkbook);
 
+      // ✅ CRITICAL: Reset initial sheet ref when workbook changes
+      initialSheetRef.current = undefined;
+
       // ✅ NEW: Load user's last selected sheet preference
+      // This MUST happen before setting the view to ensure ExcelViewer receives the correct initialSheet prop
       let sheetToSelect: string | undefined = undefined;
       if (sheetNamesToProcess.length > 0) {
         try {
-          const preferenceResponse = await db_WorkbookApi.getUserWorkbookPreference(workbook.id);
-          if (preferenceResponse.success && preferenceResponse.data?.lastSelectedSheet) {
-            const savedSheet = preferenceResponse.data.lastSelectedSheet;
-            // Verify the saved sheet still exists in the workbook
-            if (sheetNamesToProcess.includes(savedSheet)) {
-              sheetToSelect = savedSheet;
-              console.log(`WorkBookApp: Restored last selected sheet: ${savedSheet}`);
+          // ✅ CRITICAL: Use the normalized workbook ID from updatedWorkbook (which uses _id from backend)
+          const workbookIdToUse = updatedWorkbook.id || updatedWorkbook._id || workbook.id;
+          console.log(`WorkBookApp: 🔍 Fetching user preference for workbook`, {
+            workbookIdToUse: workbookIdToUse,
+            updatedWorkbookId: updatedWorkbook.id,
+            updatedWorkbook_id: updatedWorkbook._id,
+            originalWorkbookId: workbook.id,
+            workbookIdType: typeof workbookIdToUse
+          });
+          console.log(`WorkBookApp: Available sheets:`, sheetNamesToProcess);
+          
+          const preferenceResponse = await db_WorkbookApi.getUserWorkbookPreference(workbookIdToUse);
+          
+          console.log(`WorkBookApp: 📥 Raw preference response:`, JSON.stringify(preferenceResponse, null, 2));
+          console.log(`WorkBookApp: Preference response details:`, {
+            success: preferenceResponse?.success,
+            hasData: !!preferenceResponse?.data,
+            dataType: typeof preferenceResponse?.data,
+            lastSelectedSheet: preferenceResponse?.data?.lastSelectedSheet,
+            lastSelectedSheetType: typeof preferenceResponse?.data?.lastSelectedSheet,
+            fullData: preferenceResponse?.data
+          });
+          
+          // Check if response is successful and has valid data
+          if (preferenceResponse && preferenceResponse.success) {
+            const lastSelectedSheet = preferenceResponse.data?.lastSelectedSheet;
+            
+            // Check if lastSelectedSheet exists and is not null/undefined/empty
+            if (lastSelectedSheet && typeof lastSelectedSheet === 'string' && lastSelectedSheet.trim() !== '') {
+              // Verify the saved sheet still exists in the workbook
+              if (sheetNamesToProcess.includes(lastSelectedSheet)) {
+                sheetToSelect = lastSelectedSheet;
+                console.log(`WorkBookApp: ✅ Restored last selected sheet: "${lastSelectedSheet}"`);
+              } else {
+                console.log(`WorkBookApp: ⚠️ Saved sheet "${lastSelectedSheet}" no longer exists in workbook. Available:`, sheetNamesToProcess);
+                console.log(`WorkBookApp: ⚠️ Using first sheet instead: "${sheetNamesToProcess[0]}"`);
+              }
             } else {
-              console.log(`WorkBookApp: Saved sheet "${savedSheet}" no longer exists, using first sheet`);
+              console.log(`WorkBookApp: ℹ️ Preference response has no valid lastSelectedSheet:`, {
+                lastSelectedSheet: lastSelectedSheet,
+                isNull: lastSelectedSheet === null,
+                isUndefined: lastSelectedSheet === undefined,
+                isEmpty: lastSelectedSheet === '',
+                type: typeof lastSelectedSheet
+              });
             }
+          } else {
+            console.log(`WorkBookApp: ℹ️ Preference response not successful or missing:`, {
+              success: preferenceResponse?.success,
+              hasData: !!preferenceResponse?.data
+            });
           }
         } catch (prefError) {
-          console.warn('WorkBookApp: Failed to load sheet preference, using default:', prefError);
+          console.error('WorkBookApp: ❌ Error loading sheet preference:', prefError);
+          console.error('WorkBookApp: Error details:', {
+            message: prefError instanceof Error ? prefError.message : String(prefError),
+            stack: prefError instanceof Error ? prefError.stack : undefined
+          });
         }
         
         // Fallback to first sheet if no preference or preference invalid
         if (!sheetToSelect) {
           sheetToSelect = sheetNamesToProcess[0];
+          console.log(`WorkBookApp: Using first sheet as default: "${sheetToSelect}"`);
         }
       } else {
         sheetToSelect = "Sheet1";
+        console.log(`WorkBookApp: No sheets found, using default: "${sheetToSelect}"`);
       }
 
-      setViewerSelectedSheet(sheetToSelect);
+      // ✅ CRITICAL: Set the selected sheet BEFORE navigating to viewer
+      // Store in ref for immediate synchronous access, and also in state
+      initialSheetRef.current = sheetToSelect; // ✅ Store immediately (synchronous)
+      setViewerSelectedSheet(sheetToSelect); // ✅ Also update state (async)
+      console.log(`WorkBookApp: Set viewerSelectedSheet to: "${sheetToSelect}" (stored in ref and state)`);
 
       console.log("WorkBookApp: About to render ExcelViewer with data:");
       console.log("WorkBookApp: selectedWorkbook (updated):", updatedWorkbook);
@@ -1264,6 +1338,12 @@ export default function WorkBookApp({
         fullWorkbookFromDB.namedRanges
       );
       console.log("WorkBookApp: Selected sheet:", sheetToSelect);
+      console.log("WorkBookApp: About to pass initialSheet prop to ExcelViewer:", {
+        viewerSelectedSheet: viewerSelectedSheet,
+        initialSheetRef: initialSheetRef.current,
+        sheetToSelect: sheetToSelect,
+        willPass: viewerSelectedSheet || initialSheetRef.current || sheetToSelect
+      });
 
       setCurrentView("viewer");
     } catch (error) {
@@ -2036,14 +2116,26 @@ export default function WorkBookApp({
     workbookId: string,
     workbookName: string
   ) => {
+    setDeletingWorkbookId(workbookId); // ✅ Set loading state
     try {
       const response = await db_WorkbookApi.deleteWorkbook(workbookId);
 
       if (response.success) {
         toast({
           title: "Workbook Deleted",
-          description: `Successfully deleted workbook: ${workbookName}.`,
+          description: `Successfully deleted workbook: ${workbookName}. All mappings, reference files, and notes have been removed.`,
         });
+        
+        // ✅ Refresh parent data (ETB/WorkingPaper/Evidence) to reflect deleted workbook
+        if (onRefreshData) {
+          try {
+            await onRefreshData();
+            console.log('WorkBookApp: Parent data refreshed after workbook deletion');
+          } catch (refreshError) {
+            console.warn('WorkBookApp: Failed to refresh parent data after workbook deletion:', refreshError);
+          }
+        }
+        
         setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger re-fetch of workbooks AND logs
         if (selectedWorkbook?.id === workbookId) {
           setSelectedWorkbook(null);
@@ -2065,6 +2157,8 @@ export default function WorkBookApp({
           }`,
         variant: "destructive",
       });
+    } finally {
+      setDeletingWorkbookId(null); // ✅ Clear loading state
     }
   };
 
@@ -2181,23 +2275,43 @@ export default function WorkBookApp({
   // ✅ NEW: Handler for sheet selection changes - saves preference
   const handleSheetChange = async (workbookId: string, sheetName: string) => {
     try {
+      console.log(`💾 WorkBookApp: handleSheetChange called`, {
+        workbookId,
+        sheetName,
+        workbookIdType: typeof workbookId
+      });
+      
       // Update local state immediately for responsive UI
       setViewerSelectedSheet(sheetName);
+      initialSheetRef.current = sheetName; // ✅ Also update ref
       
       // Save preference to backend (fire and forget - don't block UI)
+      console.log(`💾 WorkBookApp: Calling API to save preference...`);
       db_WorkbookApi.saveUserWorkbookPreference(workbookId, sheetName)
         .then((response) => {
+          console.log(`💾 WorkBookApp: Save preference API response:`, {
+            success: response?.success,
+            data: response?.data,
+            error: response?.error,
+            fullResponse: response
+          });
+          
           if (response.success) {
-            console.log(`WorkBookApp: Saved sheet preference: ${sheetName} for workbook ${workbookId}`);
+            console.log(`💾 WorkBookApp: ✅ Successfully saved sheet preference: "${sheetName}" for workbook "${workbookId}"`);
           } else {
-            console.warn(`WorkBookApp: Failed to save sheet preference:`, response.error);
+            console.warn(`💾 WorkBookApp: ❌ Failed to save sheet preference:`, response.error);
           }
         })
         .catch((error) => {
-          console.error(`WorkBookApp: Error saving sheet preference:`, error);
+          console.error(`💾 WorkBookApp: ❌ Error saving sheet preference:`, error);
+          console.error(`💾 WorkBookApp: Error details:`, {
+            message: error instanceof Error ? error.message : String(error),
+            response: (error as any)?.response?.data,
+            status: (error as any)?.response?.status
+          });
         });
     } catch (error) {
-      console.error('WorkBookApp: Error in handleSheetChange:', error);
+      console.error('💾 WorkBookApp: ❌ Error in handleSheetChange:', error);
     }
   };
 
@@ -2252,6 +2366,7 @@ export default function WorkBookApp({
             classification={classification}
             rowType={rowType} // ✅ Pass rowType to MainDashboard
             parentEtbData={etbData} // ✅ CRITICAL FIX: Pass parent's prepared data
+            deletingWorkbookId={deletingWorkbookId} // ✅ NEW: Pass deleting state
           />
         );
       case "viewer":

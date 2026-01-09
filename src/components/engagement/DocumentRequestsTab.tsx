@@ -267,15 +267,16 @@ function SearchableSelect({
 
 interface DocumentRequestsTabProps {
   requests: any[];
-  documentRequest: {
+  documentRequest?: {
     category: string;
     description: string;
     comment?: string;
     attachment?: File;
   };
-  setDocumentRequest: (request: any) => void;
-  handleSendDocumentRequest: () => void;
+  setDocumentRequest?: (request: any) => void;
+  handleSendDocumentRequest?: () => void;
   engagement?: any;
+  isReadOnly?: boolean;
 }
 
 export const DocumentRequestsTab = ({
@@ -284,6 +285,7 @@ export const DocumentRequestsTab = ({
   setDocumentRequest,
   handleSendDocumentRequest,
   engagement,
+  isReadOnly = false,
 }: DocumentRequestsTabProps) => {
   const { id: engagementId } = useParams<{ id: string }>();
   const [documentRequests, setDocumentRequests] = useState<any[]>([]);
@@ -322,6 +324,12 @@ export const DocumentRequestsTab = ({
   const [currentTemplateFile, setCurrentTemplateFile] = useState<File | null>(null);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [notificationEmails, setNotificationEmails] = useState<string>('');
+  const [previousYearModalOpen, setPreviousYearModalOpen] = useState(false);
+  const [previousYearEngagements, setPreviousYearEngagements] = useState<any[]>([]);
+  const [previousYearRequests, setPreviousYearRequests] = useState<any[]>([]);
+  const [loadingPreviousYear, setLoadingPreviousYear] = useState(false);
+  const [selectedPreviousEngagement, setSelectedPreviousEngagement] = useState<string>('');
   const { toast } = useToast();
 
   const toggleRow = (id: string) => {
@@ -367,6 +375,174 @@ export const DocumentRequestsTab = ({
       fetchDocumentRequests();
     }
   }, [engagementId]);
+
+  // Fetch previous year engagements for the same client
+  const fetchPreviousYearEngagements = async () => {
+    if (!engagement?.clientId) {
+      toast({
+        title: "Missing Information",
+        description: "Client information is required to fetch previous year engagements.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!engagement?.yearEndDate) {
+      toast({
+        title: "Missing Information",
+        description: "Year end date is required to fetch previous year engagements.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setLoadingPreviousYear(true);
+      const allEngagements = await engagementApi.getAll();
+      
+      // Get current year from yearEndDate
+      const currentYear = new Date(engagement.yearEndDate).getFullYear();
+      
+      // Filter engagements for same client, different year, and earlier years
+      const previousEngagements = allEngagements
+        .filter((eng: any) => {
+          if (!eng.clientId || !eng.yearEndDate) return false;
+          if (eng.clientId !== engagement.clientId) return false;
+          if (eng._id === engagementId) return false; // Exclude current engagement
+          
+          try {
+            const engYear = new Date(eng.yearEndDate).getFullYear();
+            return engYear < currentYear; // Only previous years
+          } catch (e) {
+            return false; // Skip invalid dates
+          }
+        })
+        .sort((a: any, b: any) => {
+          // Sort by year descending (most recent first)
+          try {
+            const yearA = new Date(a.yearEndDate).getFullYear();
+            const yearB = new Date(b.yearEndDate).getFullYear();
+            return yearB - yearA;
+          } catch (e) {
+            return 0;
+          }
+        });
+      
+      setPreviousYearEngagements(previousEngagements);
+      
+      if (previousEngagements.length === 0) {
+        toast({
+          title: "No Previous Year Found",
+          description: "No previous year engagements found for this client. You can still create new document requests manually.",
+          variant: "default",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching previous year engagements:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to fetch previous year engagements",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingPreviousYear(false);
+    }
+  };
+
+  // Fetch document requests from a previous engagement
+  const fetchPreviousYearRequests = async (prevEngagementId: string) => {
+    try {
+      setLoadingPreviousYear(true);
+      const requests = await documentRequestApi.getByEngagement(prevEngagementId);
+      setPreviousYearRequests(requests);
+      setSelectedPreviousEngagement(prevEngagementId);
+    } catch (error: any) {
+      console.error('Error fetching previous year document requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch previous year document requests",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingPreviousYear(false);
+    }
+  };
+
+  // Copy document names from previous year's request
+  const handleCopyFromPreviousYear = (previousRequest: any) => {
+    const newDocs: any[] = [];
+    const newMultipleDocs: any[] = [];
+
+    // Copy single documents (only names, types, descriptions, templates - no uploaded files)
+    if (previousRequest.documents && previousRequest.documents.length > 0) {
+      previousRequest.documents.forEach((doc: any) => {
+        const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
+        newDocs.push({
+          name: doc.name,
+          type: docType,
+          description: doc.description || '',
+          template: docType === 'template' && doc.template
+            ? {
+                url: doc.template.url, // Keep template URL if exists
+                instruction: doc.template.instruction || doc.template.instructions || ''
+              }
+            : undefined,
+          status: 'pending'
+        });
+      });
+    }
+
+    // Copy multiple documents (only structure - no uploaded files)
+    if (previousRequest.multipleDocuments && previousRequest.multipleDocuments.length > 0) {
+      previousRequest.multipleDocuments.forEach((multiDoc: any) => {
+        const docType = typeof multiDoc.type === 'string' ? multiDoc.type : (multiDoc.type?.type || 'direct');
+        newMultipleDocs.push({
+          name: multiDoc.name,
+          type: docType,
+          instruction: multiDoc.instruction || undefined,
+          multiple: (multiDoc.multiple || []).map((item: any) => ({
+            label: item.label,
+            template: item.template?.url || item.template?.instruction
+              ? {
+                  url: item.template?.url || undefined,
+                  instruction: item.template?.instruction || item.template?.instructions || item.instruction || undefined
+                }
+              : undefined,
+            status: 'pending' as const
+          }))
+        });
+      });
+    }
+
+    // Add to current documents
+    if (newDocs.length > 0) {
+      setDocuments(prev => [...prev, ...newDocs]);
+    }
+    if (newMultipleDocs.length > 0) {
+      setMultipleDocuments(prev => [...prev, ...newMultipleDocs]);
+    }
+
+    // Also copy category and description if not already set
+    if (!documentRequest.category && previousRequest.category) {
+      setDocumentRequest((prev: any) => ({
+        ...prev,
+        category: previousRequest.category
+      }));
+    }
+    if (!documentRequest.description && previousRequest.description) {
+      setDocumentRequest((prev: any) => ({
+        ...prev,
+        description: previousRequest.description
+      }));
+    }
+
+    toast({
+      title: "Documents Copied",
+      description: `Copied ${newDocs.length} single document(s) and ${newMultipleDocs.length} multiple document group(s) from previous year.`,
+    });
+
+    setPreviousYearModalOpen(false);
+  };
 
   // Also update when requests prop changes (from parent refetch)
   useEffect(() => {
@@ -897,9 +1073,9 @@ export const DocumentRequestsTab = ({
   };
 
   const canSend =
-    (documentRequest.category?.trim()?.length || 0) > 0 &&
-    (documentRequest.description?.trim()?.length || 0) > 0;
-  const descLen = documentRequest.description?.length || 0;
+    (documentRequest?.category?.trim()?.length || 0) > 0 &&
+    (documentRequest?.description?.trim()?.length || 0) > 0;
+  const descLen = documentRequest?.description?.length || 0;
   const DESC_MAX = 800;
 
   const handleKYCComplete = (kycData: any) => {
@@ -968,7 +1144,7 @@ export const DocumentRequestsTab = ({
   };
 
   const handleCreateDocumentRequest = async () => {
-    if (!documentRequest.category || !documentRequest.description) {
+    if (!documentRequest?.category || !documentRequest?.description) {
       toast({
         title: "Error",
         description: "Category and description are required",
@@ -1055,12 +1231,19 @@ export const DocumentRequestsTab = ({
         };
       });
 
+      // Parse notification emails (comma-separated)
+      const notificationEmailsArray = notificationEmails
+        .split(',')
+        .map(email => email.trim())
+        .filter(email => email.length > 0 && email.includes('@'));
+
       const documentRequestData = {
         engagementId: engagementId!,
         clientId: engagement?.clientId || '',
-        category: documentRequest.category,
-        description: documentRequest.description,
-        comment: documentRequest.comment || '',
+        category: documentRequest?.category,
+        description: documentRequest?.description,
+        comment: documentRequest?.comment || '',
+        notificationEmails: notificationEmailsArray.length > 0 ? notificationEmailsArray : undefined,
         documents: processedDocuments.map((doc: any) => {
           const docType = typeof doc.type === 'string' ? doc.type : (doc.type?.type || 'direct');
           return {
@@ -1093,7 +1276,8 @@ export const DocumentRequestsTab = ({
         }
       });
       setCurrentTemplateFile(null);
-      setDocumentRequest({ category: '', description: '', comment: '' });
+      setNotificationEmails('');
+      setDocumentRequest?.({ category: '', description: '', comment: '' });
       setAddRequestModalOpen(false);
       
       await fetchDocumentRequests();
@@ -1193,14 +1377,16 @@ export const DocumentRequestsTab = ({
                       </Button>
                     );
                   })()}
-                  <Button
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                    onClick={() => setAddRequestModalOpen(true)}
-                    disabled={areActionsDisabled}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Document Request
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                      onClick={() => setAddRequestModalOpen(true)}
+                      disabled={areActionsDisabled}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Document Request
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -1262,23 +1448,25 @@ export const DocumentRequestsTab = ({
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteDialog({
-                                    open: true,
-                                    type: 'request',
-                                    documentRequestId: request._id,
-                                    documentName: request.category || 'this document request'
-                                  });
-                              }}
-                              disabled={areActionsDisabled}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!isReadOnly && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteDialog({
+                                      open: true,
+                                      type: 'request',
+                                      documentRequestId: request._id,
+                                      documentName: request.category || 'this document request'
+                                    });
+                                }}
+                                disabled={areActionsDisabled}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                             <div className="h-8 w-8 flex items-center justify-center">
                                 <ChevronRight className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${expandedRows.has(request._id) ? 'rotate-90' : ''}`} />
                             </div>
@@ -1305,6 +1493,7 @@ export const DocumentRequestsTab = ({
                           onClearMultipleGroup={handleClearMultipleGroup}
                           onDownloadMultipleGroup={handleDownloadMultipleGroup}
                           isDisabled={areActionsDisabled}
+                          isClientView={isReadOnly}
                         />
                       </CardContent>
                     )}
@@ -1321,15 +1510,17 @@ export const DocumentRequestsTab = ({
                 <p className="text-gray-500 text-sm">
                   No document requests sent yet
                 </p>
-                <div className="mt-6">
-                  <Button
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
-                    onClick={() => setAddRequestModalOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Document Request
-                  </Button>
-                </div>
+                {!isReadOnly && (
+                  <div className="mt-6">
+                    <Button
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground hover:text-primary-foreground"
+                      onClick={() => setAddRequestModalOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Document Request
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1366,9 +1557,9 @@ export const DocumentRequestsTab = ({
                   <div>
                     <Label htmlFor="modalCategory">Category *</Label>
                     <Select
-                      value={documentRequest.category}
-                      onValueChange={(value) =>
-                        setDocumentRequest((prev: any) => ({
+                      value={documentRequest?.category}
+                       onValueChange={(value) =>
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           category: value,
                         }))
@@ -1390,9 +1581,9 @@ export const DocumentRequestsTab = ({
                     <Label htmlFor="modalDescription">Description *</Label>
                     <Textarea
                       id="modalDescription"
-                      value={documentRequest.description}
+                      value={documentRequest?.description}
                       onChange={(e) =>
-                        setDocumentRequest((prev: any) => ({
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           description: e.target.value.slice(0, DESC_MAX),
                         }))
@@ -1405,9 +1596,9 @@ export const DocumentRequestsTab = ({
                     <Label htmlFor="modalComment">Additional Comments (Optional)</Label>
                     <Textarea
                       id="modalComment"
-                      value={documentRequest.comment || ""}
+                      value={documentRequest?.comment || ""}
                       onChange={(e) =>
-                        setDocumentRequest((prev: any) => ({
+                        setDocumentRequest?.((prev: any) => ({
                           ...prev,
                           comment: e.target.value,
                         }))
@@ -1416,6 +1607,45 @@ export const DocumentRequestsTab = ({
                       rows={2}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="notificationEmails">Notification Emails (Optional)</Label>
+                    <Input
+                      id="notificationEmails"
+                      value={notificationEmails}
+                      onChange={(e) => setNotificationEmails(e.target.value)}
+                      placeholder="Enter email addresses separated by commas (e.g., email1@example.com, email2@example.com)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Send email notifications to these addresses when the document request is created
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Copy from Previous Year */}
+              <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
+                <CardHeader>
+                  <CardTitle className="text-lg text-purple-800 flex items-center gap-2">
+                    <RotateCcw className="h-5 w-5" />
+                    Copy from Previous Year
+                  </CardTitle>
+                  <CardDescription className="text-purple-700">
+                    Reuse document names from previous year's audit. Documents will be created fresh without uploaded files.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setPreviousYearModalOpen(true);
+                      fetchPreviousYearEngagements();
+                    }}
+                    className="w-full border-purple-300 text-purple-700 hover:bg-purple-100"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Select Previous Year Documents
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -1762,7 +1992,7 @@ export const DocumentRequestsTab = ({
               </Button>
               <Button
                 onClick={handleCreateDocumentRequest}
-                disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || !documentRequest.category || !documentRequest.description}
+                disabled={loading || (documents.length === 0 && multipleDocuments.length === 0) || !documentRequest?.category || !documentRequest?.description}
                 className="bg-blue-600 hover:bg-blue-700 text-white hover:text-white"
               >
                 {loading ? (
@@ -1781,6 +2011,135 @@ export const DocumentRequestsTab = ({
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Previous Year Document Requests Modal */}
+      <Dialog open={previousYearModalOpen} onOpenChange={setPreviousYearModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5" />
+              Copy Documents from Previous Year
+            </DialogTitle>
+            <DialogDescription>
+              Select a previous year's engagement and document request to copy document names. Uploaded files will not be copied.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Select Previous Year Engagement */}
+            <div>
+              <Label htmlFor="previousEngagement">Select Previous Year Engagement</Label>
+              <Select
+                value={selectedPreviousEngagement}
+                onValueChange={(value) => {
+                  setSelectedPreviousEngagement(value);
+                  fetchPreviousYearRequests(value);
+                }}
+                disabled={loadingPreviousYear || previousYearEngagements.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a previous year engagement..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {previousYearEngagements.map((eng: any) => {
+                    const year = new Date(eng.yearEndDate).getFullYear();
+                    return (
+                      <SelectItem key={eng._id} value={eng._id}>
+                        {eng.title} - {year} ({format(new Date(eng.yearEndDate), 'MMM dd, yyyy')})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {previousYearEngagements.length === 0 && !loadingPreviousYear && (
+                <p className="text-sm text-gray-500 mt-2">
+                  No previous year engagements found for this client.
+                </p>
+              )}
+            </div>
+
+            {/* List Previous Year Document Requests */}
+            {loadingPreviousYear && (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Loading...</span>
+              </div>
+            )}
+
+            {!loadingPreviousYear && selectedPreviousEngagement && previousYearRequests.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                <p>No document requests found for this engagement.</p>
+              </div>
+            )}
+
+            {!loadingPreviousYear && selectedPreviousEngagement && previousYearRequests.length > 0 && (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {previousYearRequests.map((request: any) => {
+                  const singleDocCount = request.documents?.length || 0;
+                  const multipleDocCount = request.multipleDocuments?.length || 0;
+                  const totalDocs = singleDocCount + multipleDocCount;
+
+                  return (
+                    <Card key={request._id} className="border border-gray-200 hover:border-purple-300 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">
+                                {request.category}
+                              </Badge>
+                              <span className="text-xs text-gray-500">
+                                {totalDocs} document{totalDocs !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <h4 className="font-medium text-gray-900 mb-1">
+                              {request.description || request.name}
+                            </h4>
+                            {request.comment && (
+                              <p className="text-sm text-gray-600 line-clamp-2">{request.comment}</p>
+                            )}
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                              {singleDocCount > 0 && (
+                                <span>{singleDocCount} single document{singleDocCount !== 1 ? 's' : ''}</span>
+                              )}
+                              {multipleDocCount > 0 && (
+                                <span>{multipleDocCount} multiple group{multipleDocCount !== 1 ? 's' : ''}</span>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCopyFromPreviousYear(request)}
+                            className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPreviousYearModalOpen(false);
+                setSelectedPreviousEngagement('');
+                setPreviousYearRequests([]);
+              }}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>

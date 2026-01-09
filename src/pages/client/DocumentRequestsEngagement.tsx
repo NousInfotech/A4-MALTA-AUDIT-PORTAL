@@ -205,11 +205,30 @@ export const DocumentRequestsEngagement = () => {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [user, toast]); // Removed other dependencies to keep it stable
+  }, [user, toast, searchParams]); // Added searchParams to handle ID parameter
 
   useEffect(() => {
     if (user) fetchClientData(true, false);
   }, [user, fetchClientData]);
+
+  // Handle ID parameter in URL - expand and scroll to specific request
+  useEffect(() => {
+    const requestId = searchParams.get("id");
+    if (requestId && allRequests.length > 0) {
+      const request = allRequests.find(r => r._id === requestId);
+      if (request) {
+        // Expand the request
+        setExpandedRows(prev => new Set([...prev, requestId]));
+        // Scroll to the request after a short delay to allow rendering
+        setTimeout(() => {
+          const element = document.getElementById(`request-${requestId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+      }
+    }
+  }, [searchParams, allRequests]);
 
   const calculateDocumentRequestStatus = (docRequest: any): string => {
     if (!docRequest.documents || docRequest.documents.length === 0) {
@@ -806,7 +825,7 @@ export const DocumentRequestsEngagement = () => {
                   const statusColor = getStatusColor(status);
 
                   return (
-                    <Card key={request._id} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
+                    <Card key={request._id} id={`request-${request._id}`} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
                       <div 
                         className="cursor-pointer"
                         onClick={() => toggleRow(request._id)}
@@ -908,7 +927,7 @@ export const DocumentRequestsEngagement = () => {
                   const statusColor = getStatusColor(status);
 
                   return (
-                    <Card key={request._id} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
+                    <Card key={request._id} id={`request-${request._id}`} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
                       <div 
                         className="cursor-pointer"
                         onClick={() => toggleRow(request._id)}
@@ -1010,7 +1029,7 @@ export const DocumentRequestsEngagement = () => {
                   const statusColor = getStatusColor(status);
 
                   return (
-                    <Card key={request._id} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
+                    <Card key={request._id} id={`request-${request._id}`} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
                       <div 
                         className="cursor-pointer"
                         onClick={() => toggleRow(request._id)}
@@ -1144,7 +1163,7 @@ export const DocumentRequestsEngagement = () => {
                   const statusColor = getStatusColor(status);
 
                   return (
-                    <Card key={request._id} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
+                    <Card key={request._id} id={`request-${request._id}`} className="overflow-hidden border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl bg-white/60 backdrop-blur-md">
                       <div 
                         className="cursor-pointer"
                         onClick={() => toggleRow(request._id)}
@@ -1240,29 +1259,18 @@ export const DocumentRequestsEngagement = () => {
                         ? clientEngagements.find(e => e._id === engagementId)
                         : clientEngagements[0];
                     
-                    if (activeEngagement) {
-                        return (
-                            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-3xl p-1 shadow-xl">
-                                <EngagementKYC 
-                                    engagementId={activeEngagement._id}
-                                    companyId={activeEngagement.companyId} 
-                                    clientId={user?.id}
-                                    showStatusManagement={false}
-                                    deleteRequest={false}
-                                    isClientView={true}
-                                />
-                            </div>
-                        );
-                    } else {
-                        return (
-                            <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl p-12 text-center shadow-lg">
-                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Shield className="h-8 w-8 text-gray-400" />
-                                </div>
-                                <p className="text-gray-500">No active engagement found to display KYC workflows.</p>
-                            </div>
-                        );
-                    }
+                    return (
+                        <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-3xl p-1 shadow-xl">
+                            <EngagementKYC 
+                                engagementId={activeEngagement?._id}
+                                companyId={activeEngagement?.companyId || user?.organizationId} 
+                                clientId={user?.id}
+                                showStatusManagement={false}
+                                deleteRequest={false}
+                                isClientView={true}
+                            />
+                        </div>
+                    );
                 })()}
             </div>
           </TabsContent>

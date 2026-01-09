@@ -103,12 +103,12 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       .filter((class_, index, self) => self.indexOf(class_) === index)
       .sort((a, b) => {
         // Sort: Ordinary first, then A, B, C
-        const order = {  "A": 0, "B": 1, "C": 2, "Ordinary": 3, };
-        return (order[a as keyof typeof order] ?? 99) - (order[b as keyof typeof order] ?? 99);
+        const order: Record<string, number> = { "Ordinary": 0, "A": 1, "B": 2, "C": 3 };
+        return (order[a] ?? 99) - (order[b] ?? 99);
       });
   }, [companyTotalSharesArray]);
 
-  // State to track which view is selected (default to "total")
+  // State to track which view is selected (default to "total" for Issued Shares)
   const [selectedView, setSelectedView] = useState<string>("authorized");
 
   // Calculate data for all available classes
@@ -116,8 +116,9 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
     // Helper to filter shares by class
     const filterSharesByClass = (sharesData: any[], classFilter: string): number => {
       if (!Array.isArray(sharesData)) return 0;
+      // Also handle case where class might be shareClass (frontend compatibility)
       return sharesData
-        .filter(item => item.class === classFilter)
+        .filter(item => (item.class === classFilter || item.shareClass === classFilter))
         .reduce((sum, item) => sum + (Number(item.totalShares) || 0), 0);
     };
 
@@ -128,14 +129,15 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
       // Process persons
       const personData = (persons || [])
         .map((p: any) => {
-          const totalShares = filterSharesByClass(p?.sharesData || [], shareClass);
+          let totalShares = filterSharesByClass(p?.sharesData || [], shareClass);
           
           let percentage = 0;
-          if (totalShares > 0 && currentTotal > 0) {
+          if (currentTotal > 0) {
             percentage = (totalShares / currentTotal) * 100;
-          } else if (totalShares === 0 && currentTotal === 0 && shareClass === "Ordinary") {
-            // Fallback for Ordinary shares if no sharesData
+          } else if (shareClass === "Ordinary") {
+            // Fallback for Ordinary shares if no breakdown exists but percentage is provided
             percentage = Number(p?.sharePercentage ?? 0);
+            totalShares = 0; // Or calculate from a global total if we had one
           }
           
           return {
@@ -154,19 +156,20 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
           if (share.companyId) {
             if (typeof share.companyId === 'object' && share.companyId.name) {
               companyName = share.companyId.name;
-            } else if (typeof share.companyId === 'string') {
-              companyName = "Unknown Company";
+            } else if (typeof share.companyId === 'string' && share.companyName) {
+              companyName = share.companyName;
             }
           }
           
-          const totalShares = filterSharesByClass(share?.sharesData || [], shareClass);
+          let totalShares = filterSharesByClass(share?.sharesData || [], shareClass);
           
           let percentage = 0;
-          if (totalShares > 0 && currentTotal > 0) {
+          if (currentTotal > 0) {
             percentage = (totalShares / currentTotal) * 100;
-          } else if (totalShares === 0 && currentTotal === 0 && shareClass === "Ordinary") {
-            // Fallback for Ordinary shares if no sharesData
+          } else if (shareClass === "Ordinary") {
+            // Fallback for Ordinary shares if no breakdown exists
             percentage = Number(share?.sharePercentage ?? 0);
+            totalShares = 0;
           }
           
           return {
@@ -241,8 +244,8 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
     return availableClasses.map(shareClass => ({
       shareClass,
       data: calculateChartData(shareClass),
-    })).filter(item => item.data.currentClassTotal > 0); // Only show charts with data
-  }, [persons, companies, companyTotalShares, companyTotalSharesArray, availableClasses]);
+    })).filter(item => item.data.currentClassTotal > 0 || (item.shareClass === "Ordinary" && item.data.totalRaw > 0)); // Only show charts with data
+  }, [persons, companies, companyTotalSharesArray, availableClasses]);
 
   // Calculate total view data (all classes combined)
   const totalViewData = useMemo(() => {
@@ -250,7 +253,7 @@ const SharePieChart: React.FC<SharePieChartProps> = ({
     const filterAllShares = (sharesData: any[]): number => {
       if (!Array.isArray(sharesData)) return 0;
       return sharesData
-        .filter(item => availableClasses.includes(item.class))
+        .filter(item => availableClasses.includes(item.class || item.shareClass))
         .reduce((sum, item) => sum + (Number(item.totalShares) || 0), 0);
     };
 

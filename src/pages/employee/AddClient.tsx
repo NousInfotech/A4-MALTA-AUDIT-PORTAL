@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -122,12 +122,124 @@ export const AddClient = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const { signup, isLoading } = useAuth();
+  const { signup, isLoading, user } = useAuth();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { logCreateClient } = useActivityLogger();
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Check if accessed from admin route
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  
+  // Company number validation state
+  const [isCheckingCompanyNumber, setIsCheckingCompanyNumber] = useState(false);
+  const [companyNumberError, setCompanyNumberError] = useState("");
+  const [isCompanyNumberDuplicate, setIsCompanyNumberDuplicate] = useState(false);
+
+  // Check if company number already exists (returns boolean and updates state)
+  const checkCompanyNumberExists = useCallback(async (companyNumber: string, updateState: boolean = true): Promise<boolean> => {
+    if (!companyNumber || companyNumber.trim().length === 0) {
+      if (updateState) {
+        setCompanyNumberError("");
+        setIsCompanyNumberDuplicate(false);
+      }
+      return false;
+    }
+
+    if (updateState) {
+      setIsCheckingCompanyNumber(true);
+      setCompanyNumberError("");
+      setIsCompanyNumberDuplicate(false);
+    }
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      // Check in profiles table (Supabase)
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, company_number, company_name")
+        .eq("company_number", companyNumber.trim())
+        .eq("role", "client")
+        .eq("organization_id", user?.organizationId);
+
+      if (profilesError) {
+        console.error("Error checking profiles:", profilesError);
+      }
+
+      // Check in Company collection (MongoDB via API)
+      let companyExists = false;
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_APIURL}/api/client/company/search/global?search=${encodeURIComponent(companyNumber.trim())}&isNonPrimary=false`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionData.session?.access_token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const res = await response.json();
+          if (res.success && res.data && res.data.length > 0) {
+            // Check if any company has the exact registration number
+            companyExists = res.data.some(
+              (company: { registrationNumber: string }) =>
+                company.registrationNumber.toLowerCase().trim() === companyNumber.toLowerCase().trim()
+            );
+          }
+        }
+      } catch (apiError) {
+        console.error("Error checking companies via API:", apiError);
+      }
+
+      // If found in either profiles or companies, it's a duplicate
+      const isDuplicate = (profiles && profiles.length > 0) || companyExists;
+      
+      if (updateState) {
+        if (isDuplicate) {
+          const existingClient = profiles && profiles.length > 0 ? profiles[0] : null;
+          setCompanyNumberError(
+            `This company number is already registered. ${existingClient ? `It belongs to: ${existingClient.company_name || "Unknown Company"}` : ""}`
+          );
+          setIsCompanyNumberDuplicate(true);
+        } else {
+          setCompanyNumberError("");
+          setIsCompanyNumberDuplicate(false);
+        }
+      }
+      
+      return isDuplicate;
+    } catch (err) {
+      console.error("Error checking company number:", err);
+      if (updateState) {
+        setIsCheckingCompanyNumber(false);
+      }
+      return false; // Don't block submission if check fails
+    } finally {
+      if (updateState) {
+        setIsCheckingCompanyNumber(false);
+      }
+    }
+  }, [user?.organizationId]);
+
+  // Debounced company number validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (formData.companyNumber) {
+        checkCompanyNumberExists(formData.companyNumber, true);
+      } else {
+        setCompanyNumberError("");
+        setIsCompanyNumberDuplicate(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.companyNumber, checkCompanyNumberExists]);
 
   // Fetch nationality options
   useEffect(() => {
@@ -261,6 +373,33 @@ export const AddClient = () => {
     setError("");
     setIsSubmitting(true);
 
+    // Final check before submission (without updating state to avoid flicker)
+    const isDuplicate = await checkCompanyNumberExists(formData.companyNumber, false);
+    if (isDuplicate) {
+      // Update state to show error
+      await checkCompanyNumberExists(formData.companyNumber, true);
+      setError("Cannot create client: Company number is already registered. Please use a different company number.");
+      setIsSubmitting(false);
+      toast({
+        title: "Validation Error",
+        description: "This company number is already registered. Please use a different company number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Also check current state as a safeguard
+    if (isCompanyNumberDuplicate) {
+      setError("Cannot create client: Company number is already registered. Please use a different company number.");
+      setIsSubmitting(false);
+      toast({
+        title: "Validation Error",
+        description: "This company number is already registered. Please use a different company number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { name, email, password, companyName, companyNumber, summary, nationality, address, companyId, isCreateCompany, isNewCompany, selectedRoles, sharesData, paidUpSharesPercentage } =
       formData;
 
@@ -361,7 +500,7 @@ export const AddClient = () => {
         title: "Client created",
         description: "The client account is pending admin approval.",
       });
-      navigate("/employee/clients");
+      navigate(isAdminRoute ? "/admin/users" : "/employee/clients");
     } catch (err) {
       console.error("Error creating client:", err);
       setError(err.message || "Failed to create client. Please try again.");
@@ -545,16 +684,50 @@ export const AddClient = () => {
                     >
                       Company Number *
                     </Label>
-                    <Input
-                      id="companyNumber"
-                      value={formData.companyNumber}
-                      onChange={(e) =>
-                        handleChange("companyNumber", e.target.value)
-                      }
-                      placeholder="Enter company registration number"
-                      className="h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full"
-                      required
-                    />
+                    <div className="relative">
+                      <Input
+                        id="companyNumber"
+                        value={formData.companyNumber}
+                        onChange={(e) => {
+                          handleChange("companyNumber", e.target.value);
+                          // Reset error when user starts typing
+                          if (companyNumberError) {
+                            setCompanyNumberError("");
+                            setIsCompanyNumberDuplicate(false);
+                          }
+                        }}
+                        placeholder="Enter company registration number"
+                        className={`h-12 border-gray-200 focus:border-gray-400 rounded-xl text-lg w-full ${
+                          companyNumberError && isCompanyNumberDuplicate
+                            ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                            : ""
+                        }`}
+                        required
+                      />
+                      {isCheckingCompanyNumber && (
+                        <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                    {companyNumberError && (
+                      <div className="flex items-start gap-2 mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex-shrink-0 mt-0.5">
+                          <svg
+                            className="h-5 w-5 text-yellow-600"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-yellow-800 font-medium">
+                          {companyNumberError}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-3 min-w-0 w-full">
                     <Label
@@ -1262,8 +1435,13 @@ export const AddClient = () => {
               <div className="flex items-center gap-4 pt-6 border-t border-gray-200">
                 <Button
                   type="submit"
-                  disabled={isSubmitting || Object.values(shareClassErrors).some(Boolean)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold"
+                  disabled={
+                    isSubmitting ||
+                    Object.values(shareClassErrors).some(Boolean) ||
+                    isCompanyNumberDuplicate ||
+                    isCheckingCompanyNumber
+                  }
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl px-8 py-3 h-auto text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting && (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />

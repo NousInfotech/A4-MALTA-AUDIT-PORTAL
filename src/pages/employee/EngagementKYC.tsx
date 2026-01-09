@@ -1087,8 +1087,8 @@ export function EngagementKYC({
         <CardContent className="p-6 space-y-6">
           {workflows.map((workflow) => (
             <div key={workflow._id} className="space-y-4">
-              {/* Status Management – only show when there are document requests */}
-              {showStatusManagement && workflow.documentRequests && workflow.documentRequests.length > 0 && (
+              {/* Status Management – only show when there are document requests and NOT client */}
+              {showStatusManagement && !isClient && workflow.documentRequests && workflow.documentRequests.length > 0 && (
                 <div className="bg-gray-50 rounded-xl p-4">
                   
                   <div className="flex items-center justify-between mb-3">
@@ -1297,7 +1297,7 @@ export function EngagementKYC({
                                       Download All
                                     </Button>
                                   )}
-                                {deleteRequest &&(
+                                {deleteRequest && !isClient && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -1783,7 +1783,7 @@ export function EngagementKYC({
                                       Download All
                                     </Button>
                                   )}
-                                  {showStatusManagement && (
+                                  {showStatusManagement && deleteRequest && !isClient && (
                                   <Button
                                     size="sm"
                                     variant="outline"

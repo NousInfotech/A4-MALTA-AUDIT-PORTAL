@@ -71,6 +71,13 @@ const navItems: NavItem[] = [
     description: 'Monitor Auditor Activities'
   },
   { 
+    title: 'Engagement Management', 
+    href: '/admin/engagements', 
+    icon: Briefcase, 
+    roles: ['admin'],
+    description: 'Manage Engagements'
+  },
+  { 
     title: 'ISQM', 
     href: '/admin/isqm', 
     icon: FileText, 
@@ -119,6 +126,22 @@ const navItems: NavItem[] = [
     getBadge: (stats) => `${stats.totalClients} Total`
   },
   { 
+    title: 'KYC Management', 
+    href: '/employee/kyc', 
+    icon: UserCheck, 
+    roles: ['employee'],
+    description: 'Know Your Client Workflows',
+    badge: 'New'
+  },
+  { 
+    title: 'Document request template', 
+    href: '/employee/document-request-template', 
+    icon: FileText, 
+    roles: ['employee'],
+    description: 'Document Request Templates',
+    badge: 'New'
+  },
+  { 
     title: 'Engagements', 
     href: '/employee/engagements', 
     icon: Briefcase, 
@@ -149,22 +172,7 @@ const navItems: NavItem[] = [
     description: 'Quality Management Assessment',
     badge: 'New'
   },
-  { 
-    title: 'KYC Management', 
-    href: '/employee/kyc', 
-    icon: UserCheck, 
-    roles: ['employee'],
-    description: 'Know Your Client Workflows',
-    badge: 'New'
-  },
-  { 
-    title: 'Document request template', 
-    href: '/employee/document-request-template', 
-    icon: FileText, 
-    roles: ['employee'],
-    description: 'Document Request Templates',
-    badge: 'New'
-  },
+  
   
 
   // Client
@@ -175,6 +183,13 @@ const navItems: NavItem[] = [
     roles: ['client'],
     description: 'Overview & Progress',
     badge: 'Live'
+  },
+  { 
+    title: 'Company', 
+    href: '/client/companies', 
+    icon: Building2, 
+    roles: ['client'],
+    description: 'Your Corporate Entities'
   },
   { 
     title: 'My Engagements', 

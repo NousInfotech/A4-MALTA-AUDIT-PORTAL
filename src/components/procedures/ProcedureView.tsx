@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Download, Edit, Save, X, Trash2, Plus, Sparkles, Loader2, RefreshCw, FileText } from "lucide-react"
+import { Download, Edit, Save, X, Trash2, Plus, Loader2, RefreshCw, FileText, CheckCircle, Eye, MessageSquare, Sparkles } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import FloatingNotesButton from "./FloatingNotesButton"
@@ -15,9 +15,27 @@ import NotebookInterface from "./NotebookInterface"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { supabase } from "@/integrations/supabase/client"
+
+// Helper function for authenticated fetch
+const authFetch = async (url: string, options: RequestInit = {}) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('No active session')
+  }
+  return fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      ...options.headers,
+    },
+  })
+}
 
 // Helper function to sanitize data before JSON.stringify (removes circular references and React internals)
 function sanitizeForJSON(obj: any, seen = new WeakSet()): any {
@@ -120,19 +138,6 @@ function splitRecommendationsByClassification(markdown?: string) {
   return map
 }
 
-async function authFetch(url: string, options: RequestInit = {}) {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw error
-  const token = data?.session?.access_token
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  })
-}
 
 interface ChecklistItem {
   id: string
@@ -166,7 +171,183 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [localQuestions, setLocalQuestions] = useState<any[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("questions")
+  const [reviews, setReviews] = useState<any[]>([])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const activeTabRef = React.useRef("questions")
+  const [proceduresViewMode, setProceduresViewMode] = useState<'procedures' | 'reviews'>('procedures')
+  
+  // Review state
+  const [reviewStatus, setReviewStatus] = useState<string>(procedure?.reviewStatus || "in-progress")
+  const [reviewComments, setReviewComments] = useState<string>(procedure?.reviewComments || "")
+  const [isSavingReview, setIsSavingReview] = useState(false)
+  const [isEditingOverallComment, setIsEditingOverallComment] = useState(false)
+  const [editOverallCommentValue, setEditOverallCommentValue] = useState<string>("")
+  
+  // Advanced Review & Sign-off state
+  const [reviewerId, setReviewerId] = useState<string>(procedure?.reviewerId || "")
+  const [reviewedAt, setReviewedAt] = useState<string>(procedure?.reviewedAt ? new Date(procedure.reviewedAt).toISOString().split('T')[0] : "")
+  const [approvedBy, setApprovedBy] = useState<string>(procedure?.approvedBy || "")
+  const [approvedAt, setApprovedAt] = useState<string>(procedure?.approvedAt ? new Date(procedure.approvedAt).toISOString().split('T')[0] : "")
+  const [signedOffBy, setSignedOffBy] = useState<string>(procedure?.signedOffBy || "")
+  const [signedOffAt, setSignedOffAt] = useState<string>(procedure?.signedOffAt ? new Date(procedure.signedOffAt).toISOString().split('T')[0] : "")
+  const [signOffComments, setSignOffComments] = useState<string>(procedure?.signOffComments || "")
+  const [isSignedOff, setIsSignedOff] = useState<boolean>(procedure?.isSignedOff || false)
+  const [isLocked, setIsLocked] = useState<boolean>(procedure?.isLocked || false)
+  const [lockedAt, setLockedAt] = useState<string>(procedure?.lockedAt ? new Date(procedure.lockedAt).toISOString().split('T')[0] : "")
+  const [lockedBy, setLockedBy] = useState<string>(procedure?.lockedBy || "")
+  const [reopenedAt, setReopenedAt] = useState<string>(procedure?.reopenedAt ? new Date(procedure.reopenedAt).toISOString().split('T')[0] : "")
+  const [reopenedBy, setReopenedBy] = useState<string>(procedure?.reopenedBy || "")
+  const [reopenReason, setReopenReason] = useState<string>(procedure?.reopenReason || "")
+  const [reviewVersion, setReviewVersion] = useState<number>(procedure?.reviewVersion || 1)
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  
+  // Get current user ID
+  React.useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data?.session?.user?.id) {
+        setCurrentUserId(data.session.user.id)
+      }
+    }
+    getCurrentUser()
+  }, [])
+
+  const [userNamesMap, setUserNamesMap] = useState<Record<string, string>>({})
+
+  // Fetch user name from Supabase profiles
+  const fetchUserName = async (userId: string): Promise<string> => {
+    if (!userId || userNamesMap[userId]) return userNamesMap[userId] || userId
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', userId)
+        .single()
+      if (!error && data?.name) {
+        setUserNamesMap(prev => ({ ...prev, [userId]: data.name }))
+        return data.name
+      }
+    } catch (error) {
+      console.error('Error fetching user name:', error)
+    }
+    return userId
+  }
+
+  // Fetch user names for all user IDs in reviews
+  const fetchUserNames = async (reviews: any[]) => {
+    const userIds = new Set<string>()
+    reviews.forEach(review => {
+      if (review.reviewedBy) userIds.add(review.reviewedBy)
+      if (review.assignedReviewer) userIds.add(review.assignedReviewer)
+      if (review.approvedBy) userIds.add(review.approvedBy)
+      if (review.signedOffBy) userIds.add(review.signedOffBy)
+      if (review.lockedBy) userIds.add(review.lockedBy)
+      if (review.reopenedBy) userIds.add(review.reopenedBy)
+    })
+    
+    const namesMap: Record<string, string> = {}
+    await Promise.all(
+      Array.from(userIds).map(async (userId) => {
+        if (!userNamesMap[userId]) {
+          const name = await fetchUserName(userId)
+          namesMap[userId] = name
+        } else {
+          namesMap[userId] = userNamesMap[userId]
+        }
+      })
+    )
+    setUserNamesMap(prev => ({ ...prev, ...namesMap }))
+  }
+
+  // Fetch reviews for engagement (filtered by itemType: "procedure")
+  const fetchReviews = async () => {
+    if (!engagement?._id) return
+    setIsLoadingReviews(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/engagement/${engagement._id}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Filter reviews by itemType: "procedure" for ProcedureView
+        const filteredReviews = (data.workflows || []).filter((w: any) => w.itemType === 'procedure')
+        setReviews(filteredReviews)
+        // Fetch user names for all reviewers
+        await fetchUserNames(filteredReviews)
+      }
+    } catch (error: any) {
+      console.error('Error fetching reviews:', error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch reviews.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }
+
+  // Fetch reviews when engagement or review tab is active
+  React.useEffect(() => {
+    if (engagement?._id && activeTab === "review") {
+      fetchReviews()
+    }
+  }, [engagement?._id, activeTab])
+
+  // Fetch reviews when switching to reviews view mode in procedures tab
+  React.useEffect(() => {
+    if (engagement?._id && activeTab === "procedures" && proceduresViewMode === "reviews") {
+      fetchReviews()
+    }
+  }, [engagement?._id, activeTab, proceduresViewMode])
+
+  // Fetch reviews when switching to reviews view mode in multi-classification view
+  React.useEffect(() => {
+    if (engagement?._id && activeTab === "procedures") {
+      // Check if any classification is in reviews mode
+      const hasReviewsMode = Object.values(classificationProceduresViewMode).some(mode => mode === 'reviews')
+      if (hasReviewsMode) {
+        fetchReviews()
+      }
+    }
+  }, [engagement?._id, activeTab, classificationProceduresViewMode])
+
+  // Sync review data from procedure prop (when loaded from backend)
+  React.useEffect(() => {
+    if (procedure) {
+      // Update review status
+      if (procedure.reviewStatus) {
+        setReviewStatus(procedure.reviewStatus)
+      }
+      // Update review comments
+      if (procedure.reviewComments !== undefined) {
+        setReviewComments(procedure.reviewComments || "")
+      }
+      // Advanced review fields - auto-set to current user
+      if (currentUserId) {
+        if (!procedure.reviewerId) setReviewerId(currentUserId)
+        if (!procedure.approvedBy) setApprovedBy(currentUserId)
+        if (!procedure.signedOffBy) setSignedOffBy(currentUserId)
+        if (!procedure.lockedBy) setLockedBy(currentUserId)
+        if (!procedure.reopenedBy) setReopenedBy(currentUserId)
+      }
+      // Update existing values if present
+      if (procedure.reviewerId) setReviewerId(procedure.reviewerId)
+      if (procedure.reviewedAt) setReviewedAt(new Date(procedure.reviewedAt).toISOString().split('T')[0])
+      if (procedure.approvedBy) setApprovedBy(procedure.approvedBy)
+      if (procedure.approvedAt) setApprovedAt(new Date(procedure.approvedAt).toISOString().split('T')[0])
+      if (procedure.signedOffBy) setSignedOffBy(procedure.signedOffBy)
+      if (procedure.signedOffAt) setSignedOffAt(new Date(procedure.signedOffAt).toISOString().split('T')[0])
+      if (procedure.signOffComments !== undefined) setSignOffComments(procedure.signOffComments || "")
+      if (procedure.isSignedOff !== undefined) setIsSignedOff(procedure.isSignedOff)
+      if (procedure.isLocked !== undefined) setIsLocked(procedure.isLocked)
+      if (procedure.lockedAt) setLockedAt(new Date(procedure.lockedAt).toISOString().split('T')[0])
+      if (procedure.lockedBy) setLockedBy(procedure.lockedBy)
+      if (procedure.reopenedAt) setReopenedAt(new Date(procedure.reopenedAt).toISOString().split('T')[0])
+      if (procedure.reopenedBy) setReopenedBy(procedure.reopenedBy)
+      if (procedure.reopenReason !== undefined) setReopenReason(procedure.reopenReason || "")
+      if (procedure.reviewVersion) setReviewVersion(procedure.reviewVersion)
+    }
+  }, [procedure, currentUserId])
   
   // Update ref when activeTab changes
   React.useEffect(() => {
@@ -178,6 +359,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
   const [selectedClassification, setSelectedClassification] = useState<string | null>(currentClassification || null)
   const [classificationTabs, setClassificationTabs] = useState<Record<string, string>>({})
+  const [classificationProceduresViewMode, setClassificationProceduresViewMode] = useState<Record<string, 'procedures' | 'reviews'>>({})
 
   // Track if we're in the middle of generating to prevent reset
   const isGeneratingRef = React.useRef(false)
@@ -980,9 +1162,13 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       return
     }
     setGeneratingProcedures(true)
-    if (currentClassification) {
-      setActiveTab("procedures")
+    
+    // Switch UI to procedures tab immediately - handle both single and multi-view modes
+    setActiveTab("procedures")
+    if (classification) {
+      setClassificationTabs(prev => ({ ...prev, [classification]: "procedures" }))
     }
+    
     try {
       // First ensure we have answers
       const questionsForClassification = localQuestions.filter((q: any) => q.classification === targetClassification)
@@ -1123,6 +1309,191 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     }
   }
 
+  // Review functions
+
+  const handleSaveReview = async () => {
+    setIsSavingReview(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      if (!base) throw new Error("VITE_APIURL is not set")
+      
+      const now = new Date()
+      const currentVersion = (reviewVersion || 1) + 1
+      
+      // Auto-populate fields based on reviewStatus
+      let autoFields: any = {
+        reviewVersion: currentVersion,
+      }
+      
+      // Set fields based on status
+      if (reviewStatus === 'ready-for-review' || reviewStatus === 'under-review') {
+        autoFields.reviewerId = currentUserId
+        autoFields.reviewedAt = now.toISOString()
+      }
+      
+      if (reviewStatus === 'approved') {
+        autoFields.approvedBy = currentUserId
+        autoFields.approvedAt = now.toISOString()
+      }
+      
+      if (reviewStatus === 'signed-off') {
+        autoFields.signedOffBy = currentUserId
+        autoFields.signedOffAt = now.toISOString()
+        autoFields.isSignedOff = true
+        autoFields.signOffComments = reviewComments || signOffComments || undefined
+      }
+      
+      if (reviewStatus === 're-opened') {
+        autoFields.reopenedBy = currentUserId
+        autoFields.reopenedAt = now.toISOString()
+        autoFields.reopenReason = reviewComments || reopenReason || undefined
+      }
+      
+      const updatedProcedure = {
+        ...procedure,
+        reviewStatus: reviewStatus,
+        reviewComments: reviewComments,
+        questions: localQuestions.map(({ __uid, ...rest }) => rest),
+        // Auto-populated fields based on status
+        ...autoFields,
+      }
+
+      const response = await authFetch(`${base}/api/procedures/${engagement._id}`, {
+        method: "POST",
+        body: JSON.stringify(updatedProcedure),
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        const errorMessage = text || `Failed to save review (HTTP ${response.status})`
+        throw new Error(errorMessage)
+      }
+
+      // Update reviewVersion state after successful save
+      setReviewVersion(currentVersion)
+
+      if (onProcedureUpdate) {
+        const savedData = await response.json()
+        onProcedureUpdate(savedData.procedure || savedData)
+      }
+
+      // Refresh the reviews list to show the newly saved review
+      await fetchReviews()
+
+      toast({
+        title: "Review Saved",
+        description: "Your review has been saved successfully.",
+      })
+    } catch (error: any) {
+      console.error("Save review error:", error)
+      toast({
+        title: "Save failed",
+        description: error.message || "Could not save review.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingReview(false)
+    }
+  }
+
+  // Check if user owns a review
+  const isReviewOwner = (review: any) => {
+    if (!currentUserId) return false
+    return (
+      review.reviewedBy === currentUserId ||
+      review.approvedBy === currentUserId ||
+      review.signedOffBy === currentUserId ||
+      review.reopenedBy === currentUserId ||
+      review.assignedReviewer === currentUserId
+    )
+  }
+
+  // Handle edit review
+  const handleEditReview = (review: any) => {
+    setEditingReview(review)
+    setEditReviewStatus(review.status || '')
+    setEditReviewComments(review.reviewComments || '')
+    setIsEditDialogOpen(true)
+  }
+
+  // Handle update review
+  const handleUpdateReview = async () => {
+    if (!editingReview) return
+    
+    setIsUpdatingReview(true)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/${editingReview._id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: editReviewStatus,
+          reviewComments: editReviewComments,
+        }),
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        throw new Error(text || `Failed to update review (HTTP ${response.status})`)
+      }
+
+      await fetchReviews()
+      setIsEditDialogOpen(false)
+      setEditingReview(null)
+      
+      toast({
+        title: "Review Updated",
+        description: "Your review has been updated successfully.",
+      })
+    } catch (error: any) {
+      console.error("Update review error:", error)
+      toast({
+        title: "Update failed",
+        description: error.message || "Could not update review.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingReview(false)
+    }
+  }
+
+  // Handle delete review
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+      return
+    }
+
+    setIsDeletingReview(reviewId)
+    try {
+      const base = import.meta.env.VITE_APIURL
+      const response = await authFetch(`${base}/api/review/workflows/${reviewId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "")
+        throw new Error(text || `Failed to delete review (HTTP ${response.status})`)
+      }
+
+      await fetchReviews()
+      
+      toast({
+        title: "Review Deleted",
+        description: "Your review has been deleted successfully.",
+      })
+    } catch (error: any) {
+      console.error("Delete review error:", error)
+      toast({
+        title: "Delete failed",
+        description: error.message || "Could not delete review.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingReview(null)
+    }
+  }
+
+
+
   // PDF export (still includes just this classification)
   const handleExportPDF = async () => {
     try {
@@ -1158,8 +1529,8 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
       doc.setFontSize(12)
       doc.setFont("helvetica", "normal")
       doc.text(`Engagement: ${safeTitle}`, margin, 55)
-      doc.text(`Mode: ${(procedure?.mode || "").toUpperCase()||data.procedure?.mode || "N/A"}`, margin, 63)
-      doc.text(`Materiality: ${formatCurrency(procedure?.materiality ||data.procedure?.materiality)}`, margin, 71)
+      doc.text(`Mode: ${(procedure?.mode || "").toUpperCase() || "N/A"}`, margin, 63)
+      doc.text(`Materiality: ${formatCurrency(procedure?.materiality || 0)}`, margin, 71)
       doc.text(`Year End: ${yearEndStr}`, margin, 79)
       if (activeClassification) {
         doc.text(`Classification: ${activeClassification}`, margin, 87)
@@ -1341,17 +1712,9 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
     setEditAnswerText(newQuestion.answer)
   }
 
-  // If currentClassification is provided, show single classification view (backward compatible)
-  if (currentClassification) {
-    return (
-      <>
-        {/* Step-1 Description */}
-        <div className="text-sm text-muted-foreground font-body mb-4">
-          Step-1: Generate questions for the classification section. You can freely edit / add / remove questions here before moving to the next step.
-        </div>
-
-        {/* Classification Section */}
-        <Card>
+  // --- SUB-COMPONENT: SINGLE VIEW CONTENT ---
+  const renderSingleView = () => (
+    <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -1702,250 +2065,510 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
             </TabsContent>
             
             <TabsContent value="procedures" className="space-y-3 mt-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-semibold">Audit Recommendations</h4>
-                <div className="flex items-center gap-2">
-                  {filteredQuestions.length > 0 && questionsWithAnswers.length > 0 ? (
-                    recommendations.length > 0 ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const classificationToUse = currentClassification || activeClassification;
-                          if (classificationToUse) {
-                            handleGenerateProcedures(classificationToUse);
-                          } else {
-                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
-                          }
-                        }}
-                        disabled={generatingProcedures}
-                      >
-                        {generatingProcedures ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                        )}
-                        Regenerate Procedures
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          const classificationToUse = currentClassification || activeClassification;
-                          if (classificationToUse) {
-                            handleGenerateProcedures(classificationToUse);
-                          } else {
-                            toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
-                          }
-                        }}
-                        disabled={generatingProcedures}
-                      >
-                        {generatingProcedures ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
+              {proceduresViewMode === 'reviews' ? (
+                <React.Fragment>
+                  <div className="space-y-3 overflow-x-hidden flex flex-col" style={{ height: 'calc(100vh - 300px)', minHeight: '500px', width: '100%', maxWidth: '100%' }}>
+                    <div className="flex flex-col gap-2 mb-4 flex-shrink-0 w-full">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setProceduresViewMode('procedures')}
+                          className="w-full"
+                        >
                           <FileText className="h-4 w-4 mr-2" />
-                        )}
-                        Generate Procedures
-                      </Button>
-                    )
-                  ) : (
-                    <div className="text-muted-foreground text-sm">
-                      {filteredQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
-                    </div>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => {
-                    const newRec = {
-                      id: `rec-${Date.now()}`,
-                      text: "New recommendation",
-                      checked: false,
-                      classification: activeClassification
-                    }
-                    setRecommendations(prev => [...prev, newRec])
-                  }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Procedures
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={handleSaveAllChanges}
-                    disabled={isSaving || filteredQuestions.length === 0 || questionsWithAnswers.length === 0 || !activeClassification}
-                  >
-                    {isSaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Save className="h-4 w-4 mr-2" />
-                    )}
-                    Save Procedures
-                  </Button>
-                </div>
-              </div>
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-4">
-                  {recommendations.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No recommendations generated yet. Click "Add Recommendation" to create one.
-                    </div>
-                  ) : (
-                    recommendations.map((rec: any, idx: number) => {
-                      const recId = rec.id || rec.__uid || `rec-${idx}`
-                      const recText = typeof rec === 'string' 
-                        ? rec 
-                        : rec.text || rec.content || "—"
-                      const isEditing = editingQuestionId === `rec-${recId}`
-                      const editText = editQuestionText || recText
-                      
-                      return (
-                        <Card key={recId}>
-                          <CardContent className="pt-6">
-                            {isEditing ? (
-                              <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                  <div className="font-medium">{idx + 1}.</div>
-                                  <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => {
-                                      setRecommendations(prev =>
-                                        prev.map((r: any, i: number) => {
-                                          const rId = r.id || r.__uid || `rec-${i}`
-                                          if (rId === recId) {
-                                            if (typeof r === 'string') {
-                                              return editText
-                                            }
-                                            return { ...r, text: editText }
-                                          }
-                                          return r
-                                        })
-                                      )
-                                      setEditingQuestionId(null)
-                                      setEditQuestionText("")
-                                    }}>
-                                      <Save className="h-4 w-4 mr-1" />
-                                      Save
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={() => {
-                                      setEditingQuestionId(null)
-                                      setEditQuestionText("")
-                                    }}>
-                                      <X className="h-4 w-4 mr-1" />
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </div>
-                                <Textarea
-                                  value={editText}
-                                  onChange={(e) => setEditQuestionText(e.target.value)}
-                                  placeholder="Recommendation"
-                                  className="min-h-[100px]"
-                                />
-                              </div>
+                          Back to Procedures
+                        </Button>
+                        <div className="flex items-center justify-between w-full">
+                          <h4 className="text-lg font-semibold">Overall Review</h4>
+                          <div className="flex items-center gap-2">
+                            <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                              <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Review Status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="in-progress">In Progress</SelectItem>
+                                <SelectItem value="ready-for-review">Ready for Review</SelectItem>
+                                <SelectItem value="under-review">Under Review</SelectItem>
+                                <SelectItem value="approved">Approved</SelectItem>
+                                <SelectItem value="rejected">Rejected</SelectItem>
+                                <SelectItem value="signed-off">Signed Off</SelectItem>
+                                <SelectItem value="re-opened">Re-opened</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={handleSaveReview}
+                            disabled={isSavingReview}
+                          >
+                            {isSavingReview ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
                             ) : (
-                              <>
-                                <div className="flex justify-between items-start">
-                                  <div className="flex items-start space-x-3 flex-1">
-                                    <Checkbox
-                                      checked={rec.checked || false}
-                                      onCheckedChange={() => handleCheckboxToggle(recId)}
-                                      className="mt-1"
-                                    />
-                                    <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
-                                      {recText}
-                                    </span>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setEditingQuestionId(`rec-${recId}`)
-                                        setEditQuestionText(recText)
-                                      }}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setRecommendations(prev => prev.filter((r: any, i: number) => {
-                                          const rId = r.id || r.__uid || `rec-${i}`
-                                          return rId !== recId
-                                        }))
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </>
+                              <Save className="h-4 w-4 mr-2" />
                             )}
-                          </CardContent>
-                        </Card>
-                      )
-                    })
-                  )}
-                </div>
-              </ScrollArea>
+                            Save Review
+                          </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-4 flex-shrink-0 w-full" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                        <div className="flex items-center justify-between mb-2 w-full">
+                          <Label htmlFor="review-comments-main" className="flex-shrink-0">Overall Review Comments</Label>
+                        </div>
+                        <Textarea
+                          id="review-comments-main"
+                          value={reviewComments}
+                          onChange={(e) => setReviewComments(e.target.value)}
+                          placeholder="Add your review comments here..."
+                          className="min-h-[100px] max-h-[200px] mt-2 w-full resize-none border border-input focus:border-input focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+                          style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}
+                        />
+                      </div>
+
+                      <ScrollArea className="h-[500px] border rounded-md p-4">
+                        <div className="space-y-6">
+                          {/* Reviews List Section */}
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h5 className="text-md font-semibold flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                Reviews ({reviews.filter((r) => r.classification === currentClassification || !r.classification).length} reviews)
+                              </h5>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={fetchReviews}
+                                disabled={isLoadingReviews}
+                              >
+                                {isLoadingReviews ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Refresh
+                              </Button>
+                            </div>
+                            
+                            {isLoadingReviews ? (
+                              <Card>
+                                <CardContent className="pt-6">
+                                  <div className="text-center text-muted-foreground py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                    Loading reviews...
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ) : reviews.filter((r) => r.classification === currentClassification || !r.classification).length === 0 ? (
+                              <Card>
+                                <CardContent className="pt-6">
+                                  <div className="text-center text-muted-foreground py-8">
+                                    No reviews found for this engagement.
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              reviews
+                                .filter((r) => r.classification === currentClassification || !r.classification)
+                                .map((review: any, idx: number) => {
+                                const statusColors: Record<string, string> = {
+                                  'in-progress': 'bg-gray-100 text-gray-800',
+                                  'ready-for-review': 'bg-blue-100 text-blue-800',
+                                  'under-review': 'bg-yellow-100 text-yellow-800',
+                                  'approved': 'bg-green-100 text-green-800',
+                                  'rejected': 'bg-red-100 text-red-800',
+                                  'signed-off': 'bg-purple-100 text-purple-800',
+                                  're-opened': 'bg-orange-100 text-orange-800',
+                                }
+                                
+                                const isOwner = isReviewOwner(review)
+                                
+                                return (
+                                  <Card key={review._id || idx} className="mb-4">
+                                    <CardContent className="pt-6 pb-6">
+                                      <div className="space-y-3">
+                                        <div className="flex items-start justify-between">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <Badge className={statusColors[review.status] || 'bg-gray-100 text-gray-800'}>
+                                                {review.status || 'N/A'}
+                                              </Badge>
+                                              <span className="text-sm text-muted-foreground">
+                                                {review.itemType || 'N/A'}
+                                              </span>
+                                            </div>
+                                            {review.reviewComments && (
+                                              <div className="text-sm text-muted-foreground mb-2">
+                                                {review.reviewComments}
+                                              </div>
+                                            )}
+                                          </div>
+                                          {isOwner && (
+                                            <div className="flex gap-2">
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleEditReview(review)}
+                                                disabled={isDeletingReview === review._id}
+                                              >
+                                                <Edit className="h-4 w-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleDeleteReview(review._id)}
+                                                disabled={isDeletingReview === review._id}
+                                              >
+                                                {isDeletingReview === review._id ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                                )}
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                          <div>
+                                            <span className="font-medium">Reviewer:</span>{' '}
+                                            <span className="text-muted-foreground">
+                                              {(() => {
+                                                // Determine reviewer based on status
+                                                let reviewerId = null
+                                                if (review.status === 'approved') {
+                                                  reviewerId = review.approvedBy || review.reviewedBy || review.assignedReviewer
+                                                } else if (review.status === 'signed-off') {
+                                                  reviewerId = review.signedOffBy || review.approvedBy || review.reviewedBy || review.assignedReviewer
+                                                } else if (review.status === 're-opened') {
+                                                  reviewerId = review.reopenedBy || review.reviewedBy || review.assignedReviewer
+                                                } else if (review.status === 'ready-for-review' || review.status === 'under-review') {
+                                                  reviewerId = review.reviewedBy || review.assignedReviewer
+                                                } else {
+                                                  reviewerId = review.reviewedBy || review.assignedReviewer
+                                                }
+                                                return reviewerId ? (userNamesMap[reviewerId] || reviewerId) : 'Not assigned'
+                                              })()}
+                                            </span>
+                                          </div>
+                                          {review.reviewedAt && (review.status === 'ready-for-review' || review.status === 'under-review') && (
+                                            <div>
+                                              <span className="font-medium">Reviewed At:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {new Date(review.reviewedAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 'approved' && review.approvedBy && (
+                                            <div>
+                                              <span className="font-medium">Approved By:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {userNamesMap[review.approvedBy] || review.approvedBy}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 'approved' && review.approvedAt && (
+                                            <div>
+                                              <span className="font-medium">Approved At:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {new Date(review.approvedAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 'signed-off' && review.signedOffBy && (
+                                            <div>
+                                              <span className="font-medium">Signed Off By:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {userNamesMap[review.signedOffBy] || review.signedOffBy}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 'signed-off' && review.signedOffAt && (
+                                            <div>
+                                              <span className="font-medium">Signed Off At:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {new Date(review.signedOffAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.isLocked && (
+                                            <div>
+                                              <span className="font-medium">Locked:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {review.lockedBy ? `Yes (by ${userNamesMap[review.lockedBy] || review.lockedBy})` : 'Yes'}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 're-opened' && review.reopenedBy && (
+                                            <div>
+                                              <span className="font-medium">Reopened By:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {userNamesMap[review.reopenedBy] || review.reopenedBy}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.status === 're-opened' && review.reopenedAt && (
+                                            <div>
+                                              <span className="font-medium">Reopened At:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {new Date(review.reopenedAt).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {review.reviewVersion && (
+                                            <div>
+                                              <span className="font-medium">Version:</span>{' '}
+                                              <span className="text-muted-foreground">
+                                                {review.reviewVersion}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </ScrollArea>
+                  </div>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProceduresViewMode('reviews')}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Reviews
+                          </Button>
+                          {filteredQuestions.length > 0 && questionsWithAnswers.length > 0 ? (
+                            recommendations.length > 0 ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const classificationToUse = currentClassification || activeClassification;
+                                  if (classificationToUse) {
+                                    handleGenerateProcedures(classificationToUse);
+                                  } else {
+                                    toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                                  }
+                                }}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Regenerate Procedures
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => {
+                                  const classificationToUse = currentClassification || activeClassification;
+                                  if (classificationToUse) {
+                                    handleGenerateProcedures(classificationToUse);
+                                  } else {
+                                    toast({ title: "No Classification", description: "Please select a classification first.", variant: "destructive" });
+                                  }
+                                }}
+                                disabled={generatingProcedures}
+                              >
+                                {generatingProcedures ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <FileText className="h-4 w-4 mr-2" />
+                                )}
+                                Generate Procedures
+                              </Button>
+                            )
+                          ) : (
+                            <div className="text-muted-foreground text-sm">
+                              {filteredQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
+                            </div>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const newRec = {
+                              id: `rec-${Date.now()}`,
+                              text: "New recommendation",
+                              checked: false,
+                              classification: activeClassification
+                            }
+                            setRecommendations(prev => [...prev, newRec])
+                          }}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Procedures
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={handleSaveAllChanges}
+                            disabled={isSaving || filteredQuestions.length === 0 || questionsWithAnswers.length === 0 || !activeClassification}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <Save className="h-4 w-4 mr-2" />
+                            )}
+                            Save Procedures
+                          </Button>
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[500px]">
+                        <div className="space-y-4">
+                          {recommendations.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No recommendations generated yet. Click "Add Recommendation" to create one.
+                            </div>
+                          ) : (
+                            recommendations.map((rec: any, idx: number) => {
+                              const recId = rec.id || rec.__uid || `rec-${idx}`
+                              const recText = typeof rec === 'string' 
+                                ? rec 
+                                : rec.text || rec.content || "—"
+                              const isEditing = editingQuestionId === `rec-${recId}`
+                              const editText = editQuestionText || recText
+                              
+                              return (
+                                <Card key={recId}>
+                                  <CardContent className="pt-6">
+                                    {isEditing ? (
+                                      <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                          <div className="font-medium">{idx + 1}.</div>
+                                          <div className="flex gap-2">
+                                            <Button size="sm" onClick={() => {
+                                              setRecommendations(prev =>
+                                                prev.map((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  if (rId === recId) {
+                                                    if (typeof r === 'string') {
+                                                      return editText
+                                                    }
+                                                    return { ...r, text: editText }
+                                                  }
+                                                  return r
+                                                })
+                                              )
+                                              setEditingQuestionId(null)
+                                              setEditQuestionText("")
+                                            }}>
+                                              <Save className="h-4 w-4 mr-1" />
+                                              Save
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => {
+                                              setEditingQuestionId(null)
+                                              setEditQuestionText("")
+                                            }}>
+                                              <X className="h-4 w-4 mr-1" />
+                                              Cancel
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        <Textarea
+                                          value={editText}
+                                          onChange={(e) => setEditQuestionText(e.target.value)}
+                                          placeholder="Recommendation"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-start space-x-3 flex-1">
+                                            <Checkbox
+                                              checked={rec.checked || false}
+                                              onCheckedChange={() => handleCheckboxToggle(recId)}
+                                              className="mt-1"
+                                            />
+                                            <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
+                                              {recText}
+                                            </span>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setEditingQuestionId(`rec-${recId}`)
+                                                setEditQuestionText(recText)
+                                              }}
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                                  const rId = r.id || r.__uid || `rec-${i}`
+                                                  return rId !== recId
+                                                }))
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              )
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                </React.Fragment>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+  );
 
-        {/* ✅ Floating button that opens a notebook showing ONLY this classification's recommendations */}
-        <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
-        <NotebookInterface
-          isOpen={isNotesOpen}
-          isEditable={true}
-          isPlanning={false}
-          onClose={() => setIsNotesOpen(false)}
-          recommendations={recommendations}
-          onSave={(content) => {
-            setRecommendations(content as ChecklistItem[])
-          }}
-        />
-      </>
-    )
-  }
+  // --- SUB-COMPONENT: MULTI VIEW CONTENT ---
+  const renderMultiView = () => (
+    <Accordion type="multiple" className="space-y-4">
+      {availableClassifications.map((classification, idx) => {
+        const activeClassTab = classificationTabs[classification] || "questions";
+        const viewMode = classificationProceduresViewMode[classification] || 'procedures';
+        const classificationQuestions = getQuestionsForClassification(classification)
+        const classificationQuestionsWithAnswers = getQuestionsWithAnswersForClassification(classification)
+        const classificationRecommendations = getRecommendationsForClassification(classification)
+        const activeClassificationTab = classificationTabs[classification] || "questions"
+        const setActiveClassificationTab = (value: string) => {
+          setClassificationTabs(prev => ({ ...prev, [classification]: value }))
+        }
+        // Explicitly check if there are any valid questions to display
+        // Filter out any invalid/empty questions to match what's actually displayed
+        const validQuestions = classificationQuestions.filter((q: any) => q && (q.question || q.id))
+        const hasQuestions = validQuestions.length > 0
 
-  // Multi-classification view (when currentClassification is not provided)
-  return (
-    <>
-      {/* Step-1 Description */}
-      <div className="text-sm text-muted-foreground font-body mb-4">
-        Step-1: Generate questions for each classification separately. You can freely edit / add / remove questions here before moving to the next step.
-      </div>
-
-      {/* Display each classification as a separate accordion item */}
-      {availableClassifications.length > 0 ? (
-        <Accordion type="multiple" className="space-y-4">
-          {availableClassifications.map((classification) => {
-            const classificationQuestions = getQuestionsForClassification(classification)
-            const classificationQuestionsWithAnswers = getQuestionsWithAnswersForClassification(classification)
-            const classificationRecommendations = getRecommendationsForClassification(classification)
-            const activeClassificationTab = classificationTabs[classification] || "questions"
-            const setActiveClassificationTab = (value: string) => {
-              setClassificationTabs(prev => ({ ...prev, [classification]: value }))
-            }
-            // Explicitly check if there are any valid questions to display
-            // Filter out any invalid/empty questions to match what's actually displayed
-            const validQuestions = classificationQuestions.filter((q: any) => q && (q.question || q.id))
-            const hasQuestions = validQuestions.length > 0
-
-            return (
-              <AccordionItem key={classification} value={classification} className="border rounded-lg px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="text-left">
-                    <div className="font-heading text-lg">
-                      {formatClassificationForDisplay(classification)}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
-                      {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pt-4 pb-4">
-                  <Tabs value={activeClassificationTab} onValueChange={setActiveClassificationTab} className="w-full">
+        return (
+          <AccordionItem key={classification} value={classification} className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="text-left">
+                <div className="font-heading text-lg">
+                  {formatClassificationForDisplay(classification)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {safeTitle} • Mode: {(procedure?.mode || "").toUpperCase() || "N/A"} • Materiality:{" "}
+                  {formatCurrency(procedure?.materiality)} • Year End: {yearEndStr}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pt-4 pb-4">
+              <Tabs value={activeClassificationTab} onValueChange={setActiveClassificationTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="questions">Questions</TabsTrigger>
                       <TabsTrigger value="answers">Answers</TabsTrigger>
@@ -2203,195 +2826,362 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
                     </TabsContent>
                     
                     <TabsContent value="procedures" className="space-y-3 mt-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-lg font-semibold">Audit Recommendations</h4>
-                        <div className="flex items-center gap-2">
-                          {classificationQuestions.length > 0 && classificationQuestionsWithAnswers.length > 0 ? (
-                            classificationRecommendations.length > 0 ? (
+                      {(classificationProceduresViewMode[classification] || 'procedures') === 'reviews' ? (
+                        <>
+                          <div className="space-y-3 overflow-x-hidden" style={{ width: '100%', maxWidth: '100%' }}>
+                          <div className="flex items-center justify-between mb-4 w-full">
+                            <div className="flex flex-col gap-2 w-full">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleGenerateProcedures(classification)}
-                                disabled={generatingProcedures}
+                                onClick={() => setClassificationProceduresViewMode(prev => ({ ...prev, [classification]: 'procedures' }))}
+                                className="w-full"
                               >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4 mr-2" />
-                                )}
-                                Regenerate Procedures
+                                <FileText className="h-4 w-4 mr-2" />
+                                Back to Procedures
                               </Button>
-                            ) : (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleGenerateProcedures(classification)}
-                                disabled={generatingProcedures}
-                              >
-                                {generatingProcedures ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <FileText className="h-4 w-4 mr-2" />
-                                )}
-                                Generate Procedures
-                              </Button>
-                            )
-                          ) : (
-                            <div className="text-muted-foreground text-sm">
-                              {classificationQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
-                            </div>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => {
-                            const newRec = {
-                              id: `rec-${Date.now()}`,
-                              text: "New recommendation",
-                              checked: false,
-                              classification: classification
-                            }
-                            setRecommendations(prev => [...prev, newRec])
-                          }}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Procedures
-                          </Button>
-                          <Button 
-                            variant="default" 
-                            size="sm" 
-                            onClick={handleSaveAllChanges}
-                            disabled={isSaving || classificationQuestions.length === 0 || classificationQuestionsWithAnswers.length === 0}
-                          >
-                            {isSaving ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                              <Save className="h-4 w-4 mr-2" />
-                            )}
-                            Save Procedures
-                          </Button>
-                        </div>
-                      </div>
-                      <ScrollArea className="h-[400px]">
-                        <div className="space-y-4">
-                          {classificationRecommendations.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                              No recommendations generated yet. Click "Add Recommendation" to create one.
-                            </div>
-                          ) : (
-                            classificationRecommendations.map((rec: any, idx: number) => {
-                              const recId = rec.id || rec.__uid || `rec-${idx}`
-                              const recText = typeof rec === 'string' 
-                                ? rec 
-                                : rec.text || rec.content || "—"
-                              const isEditing = editingQuestionId === `rec-${recId}`
-                              const editText = editQuestionText || recText
-                              
-                              return (
-                                <Card key={recId}>
-                                  <CardContent className="pt-6">
-                                    {isEditing ? (
-                                      <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                          <div className="font-medium">{idx + 1}.</div>
-                                          <div className="flex gap-2">
-                                            <Button size="sm" onClick={() => {
-                                              setRecommendations(prev =>
-                                                prev.map((r: any, i: number) => {
-                                                  const rId = r.id || r.__uid || `rec-${i}`
-                                                  if (rId === recId) {
-                                                    if (typeof r === 'string') {
-                                                      return editText
-                                                    }
-                                                    return { ...r, text: editText }
-                                                  }
-                                                  return r
-                                                })
-                                              )
-                                              setEditingQuestionId(null)
-                                              setEditQuestionText("")
-                                            }}>
-                                              <Save className="h-4 w-4 mr-1" />
-                                              Save
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => {
-                                              setEditingQuestionId(null)
-                                              setEditQuestionText("")
-                                            }}>
-                                              <X className="h-4 w-4 mr-1" />
-                                              Cancel
-                                            </Button>
-                                          </div>
-                                        </div>
-                                        <Textarea
-                                          value={editText}
-                                          onChange={(e) => setEditQuestionText(e.target.value)}
-                                          placeholder="Recommendation"
-                                          className="min-h-[100px]"
-                                        />
-                                      </div>
+                              <div className="flex items-center justify-between w-full">
+                                <h4 className="text-lg font-semibold">Review Procedures - {formatClassificationForDisplay(classification)}</h4>
+                                <div className="flex items-center gap-2">
+                                  <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                                    <SelectTrigger className="w-[180px]">
+                                      <SelectValue placeholder="Review Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="in-progress">In Progress</SelectItem>
+                                      <SelectItem value="ready-for-review">Ready for Review</SelectItem>
+                                      <SelectItem value="under-review">Under Review</SelectItem>
+                                      <SelectItem value="approved">Approved</SelectItem>
+                                      <SelectItem value="rejected">Rejected</SelectItem>
+                                      <SelectItem value="signed-off">Signed Off</SelectItem>
+                                      <SelectItem value="re-opened">Re-opened</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm" 
+                                    onClick={handleSaveReview}
+                                    disabled={isSavingReview}
+                                  >
+                                    {isSavingReview ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                     ) : (
-                                      <>
-                                        <div className="flex justify-between items-start">
-                                          <div className="flex items-start space-x-3 flex-1">
-                                            <Checkbox
-                                              checked={rec.checked || false}
-                                              onCheckedChange={() => handleCheckboxToggle(recId)}
-                                              className="mt-1"
-                                            />
-                                            <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
-                                              {recText}
-                                            </span>
-                                          </div>
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setEditingQuestionId(`rec-${recId}`)
-                                                setEditQuestionText(recText)
-                                              }}
-                                            >
-                                              <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setRecommendations(prev => prev.filter((r: any, i: number) => {
-                                                  const rId = r.id || r.__uid || `rec-${i}`
-                                                  return rId !== recId
-                                                }))
-                                              }}
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </>
+                                      <Save className="h-4 w-4 mr-2" />
                                     )}
-                                  </CardContent>
-                                </Card>
-                              )
-                            })
-                          )}
-                        </div>
-                      </ScrollArea>
+                                    Save Review
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mb-4 w-full">
+                            <div className="flex items-center justify-between mb-2 w-full">
+                              <Label htmlFor={`review-comments-${classification}`} className="flex-shrink-0">Overall Review Comments</Label>
+                            </div>
+                            <Textarea
+                              id={`review-comments-${classification}`}
+                              value={reviewComments}
+                              onChange={(e) => setReviewComments(e.target.value)}
+                              placeholder="Add your review comments here..."
+                              className="min-h-[100px] max-h-[200px] mt-2 w-full resize-none border border-input focus:border-input focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+                              style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}
+                            />
+                          </div>
+
+                          <ScrollArea className="h-[500px] border rounded-md p-4">
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between mb-4">
+                                <h5 className="text-md font-semibold flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  Reviews ({reviews.filter((r) => r.classification === classification || (!r.classification && idx === 0)).length})
+                                </h5>
+                                <Button variant="outline" size="sm" onClick={fetchReviews} disabled={isLoadingReviews}>
+                                  {isLoadingReviews ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                </Button>
+                              </div>
+                              
+                              {reviews
+                                .filter((r) => r.classification === classification || (!r.classification && idx === 0))
+                                .map((review, rIdx) => (
+                                  <Card key={review._id || rIdx}>
+                                    <CardContent className="pt-4">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <Badge>{review.status}</Badge>
+                                        {isReviewOwner(review) && (
+                                          <div className="flex gap-2">
+                                            <Button variant="ghost" size="sm" onClick={() => handleEditReview(review)}><Edit className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="sm" onClick={() => handleDeleteReview(review._id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <p className="text-sm">{review.reviewComments || "No comment."}</p>
+                                    </CardContent>
+                                  </Card>
+                                ))
+                              }
+                              {reviews.filter((r) => r.classification === classification || (!r.classification && idx === 0)).length === 0 && (
+                                <div className="text-center py-8 text-muted-foreground">No reviews yet.</div>
+                              )}
+                            </div>
+                          </ScrollArea>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold">Audit Recommendations</h4>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setClassificationProceduresViewMode(prev => ({ ...prev, [classification]: 'reviews' }))}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Reviews
+                              </Button>
+                              {classificationQuestions.length > 0 && classificationQuestionsWithAnswers.length > 0 ? (
+                                classificationRecommendations.length > 0 ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleGenerateProcedures(classification)}
+                                    disabled={generatingProcedures}
+                                  >
+                                    {generatingProcedures ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                      <RefreshCw className="h-4 w-4 mr-2" />
+                                    )}
+                                    Regenerate Procedures
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleGenerateProcedures(classification)}
+                                    disabled={generatingProcedures}
+                                  >
+                                    {generatingProcedures ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                      <FileText className="h-4 w-4 mr-2" />
+                                    )}
+                                    Generate Procedures
+                                  </Button>
+                                )
+                              ) : (
+                                <div className="text-muted-foreground text-sm">
+                                  {classificationQuestions.length === 0 ? "Generate questions first." : "Generate answers first."}
+                                </div>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => {
+                                const newRec = {
+                                  id: `rec-${Date.now()}`,
+                                  text: "New recommendation",
+                                  checked: false,
+                                  classification: classification
+                                }
+                                setRecommendations(prev => [...prev, newRec])
+                              }}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Procedures
+                              </Button>
+                              <Button 
+                                variant="default" 
+                                size="sm" 
+                                onClick={handleSaveAllChanges}
+                                disabled={isSaving || classificationQuestions.length === 0 || classificationQuestionsWithAnswers.length === 0}
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <Save className="h-4 w-4 mr-2" />
+                                )}
+                                Save Procedures
+                              </Button>
+                            </div>
+                          </div>
+                          <ScrollArea className="h-[400px]">
+                            <div className="space-y-4">
+                              {classificationRecommendations.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  No recommendations generated yet. Click "Add Recommendation" to create one.
+                                </div>
+                              ) : (
+                                classificationRecommendations.map((rec: any, idx: number) => {
+                                  const recId = rec.id || rec.__uid || `rec-${idx}`
+                                  const recText = typeof rec === 'string' 
+                                    ? rec 
+                                    : rec.text || rec.content || "—"
+                                  const isEditing = editingQuestionId === `rec-${recId}`
+                                  const editText = editQuestionText || recText
+                                  
+                                  return (
+                                    <Card key={recId}>
+                                      <CardContent className="pt-6">
+                                        {isEditing ? (
+                                          <div className="space-y-3">
+                                            <div className="flex justify-between items-center">
+                                              <div className="font-medium">{idx + 1}.</div>
+                                              <div className="flex gap-2">
+                                                <Button size="sm" onClick={() => {
+                                                  setRecommendations(prev =>
+                                                    prev.map((r: any, i: number) => {
+                                                      const rId = r.id || r.__uid || `rec-${i}`
+                                                      if (rId === recId) {
+                                                        if (typeof r === 'string') {
+                                                          return editText
+                                                        }
+                                                        return { ...r, text: editText }
+                                                      }
+                                                      return r
+                                                    })
+                                                  )
+                                                  setEditingQuestionId(null)
+                                                  setEditQuestionText("")
+                                                }}>
+                                                  <Save className="h-4 w-4 mr-1" />
+                                                  Save
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => {
+                                                  setEditingQuestionId(null)
+                                                  setEditQuestionText("")
+                                                }}>
+                                                  <X className="h-4 w-4 mr-1" />
+                                                  Cancel
+                                                </Button>
+                                              </div>
+                                            </div>
+                                            <Textarea
+                                              value={editText}
+                                              onChange={(e) => setEditQuestionText(e.target.value)}
+                                              placeholder="Recommendation"
+                                              className="min-h-[100px]"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <div className="flex justify-between items-start">
+                                              <div className="flex items-start space-x-3 flex-1">
+                                                <Checkbox
+                                                  checked={rec.checked || false}
+                                                  onCheckedChange={() => handleCheckboxToggle(recId)}
+                                                  className="mt-1"
+                                                />
+                                                <span className={rec.checked ? "line-through text-muted-foreground flex-1" : "font-medium mb-2 text-black flex-1"}>
+                                                  {recText}
+                                                </span>
+                                              </div>
+                                              <div className="flex gap-2">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setEditingQuestionId(`rec-${recId}`)
+                                                    setEditQuestionText(recText)
+                                                  }}
+                                                >
+                                                  <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    setRecommendations(prev => prev.filter((r: any, i: number) => {
+                                                      const rId = r.id || r.__uid || `rec-${i}`
+                                                      return rId !== recId
+                                                    }))
+                                                  }}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
+                                      </CardContent>
+                                    </Card>
+                                  )
+                                })
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </>
+                      )}
                     </TabsContent>
                   </Tabs>
                 </AccordionContent>
               </AccordionItem>
-            )
+            );
           })}
-        </Accordion>
-      ) : (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              No classifications available. Please select classifications in the previous step.
-            </div>
-          </CardContent>
-        </Card>
-      )}
+    </Accordion>
+  );
 
-      {/* ✅ Floating button that opens a notebook showing recommendations */}
+  // --- FINAL SINGLE RETURN ---
+  return (
+    <div className="space-y-6">
+      <div className="text-sm text-muted-foreground font-body">
+        Step-1: Generate questions for each classification separately. You can freely edit / add / remove questions here before moving to the next step.
+      </div>
+
+      {currentClassification ? renderSingleView() : renderMultiView()}
+
+      {/* SHARED COMPONENTS - Always Rendered */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Review</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-review-status">Status</Label>
+              <Select value={editReviewStatus} onValueChange={setEditReviewStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="ready-for-review">Ready for Review</SelectItem>
+                  <SelectItem value="under-review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="signed-off">Signed Off</SelectItem>
+                  <SelectItem value="re-opened">Re-opened</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-review-comments">Review Comments</Label>
+              <Textarea
+                id="edit-review-comments"
+                value={editReviewComments}
+                onChange={(e) => setEditReviewComments(e.target.value)}
+                placeholder="Enter review comments..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateReview} disabled={isUpdatingReview}>
+              {isUpdatingReview ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Review"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <FloatingNotesButton onClick={() => setIsNotesOpen(true)} isOpen={isNotesOpen} />
+      
       <NotebookInterface
         isOpen={isNotesOpen}
         isEditable={true}
@@ -2402,7 +3192,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
           setRecommendations(content as ChecklistItem[])
         }}
       />
-    </>
+    </div>
   )
 }
 

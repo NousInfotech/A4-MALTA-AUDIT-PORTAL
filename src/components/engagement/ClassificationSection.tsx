@@ -231,6 +231,7 @@ import {
 import { msDriveworkbookApi, db_WorkbookApi } from "@/lib/api/workbookApi";
 import { getExtendedTBWithLinkedFiles, deleteWorkbookFromLinkedFilesInExtendedTB, updateLinkedExcelFilesInExtendedTB } from "@/lib/api/extendedTrialBalanceApi";
 import { getWorkingPaperWithLinkedFiles, updateLinkedExcelFilesInWP } from "@/lib/api/workingPaperApi";
+import { engagementApi } from "@/services/api";
 
 
 import ProcedureView from "../procedures/ProcedureView";
@@ -266,6 +267,8 @@ interface ClassificationSectionProps {
   onReviewStatusChange?: () => void; // Callback to refresh notification counts
 
   loadExistingData?: () => void; // Callback to refresh ETB data
+
+  isReadOnly?: boolean;
 }
 
 interface ReferenceRowData {
@@ -523,8 +526,10 @@ async function authFetch(url: string, options: RequestInit = {}) {
 
 
 const isTopCategory = (c: string) =>
-
-  ["Equity", "Income", "Expenses"].includes(c);
+  ["Assets", "Liabilities", "Equity", "Income", "Expenses"].includes(c) ||
+  c.startsWith("Assets >") ||
+  c.startsWith("Liabilities >") ||
+  c.startsWith("Equity >");
 
 const isAdjustments = (c: string) => c === "Adjustments";
 const isReclassifications = (c: string) => c === "Reclassifications";
@@ -900,6 +905,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   onReviewStatusChange,
 
   loadExistingData,
+  isReadOnly = false,
 }) => {
   // Debug: Log classification when component renders or classification changes
   useEffect(() => {
@@ -1881,15 +1887,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // Initial load of all procedures when component mounts (matching TrialBalanceTab.tsx exactly)
   useEffect(() => {
-    if (!engagement?._id) return;
+    if (!engagement?._id || isReadOnly) return;
     loadFieldworkSimple();
     loadPlanningSimple();
     loadCompletionSimple();
-  }, [engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [engagement?._id, isReadOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load procedures when Procedures tab is opened (additional loading for refresh)
   useEffect(() => {
-    if (activeTab === "procedures" && engagement?._id) {
+    if (activeTab === "procedures" && engagement?._id && !isReadOnly) {
       // Always load all procedures when Procedures tab is active (like TrialBalanceTab.tsx)
       loadFieldworkSimple();
       loadPlanningSimple();
@@ -1901,7 +1907,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
         setProcedureStep("0");
       }
     }
-  }, [activeTab, engagement?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, engagement?._id, isReadOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const generateAnswersForClassification = async () => {
 
@@ -4284,8 +4290,10 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
           if (profileError) {
-
-            console.error('Error getting user profile:', profileError);
+            // Silence "not found" errors for profiles as clients might not have them
+            if (profileError.code !== 'PGRST116') {
+              console.error('Error getting user profile:', profileError);
+            }
 
             // Fallback to basic user data
 
@@ -4346,8 +4354,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
   // Load evidence files when engagement changes
   useEffect(() => {
+    if (isReadOnly) return;
     loadEvidenceFiles();
-  }, [loadEvidenceFiles]); // ✅ Use loadEvidenceFiles as dependency since it's memoized with useCallback
+  }, [loadEvidenceFiles, isReadOnly]); // ✅ Use loadEvidenceFiles as dependency since it's memoized with useCallback
 
   // ✅ NEW: Load ALL workbooks for the engagement (not filtered by classification)
 
@@ -4355,23 +4364,14 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   // Load review workflow when classification changes
 
   useEffect(() => {
-
-    if (!classification) {
-
+    if (!classification || isReadOnly) {
       setReviewWorkflow({
-
         classificationId: classification,
-
         engagementId: engagement.id,
-
         reviews: [],
-
         isSignedOff: false
-
       });
-
       return;
-
     }
 
 
@@ -4496,108 +4496,61 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
   const headerActions = (
 
     <div className="flex items-center gap-2 flex-wrap">
-
       <TooltipProvider delayDuration={200}>
-
-        <Tooltip>
-
+      {!isReadOnly && <Tooltip>
           <TooltipTrigger asChild>
-
             <Button
-
               variant="outline"
-
               size="icon"
-
               className="h-9 w-9 bg-transparent"
-
               onClick={() => setIsFullscreen((v) => !v)}
             >
-
               {isFullscreen ? (
-
                 <Minimize2 className="h-4 w-4" />
-
               ) : (
-
                 <Maximize2 className="h-4 w-4" />
-
               )}
-
             </Button>
-
           </TooltipTrigger>
-
           <TooltipContent side="bottom" align="center">
-
             {isFullscreen ? "Exit full screen" : "Full screen"}
-
           </TooltipContent>
+        </Tooltip>}
 
-        </Tooltip>
+        {!isReadOnly && (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={reloadDataFromETB} variant="outline" size="sm" disabled={reviewWorkflow?.isSignedOff}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Reload Data</span>
+                  <span className="sm:hidden">Reload</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                Reload rows from ETB
+              </TooltipContent>
+            </Tooltip>
 
-
-
-        <Tooltip>
-
-          <TooltipTrigger asChild>
-
-            <Button onClick={reloadDataFromETB} variant="outline" size="sm" disabled={reviewWorkflow?.isSignedOff}>
-
-              <RefreshCw className="h-4 w-4 mr-2" />
-
-              <span className="hidden sm:inline">Reload Data</span>
-
-              <span className="sm:hidden">Reload</span>
-
-            </Button>
-
-          </TooltipTrigger>
-
-          <TooltipContent side="bottom" align="center">
-
-            Reload rows from ETB
-
-          </TooltipContent>
-
-        </Tooltip>
-
-
-
-        <Tooltip>
-
-          <TooltipTrigger asChild>
-
-            <Button
-
-              onClick={createViewSpreadsheet}
-
-              disabled={sectionData.length === 0 || reviewWorkflow?.isSignedOff}
-
-              size="sm"
-
-              variant="outline"
-
-            >
-
-              <ExternalLink className="h-4 w-4 mr-2" />
-
-              <span className="hidden sm:inline">Save As Spreadsheet</span>
-
-              <span className="sm:hidden">Save</span>
-
-            </Button>
-
-          </TooltipTrigger>
-
-          <TooltipContent side="bottom" align="center">
-
-            Save this section as a view-only spreadsheet
-
-          </TooltipContent>
-
-        </Tooltip>
-
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={createViewSpreadsheet}
+                  disabled={sectionData.length === 0 || reviewWorkflow?.isSignedOff}
+                  size="sm"
+                  variant="outline"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Save As Spreadsheet</span>
+                  <span className="sm:hidden">Save</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                Save this section as a view-only spreadsheet
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </TooltipProvider>
 
     </div>
@@ -4858,6 +4811,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           engagement={engagement}
           etbRows={sectionData}
           etbId={etbId}
+          isReadOnly={isReadOnly}
         />
       </div>
     );
@@ -4871,6 +4825,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           engagement={engagement}
           etbRows={sectionData}
           etbId={etbId}
+          isReadOnly={isReadOnly}
         />
       </div>
     );
@@ -4980,21 +4935,15 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
           >
 
-            <TabsList className="grid w-full grid-cols-4">
-
-              <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
-
-              {/* <TabsTrigger value="working-papers">Working Papers</TabsTrigger> */}
-
-              <TabsTrigger value="evidence">Evidence</TabsTrigger>
-
-              <TabsTrigger value="procedures">Procedures</TabsTrigger>
-
-              <TabsTrigger value="work-book">WorkBook</TabsTrigger>
-
-
-
-            </TabsList>
+            {!isReadOnly && (
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="lead-sheet">Lead Sheet</TabsTrigger>
+                {/* <TabsTrigger value="working-papers">Working Papers</TabsTrigger> */}
+                <TabsTrigger value="evidence">Evidence</TabsTrigger>
+                <TabsTrigger value="procedures">Procedures</TabsTrigger>
+                <TabsTrigger value="work-book">WorkBook</TabsTrigger>
+              </TabsList>
+            )}
 
 
 
@@ -6955,7 +6904,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                   <th className="px-4 py-2 border-b border-secondary font-bold border-r w-[4rem] text-xs sm:text-sm">Prior Year</th>
 
-                  <th className="px-4 py-2 border-b border-secondary font-bold w-[8rem] text-xs sm:text-sm">Linked Files</th>
+                  {!isReadOnly && <th className="px-4 py-2 border-b border-secondary font-bold w-[8rem] text-xs sm:text-sm">Linked Files</th>}
 
                 </tr>
 
@@ -6985,99 +6934,101 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       {formatValueForDisplay(Number(row.priorYear) || 0, rowClassification)}
                     </td>
 
-                    <td className="px-4 py-2 border-b border-secondary text-left">
-                      <Drawer>
-                        <DrawerTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3"
-                            disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                          </Button>
-                        </DrawerTrigger>
-                        <DrawerContent>
-                          <DrawerHeader>
-                            <DrawerTitle>Linked Excel Files</DrawerTitle>
-                            <DrawerDescription>
-                              Manage linked files for {row.accountName} ({row.code})
-                            </DrawerDescription>
-                          </DrawerHeader>
-                          <div className="px-4 pb-4">
-                            {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                              <div className="text-center py-8 text-muted-foreground">
-                                No linked files for this row.
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {row.linkedExcelFiles.map((workbook: any) => (
-                                  <div
-                                    key={workbook._id}
-                                    className="flex items-center justify-between p-3 border rounded-lg"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                      <div>
-                                        <p className="font-medium">{workbook.name}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                        </p>
+                    {!isReadOnly && (
+                      <td className="px-4 py-2 border-b border-secondary text-left">
+                        <Drawer>
+                          <DrawerTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3"
+                              disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                            </Button>
+                          </DrawerTrigger>
+                          <DrawerContent>
+                            <DrawerHeader>
+                              <DrawerTitle>Linked Excel Files</DrawerTitle>
+                              <DrawerDescription>
+                                Manage linked files for {row.accountName} ({row.code})
+                              </DrawerDescription>
+                            </DrawerHeader>
+                            <div className="px-4 pb-4">
+                              {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  No linked files for this row.
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {row.linkedExcelFiles.map((workbook: any) => (
+                                    <div
+                                      key={workbook._id}
+                                      className="flex items-center justify-between p-3 border rounded-lg"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                        <div>
+                                          <p className="font-medium">{workbook.name}</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleViewWorkbook(workbook)}
+                                        >
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Remove
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                This action cannot be undone.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                              >
+                                                Remove
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                       </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleViewWorkbook(workbook)}
-                                      >
-                                        <ExternalLink className="h-4 w-4 mr-2" />
-                                        View
-                                      </Button>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button
-                                            variant="destructive"
-                                            size="sm"
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Remove
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                              This action cannot be undone.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            >
-                                              Remove
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <DrawerFooter>
-                            <DrawerClose asChild>
-                              <Button variant="outline">Close</Button>
-                            </DrawerClose>
-                          </DrawerFooter>
-                        </DrawerContent>
-                      </Drawer>
-                    </td>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <DrawerFooter>
+                              <DrawerClose asChild>
+                                <Button variant="outline">Close</Button>
+                              </DrawerClose>
+                            </DrawerFooter>
+                          </DrawerContent>
+                        </Drawer>
+                      </td>
+                    )}
 
                   </tr>
 
@@ -7103,7 +7054,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     <td className="px-4 py-2 border-r-secondary border font-bold text-right">
                       {formatValueForDisplay(currentTotals.priorYear, rowClassification)}
                     </td>
-                    <td className="px-4 py-2 border-r-secondary border"></td>
+                    {!isReadOnly && <td className="px-4 py-2 border-r-secondary border"></td>}
                   </tr>
                 )}
 
@@ -7113,7 +7064,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                     <td
 
-                      colSpan={8}
+                      colSpan={isReadOnly ? 7 : 8}
 
                       className="px-4 py-8 text-center text-gray-500"
 
@@ -7210,7 +7161,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
                         <th className="px-4 py-2 font-bold border-r border-secondary border-b text-right">Prior Year</th>
 
-                        <th className="px-4 py-2 font-bold border-secondary border-b text-left">Linked Files</th>
+                        {!isReadOnly && <th className="px-4 py-2 font-bold border-secondary border-b text-left">Linked Files</th>}
 
 
 
@@ -7244,99 +7195,101 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || itemClassification)}
                           </td>
 
-                          <td className="px-4 py-2 border-secondary border-b text-left">
-                            <Drawer>
-                              <DrawerTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 px-3"
-                                  disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                                >
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                                </Button>
-                              </DrawerTrigger>
-                              <DrawerContent>
-                                <DrawerHeader>
-                                  <DrawerTitle>Linked Excel Files</DrawerTitle>
-                                  <DrawerDescription>
-                                    Manage linked files for {row.accountName} ({row.code})
-                                  </DrawerDescription>
-                                </DrawerHeader>
-                                <div className="px-4 pb-4">
-                                  {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                      No linked files for this row.
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {row.linkedExcelFiles.map((workbook: any) => (
-                                        <div
-                                          key={workbook._id}
-                                          className="flex items-center justify-between p-3 border rounded-lg"
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                            <div>
-                                              <p className="font-medium">{workbook.name}</p>
-                                              <p className="text-sm text-muted-foreground">
-                                                Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                              </p>
+                          {!isReadOnly && (
+                            <td className="px-4 py-2 border-secondary border-b text-left">
+                              <Drawer>
+                                <DrawerTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-3"
+                                    disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                                  </Button>
+                                </DrawerTrigger>
+                                <DrawerContent>
+                                  <DrawerHeader>
+                                    <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                    <DrawerDescription>
+                                      Manage linked files for {row.accountName} ({row.code})
+                                    </DrawerDescription>
+                                  </DrawerHeader>
+                                  <div className="px-4 pb-4">
+                                    {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                      <div className="text-center py-8 text-muted-foreground">
+                                        No linked files for this row.
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        {row.linkedExcelFiles.map((workbook: any) => (
+                                          <div
+                                            key={workbook._id}
+                                            className="flex items-center justify-between p-3 border rounded-lg"
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                              <div>
+                                                <p className="font-medium">{workbook.name}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleViewWorkbook(workbook)}
+                                              >
+                                                <ExternalLink className="h-4 w-4 mr-2" />
+                                                View
+                                              </Button>
+                                              <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                  <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                  >
+                                                    <Trash2 className="h-4 w-4 mr-2" />
+                                                    Remove
+                                                  </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                  <AlertDialogHeader>
+                                                    <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                      Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                      This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                  </AlertDialogHeader>
+                                                  <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                      onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                    >
+                                                      Remove
+                                                    </AlertDialogAction>
+                                                  </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                              </AlertDialog>
                                             </div>
                                           </div>
-                                          <div className="flex gap-2">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => handleViewWorkbook(workbook)}
-                                            >
-                                              <ExternalLink className="h-4 w-4 mr-2" />
-                                              View
-                                            </Button>
-                                            <AlertDialog>
-                                              <AlertDialogTrigger asChild>
-                                                <Button
-                                                  variant="destructive"
-                                                  size="sm"
-                                                >
-                                                  <Trash2 className="h-4 w-4 mr-2" />
-                                                  Remove
-                                                </Button>
-                                              </AlertDialogTrigger>
-                                              <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                  <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                                  <AlertDialogDescription>
-                                                    Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                                    This action cannot be undone.
-                                                  </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                  <AlertDialogAction
-                                                    onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                  >
-                                                    Remove
-                                                  </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                              </AlertDialogContent>
-                                            </AlertDialog>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <DrawerFooter>
-                                  <DrawerClose asChild>
-                                    <Button variant="outline">Close</Button>
-                                  </DrawerClose>
-                                </DrawerFooter>
-                              </DrawerContent>
-                            </Drawer>
-                          </td>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <DrawerFooter>
+                                    <DrawerClose asChild>
+                                      <Button variant="outline">Close</Button>
+                                    </DrawerClose>
+                                  </DrawerFooter>
+                                </DrawerContent>
+                              </Drawer>
+                            </td>
+                          )}
 
 
 
@@ -7367,7 +7320,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary text-right">
                           {formatValueForDisplay(subtotal.priorYear, itemClassification)}
                         </td>
-                        <td className="px-4 py-2 border-r border-secondary"></td>
+                        {!isReadOnly && <td className="px-4 py-2 border-r border-secondary"></td>}
 
                       </tr>
 
@@ -7464,8 +7417,8 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     } else {
       // Normal classification/category table
       // Separate rows by grouping4 status
-      const groupedRows = sectionData.filter(row => row.grouping4 && row.grouping4.trim() !== '');
-      const ungroupedRows = sectionData.filter(row => !row.grouping4 || row.grouping4.trim() === '');
+      const groupedRows = isReadOnly ? [] : sectionData.filter(row => row.grouping4 && row.grouping4.trim() !== '');
+      const ungroupedRows = isReadOnly ? sectionData : sectionData.filter(row => !row.grouping4 || row.grouping4.trim() === '');
 
       // Get all available Grouping 4 values from NEW_CLASSIFICATION_OPTIONS
       // based on the classifications present in sectionData
@@ -7599,7 +7552,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
                   Already Grouped (Grouping 4)
                 </h4>
-                {!isGroupingMode && (
+                {!isReadOnly && !isGroupingMode && (
                   <Button
                     onClick={startGroupingMode}
                     size="sm"
@@ -7616,7 +7569,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      {isGroupingMode && (
+                      {!isReadOnly && isGroupingMode && (
                         <th
                           className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
                           onClick={(e) => e.stopPropagation()}
@@ -7647,7 +7600,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
+                      {!isReadOnly && <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -7656,7 +7609,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         key={index}
                         className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                       >
-                        {isGroupingMode && (
+                        {!isReadOnly && isGroupingMode && (
                           <td
                             className="px-4 py-2 border-r border-secondary border-b text-center"
                             onClick={(e) => e.stopPropagation()}
@@ -7691,6 +7644,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || rowClassification)}
                         </td>
+                        {!isReadOnly && (
                         <td className="px-4 py-2 border-secondary border-b text-left">
                           <Drawer>
                             <DrawerTrigger asChild>
@@ -7741,6 +7695,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                                             <ExternalLink className="h-4 w-4 mr-2" />
                                             View
                                           </Button>
+                                          {!isReadOnly && (
                                           <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                               <Button
@@ -7770,6 +7725,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                                               </AlertDialogFooter>
                                             </AlertDialogContent>
                                           </AlertDialog>
+                                          )}
                                         </div>
                                       </div>
                                     ))}
@@ -7784,6 +7740,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             </DrawerContent>
                           </Drawer>
                         </td>
+                        )}
 
                       </tr>
                     ))}
@@ -7824,7 +7781,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             rowClassification
                           )}
                         </td>
-                        <td></td>
+                        {!isReadOnly && <td></td>}
                       </tr>
                     )}
                   </tbody>
@@ -7837,7 +7794,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
           {ungroupedRows.length > 0 && (
             <div className="flex-1 border border-secondary rounded-lg overflow-hidden">
               {/* Action Buttons */}
-              {!isGroupingMode && selectedRowIds.size > 0 && (
+              {!isReadOnly && !isGroupingMode && selectedRowIds.size > 0 && (
                 <div className="p-3 bg-green-50 dark:bg-green-950/20 border-b border-green-200 flex justify-end">
                   <Button
                     onClick={startGroupingMode}
@@ -7854,28 +7811,30 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
-                      <th
-                        className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-center">
-                          <Checkbox
-                            checked={ungroupedRows.length > 0 && ungroupedRows.every(row => selectedRowIds.has(getRowId(row)))}
-                            onCheckedChange={(checked) => {
-                              console.log('Select all ungrouped rows:', checked);
-                              if (checked) {
-                                setSelectedRowIds(new Set([...selectedRowIds, ...ungroupedRows.map(r => getRowId(r))]));
-                              } else {
-                                const newSet = new Set(selectedRowIds);
-                                ungroupedRows.forEach(r => newSet.delete(getRowId(r)));
-                                setSelectedRowIds(newSet);
-                              }
-                            }}
-                            aria-label="Select all ungrouped rows"
-                            disabled={isSignedOff}
-                          />
-                        </div>
-                      </th>
+                       {!isReadOnly && (
+                        <th
+                          className="px-4 py-2 border-r border-secondary border-b text-center w-[3rem]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              checked={ungroupedRows.length > 0 && ungroupedRows.every(row => selectedRowIds.has(getRowId(row)))}
+                              onCheckedChange={(checked) => {
+                                console.log('Select all ungrouped rows:', checked);
+                                if (checked) {
+                                  setSelectedRowIds(new Set([...selectedRowIds, ...ungroupedRows.map(r => getRowId(r))]));
+                                } else {
+                                  const newSet = new Set(selectedRowIds);
+                                  ungroupedRows.forEach(r => newSet.delete(getRowId(r)));
+                                  setSelectedRowIds(newSet);
+                                }
+                              }}
+                              aria-label="Select all ungrouped rows"
+                              disabled={isSignedOff}
+                            />
+                          </div>
+                        </th>
+                      )}
                       <th className="px-4 py-2 border-r border-secondary border-b text-left">Code</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-left w-[12rem] max-w-[12rem]">Account Name</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Current Year</th>
@@ -7883,7 +7842,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Adjustments</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Final Balance</th>
                       <th className="px-4 py-2 border-r border-secondary border-b text-right">Prior Year</th>
-                      <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>
+                      {!isReadOnly && <th className="px-4 py-2 border-secondary border-b text-left">Linked Files</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -7892,22 +7851,24 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         key={index}
                         className={`border-t ${isSignedOff ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50'} ${selectedRowIds.has(getRowId(row)) ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                       >
-                        <td
-                          className="px-4 py-2 border-r border-secondary border-b text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center justify-center">
-                            <Checkbox
-                              checked={selectedRowIds.has(getRowId(row))}
-                              onCheckedChange={(checked) => {
-                                console.log('Checkbox clicked for row:', row.accountName, 'checked:', checked);
-                                toggleRowSelection(getRowId(row));
-                              }}
-                              aria-label={`Select ${row.accountName}`}
-                              disabled={isSignedOff}
-                            />
-                          </div>
-                        </td>
+                        {!isReadOnly && (
+                          <td
+                            className="px-4 py-2 border-r border-secondary border-b text-center"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-center">
+                              <Checkbox
+                                checked={selectedRowIds.has(getRowId(row))}
+                                onCheckedChange={(checked) => {
+                                  console.log('Checkbox clicked for row:', row.accountName, 'checked:', checked);
+                                  toggleRowSelection(getRowId(row));
+                                }}
+                                aria-label={`Select ${row.accountName}`}
+                                disabled={isSignedOff}
+                              />
+                            </div>
+                          </td>
+                        )}
                         <td className="px-4 py-2 border-r border-secondary border-b font-mono text-xs">{row.code}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b max-w-[12rem] break-words whitespace-normal">{row.accountName}</td>
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
@@ -7925,106 +7886,108 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                         <td className="px-4 py-2 border-r border-secondary border-b text-right">
                           {formatValueForDisplay(Number(row.priorYear) || 0, row.classification || rowClassification)}
                         </td>
-                        <td className="px-4 py-2 border-secondary border-b text-left">
-                          <Drawer>
-                            <DrawerTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 px-3"
-                                disabled={(row.linkedExcelFiles?.length || 0) === 0}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
-                              </Button>
-                            </DrawerTrigger>
-                            <DrawerContent>
-                              <DrawerHeader>
-                                <DrawerTitle>Linked Excel Files</DrawerTitle>
-                                <DrawerDescription>
-                                  Manage linked files for {row.accountName} ({row.code})
-                                </DrawerDescription>
-                              </DrawerHeader>
-                              <div className="px-4 pb-4">
-                                {(row.linkedExcelFiles?.length || 0) === 0 ? (
-                                  <div className="text-center py-8 text-muted-foreground">
-                                    No linked files for this row.
-                                  </div>
-                                ) : (
-                                  <div className="space-y-3">
-                                    {row.linkedExcelFiles.map((workbook: any) => (
-                                      <div
-                                        key={workbook._id}
-                                        className="flex items-center justify-between p-3 border rounded-lg"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                                          <div>
-                                            <p className="font-medium">{workbook.name}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                              Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
-                                            </p>
+                        {!isReadOnly && (
+                          <td className="px-4 py-2 border-secondary border-b text-left">
+                            <Drawer>
+                              <DrawerTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 px-3"
+                                  disabled={(row.linkedExcelFiles?.length || 0) === 0}
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  {(row.linkedExcelFiles?.length || 0)} file{(row.linkedExcelFiles?.length || 0) !== 1 ? 's' : ''}
+                                </Button>
+                              </DrawerTrigger>
+                              <DrawerContent>
+                                <DrawerHeader>
+                                  <DrawerTitle>Linked Excel Files</DrawerTitle>
+                                  <DrawerDescription>
+                                    Manage linked files for {row.accountName} ({row.code})
+                                  </DrawerDescription>
+                                </DrawerHeader>
+                                <div className="px-4 pb-4">
+                                  {(row.linkedExcelFiles?.length || 0) === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                      No linked files for this row.
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {row.linkedExcelFiles.map((workbook: any) => (
+                                        <div
+                                          key={workbook._id}
+                                          className="flex items-center justify-between p-3 border rounded-lg"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                                            <div>
+                                              <p className="font-medium">{workbook.name}</p>
+                                              <p className="text-sm text-muted-foreground">
+                                                Uploaded: {formatDateForLinkedFiles(workbook.uploadedDate)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleViewWorkbook(workbook)}
+                                            >
+                                              <ExternalLink className="h-4 w-4 mr-2" />
+                                              View
+                                            </Button>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button
+                                                  variant="destructive"
+                                                  size="sm"
+                                                >
+                                                  <Trash2 className="h-4 w-4 mr-2" />
+                                                  Remove
+                                                </Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Are you sure you want to remove "{workbook.name}" from this ETB row?
+                                                    This action cannot be undone.
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction
+                                                    onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
+                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                  >
+                                                    Remove
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
                                           </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleViewWorkbook(workbook)}
-                                          >
-                                            <ExternalLink className="h-4 w-4 mr-2" />
-                                            View
-                                          </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button
-                                                variant="destructive"
-                                                size="sm"
-                                              >
-                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                Remove
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Remove Workbook</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Are you sure you want to remove "{workbook.name}" from this ETB row?
-                                                  This action cannot be undone.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => handleRemoveWorkbook(row.id || row._id || row.code, workbook._id, workbook.name)}
-                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                >
-                                                  Remove
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <DrawerFooter>
-                                <DrawerClose asChild>
-                                  <Button variant="outline">Close</Button>
-                                </DrawerClose>
-                              </DrawerFooter>
-                            </DrawerContent>
-                          </Drawer>
-                        </td>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <DrawerFooter>
+                                  <DrawerClose asChild>
+                                    <Button variant="outline">Close</Button>
+                                  </DrawerClose>
+                                </DrawerFooter>
+                              </DrawerContent>
+                            </Drawer>
+                          </td>
+                        )}
 
                       </tr>
                     ))}
                     {ungroupedRows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={9}
+                          colSpan={isReadOnly ? 7 : 9}
                           className="px-4 py-8 text-center text-gray-500"
                         >
                           All rows are grouped
@@ -8033,7 +7996,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                     )}
                     {ungroupedRows.length > 0 && (
                       <tr className="bg-muted/50 font-medium">
-                        <td className="px-4 py-2 border-r-secondary border"></td>
+                        {!isReadOnly && <td className="px-4 py-2 border-r-secondary border"></td>}
                         <td className="px-4 py-2 border-r-secondary border font-bold" colSpan={2}>
                           TOTALS
                         </td>
@@ -8067,7 +8030,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
                             rowClassification
                           )}
                         </td>
-                        <td></td>
+                        {!isReadOnly && <td></td>}
                       </tr>
                     )}
                   </tbody>
@@ -8853,6 +8816,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         {/* File Upload Section */}
 
+{!isReadOnly && (
         <Card>
 
           <CardHeader>
@@ -8943,6 +8907,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         </Card>
 
+)}
 
 
         {/* Files List Section */}
@@ -9727,7 +9692,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         const response = await createClassificationEvidence(evidenceData);
 
-
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagement.id,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // Convert API response to EvidenceFile format
 
@@ -10565,6 +10545,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
 
   function renderReviewButtons() {
+    if (isReadOnly) return null;
 
     // Find the latest review for the current user
 
@@ -11614,7 +11595,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         const response = await createClassificationEvidence(evidenceData);
 
-
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagement.id,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // Convert API response to EvidenceFile format
 

@@ -145,10 +145,12 @@ interface ETBRow {
 
 interface ExtendedTrialBalanceProps {
   engagement: any;
-  trialBalanceData: any;
-  onClassificationChange: (classifications: string[]) => void;
+  trialBalanceData?: any;
+  onClassificationChange?: (classifications: string[]) => void;
   onClassificationJump?: (classification: string) => void;
-  loadExistingData: any;
+  loadExistingData?: any;
+  isReadOnly?: boolean;
+  filterType?: "etb" | "adjustments" | "reclassifications";
 }
 
 /* -------------------------------------------------------
@@ -607,10 +609,14 @@ const ClassificationCombos = React.memo(({
 export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
   engagement,
   trialBalanceData,
-  onClassificationChange,
-  loadExistingData,
+  onClassificationChange = () => {},
+  loadExistingData = () => {},
   onClassificationJump,
+  isReadOnly = false,
+  filterType = "etb",
 }) => {
+  const engId = engagement?._id || engagement?.id;
+
   // ALL HOOKS MUST BE CALLED AT THE TOP LEVEL, BEFORE ANY CONDITIONALS
 
   const [isPushingToCloud, setIsPushingToCloud] = useState(false);
@@ -667,14 +673,14 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
   // stable key per engagement to persist the workbook URL across remounts/prop hiccups
   const storageKey = useMemo(
-    () => `etb_excel_url_${engagement?._id || "unknown"}`,
-    [engagement?._id]
+    () => `etb_excel_url_${engId || "unknown"}`,
+    [engId]
   );
 
   // key for tracking whether data has been pushed
   const pushedKey = useMemo(
-    () => `etb_excel_pushed_${engagement?._id || "unknown"}`,
-    [engagement?._id]
+    () => `etb_excel_pushed_${engId || "unknown"}`,
+    [engId]
   );
 
   // Memoize the updateRow function to prevent recreating it on every render
@@ -853,7 +859,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (!data.session?.access_token) throw new Error("Not authenticated");
 
       const etbResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -1013,7 +1019,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       // Auto-save the newly initialized ETB data to database (only if rows exist)
       // IMPORTANT: Check if backend ETB already exists first to avoid overwriting
       const checkResponse = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -1028,7 +1034,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
           // Don't save - backend ETB takes precedence
           // Instead, refetch from backend to get the correct data
           const refetchResponse = await fetch(
-            `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+            `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb`,
             {
               headers: {
                 "Content-Type": "application/json",
@@ -1065,7 +1071,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [engagement._id, excelUrl, engagement?.excelURL, storageKey, trialBalanceData, autoClassify, refreshClassificationSummary]);
+  }, [engId, excelUrl, engagement?.excelURL, storageKey, trialBalanceData, autoClassify, refreshClassificationSummary]);
 
   // init rows when trialBalanceData changes OR when component mounts
   // This MUST be after initializeETB is defined
@@ -1108,9 +1114,82 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     });
   }, [refreshClassificationSummary, etbRows.length]);
 
+  // Format difference for error messages: negative numbers in parentheses, e.g., -2500 → (2,500)
+  const formatDifference = useCallback((value: number): string => {
+    if (value === 0) return "0";
+    const absValue = Math.abs(value);
+    const formatted = absValue.toLocaleString();
+    return value < 0 ? `(${formatted})` : formatted;
+  }, []);
+
+  // Validate tie-out: Calculate totals for Current Year and Prior Year columns
+  // Both columns must independently net to zero
+  const validateTieOut = useCallback((rows: ETBRow[]): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = []
+    
+    let currentYearTotal = 0
+    let priorYearTotal = 0
+
+    // Calculate totals for both columns (exclude rows with code starting with "TOTALS")
+    rows.forEach((row) => {
+      const code = (row.code || "").toString().trim().toUpperCase()
+      // Skip total rows
+      if (code.startsWith("TOTALS")) {
+        return
+      }
+      
+      const currentYearValue = Math.round(Number(row.currentYear) || 0)
+      const priorYearValue = Math.round(Number(row.priorYear) || 0)
+      
+      currentYearTotal += currentYearValue
+      priorYearTotal += priorYearValue
+    })
+
+    // Round totals to handle floating point precision issues
+    currentYearTotal = Math.round(currentYearTotal)
+    priorYearTotal = Math.round(priorYearTotal)
+
+    // Validate Current Year tie-out
+    if (currentYearTotal !== 0) {
+      const difference = formatDifference(currentYearTotal)
+      errors.push(`Cannot save changes: Current Year is out of balance by ${difference}.`)
+    }
+
+    // Validate Prior Year tie-out
+    if (priorYearTotal !== 0) {
+      const difference = formatDifference(priorYearTotal)
+      errors.push(`Cannot save changes: Prior Year is out of balance by ${difference}.`)
+    }
+
+    // If both columns are out of balance, add a combined message
+    if (currentYearTotal !== 0 && priorYearTotal !== 0) {
+      errors.push("Please add offsetting entries or adjust existing rows to ensure both Current Year and Prior Year tie out.")
+    }
+
+    return { isValid: errors.length === 0, errors }
+  }, [formatDifference])
+
+  // Get tie-out status for display (memoized to avoid recalculation on every render)
+  const tieOutStatus = useMemo(() => {
+    return validateTieOut(etbRows)
+  }, [etbRows, validateTieOut])
+
   // Save ETB (optionally mute toast, optionally pass custom rows)
   const saveETB = useCallback(async (showToast = true, customRows?: ETBRow[], skipLoadExistingData = false) => {
     const rowsToSave = customRows || etbRows;
+
+    // Validate tie-out before saving
+    const tieOutValidation = validateTieOut(rowsToSave)
+    if (!tieOutValidation.isValid) {
+      if (showToast) {
+        toast({
+          title: "Save blocked: Trial Balance out of balance",
+          description: tieOutValidation.errors.join(" "),
+          variant: "destructive",
+        })
+      }
+      return // Block save
+    }
 
     // Round all financial values before saving to backend
     const roundedRows = roundETBRowsFinancialValues(rowsToSave);
@@ -1126,7 +1205,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
       if (!data.session?.access_token) throw new Error("Not authenticated");
 
       const response = await fetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb`,
         {
           method: "POST",
           headers: {
@@ -1165,7 +1244,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         }
       }
     }
-  }, [etbRows, isPushingToCloud, refreshClassificationSummary, engagement._id, toast, loadExistingData]);
+  }, [etbRows, isPushingToCloud, refreshClassificationSummary, engagement._id, toast, loadExistingData, validateTieOut]);
 
   // Actually delete the row after all checks
   const proceedWithRowDeletion = useCallback((id: string) => {
@@ -1192,8 +1271,8 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
       // Fetch all adjustments and reclassifications for this engagement
       const [adjustmentsResponse, reclassificationsResponse] = await Promise.all([
-        adjustmentApi.getByEngagement(engagement._id),
-        reclassificationApi.getByEngagement(engagement._id),
+        adjustmentApi.getByEngagement(engId),
+        reclassificationApi.getByEngagement(engId),
       ]);
 
       // Filter to find adjustments/reclassifications affecting this row
@@ -1233,7 +1312,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoadingDeleteRowData(false);
     }
-  }, [engagement._id, toast, proceedWithRowDeletion]);
+  }, [engId, toast, proceedWithRowDeletion]);
 
   const deleteRow = useCallback((id: string) => {
     const row = etbRows.find((r) => r.id === id);
@@ -1254,7 +1333,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
     // 2. Make the API call to push the data to the Excel workbook.
     const res = await authFetch(
-      `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/push`,
+      `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb/excel/push`,
       {
         method: "POST",
       }
@@ -1269,7 +1348,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
         localStorage.setItem(storageKey, json.url);
       } catch { }
     }
-  }, [saveETB, engagement._id, storageKey]);
+  }, [saveETB, engId, storageKey]);
 
   /* ---------------------------------------------
      Excel Cloud actions (init/open, push, pull)
@@ -1279,7 +1358,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setLoading(true);
     try {
       const res = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/etb/excel/init`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/etb/excel/init`,
         {
           method: "POST",
         }
@@ -1333,7 +1412,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [engagement._id, performPushToCloud, storageKey, pushedKey, toast]);
+  }, [engId, performPushToCloud, storageKey, pushedKey, toast]);
 
   const openInExcel = useCallback(() => {
     if (!effectiveExcelUrl) {
@@ -1417,7 +1496,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setLoading(true);
     try {
       const res = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId
         }/etb/excel/pull`,
         {
           method: "POST",
@@ -1455,7 +1534,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [engagement._id, refreshClassificationSummary, toast]);
+  }, [engId, refreshClassificationSummary, toast]);
 
   /* ---------------------------------------------
      Totals & UI
@@ -1668,7 +1747,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
 
     try {
       // Fetch all adjustments for this engagement
-      const response = await adjustmentApi.getByEngagement(engagement._id);
+      const response = await adjustmentApi.getByEngagement(engId);
 
       if (response.success) {
         // Filter to adjustments that affect this specific row
@@ -1692,7 +1771,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoadingAdjustments(false);
     }
-  }, [engagement._id, toast]);
+  }, [engId, toast]);
 
   const showReclassificationDetailsForRow = useCallback(async (row: ETBRow) => {
     setSelectedRowForReclassifications(row);
@@ -1701,7 +1780,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setReclassificationsForRow([]);
 
     try {
-      const response = await reclassificationApi.getByEngagement(engagement._id);
+      const response = await reclassificationApi.getByEngagement(engId);
 
       if (response.success) {
         const rowId = row._id || row.id || row.code;
@@ -1724,7 +1803,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setLoadingReclassifications(false);
     }
-  }, [engagement._id, toast]);
+  }, [engId, toast]);
 
   // Delete & reverse adjustment
   const handleDeleteAndReverseAdjustment = useCallback(async (adjustmentId: string) => {
@@ -1819,7 +1898,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     setIsPopulatingPriorYear(true);
     try {
       const res = await authFetch(
-        `${import.meta.env.VITE_APIURL}/api/engagements/${engagement._id}/trial-balance/populate-prior-year`,
+        `${import.meta.env.VITE_APIURL}/api/engagements/${engId}/trial-balance/populate-prior-year`,
         {
           method: "POST",
         }
@@ -1861,7 +1940,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
     } finally {
       setIsPopulatingPriorYear(false);
     }
-  }, [engagement._id, toast, initializeETB]);
+  }, [engId, toast, initializeETB]);
 
   // NOW WE CAN HAVE CONDITIONAL RETURNS SINCE ALL HOOKS ARE CALLED ABOVE
   if (isLoading) {
@@ -1888,78 +1967,88 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
             </CardTitle>
 
             {/* Button group */}
-            <div className="flex flex-wrap items-center gap-2">
-              {!hasWorkbook ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => initializeExcelWorkbook(true)} // <-- CALL WITH TRUE
-                  title="Create workbook and push data"
-                  className="text-xs sm:text-sm bg-transparent"
-                >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  Initialize Excel
-                </Button>
-              ) : (
-                <>
+            {!isReadOnly && (
+              <div className="flex flex-wrap items-center gap-2">
+                {!hasWorkbook ? (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={openInExcel}
-                    title="Open workbook in Excel Online"
+                    onClick={() => initializeExcelWorkbook(true)} // <-- CALL WITH TRUE
+                    title="Create workbook and push data"
                     className="text-xs sm:text-sm bg-transparent"
                   >
-                    <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="hidden sm:inline">
-                      Open in Excel Online
-                    </span>
-                    <span className="sm:hidden">Excel</span>
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    Initialize Excel
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={pushToCloud}
-                    disabled={isPushingToCloud}
-                    title="Overwrite Excel from current ETB"
-                    className="text-xs sm:text-sm bg-transparent"
-                  >
-                    {isPushingToCloud ? (
-                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                    ) : (
-                      <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    )}
-                    <span className="hidden sm:inline">Push to Cloud</span>
-                    <span className="sm:hidden">Push</span>
-                  </Button>
-                  {/* Read directly from localStorage on every render - no memoization */}
-                  {(hasBeenPushed || checkHasBeenPushed || (() => {
-                    try {
-                      return localStorage.getItem(pushedKey) === "true";
-                    } catch {
-                      return false;
-                    }
-                  })()) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={pullFromCloud}
-                        title="Fetch Excel back into ETB"
-                        className="text-xs sm:text-sm bg-transparent"
-                      >
-                        <CloudDownload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                        <span className="hidden sm:inline">Fetch from Cloud</span>
-                        <span className="sm:hidden">Fetch</span>
-                      </Button>
-                    )}
-                </>
-              )}
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={openInExcel}
+                      title="Open workbook in Excel Online"
+                      className="text-xs sm:text-sm bg-transparent"
+                    >
+                      <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        Open in Excel Online
+                      </span>
+                      <span className="sm:hidden">Excel</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={pushToCloud}
+                      disabled={isPushingToCloud}
+                      title="Overwrite Excel from current ETB"
+                      className="text-xs sm:text-sm bg-transparent"
+                    >
+                      {isPushingToCloud ? (
+                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                      ) : (
+                        <CloudUpload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      )}
+                      <span className="hidden sm:inline">Push to Cloud</span>
+                      <span className="sm:hidden">Push</span>
+                    </Button>
+                    {/* Read directly from localStorage on every render - no memoization */}
+                    {(hasBeenPushed || checkHasBeenPushed || (() => {
+                      try {
+                        return localStorage.getItem(pushedKey) === "true";
+                      } catch {
+                        return false;
+                      }
+                    })()) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={pullFromCloud}
+                          title="Fetch Excel back into ETB"
+                          className="text-xs sm:text-sm bg-transparent"
+                        >
+                          <CloudDownload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">Fetch from Cloud</span>
+                          <span className="sm:hidden">Fetch</span>
+                        </Button>
+                      )}
+                  </>
+                )}
 
+              {!tieOutStatus.isValid && (
+                <Alert variant="destructive" className="py-2 px-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {tieOutStatus.errors[0]}
+                  </AlertDescription>
+                </Alert>
+              )}
               <Button
                 variant="outline"
                 onClick={() => saveETB(true)}
-                disabled={saving}
+                disabled={saving || !tieOutStatus.isValid}
                 size="sm"
                 className="text-xs sm:text-sm"
+                title={!tieOutStatus.isValid ? "Trial Balance must tie out before saving" : ""}
               >
                 {saving ? (
                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
@@ -1977,13 +2066,13 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
-            </div>
+            </div>)}
           </div>
         </CardHeader>
 
         <CardContent className="pt-4">
           {/* Bulk Classification Editor */}
-          {selectedRowIds.size > 0 && (
+          {selectedRowIds.size > 0 && !isReadOnly && (
             <div className="mb-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
@@ -2096,7 +2185,16 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                     .filter((row) => {
                       // Filter out rows where code starts with "TOTALS" (case-insensitive)
                       const code = (row.code || "").toString().trim().toUpperCase();
-                      return !code.startsWith("TOTALS");
+                      if (code.startsWith("TOTALS")) return false;
+
+                      // Apply filterType
+                      if (filterType === "adjustments") {
+                        return (row.adjustments || 0) !== 0;
+                      }
+                      if (filterType === "reclassifications") {
+                        return (row.reclassification || 0) !== 0;
+                      }
+                      return true;
                     })
                     .map((row, idx) => (
                       <TableRow
@@ -2128,6 +2226,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                               value={row.code}
                               onChange={(val) => updateRow(row.id, "code", val)}
                               className="font-mono text-xs sm:text-sm"
+                              disabled={isReadOnly}
                             />
                             {row.isNewAccount && (
                               <Badge
@@ -2148,6 +2247,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             }
                             className="w-48 text-xs sm:text-sm"
                             placeholder="-"
+                            disabled={isReadOnly}
                           />
                         </TableCell>
                         <TableCell className="text-start border border-r-secondary border-b-secondary align-middle">
@@ -2160,6 +2260,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             }
                             placeholder="0"
                             className="text-start text-xs sm:text-sm"
+                            disabled={isReadOnly}
                           />
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-middle">
@@ -2211,6 +2312,7 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                             placeholder="0"
                             className="text-start text-xs sm:text-sm"
                             step={1}
+                            disabled={isReadOnly}
                           />
                         </TableCell>
                         <TableCell className="border border-r-secondary border-b-secondary align-top">
@@ -2234,24 +2336,27 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                               memoizedLevel1Options={memoizedLevel1Options}
                               visibleLevels={row.visibleLevels ?? 0}
                               onVisibleLevelsChange={handleVisibleLevelsChange}
+                              disabled={isReadOnly}
                             />
                           </div>
                         </TableCell>
                         <TableCell className="w-20 border border-b-secondary align-middle">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              deleteRow(row.id);
-                            }}
-                            className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
-                            aria-label="Delete row"
-                          >
-                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                          </Button>
+                          {!isReadOnly && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deleteRow(row.id);
+                              }}
+                              className="text-red-600 hover:text-red-700 h-6 w-6 sm:h-8 sm:w-8"
+                              aria-label="Delete row"
+                            >
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -2323,11 +2428,20 @@ export const ExtendedTrialBalance: React.FC<ExtendedTrialBalanceProps> = ({
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Add Row
               </Button>
+              {!tieOutStatus.isValid && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {tieOutStatus.errors[0]}
+                  </AlertDescription>
+                </Alert>
+              )}
               <Button
                 onClick={() => saveETB(true)}
-                disabled={saving}
+                disabled={saving || !tieOutStatus.isValid}
                 size="sm"
                 className="text-xs sm:text-sm"
+                title={!tieOutStatus.isValid ? "Trial Balance must tie out before saving" : ""}
               >
                 {saving ? (
                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />

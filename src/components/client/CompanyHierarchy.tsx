@@ -29,7 +29,7 @@ import { EnhancedLoader } from "../ui/enhanced-loader";
 
 const LEVEL_GAP_Y = 270;
 const NODE_WIDTH = 350;
-const PARENT_NODE_WIDTH = 800;
+const PARENT_NODE_WIDTH = 1300;
 const HORIZONTAL_SPACING = NODE_WIDTH + 1;
 const NODE_GAP = 130; // Gap between nodes (horizontal spacing)
 const HEADER_WIDTH = 400; // Width for group headers
@@ -667,7 +667,7 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
       return {
         maxX: totalWidth,
-        maxY: onlyRepresentatives.length > 0 ? maxRepresentativesY : maxShareholdersY,
+        maxY: (onlyRepresentatives.length > 0 ? maxRepresentativesY : maxShareholdersY) + 300, // Add 300 to account for node height
       };
     };
 
@@ -866,9 +866,11 @@ export const CompanyHierarchy: React.FC<CompanyHierarchyProps> = ({ rootData }) 
 
   const wrapperStyle: React.CSSProperties = {
     width: "100%",
-    height: Math.max(bounds.height, 600),
+    height: Math.max(bounds.height, 700), // Increased min-height
     overflow: "hidden",
     position: "relative",
+    border: "1px solid #e5e7eb",
+    borderRadius: "0.75rem",
   };
 
 return (

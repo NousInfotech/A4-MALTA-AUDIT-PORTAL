@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useTrialBalance } from "@/hooks/useTrialBalance";
 import { useDocumentRequests } from "@/hooks/useDocumentRequests";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
@@ -26,6 +26,10 @@ import {
   Users,
   BookA,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  FileCheck,
+  Receipt,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +51,8 @@ import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfir
 import { IconReport } from "@tabler/icons-react";
 import FinancialStatusReport from "@/components/fs-review/FinancialStatusReport";
 import FinancialReportParent from "@/components/engagement/FinancialReportParent";
+import { MBRTab } from "@/components/mbr/MBRTab";
+import { TaxTab } from "@/components/tax/TaxTab";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -84,6 +90,11 @@ export const EngagementDetails = () => {
   const [isPBCModalOpen, setIsPBCModalOpen] = useState<boolean>(false);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false);
 
+  // Refs and state for responsive tabs with scroll arrows
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
   const handleOpenPBC = () => {
     // setSelectedEngagement(engagement);
     setIsPBCModalOpen(true);
@@ -92,14 +103,44 @@ export const EngagementDetails = () => {
   const handleClosePBC = () => {
     setIsPBCModalOpen(false);
   };
-  const { logViewEngagement, logUploadDocument, logUpdateEngagement } = useActivityLogger();
+  const { logViewEngagement, logUploadDocument, logUpdateEngagement } =
+    useActivityLogger();
 
   useEffect(() => {
     if (!searchParams.get("section")) {
       setSearchParams({ section: "overview" }, { replace: true });
     }
-
   }, []);
+
+  // Check if scrolling is possible to show/hide arrows
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setShowLeftArrow(scrollLeft > 0);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener("resize", checkScroll);
+    // Also check scroll after tabs render
+    const timer = setTimeout(checkScroll, 100);
+    return () => {
+      window.removeEventListener("resize", checkScroll);
+      clearTimeout(timer);
+    };
+  }, [section]); // Re-check when tab changes
+
+  const scroll = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = 200;
+      scrollRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
 
   const handleTabChange = (value: string) => {
     setSearchParams({ section: value }, { replace: false });
@@ -115,14 +156,16 @@ export const EngagementDetails = () => {
         console.log(engagement);
 
         // Log engagement view
-        logViewEngagement(`Viewed engagement details for: ${engagementData.title}`);
+        logViewEngagement(
+          `Viewed engagement details for: ${engagementData.title}`
+        );
 
         // Fetch client company name
         try {
           const { data: clientData, error: clientError } = await supabase
-            .from('profiles')
-            .select('company_name')
-            .eq('user_id', engagementData.clientId)
+            .from("profiles")
+            .select("company_name")
+            .eq("user_id", engagementData.clientId)
             .single();
 
           if (!clientError && clientData) {
@@ -155,6 +198,17 @@ export const EngagementDetails = () => {
 
     fetchEngagement();
   }, [id, logViewEngagement]);
+
+  // Check scroll when engagement data is loaded
+  useEffect(() => {
+    if (engagement) {
+      // Delay to ensure DOM is fully rendered
+      const timer = setTimeout(() => {
+        checkScroll();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [engagement]);
 
   if (loading || !engagement) {
     return (
@@ -190,7 +244,9 @@ export const EngagementDetails = () => {
       }));
 
       // Log trial balance upload
-      logUploadDocument(`Uploaded trial balance for engagement: ${engagement?.title}`);
+      logUploadDocument(
+        `Uploaded trial balance for engagement: ${engagement?.title}`
+      );
 
       toast({
         title: "Success",
@@ -225,7 +281,9 @@ export const EngagementDetails = () => {
       setDocumentRequest({ category: "", description: "", comment: "" });
 
       // Log document request creation
-      logUploadDocument(`Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`);
+      logUploadDocument(
+        `Created document request: ${documentRequest.category} for engagement: ${engagement?.title}`
+      );
 
       toast({
         title: "Success",
@@ -320,12 +378,14 @@ export const EngagementDetails = () => {
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-1">
+            <div className="flex flex-col 2xl:flex-row items-start 2xl:items-center gap-3 2xl:gap-4 flex-1">
               <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
                 <Briefcase className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">{engagement.title}</h1>
+                <h1 className="text-2xl sm:text-3xl font-semibold text-brand-body break-words">
+                  {engagement.title}
+                </h1>
                 {clientCompanyName && (
                   <p className="text-sm sm:text-base text-gray-600 mt-1 font-medium flex items-center gap-2">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
@@ -334,16 +394,15 @@ export const EngagementDetails = () => {
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                <Button
-                  variant="default"
-                  size="sm"
-                  asChild
-                >
-                  <Link to={`/employee/clients/${engagement.clientId}/company/${typeof engagement.companyId === 'object'
-                    ? engagement.companyId?._id
-                    : engagement.companyId
-                    }`}>
+              <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2 xl:gap-3 w-full xl:w-auto">
+                <Button variant="default" size="sm" asChild>
+                  <Link
+                    to={`/employee/clients/${engagement.clientId}/company/${
+                      typeof engagement.companyId === "object"
+                        ? engagement.companyId?._id
+                        : engagement.companyId
+                    }`}
+                  >
                     <Building2 className="h-4 w-4 mr-2" />
                     View Company
                   </Link>
@@ -382,84 +441,126 @@ export const EngagementDetails = () => {
 
         {/* Tabs Section */}
         <div className="bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-lg shadow-gray-300/30 overflow-hidden">
-          <Tabs value={section} onValueChange={handleTabChange} className="space-y-6">
-            <div className="bg-gray-50 border-b border-gray-200 p-6 flex justify-between overflow-visible">
-              <div className="w-full overflow-visible -mx-2 px-2 sm:mx-0 sm:px-0">
-                <TabsList className="w-full flex justify-between gap-1 bg-white border border-gray-200 rounded-xl p-1 overflow-visible">
+          <Tabs
+            value={section}
+            onValueChange={handleTabChange}
+            className="space-y-0"
+          >
+            <div className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6 relative group">
+              {/* Navigation Arrows */}
+              {showLeftArrow && (
+                <button
+                  onClick={() => scroll("left")}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white border shadow-md rounded-full p-1.5 hover:bg-gray-100 transition-all"
+                  aria-label="Scroll tabs left"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+
+              {showRightArrow && (
+                <button
+                  onClick={() => scroll("right")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white border shadow-md rounded-full p-1.5 hover:bg-gray-100 transition-all"
+                  aria-label="Scroll tabs right"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+
+              {/* Scrollable Container */}
+              <div
+                ref={scrollRef}
+                onScroll={checkScroll}
+                className="overflow-x-auto no-scrollbar scroll-smooth"
+              >
+                <TabsList className="flex w-max min-w-full justify-between gap-2 bg-white border border-gray-200 rounded-xl p-1">
                   <TabsTrigger
                     value="overview"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <BarChart3 className="h-4 w-4 mr-2" />
+                    <BarChart3 className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Overview
                   </TabsTrigger>
 
                   <TabsTrigger
                     value="checklist"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
+                    <CheckCircle className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Checklist
                   </TabsTrigger>
 
                   <TabsTrigger
                     value="requests"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Document Requests
+                    <FileText className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    <span className="hidden sm:inline">Document Requests</span>
+                    <span className="sm:hidden">Requests</span>
                   </TabsTrigger>
 
-
+                  {/* Special Audit Tab */}
                   <TabsTrigger
                     value="trial-balance"
-                    className="relative flex-1 whitespace-nowrap rounded-lg font-black font-serif tracking-widest text-lg border-2 border-gray-900 bg-transparent text-gray-900 data-[state=active]:bg-gray-900 data-[state=active]:text-white hover:bg-gray-100 transition-all shadow-sm overflow-visible"
+                    className="relative flex-none whitespace-nowrap rounded-lg font-black font-serif tracking-tight text-xs sm:text-sm border-2 border-gray-900 bg-transparent text-gray-900 data-[state=active]:bg-gray-900 data-[state=active]:text-white hover:bg-gray-100 transition-all shadow-sm px-3 sm:px-4"
                   >
-                    <div className="absolute -top-3 -right-3 h-6 w-6 bg-red-600 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-pulse z-10">
-                      <AlertCircle className="h-4 w-4 text-white" />
-                    </div>
-                    <BookA className="h-5 w-5 mr-2" />
+                    <BookA className="h-4 w-4 mr-1.5 sm:mr-2" />
                     AUDIT
                   </TabsTrigger>
-                  {/* 
+
+                  <TabsTrigger
+                    value="mbr"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <FileCheck className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    MBR
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="tax"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <Receipt className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    TAX
+                  </TabsTrigger>
+
                   <TabsTrigger
                     value="procedures"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
+                    <CheckCircle className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Procedures
-                  </TabsTrigger> */}
-
+                  </TabsTrigger>
 
                   <TabsTrigger
                     value="library"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <Library className="h-4 w-4 mr-2" />
+                    <Library className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Library
                   </TabsTrigger>
 
                   <TabsTrigger
                     value="team"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <Users className="h-4 w-4 mr-2" />
+                    <Users className="h-4 w-4 mr-1.5 sm:mr-2" />
                     Team
                   </TabsTrigger>
 
                   <TabsTrigger
                     value="financial-status-report"
-                    className="flex-1 whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <IconReport className="h-4 w-4 mr-2" />
+                    <IconReport className="h-4 w-4 mr-1.5 sm:mr-2" />
                     AI Review
                   </TabsTrigger>
 
                   {/* <TabsTrigger
                     value="kyc"
-                    className="whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
-                    <Shield className="h-4 w-4 mr-2" />
+                    <Shield className="h-4 w-4 mr-1.5 sm:mr-2" />
                     KYC
                   </TabsTrigger> */}
                 </TabsList>
@@ -469,7 +570,7 @@ export const EngagementDetails = () => {
             </button> */}
             </div>
 
-            <div className="p-6 h-[calc(100vh-200px)] overflow-y-auto">
+            <div className="p-4 sm:p-6 h-[calc(100vh-200px)] sm:h-[calc(100vh-250px)] overflow-y-auto">
               <TabsContent value="overview" className="space-y-6">
                 <PerEngagementKPIDashboard engagementId={id} />
               </TabsContent>
@@ -508,7 +609,10 @@ export const EngagementDetails = () => {
                 <ChecklistTab engagementId={id!} />
               </TabsContent>
 
-              <TabsContent value="financial-status-report" className="space-y-6">
+              <TabsContent
+                value="financial-status-report"
+                className="space-y-6"
+              >
                 <FinancialReportParent engagementId={id} />
               </TabsContent>
 
@@ -520,6 +624,13 @@ export const EngagementDetails = () => {
                 <TeamTab engagementId={id!} />
               </TabsContent>
 
+              <TabsContent value="mbr" className="space-y-6">
+                <MBRTab engagement={engagement} />
+              </TabsContent>
+
+              <TabsContent value="tax" className="space-y-6">
+                <TaxTab engagement={engagement} />
+              </TabsContent>
             </div>
           </Tabs>
         </div>

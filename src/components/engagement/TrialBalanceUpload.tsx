@@ -46,6 +46,9 @@ const OPTIONAL_COLUMNS = ["Grouping 1", "Grouping 2", "Grouping 3", "Grouping 4"
 const parseAccountingNumber = (value: any): number => {
   if (value === null || value === undefined || value === "") return 0;
   
+  // Handle hyphen as zero
+  if (value === "-" || String(value).trim() === "-") return 0;
+  
   // If already a number, round and return it
   if (typeof value === "number") return Math.round(value);
   
@@ -55,11 +58,22 @@ const parseAccountingNumber = (value: any): number => {
   // Remove parentheses, commas, and currency symbols (preserves existing minus sign if present)
   str = str.replace(/[(),\$€£¥]/g, "").trim();
   
+  // If empty after cleaning (e.g., was just a hyphen), return 0
+  if (str === "" || str === "-") return 0;
+  
   // Parse to number
   const num = Number(str);
   
   // Return rounded number (no negative conversion for parentheses)
   return isNaN(num) ? 0 : Math.round(num);
+};
+
+// Format difference for error messages: negative numbers in parentheses, e.g., -2500 → (2,500)
+const formatDifference = (value: number): string => {
+  if (value === 0) return "0";
+  const absValue = Math.abs(value);
+  const formatted = absValue.toLocaleString();
+  return value < 0 ? `(${formatted})` : formatted;
 };
 
 export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engagement, onUploadSuccess }) => {
@@ -70,6 +84,55 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { refetch } = useSidebarStats(); // shared instance
   const { toast } = useToast()
+
+  // Validate tie-out: Calculate totals for Current Year and Prior Year columns
+  // Both columns must independently net to zero
+  const validateTieOut = (data: any[], normalizedHeaders: string[]): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = []
+    const currentYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "current year")
+    const priorYearIndex = normalizedHeaders.findIndex((h: string) => h.toLowerCase() === "prior year")
+
+    if (currentYearIndex === -1 || priorYearIndex === -1) {
+      // If columns are missing, skip tie-out validation (will be caught by column validation)
+      return { isValid: true, errors: [] }
+    }
+
+    const dataRows = data.slice(1)
+    let currentYearTotal = 0
+    let priorYearTotal = 0
+
+    // Calculate totals for both columns
+    dataRows.forEach((row: any[]) => {
+      const currentYearValue = parseAccountingNumber(row[currentYearIndex])
+      const priorYearValue = parseAccountingNumber(row[priorYearIndex])
+      
+      currentYearTotal += currentYearValue
+      priorYearTotal += priorYearValue
+    })
+
+    // Round totals to handle floating point precision issues
+    currentYearTotal = Math.round(currentYearTotal)
+    priorYearTotal = Math.round(priorYearTotal)
+
+    // Validate Current Year tie-out
+    if (currentYearTotal !== 0) {
+      const difference = formatDifference(currentYearTotal)
+      errors.push(`Upload failed: Current Year does not tie out. Difference: ${difference}.`)
+    }
+
+    // Validate Prior Year tie-out
+    if (priorYearTotal !== 0) {
+      const difference = formatDifference(priorYearTotal)
+      errors.push(`Upload failed: Prior Year does not tie out. Difference: ${difference}.`)
+    }
+
+    // If both columns are out of balance, add a combined message
+    if (currentYearTotal !== 0 && priorYearTotal !== 0) {
+      errors.push("Upload failed: Current Year and Prior Year must both tie out before submission.")
+    }
+
+    return { isValid: errors.length === 0, errors }
+  }
 
   const validateTrialBalance = (data: any[]): ValidationResult => {
     const errors: string[] = []
@@ -108,13 +171,26 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
         const priorYear = row[priorYearIndex]
         
         // Try to parse accounting format - if result is NaN, it's invalid
-        if (currentYear && currentYear !== "" && isNaN(parseAccountingNumber(currentYear))) {
-          errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
+        // Allow hyphens, empty strings, null, undefined (they will be treated as 0)
+        if (currentYear != null && currentYear !== "" && currentYear !== "-") {
+          const parsed = parseAccountingNumber(currentYear)
+          if (isNaN(parsed)) {
+            errors.push(`Row ${index + 2}: Current Year must be a number (found: "${currentYear}")`)
+          }
         }
-        if (priorYear && priorYear !== "" && isNaN(parseAccountingNumber(priorYear))) {
-          errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
+        if (priorYear != null && priorYear !== "" && priorYear !== "-") {
+          const parsed = parseAccountingNumber(priorYear)
+          if (isNaN(parsed)) {
+            errors.push(`Row ${index + 2}: Prior Year must be a number (found: "${priorYear}")`)
+          }
         }
       })
+    }
+
+    // If there are no data format errors, validate tie-out
+    if (errors.length === 0) {
+      const tieOutValidation = validateTieOut(data, normalizedHeaders)
+      errors.push(...tieOutValidation.errors)
     }
 
     return { isValid: errors.length === 0, errors, data: errors.length === 0 ? data : undefined }
@@ -212,6 +288,18 @@ export const TrialBalanceUpload: React.FC<TrialBalanceUploadProps> = ({ engageme
       if (filteredData.length <= 1) {
         // Only headers or no data rows after filtering
         throw new Error("No valid data rows found (all rows have Code, Account Name, and Current Year empty/zero)")
+      }
+
+      // Re-validate tie-out after filtering (filtering might affect totals)
+      const headers = filteredData[0]
+      const normalizedHeaders = headers.map((h: any) => {
+        if (h == null) return ""
+        return String(h).trim()
+      })
+      const tieOutValidation = validateTieOut(filteredData, normalizedHeaders)
+      if (!tieOutValidation.isValid) {
+        setValidationErrors(tieOutValidation.errors)
+        return
       }
 
       // delete existing TB (if your API supports it)

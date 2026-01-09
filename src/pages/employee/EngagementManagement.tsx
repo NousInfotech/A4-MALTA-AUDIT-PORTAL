@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -28,17 +28,45 @@ import {
   Clock,
   AlertCircle,
   CheckCircle2,
+  UserPlus,
+  Users,
+  X,
+  Mail,
 } from "lucide-react";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { SigningPortalModal } from "@/components/e-signature/SigningPortalModal";
 import { KYCSetupModal } from "@/components/kyc/KYCSetupModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { engagementApi, userApi } from "@/services/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export const EngagementManagement = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const [isSignModalOpen, setIsSignModalOpen] = useState<boolean>(false);
   const [selectedEngagement, setSelectedEngagement] = useState<any>(null);
   const [isKYCModalOpen, setIsKYCModalOpen] = useState<boolean>(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState<boolean>(false);
+  const [assigningEngagement, setAssigningEngagement] = useState<any>(null);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [assignedEmployees, setAssignedEmployees] = useState<any[]>([]);
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
+  const [isLoadingDialogData, setIsLoadingDialogData] = useState(false);
+  const [searchEmployeeQuery, setSearchEmployeeQuery] = useState("");
+  const [filteredEmployees, setFilteredEmployees] = useState<any[]>([]);
+  const [assigningEmployeeId, setAssigningEmployeeId] = useState<string | null>(null);
+  const [removingEmployeeId, setRemovingEmployeeId] = useState<string | null>(null);
 
+  // Check if this is admin route
+  const isAdminRoute = location.pathname.startsWith("/admin");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -67,6 +95,144 @@ export const EngagementManagement = () => {
   useEffect(() => {
     fetchClients();
   }, []);
+
+  // Fetch employees for assignment dialog
+  const fetchEmployees = async () => {
+    try {
+      setIsLoadingEmployees(true);
+      const usersResponse = await userApi.getAll();
+      const allUsersList = usersResponse.users || [];
+      const employeesList = allUsersList.filter((u: any) => 
+        u.role === 'employee' || u.role === 'admin' || u.role === 'senior-employee'
+      );
+      setEmployees(employeesList);
+      setFilteredEmployees(employeesList);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: `Failed to fetch employees: ${error.message || 'Unknown error'}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingEmployees(false);
+    }
+  };
+
+  // Fetch assigned employees for an engagement
+  const fetchAssignedEmployees = async (engagementId: string) => {
+    try {
+      const response = await engagementApi.getAssignedAuditors(engagementId);
+      setAssignedEmployees(response.assignedAuditors || []);
+    } catch (error: any) {
+      console.error('Failed to fetch assigned employees:', error);
+    }
+  };
+
+  // Handle opening assign dialog
+  const handleOpenAssignDialog = async (engagement: any) => {
+    setAssigningEngagement(engagement);
+    setIsAssignDialogOpen(true);
+    setIsLoadingDialogData(true);
+    setSearchEmployeeQuery("");
+    try {
+      await Promise.all([
+        fetchEmployees(),
+        fetchAssignedEmployees(engagement._id)
+      ]);
+    } finally {
+      setIsLoadingDialogData(false);
+    }
+  };
+
+  // Handle assigning an employee
+  const handleAssignEmployee = async (employeeId: string) => {
+    if (!assigningEngagement || !user) return;
+    
+    try {
+      setAssigningEmployeeId(employeeId);
+      await engagementApi.assignAuditor(
+        assigningEngagement._id,
+        employeeId,
+        user.id
+      );
+      
+      toast({
+        title: "Success",
+        description: "Employee assigned successfully",
+      });
+      
+      await fetchAssignedEmployees(assigningEngagement._id);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign employee",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigningEmployeeId(null);
+    }
+  };
+
+  // Handle unassigning an employee
+  const handleUnassignEmployee = async (employeeId: string) => {
+    if (!assigningEngagement) return;
+    
+    try {
+      setRemovingEmployeeId(employeeId);
+      await engagementApi.unassignAuditor(assigningEngagement._id, employeeId);
+      
+      toast({
+        title: "Success",
+        description: "Employee unassigned successfully",
+      });
+      
+      await fetchAssignedEmployees(assigningEngagement._id);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to unassign employee",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingEmployeeId(null);
+    }
+  };
+
+  // Filter employees based on search
+  useEffect(() => {
+    if (searchEmployeeQuery.trim() === "") {
+      setFilteredEmployees(employees);
+    } else {
+      const filtered = employees.filter((emp) => {
+        const searchLower = searchEmployeeQuery.toLowerCase();
+        return (
+          emp.email?.toLowerCase().includes(searchLower) ||
+          emp.name?.toLowerCase().includes(searchLower) ||
+          emp.company_name?.toLowerCase().includes(searchLower)
+        );
+      });
+      setFilteredEmployees(filtered);
+    }
+  }, [searchEmployeeQuery, employees]);
+
+  // Check if employee is assigned
+  const isEmployeeAssigned = (employeeId: string) => {
+    return assignedEmployees.some((emp) => emp.auditorId === employeeId);
+  };
+
+  // Get initials for avatar
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      const parts = name.split(" ");
+      return parts.length > 1
+        ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+        : parts[0].slice(0, 2).toUpperCase();
+    }
+    if (email) {
+      return email.slice(0, 2).toUpperCase();
+    }
+    return "?";
+  };
 
   const fetchClients = async () => {
     try {
@@ -236,7 +402,7 @@ export const EngagementManagement = () => {
             className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-6 py-3 h-auto shadow-lg hover:shadow-xl" 
             asChild
           >
-            <Link to="/employee/engagements/new">
+            <Link to={isAdminRoute ? "/admin/engagements/new" : "/employee/engagements/new"}>
               <Plus className="h-5 w-5 mr-2" />
               New Engagement
             </Link>
@@ -397,36 +563,50 @@ export const EngagementManagement = () => {
                   {/* <div>
                     <Button size="sm" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl  shadow-lg hover:shadow-xl transition-all duration-300" onClick={() => navigate(`/employee/review/${engagement._id}`)}>Review Manager</Button>
                   </div> */}
-                  <div className="flex gap-3">
-                    
-                    <Button
-                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
-                      variant="default"
-                      size="sm"
-                      asChild
-                    >
-                      <Link to={`/employee/engagements/${engagement._id}`}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Link>
-                    </Button>
+                  <div className="flex flex-col gap-3">
+                    {isAdminRoute && (
+                      <Button
+                        className="w-full bg-gray-700 hover:bg-primary text-primary-foreground rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleOpenAssignDialog(engagement)}
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Assign To
+                      </Button>
+                    )}
+                    <div className="flex gap-3">
+                      <Button
+                        className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl py-2 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                        variant="default"
+                        size="sm"
+                        asChild
+                      >
+                        <Link to={isAdminRoute ? `/admin/engagements/${engagement._id}` : `/employee/engagements/${engagement._id}`}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Link>
+                      </Button>
 
-                       {/* <Link to={`/employee/clients/${engagement.clientId}/company/${engagement.companyId}`}>
-                        <Building2 className="h-4 w-4 mr-2" />
-                        View Company
-                      </Link> */}
-                    <Button
-                      className="bg-gray-700 hover:bg-primary text-primary-foreground rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
-                      variant="default"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedEngagement(engagement);
-                        setIsKYCModalOpen(true);
-                      }}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Start
-                    </Button>
+                         {/* <Link to={`/employee/clients/${engagement.clientId}/company/${engagement.companyId}`}>
+                          <Building2 className="h-4 w-4 mr-2" />
+                          View Company
+                        </Link> */}
+                      {!isAdminRoute && (
+                        <Button
+                          className="bg-gray-700 hover:bg-primary text-primary-foreground rounded-xl py-2 px-4 h-auto shadow-lg hover:shadow-xl transition-all duration-300"
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedEngagement(engagement);
+                            setIsKYCModalOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Start
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -450,7 +630,7 @@ export const EngagementManagement = () => {
                 className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-8 py-3" 
                 asChild
               >
-                <Link to="/employee/engagements/new">
+                <Link to={isAdminRoute ? "/admin/engagements/new" : "/employee/engagements/new"}>
                   <Plus className="h-5 w-5 mr-2" />
                   Create Your First Engagement
                 </Link>
@@ -479,6 +659,164 @@ export const EngagementManagement = () => {
           onKYCComplete={handleKYCComplete}
         />
       )}
+
+      {/* Assign Employee Dialog */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Assign Employees to Engagement</DialogTitle>
+            <DialogDescription>
+              {assigningEngagement && `Assign employees to "${assigningEngagement.title}"`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingDialogData ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <EnhancedLoader size="lg" text="Loading employees..." />
+            </div>
+          ) : (
+            <>
+              {/* Search Box */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name, email, or company..."
+                  value={searchEmployeeQuery}
+                  onChange={(e) => setSearchEmployeeQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+          {/* Assigned Employees Section */}
+          {assignedEmployees.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Assigned Employees ({assignedEmployees.length})</h3>
+              <div className="space-y-2">
+                {assignedEmployees.map((assigned) => {
+                  const employee = employees.find((e) => e.user_id === assigned.auditorId);
+                  return (
+                    <div
+                      key={assigned.auditorId}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary text-primary-foreground">
+                            {getInitials(assigned.auditorName || employee?.name, employee?.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {assigned.auditorName || employee?.name || employee?.email || assigned.auditorId}
+                          </div>
+                          {employee?.email && (
+                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {employee.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnassignEmployee(assigned.auditorId)}
+                        disabled={removingEmployeeId === assigned.auditorId}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      >
+                        {removingEmployeeId === assigned.auditorId ? (
+                          <>
+                            <EnhancedLoader size="sm" />
+                            Removing...
+                          </>
+                        ) : (
+                          <>
+                            <X className="h-4 w-4 mr-2" />
+                            Remove
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Available Employees Section */}
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">
+              Available Employees {assignedEmployees.length > 0 && `(${filteredEmployees.length})`}
+            </h3>
+            {isLoadingEmployees ? (
+              <div className="flex items-center justify-center py-8">
+                <EnhancedLoader size="lg" text="Loading employees..." />
+              </div>
+            ) : filteredEmployees.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No employees found
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {filteredEmployees.map((employee) => {
+                  const isAssigned = isEmployeeAssigned(employee.user_id);
+                  return (
+                    <div
+                      key={employee.user_id}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-primary text-primary-foreground">
+                            {getInitials(employee.name, employee.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {employee.name || employee.email}
+                          </div>
+                          {employee.email && (
+                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {employee.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {isAssigned ? (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700">
+                          Assigned
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleAssignEmployee(employee.user_id)}
+                          disabled={assigningEmployeeId === employee.user_id}
+                          className="rounded-lg"
+                        >
+                          {assigningEmployeeId === employee.user_id ? (
+                            <>
+                              <EnhancedLoader size="sm" />
+                              Assigning...
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Assign
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

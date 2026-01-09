@@ -38,6 +38,7 @@ interface IncomeStatementSectionProps {
   etbRows: ETBRow[];
   financialYearStart?: string;
   financialYearEnd?: string;
+  isReadOnly?: boolean;
 }
 
 interface GroupedRows {
@@ -84,6 +85,7 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
   etbRows,
   financialYearStart,
   financialYearEnd,
+  isReadOnly = false,
 }) => {
   const [isCalculating, setIsCalculating] = useState(true);
   const [groupedData, setGroupedData] = useState<GroupedRows>({});
@@ -510,12 +512,20 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
           const priorValue = calculations.getValue(grouping3, "prior");
 
           // Add grouping3 header
-          tableData.push([
-            { content: grouping3, styles: { textColor: [0, 0, 0] } },
-            "",
-            { content: formatValueForPDF(currentValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
-            { content: formatValueForPDF(priorValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
-          ]);
+          if (includeDetailRows) {
+            tableData.push([
+              { content: grouping3, styles: { textColor: [0, 0, 0] } },
+              "",
+              { content: formatValueForPDF(currentValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+              { content: formatValueForPDF(priorValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+            ]);
+          } else {
+            tableData.push([
+              { content: grouping3, styles: { textColor: [0, 0, 0] } },
+              { content: formatValueForPDF(currentValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+              { content: formatValueForPDF(priorValue, grouping3), styles: { halign: "right", textColor: [0, 0, 0] } },
+            ]);
+          }
 
           // Iterate through group4
           if (includeDetailRows) {
@@ -560,90 +570,165 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
               Object.keys(groupedData["Revenue"]).length > 0 && 
               groupedData["Cost of sales"] && 
               Object.keys(groupedData["Cost of sales"]).length > 0) {
-            tableData.push([
-              { content: "Gross Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
-              "",
-              {
-                content: formatCurrencyForPDF(calculations.grossProfitCurrent),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-              {
-                content: formatCurrencyForPDF(calculations.grossProfitPrior),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-            ]);
+            if (includeDetailRows) {
+              tableData.push([
+                { content: "Gross Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                "",
+                {
+                  content: formatCurrencyForPDF(calculations.grossProfitCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.grossProfitPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            } else {
+              tableData.push([
+                { content: "Gross Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                {
+                  content: formatCurrencyForPDF(calculations.grossProfitCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.grossProfitPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            }
           }
 
           // Add Operating Profit after last operating section
           if (grouping3 === lastOperatingSection) {
-            tableData.push([
-              { content: "Operating Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
-              "",
-              {
-                content: formatCurrencyForPDF(calculations.operatingProfitCurrent),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-              {
-                content: formatCurrencyForPDF(calculations.operatingProfitPrior),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-            ]);
+            if (includeDetailRows) {
+              tableData.push([
+                { content: "Operating Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                "",
+                {
+                  content: formatCurrencyForPDF(calculations.operatingProfitCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.operatingProfitPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            } else {
+              tableData.push([
+                { content: "Operating Profit", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                {
+                  content: formatCurrencyForPDF(calculations.operatingProfitCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.operatingProfitPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            }
           }
 
           // Add Net Profit Before Tax after last net profit section
           if (grouping3 === lastNetProfitSection) {
-            tableData.push([
-              { content: "Net Profit Before Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
-              "",
-              {
-                content: formatCurrencyForPDF(calculations.netProfitBeforeTaxCurrent),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-              {
-                content: formatCurrencyForPDF(calculations.netProfitBeforeTaxPrior),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-            ]);
+            if (includeDetailRows) {
+              tableData.push([
+                { content: "Net Profit Before Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                "",
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitBeforeTaxCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitBeforeTaxPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            } else {
+              tableData.push([
+                { content: "Net Profit Before Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitBeforeTaxCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitBeforeTaxPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            }
           }
 
           // Add Net Profit After Tax after Income tax expense
           if (grouping3 === "Income tax expense") {
-            tableData.push([
-              { content: "Net Profit After Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
-              "",
-              {
-                content: formatCurrencyForPDF(calculations.netProfitAfterTaxCurrent),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-              {
-                content: formatCurrencyForPDF(calculations.netProfitAfterTaxPrior),
-                styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
-              },
-            ]);
+            if (includeDetailRows) {
+              tableData.push([
+                { content: "Net Profit After Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                "",
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitAfterTaxCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitAfterTaxPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            } else {
+              tableData.push([
+                { content: "Net Profit After Tax", styles: { fontStyle: "bold", textColor: [0, 0, 0] } },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitAfterTaxCurrent),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+                {
+                  content: formatCurrencyForPDF(calculations.netProfitAfterTaxPrior),
+                  styles: { fontStyle: "bold", halign: "right", textColor: [0, 0, 0], lineWidth: { top: 0.2, bottom: 0.5 }, lineColor: [0, 0, 0] },
+                },
+              ]);
+            }
           }
         }
       });
 
+      // Build table head and column styles based on includeDetailRows
+      const tableHead = includeDetailRows
+        ? [
+            [
+              { content: "Description", styles: { halign: 'left' } },
+              { content: "Notes", styles: { halign: 'center' } },
+              { content: currentYearLabel, styles: { halign: 'right' } },
+              { content: priorYearLabel, styles: { halign: 'right' } },
+            ]
+          ]
+        : [
+            [
+              { content: "Description", styles: { halign: 'left' } },
+              { content: currentYearLabel, styles: { halign: 'right' } },
+              { content: priorYearLabel, styles: { halign: 'right' } },
+            ]
+          ];
+
+      const columnStyles = includeDetailRows
+        ? {
+            0: { cellWidth: 'auto', textColor: [0, 0, 0] },
+            1: { cellWidth: 20, halign: 'center', textColor: [0, 0, 0] },
+            2: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+            3: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+          }
+        : {
+            0: { cellWidth: 'auto', textColor: [0, 0, 0] },
+            1: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+            2: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
+          };
+
       autoTable(doc, {
         startY: 45,
-        head: [
-          [
-            { content: "Description", styles: { halign: 'left' } },
-            { content: "Notes", styles: { halign: 'center' } },
-            { content: currentYearLabel, styles: { halign: 'right' } },
-            { content: priorYearLabel, styles: { halign: 'right' } },
-          ]
-        ],
+        head: tableHead,
         body: tableData,
         theme: "plain",
         headStyles: { fillColor: false, textColor: [0, 0, 0], fontStyle: "bold", lineWidth: { bottom: 0 }, lineColor: [0, 0, 0] },
         styles: { fontSize: 9, textColor: [0, 0, 0], lineColor: [0, 0, 0] },
-        columnStyles: {
-          0: { cellWidth: 'auto', textColor: [0, 0, 0] },
-          1: { cellWidth: 20, halign: 'center', textColor: [0, 0, 0] },
-          2: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
-          3: { cellWidth: 'auto', halign: 'right', textColor: [0, 0, 0] },
-        },
+        columnStyles: columnStyles,
       });
 
       const fileName = includeDetailRows
@@ -732,10 +817,10 @@ export const IncomeStatementSection: React.FC<IncomeStatementSectionProps> = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {/* <DropdownMenuItem onClick={() => downloadPDF(true)}>
+                <DropdownMenuItem onClick={() => downloadPDF(true)}>
                   <FileText className="h-4 w-4 mr-2" />
                   Download Income Statement (Detailed)
-                </DropdownMenuItem> */}
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => downloadPDF(false)}>
                   <FileText className="h-4 w-4 mr-2" />
                   Download Income Statement

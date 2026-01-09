@@ -11,21 +11,20 @@ import {
   MapPin,
   Users,
   Loader2,
-  Edit,
   ExternalLink,
   Globe,
   PieChart,
   Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchCompanyById, getCompanyHierarchy } from "@/lib/api/company";
 import { EnhancedLoader } from "@/components/ui/enhanced-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PersonList } from "@/components/client/PersonList";
-import { EditCompanyModal } from "@/components/client/EditCompanyModal";
+import {PersonList} from "@/components/client/PersonList";
 import SharePieChart from "@/components/client/SharePieChart";
 import CompanyHierarchy from "@/components/client/CompanyHierarchy";
-import { EngagementKYC } from "./EngagementKYC";
+import { EngagementKYC } from "../employee/EngagementKYC";
 
 const VALID_COMPANY_TABS = ["details", "persons", "pie-chart", "company-hierarchy", "kyc"] as const;
 
@@ -100,16 +99,17 @@ const calculateTotalSharesSum = (totalSharesArray?: Array<{ totalShares: number;
   return totalSharesArray.reduce((sum, item) => sum + (Number(item.totalShares) || 0), 0);
 };
 
-export const CompanyDetail: React.FC = () => {
-  const { clientId, companyId } = useParams<{ clientId: string; companyId: string }>();
+export const ClientCompanyDetail: React.FC = () => {
+  const { companyId } = useParams<{ companyId: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const [company, setCompany] = useState<Company | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personsForChart, setPersonsForChart] = useState<Person[]>([]);
   const [hierarchyRoot, setHierarchyRoot] = useState<any>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
 
   const hierarchyData = useMemo(() => {
     const convertNode = (node: any | null | undefined): any => {
@@ -151,6 +151,7 @@ export const CompanyDetail: React.FC = () => {
 
     return convertNode(hierarchyRoot);
   }, [hierarchyRoot]);
+
   const highestShareholders = useMemo(() => {
     if (!company) return [];
 
@@ -296,26 +297,22 @@ export const CompanyDetail: React.FC = () => {
   };
 
   const handleBackClick = () => {
-    // Use browser history to go back, same as global back button
-    navigate(-1);
+    navigate("/client/companies");
   };
 
   useEffect(() => {
-    if (companyId && clientId) {
+    if (user?.id) {
+      setClientId(user.id);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (clientId && companyId) {
       fetchCompanyData();
       fetchPersonsForChart();
       fetchCompanyHierarchy();
     }
-  }, [companyId, clientId]);
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      const next = Array.isArray(e?.detail) ? e.detail : [];
-      setPersonsForChart(next);
-    };
-    window.addEventListener('persons-updated', handler as EventListener);
-    return () => window.removeEventListener('persons-updated', handler as EventListener);
-  }, []);
+  }, [clientId, companyId]);
 
   const fetchCompanyData = async () => {
     if (!companyId || !clientId) return;
@@ -323,7 +320,11 @@ export const CompanyDetail: React.FC = () => {
     try {
       setIsLoading(true);
       const result = await fetchCompanyById(clientId, companyId);
-      setCompany(result.data || null);
+      if (result.success) {
+        setCompany(result.data);
+      } else {
+        throw new Error(result.message || "Failed to load company details");
+      }
     } catch (error: any) {
       console.error("Error fetching company details:", error);
       toast({
@@ -331,9 +332,7 @@ export const CompanyDetail: React.FC = () => {
         description: error.message || "Failed to load company details",
         variant: "destructive",
       });
-      if (clientId) {
-        navigate(`/employee/clients/${clientId}`);
-      }
+      navigate("/client/companies");
     } finally {
       setIsLoading(false);
     }
@@ -342,8 +341,6 @@ export const CompanyDetail: React.FC = () => {
   const fetchPersonsForChart = async () => {
     if (!companyId || !clientId) return;
     try {
-      // Note: This endpoint might need to be added to the API file
-      // For now, keeping the fetch but it should be moved to API file later
       const { data: sessionData } = await import("@/integrations/supabase/client").then(m => m.supabase.auth.getSession());
       if (!sessionData.session) throw new Error("Not authenticated");
 
@@ -362,7 +359,6 @@ export const CompanyDetail: React.FC = () => {
       setPersonsForChart(Array.isArray(result.data) ? result.data : []);
     } catch (error: any) {
       console.error("Error fetching persons for chart:", error);
-      // Non-blocking for the page; show a subtle toast only if needed
     }
   };
 
@@ -371,7 +367,6 @@ export const CompanyDetail: React.FC = () => {
 
     try {
       const result = await getCompanyHierarchy(clientId, companyId);
-      console.log("hierarchy data",result);
       if (result?.success && result?.data) {
         setHierarchyRoot(result.data);
       } else if (result) {
@@ -396,12 +391,12 @@ export const CompanyDetail: React.FC = () => {
   if (!company) return null;
 
   return (
-    <div className="min-h-screen  bg-brand-body p-6">
+    <div className="min-h-screen bg-brand-body p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-end justify-between gap-4">
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center gap-4">
               <Button
                 variant="outline"
                 size="icon"
@@ -424,16 +419,6 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setIsEditModalOpen(true)}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg hover:shadow-xl rounded-xl py-3 h-auto"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Company
-            </Button>
           </div>
         </div>
 
@@ -464,11 +449,8 @@ export const CompanyDetail: React.FC = () => {
                 <p className="text-gray-600">
                   {company.registrationNumber}
                 </p>
-
               </div>
 
-
-               {/* Representative(s) - Highest Shareholder(s) derived from shareHolders & shareHoldingCompanies */}
               {(
                 (company.totalShares && company.totalShares.some(s => Number(s.totalShares) > 0)) || 
                 (Number(company.authorizedShares) > 0) || 
@@ -476,82 +458,65 @@ export const CompanyDetail: React.FC = () => {
                 (Number(company.perShareValue?.value) > 0)
               ) && (
                 <div className="flex items-start gap-3 p-4 bg-[#FFB300]/10 border border-[#FFB300] rounded-xl">
-                  <PieChart
-                    className="h-5 w-5 mt-0.5" />
+                  <PieChart className="h-5 w-5 mt-0.5" />
                   <div>
-
-                  {/* TOP GRID */}
-                  <div className="grid grid-cols-3 gap-6">
-
-                  {/* Authorized Shares */}
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide font-semibold">
-                    Authorized Shares
-                    </p>
-                    <p className="text-lg font-semibold">
-                    {company.authorizedShares && company.authorizedShares > 0 
-                      ? company.authorizedShares.toLocaleString() 
-                      : "-"}
-                    </p>
-                  </div>
-
-                  {/* Per Share Value */}
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide font-semibold">
-                    Per Share Value
-                    </p>
-                    <p className="text-lg font-semibold">
-                    {company.perShareValue?.value && company.perShareValue.value > 0 
-                      ? `€ ${company.perShareValue.value}` 
-                      : "-"}
-                    </p>
-                  </div>
-
-                  {/* Issued Shares */}
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide font-semibold">
-                    Issued Shares
-                    </p>
-                    <p className="text-lg font-semibold">
-                    {company.issuedShares && company.issuedShares > 0 
-                      ? company.issuedShares.toLocaleString() 
-                      : "-"}
-                    </p>
-                  </div>
-                  </div>
-
-                  {/* SHARE BREAKDOWN LIST */}
-                  {company.totalShares && company.totalShares.some((share) => share.totalShares > 0) && (
-                    <div className="pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium mb-2">
-                      Share Breakdown
-                      </p>
-
-                      <div className="flex flex-wrap gap-2">
-                      {company.totalShares
-                      .filter((share) => share.totalShares > 0)
-                      .map((share, idx) => {
-                      const className =
-                      share.class.charAt(0).toUpperCase() + share.class.slice(1).toLowerCase();
-
-                      return (
-                      <Badge
-                      key={idx}
-                      variant="outline"
-                      className="px-3 py-1.5 rounded-lg border-gray-300 text-gray-700 bg-gray-50 hover:bg-gray-100 transition"
-                      >
-                      <span className="font-medium text-xs">
-                      {share.class.toLowerCase() !== "ordinary" ? "Class" : ""} {share.class}:{" "}
-                      {share.totalShares.toLocaleString()} Shares
-                      </span>
-                      </Badge>
-                      );
-                      })}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide font-semibold text-gray-600">
+                          Authorized Shares
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {company.authorizedShares && company.authorizedShares > 0 
+                            ? company.authorizedShares.toLocaleString() 
+                            : "-"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide font-semibold text-gray-600">
+                          Per Share Value
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {company.perShareValue?.value && company.perShareValue.value > 0 
+                            ? `€ ${company.perShareValue.value}` 
+                            : "-"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide font-semibold text-gray-600">
+                          Issued Shares
+                        </p>
+                        <p className="text-lg font-semibold">
+                          {company.issuedShares && company.issuedShares > 0 
+                            ? company.issuedShares.toLocaleString() 
+                            : "-"}
+                        </p>
                       </div>
                     </div>
-                  )}
-                  </div>
 
+                    {company.totalShares && company.totalShares.some((share) => share.totalShares > 0) && (
+                      <div className="pt-3 border-t border-gray-100 mt-4">
+                        <p className="text-xs font-medium mb-2 text-gray-600">
+                          Share Breakdown
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {company.totalShares
+                            .filter((share) => share.totalShares > 0)
+                            .map((share, idx) => (
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="px-3 py-1.5 rounded-lg border-gray-300 text-gray-700 bg-gray-50"
+                              >
+                                <span className="font-medium text-xs">
+                                  {share.class.toLowerCase() !== "ordinary" ? "Class " : ""}{share.class}:{" "}
+                                  {share.totalShares.toLocaleString()} Shares
+                                </span>
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -561,8 +526,7 @@ export const CompanyDetail: React.FC = () => {
                     <Users className="h-5 w-5 text-blue-600 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm text-blue-900 font-medium">
-                        Representative{highestShareholders.length > 1 ? "s" : ""} (Highest
-                        Shareholder{highestShareholders.length > 1 ? "s" : ""})
+                        Representative{highestShareholders.length > 1 ? "s" : ""} (Highest Shareholder{highestShareholders.length > 1 ? "s" : ""})
                       </p>
                       <div className="space-y-1 mt-2">
                         {highestShareholders.map((rep) => (
@@ -580,7 +544,6 @@ export const CompanyDetail: React.FC = () => {
                 </div>
               )}
 
-              {/* Address */}
               {company.address && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <MapPin className="h-5 w-5 text-gray-600 mt-0.5" />
@@ -600,6 +563,7 @@ export const CompanyDetail: React.FC = () => {
                   </div>
                 </div>
               )}
+
               {company.companyStartedAt && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                   <Calendar className="h-5 w-5 text-gray-600 mt-0.5" />
@@ -613,15 +577,12 @@ export const CompanyDetail: React.FC = () => {
               {company.description && (
                 <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
                    <div>
-                    <p className="text-sm text-gray-500 font-medium">Description</p> <br />
-                    <p className="text-gray-900">{company.description}</p>
+                    <p className="text-sm text-gray-500 font-medium">Description</p>
+                    <p className="text-gray-900 mt-1">{company.description}</p>
                   </div>
                 </div>
               )}
 
-        
-
-              {/* Supporting Documents */}
               {company.supportingDocuments && company.supportingDocuments.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -635,30 +596,21 @@ export const CompanyDetail: React.FC = () => {
                           const urlObj = new URL(url);
                           const pathname = decodeURIComponent(urlObj.pathname);
                           const fileName = pathname.split('/').pop() || '';
-                          const cleanedFileName = fileName.replace(/^\d+-/, '');
-                          return cleanedFileName || `Document ${index + 1}`;
+                          return fileName.replace(/^\d+-/, '') || `Document ${index + 1}`;
                         } catch {
                           return `Document ${index + 1}`;
                         }
                       };
 
                       return (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                        >
+                        <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                           <FileText className="h-5 w-5 text-gray-600" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">
                               {getFileName(doc)}
                             </p>
                           </div>
-                          <a
-                            href={doc}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                          >
+                          <a href={doc} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
                             <ExternalLink className="h-4 w-4 text-gray-600" />
                           </a>
                         </div>
@@ -667,119 +619,6 @@ export const CompanyDetail: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              {/* Shareholding Companies */}
-              {company.shareHoldingCompanies &&
-                company.shareHoldingCompanies.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      Shareholding Companies
-                    </h3>
-                    <div className="space-y-2">
-                      {company.shareHoldingCompanies.map((share: any, index: number) => {
-                        let companyName = "Unknown";
-                        let shareCompanyId: string | null = null;
-                        const totalShares = share.sharesData?.reduce((sum: number, item: any) => sum + (item.totalShares || 0), 0) || 0;
-                        const companyTotalSharesSum = calculateTotalSharesSum(company.totalShares);
-                        const totalSharePercentage = companyTotalSharesSum > 0 ? (totalShares / companyTotalSharesSum) * 100 : 0;
-                        
-                        // Get sharesData with only non-zero values
-                        const nonZeroSharesData = (share.sharesData || []).filter((item: any) => (item.totalShares || 0) > 0);
-                        
-                        // Check if there are share classes (not just Ordinary)
-                        const hasShareClasses = nonZeroSharesData.some((item: any) => 
-                          item.class && item.class !== "Ordinary"
-                        );
-                        
-                        // Helper to get total shares for a specific class from company
-                        const getCompanyTotalForClass = (classValue: string): number => {
-                          const classShare = company.totalShares?.find(
-                            (ts: any) => ts.class === classValue
-                          );
-                          return classShare?.totalShares || 0;
-                        };
-                        
-                        if (share.companyId) {
-                          if (typeof share.companyId === 'object' && share.companyId.name) {
-                            companyName = share.companyId.name;
-                            shareCompanyId = share.companyId._id;
-                          } else if (typeof share.companyId === 'string') {
-                            companyName = "Unknown Company";
-                            shareCompanyId = share.companyId;
-                          }
-                        }
-
-                        const handleViewCompany = () => {
-                          if (shareCompanyId && clientId) {
-                            navigate(`/employee/clients/${"non-primary"}/company/${shareCompanyId}`);
-                          }
-                        };
-
-                        return (
-                          <div
-                            key={index}
-                            className="p-4 rounded-xl border border-gray-200 bg-white shadow-sm flex items-start justify-between"
-                          >
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {companyName}
-                              </p>
-
-                              {hasShareClasses ? (
-                                // Display share classes separately (Class A, B, C, etc.)
-                                <div className="mt-1 space-y-1">
-                                  {nonZeroSharesData
-                                    .sort((a: any, b: any) => {
-                                      // Sort: A, B, C first, then Ordinary
-                                      if (a.class === "Ordinary") return 1;
-                                      if (b.class === "Ordinary") return -1;
-                                      return a.class.localeCompare(b.class);
-                                    })
-                                    .map((item: any, idx: number) => {
-                                      const classTotal = getCompanyTotalForClass(item.class);
-                                      const className = item.class.charAt(0).toUpperCase() + item.class.slice(1).toLowerCase();
-                                      const displayClassName = item.class === "Ordinary" ? "Ordinary" : `Class ${className}`;
-                                      return (
-                                        <p key={idx} className="text-xs text-gray-600">
-                                          {displayClassName}: {item.totalShares.toLocaleString()} / {classTotal.toLocaleString()} shares
-                                        </p>
-                                      );
-                                    })}
-                                  {/* Show total at the end */}
-                                  <p className="text-xs text-gray-600 font-medium mt-1">
-                                    Total: {totalShares.toLocaleString()} / {companyTotalSharesSum.toLocaleString()} shares
-                                  </p>
-                                </div>
-                              ) : (
-                                // Display ordinary shares only (current logic)
-                                <>
-                                  <p className="text-xs text-gray-600 mt-1">
-                                    {`${totalShares.toLocaleString()} / ${companyTotalSharesSum.toLocaleString()}`} shares
-                                  </p>
-                                </>
-                              )}
-
-                              <p className="text-xs text-gray-600">
-                                {totalSharePercentage.toFixed(2)}% owned
-                              </p>
-                            </div>
-                            {shareCompanyId && (
-                              <Button
-                                variant="outline"
-                                onClick={handleViewCompany}
-                                className="ml-4 p-2 rounded-lg transition-colors"
-                                title="View Company Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                          
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
             </TabsContent>
 
             <TabsContent value="persons" className="p-6 mt-6">
@@ -788,6 +627,7 @@ export const CompanyDetail: React.FC = () => {
                   companyId={company._id}
                   clientId={clientId}
                   company={company}
+                  readOnly={true}
                   onUpdate={() => {
                     fetchCompanyData();
                     fetchCompanyHierarchy();
@@ -795,55 +635,44 @@ export const CompanyDetail: React.FC = () => {
                 />
               )}
             </TabsContent>
+
             <TabsContent value="pie-chart" className="p-6 mt-6">
               <SharePieChart
-                persons={(company?.shareHolders || []).map((shareHolder: any) => {
-                  const personData = shareHolder.personId || {};
-                  return {
-                    _id: typeof personData === 'object' ? personData._id : personData,
-                    name: typeof personData === 'object' ? personData.name : 'Unknown',
-                    sharePercentage: shareHolder.sharePercentage ?? 0,
-                    sharesData: shareHolder.sharesData || [],
-                  };
-                })}
-                companies={(company?.shareHoldingCompanies || []).map((share) => ({
-                  companyId: share.companyId,
-                  sharePercentage: share.sharePercentage ?? 0,
-                  sharesData: share.sharesData || [],
+                persons={(company?.shareHolders || []).filter((sh: any) => sh.personId).map((shareHolder: any) => ({
+                  _id: typeof shareHolder.personId === 'object' ? shareHolder.personId._id : (shareHolder.personId || 'unknown'),
+                  name: typeof shareHolder.personId === 'object' ? shareHolder.personId.name : 'Unknown',
+                  sharePercentage: shareHolder.sharePercentage || 0,
+                  sharesData: shareHolder.sharesData || [],
+                  roles: []
                 }))}
-                companyTotalShares={calculateTotalSharesSum(company?.totalShares)}
-                companyTotalSharesArray={company?.totalShares || []}
-                authorizedShares={company?.authorizedShares}
-                issuedShares={company?.issuedShares}
-                title="Distribution"
+                companies={(company?.shareHoldingCompanies || []).map((shareCompany: any) => ({
+                  companyId: shareCompany.companyId,
+                  sharePercentage: shareCompany.sharePercentage || 0,
+                  companyName: shareCompany.companyName || (typeof shareCompany.companyId === 'object' ? shareCompany.companyId.name : 'Unknown Company'),
+                  sharesData: shareCompany.sharesData || []
+                }))}
+                companyTotalSharesArray={company.totalShares}
+                authorizedShares={company.authorizedShares}
+                issuedShares={company.issuedShares}
               />
             </TabsContent>
+
             <TabsContent value="company-hierarchy" className="p-6 mt-6">
-              <CompanyHierarchy rootData={hierarchyData} />
+              {hierarchyData ? (
+                <CompanyHierarchy rootData={hierarchyData} />
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  No hierarchy data available
+                </div>
+              )}
             </TabsContent>
+
             <TabsContent value="kyc" className="p-6 mt-6">
-              <EngagementKYC companyId={companyId} clientId={clientId} company={company} />
+              <EngagementKYC companyId={company._id} clientId={clientId} company={company} isClientView={true} deleteRequest={false} />
             </TabsContent>
           </Tabs>
         </div>
       </div>
-
-      {/* Edit Company Modal */}
-      {company && clientId && (
-        <EditCompanyModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          company={company}
-          clientId={clientId}
-          onSuccess={() => {
-            setIsEditModalOpen(false);
-            fetchCompanyData();
-            fetchCompanyHierarchy();
-          }}
-          existingCompanies={[]}
-        />
-      )}
     </div>
   );
 };
-

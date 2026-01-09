@@ -48,6 +48,8 @@ import KYCLibrary from "@/pages/employee/KYCLibrary";
 import { ClientDashboard } from "@/pages/client/ClientDashboard";
 import { ClientEngagements } from "@/pages/client/ClientEngagements";
 import { DocumentRequests } from "@/pages/client/DocumentRequests";
+import { ClientCompanies } from "@/pages/client/ClientCompanies";
+import { ClientCompanyDetail } from "@/pages/client/ClientCompanyDetail";
 
 
 import Index from "./pages/Index";
@@ -74,6 +76,9 @@ import { AdminSettingsPage } from "./pages/settings/AdminSettingsPage";
 import { ClientSettingsPage } from "./pages/settings/ClientSettingsPage";
 import { NotificationSettingsRedirect } from "./components/notifications/NotificationSettingsRedirect";
 import { DocumentRequestsEngagement } from "./pages/client/DocumentRequestsEngagement";
+import { DocumentKYCNew } from "./pages/client/DocumentKYCNew";
+import { ClientEngagementDetails } from "@/pages/client/engagement-details/ClientEngagementDetails";
+// No separate import for ClientPbcDocumentsModal needed here if not used as a route element
 
 
 
@@ -129,7 +134,11 @@ const App = () => (
                         <Route index element={<AdminDashboard />} />
                         <Route path="prompts" element={<PromptManagement />} />
                         <Route path="users" element={<UserManagement />} />
+                        <Route path="clients/new" element={<AddClient />} />
                         <Route path="logs" element={<AuditorLogs />} />
+                        <Route path="engagements" element={<EngagementManagement />} />
+                        <Route path="engagements/new" element={<CreateEngagement />} />
+                        <Route path="engagements/:id" element={<EngagementDetails />} />
                         <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
                         <Route path="branding" element={<BrandingSettings />} />
                         <Route path="notice-board" element={<NoticeBoardManagement />} />
@@ -187,10 +196,13 @@ const App = () => (
                         <Route index element={<ClientDashboard />} />
                         <Route path="engagements" element={<ClientEngagements />} />
                         <Route path="document-requests" element={<DocumentRequestsEngagement />} />
-                        <Route path="requests" element={<DocumentRequests />} />
+                        <Route path="requests" element={<DocumentKYCNew />} />
+                        <Route path="companies" element={<ClientCompanies />} />
+                        <Route path="companies/:companyId" element={<ClientCompanyDetail />} />
                         <Route path="accounts" element={<RoleBasedAccountDataTab />} />
-                        <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-                        <Route path="settings" element={<ClientSettingsPage />} />
+                         <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+                         <Route path="settings" element={<ClientSettingsPage />} />
+                         <Route path="engagements/:id" element={<ClientEngagementDetails />} />
 
                       </Route>
 

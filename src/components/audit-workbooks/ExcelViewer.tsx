@@ -136,6 +136,7 @@ import {
 import { uploadFileToStorage, validateFile } from "@/lib/file-upload-service";
 import { createClassificationEvidence } from "@/lib/api/classification-evidence-api";
 import { getClassificationId } from "@/lib/classification-mapping";
+import { engagementApi } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -426,6 +427,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   autoFullscreen?: boolean; // ✅ NEW: Automatically open in fullscreen mode
 }> = (props) => {
   const { toast } = useToast();
+  
+  // ✅ CRITICAL: Log when component receives initialSheet prop
+  console.log(`ExcelViewer: Component mounted/re-rendered with initialSheet prop:`, {
+    initialSheet: props.initialSheet,
+    workbookId: props.workbook?.id,
+    workbookName: props.workbook?.name,
+    hasInitialSheet: !!props.initialSheet
+  });
+  
   const [isFullscreen, setIsFullscreen] = useState(props.autoFullscreen || false);
   const parentOnRefreshETBData = props.onRefreshETBData;
 
@@ -440,17 +450,51 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   const [mappingsDialogRefreshKey, setMappingsDialogRefreshKey] = useState(0);
 
   // Sheet selection state
-  const [selectedSheet, setSelectedSheet] = useState<string>("");
+  // ✅ CRITICAL: Initialize with initialSheet prop if available, otherwise empty string
+  const [selectedSheet, setSelectedSheet] = useState<string>(props.initialSheet || "");
   const isInitializingRef = useRef(true); // Track if we're still initializing
+  const initializedWorkbookIdRef = useRef<string | null>(null); // Track which workbook has been initialized
+  const userManuallyChangedSheetRef = useRef(false); // Track if user manually changed the sheet
+  const defaultSheetForWorkbookRef = useRef<string | null>(null); // Track the default (first) sheet for current workbook
 
   // ✅ NEW: Wrapper function to handle sheet changes and notify parent
   const handleSheetChangeWrapper = useCallback((sheetName: string) => {
+    console.log(`📝 ExcelViewer: handleSheetChangeWrapper called`, {
+      sheetName,
+      isInitializing: isInitializingRef.current,
+      hasOnSheetChange: !!props.onSheetChange,
+      workbookId: props.workbook?.id,
+      currentSheet: selectedSheet
+    });
+    
     setSelectedSheet(sheetName);
-    // Only save preference if not initializing (user actually changed the sheet)
-    if (!isInitializingRef.current && props.onSheetChange && props.workbook?.id) {
-      props.onSheetChange(props.workbook.id, sheetName);
+    
+    // Mark that user manually changed the sheet (only if not during initialization)
+    if (!isInitializingRef.current) {
+      userManuallyChangedSheetRef.current = true;
+      console.log(`📝 ExcelViewer: Marked as manual sheet change`);
     }
-  }, [props.onSheetChange, props.workbook?.id]);
+    
+    // Only save preference if not initializing (user actually changed the sheet)
+    // ✅ CRITICAL: Use _id if available (MongoDB format), otherwise use id
+    const workbookIdToUse = props.workbook?._id || props.workbook?.id;
+    if (!isInitializingRef.current && props.onSheetChange && workbookIdToUse) {
+      console.log(`📝 ExcelViewer: Calling onSheetChange to save preference`, {
+        workbookId: workbookIdToUse,
+        workbook_id: props.workbook?._id,
+        workbookId_prop: props.workbook?.id,
+        sheetName: sheetName,
+        workbookIdType: typeof workbookIdToUse
+      });
+      props.onSheetChange(workbookIdToUse, sheetName);
+    } else {
+      console.log(`📝 ExcelViewer: NOT saving preference`, {
+        isInitializing: isInitializingRef.current,
+        hasOnSheetChange: !!props.onSheetChange,
+        hasWorkbookId: !!props.workbook?.id
+      });
+    }
+  }, [props.onSheetChange, props.workbook?.id, selectedSheet]);
 
   // Cell selection states
   const [selections, setSelections] = useState<Selection[]>([]);
@@ -466,7 +510,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     visible: boolean;
     x: number;
     y: number;
-    type: 'mapping' | 'reference' | null;
+    type: 'mapping' | 'reference' | 'notes' | null;
     data: any;
   }>({ visible: false, x: 0, y: 0, type: null, data: null });
   
@@ -492,6 +536,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Refs for high-performance hover tracking without triggering full grid re-renders
   const hoveredMappingIdRef = useRef<string | null>(null);
   const hoveredReferenceIdRef = useRef<string | null>(null);
+  const hoveredNotesIdRef = useRef<string | null>(null);
   // Track previously hovered rows to clear them efficiently
   const prevHoveredRowNodesRef = useRef<any[]>([]);
   
@@ -587,6 +632,11 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   const [isEditingNotes, setIsEditingNotes] = useState(false); // ✅ NEW: Edit mode for notes
   const [editedNotes, setEditedNotes] = useState<string>(""); // ✅ NEW: Edited notes content
   const [isUpdatingNotes, setIsUpdatingNotes] = useState(false); // ✅ NEW: Loading state for notes update
+  
+  // ✅ NEW: State for standalone notes (without mapping or reference files)
+  const [isAddNotesDialogOpen, setIsAddNotesDialogOpen] = useState(false);
+  const [standaloneNotes, setStandaloneNotes] = useState<string>("");
+  const [isSavingStandaloneNotes, setIsSavingStandaloneNotes] = useState(false);
 
   // File preview state
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
@@ -600,6 +650,8 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // ✅ IMPROVED: Ref for immediate mouse position access (avoids state delay)
   const currentMousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const autoScrollAnimationFrameRef = useRef<number | null>(null);
+  // Ref to track last updated cell during auto-scroll to avoid unnecessary state updates
+  const lastUpdatedCellRef = useRef<{ row: number; col: number } | null>(null);
 
   // AG Grid state
   const [gridApi, setGridApi] = useState<any>(null);
@@ -941,6 +993,23 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
 
         const response = await createClassificationEvidence(evidenceData);
         const evidenceId = response.evidence._id;
+
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagementId,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // ✅ IMPORTANT: Add reference file to workbook WITHOUT creating a mapping
         // Reference files and mappings are completely separate concepts
@@ -1477,15 +1546,16 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     }
   }, [props, selections, selectedSheet, fetchEvidenceFilesForRange, toast]);
 
-  // Auto-scrolling: Handle mouse move and mouse up events during selection
+  // ✅ Global mouse event tracking for auto-scrolling
+  // This ensures we track mouse position even when dragging over scrollbars or outside the grid
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      // Only track mouse position if mouse button is pressed (dragging)
+      // Update the ref immediately for the auto-scroll loop to use
+      currentMousePositionRef.current = { x: e.clientX, y: e.clientY };
+      
+      // Track button state
       if (e.buttons === 1) {
         isMouseDownRef.current = true;
-        // Update both state and ref for immediate access
-        currentMousePositionRef.current = { x: e.clientX, y: e.clientY };
-        setMousePosition({ x: e.clientX, y: e.clientY });
       } else {
         isMouseDownRef.current = false;
       }
@@ -1497,42 +1567,25 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
 
     const handleMouseUp = () => {
       isMouseDownRef.current = false;
-      // Stop auto-scrolling
-      if (autoScrollAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollAnimationFrameRef.current);
-        autoScrollAnimationFrameRef.current = null;
-      }
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-        setAutoScrollInterval(null);
-      }
+      lastUpdatedCellRef.current = null; // Reset selection tracking
     };
 
-    if (isSelecting) {
-      document.addEventListener('mousedown', handleMouseDown);
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
+    // Use capture: true to catch events even if they hit the scrollbar
+    document.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('mousemove', handleMouseMove, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
 
     return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mousemove', handleMouseMove, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
       isMouseDownRef.current = false;
-      if (autoScrollAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollAnimationFrameRef.current);
-        autoScrollAnimationFrameRef.current = null;
-      }
-      if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-        setAutoScrollInterval(null);
-      }
     };
-  }, [isSelecting, autoScrollInterval, setAutoScrollInterval]);
+  }, []); // Empty dependency array as we only touch refs
 
-  // ✅ IMPROVED: Smooth auto-scrolling logic using requestAnimationFrame
+  // ✅ EXCEL-LIKE AUTO-SCROLLING: Smooth, accelerated auto-scrolling during selection
   useEffect(() => {
-    if (!isSelecting || !spreadsheetContainerRef.current) {
+    if (!isSelecting || !spreadsheetContainerRef.current || !gridApiRef.current) {
       // Stop scrolling if not selecting
       if (autoScrollAnimationFrameRef.current !== null) {
         cancelAnimationFrame(autoScrollAnimationFrameRef.current);
@@ -1541,27 +1594,120 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       return;
     }
 
-    const container = spreadsheetContainerRef.current;
-    const edgeThreshold = 50; // pixels from edge to trigger scrolling
-    const maxScrollSpeed = 25; // maximum pixels per frame
-    const minScrollSpeed = 2; // minimum pixels per frame (slightly increased)
+    // Helper function to find the actual scrollable container within AG Grid
+    const getScrollableContainer = (): HTMLElement | null => {
+      if (!spreadsheetContainerRef.current) return null;
+      
+      // AG Grid uses .ag-body-viewport as the main scrollable container for rows
+      // And .ag-center-cols-viewport for columns if virtualized
+      let viewport = spreadsheetContainerRef.current.querySelector('.ag-body-viewport') as HTMLElement;
+      if (viewport) return viewport;
+      
+      // Fallback check for horizontal viewport
+      viewport = spreadsheetContainerRef.current.querySelector('.ag-center-cols-viewport') as HTMLElement;
+      if (viewport) return viewport;
 
-    // Smooth scrolling function using requestAnimationFrame
+      // Last resort: outer container
+      return spreadsheetContainerRef.current as HTMLElement;
+    };
+
+    // Helper function to get cell data at a specific screen coordinate
+    // This works even if the mouse is technically outside the grid bounds
+    const getCellAtPosition = (x: number, y: number): { row: number; col: number } | null => {
+      try {
+        const elementAtPoint = document.elementFromPoint(x, y);
+        if (!elementAtPoint) return null;
+
+        // Traverse up to find the AG Grid cell
+        const agCell = elementAtPoint.closest('.ag-cell') as HTMLElement;
+        if (!agCell) return null;
+
+        // Extract row index from the cell's attribute
+        const rowIndexAttr = agCell.getAttribute('row-index');
+        if (rowIndexAttr === null) return null;
+
+        // Ensure we have the row node from AG Grid to get correct Excel coordinates
+        const rowNode = gridApiRef.current.getRowNode(rowIndexAttr);
+        if (!rowNode || !rowNode.data || rowNode.data._rowIndex === undefined) return null;
+
+        const rowIndex = rowNode.data._rowIndex;
+
+        // Get column ID from the cell's attribute
+        const colId = agCell.getAttribute('col-id');
+        if (!colId || colId === '_rowNumber') return null;
+
+        // Convert column ID (e.g., "A", "B") to zero-based index
+        const excelColIndex = excelColToZeroIndex(colId);
+        if (excelColIndex === null || excelColIndex === undefined) return null;
+
+        return { row: rowIndex, col: excelColIndex };
+      } catch (error) {
+        // Silently fail (expected when mouse is over floating UI or scrollbars)
+        return null;
+      }
+    };
+
+    // Helper to update selection state based on current mouse position
+    const updateSelectionFromMousePosition = (mouseX: number, mouseY: number) => {
+      if (!anchorSelectionStart.current) return;
+
+      const cell = getCellAtPosition(mouseX, mouseY);
+      
+      // Only update state if we actually found a cell and it's different from the last one
+      // This prevents unnecessary re-renders
+      if (!cell) return;
+
+      const { row, col } = cell;
+      
+      if (lastUpdatedCellRef.current && 
+          lastUpdatedCellRef.current.row === row && 
+          lastUpdatedCellRef.current.col === col) {
+        return;
+      }
+
+      lastUpdatedCellRef.current = cell;
+
+      // Update the React state to extend the selection
+      setSelections(prev => {
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        
+        // Update the 'end' coordinate of the current selection
+        updated[updated.length - 1] = {
+          ...last,
+          end: { row, col }
+        };
+        return updated;
+      });
+    };
+
+    // Configuration for scroll behavior
+    const edgeThreshold = 20; // Pixels from edge to START scrolling
+    const maxScrollDistance = 100; // Distance where MAX speed is reached
+    const minScrollSpeed = 3; // Pixels per frame
+    const maxScrollSpeed = 30; // Pixels per frame (fast!)
+
+    // The main animation loop
     const smoothScroll = () => {
-      // Only scroll if mouse button is actually pressed (dragging)
-      if (!isMouseDownRef.current || !container) {
+      // Stop if user stopped dragging
+      if (!isMouseDownRef.current) {
         autoScrollAnimationFrameRef.current = null;
         return;
       }
 
-      // Use ref for immediate access without state delay
+      const container = getScrollableContainer();
+      if (!container) {
+        // Retry next frame if container wasn't found yet
+        autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
+        return;
+      }
+
       const mouseX = currentMousePositionRef.current.x;
       const mouseY = currentMousePositionRef.current.y;
+      const rect = container.getBoundingClientRect();
 
-      // Get container's position and dimensions relative to viewport
-      const containerRect = container.getBoundingClientRect();
-
-      // Check if container can scroll in each direction
+      // Determine if we can scroll in each direction
       const canScrollHorizontally = container.scrollWidth > container.clientWidth;
       const canScrollVertically = container.scrollHeight > container.clientHeight;
 
@@ -1569,89 +1715,69 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       let scrollY = 0;
       let needsScroll = false;
 
-      // ✅ FIXED HORIZONTAL SCROLLING: Logic now handles dragging outside container
+      // --- HORIZONTAL SCROLLING ---
       if (canScrollHorizontally) {
-        // Check right edge (Distance is positive if inside, negative if outside)
-        const distRight = containerRect.right - mouseX;
-
-        // Scroll if we are within the threshold distance OR outside (negative distance)
-        if (distRight < edgeThreshold) {
-          // Calculate speed: Closer to edge (or further outside) = Faster
-          // If distRight is negative (outside), max(0, distRight) becomes 0, resulting in max speed
-          const normalizedDist = Math.max(0, distRight) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2); // Quadratic easing
-
-          scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+        // Check Right Edge
+        if (mouseX > rect.right) {
+          const dist = Math.min(mouseX - rect.right, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollX = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8); // Slightly eased curve
           needsScroll = true;
         }
-
-        // Check left edge
-        const distLeft = mouseX - containerRect.left;
-
-        if (distLeft < edgeThreshold) {
-          const normalizedDist = Math.max(0, distLeft) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+        // Check Left Edge
+        else if (mouseX < rect.left) {
+          const dist = Math.min(rect.left - mouseX, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollX = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8));
           needsScroll = true;
         }
       }
 
-      // ✅ FIXED VERTICAL SCROLLING: Logic now handles dragging outside container
+      // --- VERTICAL SCROLLING ---
       if (canScrollVertically) {
-        // Check bottom edge
-        const distBottom = containerRect.bottom - mouseY;
-
-        if (distBottom < edgeThreshold) {
-          const normalizedDist = Math.max(0, distBottom) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor;
+        // Check Bottom Edge
+        if (mouseY > rect.bottom) {
+          const dist = Math.min(mouseY - rect.bottom, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollY = minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8);
           needsScroll = true;
         }
-
-        // Check top edge
-        const distTop = mouseY - containerRect.top;
-
-        if (distTop < edgeThreshold) {
-          const normalizedDist = Math.max(0, distTop) / edgeThreshold;
-          const speedFactor = Math.pow(1 - normalizedDist, 2);
-
-          scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * speedFactor);
+        // Check Top Edge
+        else if (mouseY < rect.top) {
+          const dist = Math.min(rect.top - mouseY, maxScrollDistance);
+          const speedFactor = Math.min(1, dist / maxScrollDistance);
+          scrollY = -(minScrollSpeed + (maxScrollSpeed - minScrollSpeed) * Math.pow(speedFactor, 0.8));
           needsScroll = true;
         }
       }
 
-      // Apply smooth scrolling
+      // Apply scrolling if needed
       if (needsScroll) {
-        // Check scroll limits before scrolling
-        const maxScrollLeft = container.scrollWidth - container.clientWidth;
-        const maxScrollTop = container.scrollHeight - container.clientHeight;
+        // 1. Scroll the container
+        container.scrollBy({
+          left: scrollX,
+          top: scrollY,
+          behavior: 'auto' // 'auto' allows instant scrolling per frame
+        });
 
-        // Allow scrolling if not at boundaries
-        const canScrollRight = scrollX > 0 && container.scrollLeft < maxScrollLeft;
-        const canScrollLeft = scrollX < 0 && container.scrollLeft > 0;
-        const canScrollDown = scrollY > 0 && container.scrollTop < maxScrollTop;
-        const canScrollUp = scrollY < 0 && container.scrollTop > 0;
-
-        if ((scrollX !== 0 && (canScrollRight || canScrollLeft)) ||
-          (scrollY !== 0 && (canScrollDown || canScrollUp))) {
-          container.scrollBy({
-            left: scrollX,
-            top: scrollY,
-            behavior: 'auto'
-          });
-        }
+        // 2. Update Selection
+        // We use requestAnimationFrame here to ensure the DOM has scrolled 
+        // before we try to detect the cell at the new mouse position
+        requestAnimationFrame(() => {
+          updateSelectionFromMousePosition(mouseX, mouseY);
+        });
+      } else {
+        // Even if not scrolling, update selection if mouse is moving inside grid
+        // This ensures selection follows mouse correctly during normal drag
+        updateSelectionFromMousePosition(mouseX, mouseY);
       }
 
-      // Continue animation loop
+      // Schedule next frame
       autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
     };
 
-    // Start the smooth scrolling loop when selecting
-    if (isSelecting) {
-      autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
-    }
+    // Start the loop
+    autoScrollAnimationFrameRef.current = requestAnimationFrame(smoothScroll);
 
     return () => {
       if (autoScrollAnimationFrameRef.current !== null) {
@@ -1659,7 +1785,12 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         autoScrollAnimationFrameRef.current = null;
       }
     };
-  }, [isSelecting, spreadsheetContainerRef]);
+  }, [
+    isSelecting, 
+    anchorSelectionStart,
+    setSelections,
+    selectedSheet
+  ]);
 
   const resolveFullscreenRowIdentifier = useCallback(
     (row?: Partial<ETBRow>, fallback?: string) => {
@@ -1772,37 +1903,258 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     }
   }, [selectedSheet, props.workbook?.id, loadSheetDataOnDemand]);
 
-  // ✅ NEW: Initialize sheet selection when workbook changes
-  // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
+  // ✅ NEW: Fetch user preference for last selected sheet when workbook opens
+  // This is a fallback if parent doesn't provide initialSheet prop
+  const [fetchedInitialSheet, setFetchedInitialSheet] = useState<string | undefined>(undefined);
+  const preferenceFetchedRef = useRef<string | null>(null); // Track which workbook we've fetched preference for
+  const lastInitialSheetRef = useRef<string | undefined>(undefined); // Track last initialSheet prop value
+  
   useEffect(() => {
     if (!props.workbook?.id) return;
+    
+    // Only fetch if initialSheet prop is not provided (parent hasn't fetched it yet)
+    // This ensures we don't make redundant API calls
+    if (props.initialSheet !== undefined) {
+      // Parent provided initialSheet, clear fetched preference
+      if (preferenceFetchedRef.current !== props.workbook.id) {
+        setFetchedInitialSheet(undefined);
+        preferenceFetchedRef.current = props.workbook.id; // Mark as handled
+      }
+      return;
+    }
 
+    // Only fetch once per workbook ID
+    if (preferenceFetchedRef.current === props.workbook.id) {
+      return; // Already fetched for this workbook
+    }
+
+    // Fetch preference from backend
+    const fetchPreference = async () => {
+      try {
+        preferenceFetchedRef.current = props.workbook.id; // Mark as fetching/fetched
+        const preferenceResponse = await db_WorkbookApi.getUserWorkbookPreference(props.workbook.id);
+        if (preferenceResponse.success && preferenceResponse.data?.lastSelectedSheet) {
+          const savedSheet = preferenceResponse.data.lastSelectedSheet;
+          
+          // Verify the saved sheet exists in the workbook
+          // Note: fileData might not be loaded yet, so we'll validate in the initialization effect
+          const sheetNames = props.workbook.fileData
+            ? Object.keys(props.workbook.fileData)
+            : (props.workbook.sheets?.map((s: any) => s.name || s) || []);
+          
+          if (sheetNames.length > 0 && sheetNames.includes(savedSheet)) {
+            setFetchedInitialSheet(savedSheet);
+            console.log(`ExcelViewer: Fetched last selected sheet preference: ${savedSheet}`);
+          } else if (sheetNames.length === 0) {
+            // FileData not loaded yet, store the preference anyway - will validate in initialization effect
+            setFetchedInitialSheet(savedSheet);
+            console.log(`ExcelViewer: Fetched preference "${savedSheet}" (will validate when fileData loads)`);
+          } else {
+            console.log(`ExcelViewer: Saved sheet "${savedSheet}" no longer exists in workbook`);
+            setFetchedInitialSheet(undefined);
+          }
+        } else {
+          setFetchedInitialSheet(undefined);
+        }
+      } catch (error) {
+        console.warn('ExcelViewer: Failed to fetch sheet preference:', error);
+        setFetchedInitialSheet(undefined);
+        preferenceFetchedRef.current = props.workbook.id; // Still mark as attempted
+      }
+    };
+
+    fetchPreference();
+  }, [props.workbook?.id, props.initialSheet]); // Only depend on workbook ID and initialSheet prop
+
+  // ✅ NEW: Initialize sheet selection when workbook changes
+  // Use initialSheet prop if provided (from saved preference), otherwise use first sheet
+  // This only runs when the workbook ID changes, not when user manually changes sheets
+  useEffect(() => {
+    if (!props.workbook?.id) {
+      console.log('ExcelViewer: No workbook ID, skipping sheet initialization');
+      return;
+    }
+
+    // Get sheet names from fileData or sheets array
     const sheetNames = props.workbook.fileData
       ? Object.keys(props.workbook.fileData)
-      : (props.workbook.sheets?.map((s: any) => s.name) || []);
+      : (props.workbook.sheets?.map((s: any) => s.name || s) || []);
 
-    if (sheetNames.length === 0) return;
-
-    // Use initialSheet from props (saved preference) if provided and valid
-    // Otherwise use first sheet
-    const sheetToSelect = (props.initialSheet && sheetNames.includes(props.initialSheet))
-      ? props.initialSheet
-      : sheetNames[0];
-
-    // Only set if different from current (to avoid unnecessary updates)
-    if (selectedSheet !== sheetToSelect) {
-      isInitializingRef.current = true; // Mark as initializing
-      setSelectedSheet(sheetToSelect);
-      console.log(`ExcelViewer: Initialized sheet to ${sheetToSelect} (from ${props.initialSheet ? 'saved preference' : 'default'})`);
-      // Mark initialization complete after a short delay
-      setTimeout(() => {
-        isInitializingRef.current = false;
-      }, 100);
+    // If no sheets available yet, wait for data to load
+    if (sheetNames.length === 0) {
+      console.log('ExcelViewer: No sheets available yet, waiting for workbook data...', {
+        hasFileData: !!props.workbook.fileData,
+        hasSheets: !!props.workbook.sheets,
+        workbookId: props.workbook.id
+      });
+      return;
     }
-  }, [props.workbook.id, props.initialSheet]); // Run when workbook ID or initialSheet changes
+
+    const defaultSheet = sheetNames[0];
+    defaultSheetForWorkbookRef.current = defaultSheet; // Store default sheet for this workbook
+
+    console.log('ExcelViewer: Sheet initialization check', {
+      workbookId: props.workbook.id,
+      initializedWorkbookId: initializedWorkbookIdRef.current,
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      availableSheets: sheetNames,
+      defaultSheet: defaultSheet
+    });
+
+    // ✅ CRITICAL: Check if initialSheet prop just changed from undefined to a value
+    // This handles the case where the prop arrives after the component has already initialized
+    const initialSheetJustArrived = lastInitialSheetRef.current === undefined && 
+                                     props.initialSheet !== undefined && 
+                                     props.initialSheet !== '';
+    
+    // ✅ CRITICAL: Only initialize once per workbook ID
+    // If we've already initialized this workbook, check if we should update to preferred sheet
+    if (initializedWorkbookIdRef.current === props.workbook.id) {
+      // If user hasn't manually changed the sheet AND we have a preferred sheet that's valid
+      // AND the preferred sheet is different from current, update to preferred sheet
+      // This handles the case where initialSheet prop or fetched preference arrives after initialization
+      const preferredSheet = props.initialSheet || fetchedInitialSheet;
+      console.log('ExcelViewer: Workbook already initialized, checking if should update to preferred sheet', {
+        preferredSheet: preferredSheet,
+        userManuallyChanged: userManuallyChangedSheetRef.current,
+        preferredSheetValid: preferredSheet && sheetNames.includes(preferredSheet),
+        currentSheet: selectedSheet,
+        defaultSheet: defaultSheet,
+        initialSheetJustArrived: initialSheetJustArrived,
+        lastInitialSheet: lastInitialSheetRef.current,
+        currentInitialSheet: props.initialSheet
+      });
+      
+      // ✅ CRITICAL: Force update if initialSheet just arrived OR if we have a valid preferred sheet
+      const shouldForceUpdate = initialSheetJustArrived && 
+                                 props.initialSheet && 
+                                 sheetNames.includes(props.initialSheet);
+      
+      // ✅ CRITICAL: Always check using function form of setState to avoid stale closures
+      // Update if: initialSheet just arrived, OR we have a preferred sheet and user hasn't manually changed
+      if (shouldForceUpdate || (!userManuallyChangedSheetRef.current && 
+          preferredSheet && 
+          sheetNames.includes(preferredSheet))) {
+        // Use a function form of setState to get the current value and avoid stale closures
+        setSelectedSheet((currentSheet) => {
+          const targetSheet = shouldForceUpdate ? props.initialSheet! : preferredSheet!;
+          
+          // ✅ CRITICAL: Always update if we're on default sheet OR if sheet doesn't match
+          // This ensures we update even if currentSheet is empty string or default
+          const needsUpdate = !currentSheet || 
+                              currentSheet === '' || 
+                              currentSheet === defaultSheet || 
+                              currentSheet !== targetSheet;
+          
+          if (needsUpdate) {
+            isInitializingRef.current = true; // Temporarily mark as initializing to prevent preference save
+            const source = props.initialSheet ? 'from parent prop (saved preference)' : 'from fetched preference';
+            console.log(`ExcelViewer: ✅ Updated to preferred sheet "${targetSheet}" (${source}, ${initialSheetJustArrived ? 'just arrived' : 'loaded after initialization'})`, {
+              previousSheet: currentSheet,
+              preferredSheet: targetSheet,
+              defaultSheet: defaultSheet,
+              wasDefault: currentSheet === defaultSheet,
+              wasEmpty: !currentSheet || currentSheet === '',
+              forcedUpdate: shouldForceUpdate,
+              needsUpdate: needsUpdate
+            });
+            // Mark initialization complete after a short delay
+            setTimeout(() => {
+              isInitializingRef.current = false;
+            }, 100);
+            return targetSheet;
+          }
+          console.log(`ExcelViewer: Already on preferred sheet "${currentSheet}", no update needed`);
+          return currentSheet; // Don't change if already on preferred sheet
+        });
+      } else {
+        console.log('ExcelViewer: Not updating sheet', {
+          reason: !preferredSheet ? 'no preferred sheet' : 
+                  !sheetNames.includes(preferredSheet || '') ? 'preferred sheet not in available sheets' :
+                  userManuallyChangedSheetRef.current ? 'user manually changed sheet' : 'unknown',
+          preferredSheet: preferredSheet,
+          availableSheets: sheetNames,
+          userManuallyChanged: userManuallyChangedSheetRef.current,
+          initialSheetJustArrived: initialSheetJustArrived
+        });
+      }
+      
+      // Update the last initialSheet ref
+      lastInitialSheetRef.current = props.initialSheet;
+      return; // Don't re-initialize if workbook already initialized
+    }
+
+    // ✅ SIMPLIFIED: Use initialSheet from props (saved preference) if provided and valid
+    // Otherwise use fetchedInitialSheet (if we fetched it ourselves)
+    // Otherwise use first sheet
+    const preferredSheet = props.initialSheet || fetchedInitialSheet;
+    const sheetToSelect = (preferredSheet && sheetNames.includes(preferredSheet))
+      ? preferredSheet
+      : defaultSheet;
+
+    // ✅ CRITICAL: Initialize the sheet selection immediately
+    console.log(`ExcelViewer: 🚀 Initializing sheet selection for workbook ${props.workbook.id}`, {
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      preferredSheet: preferredSheet,
+      sheetToSelect: sheetToSelect,
+      availableSheets: sheetNames,
+      defaultSheet: defaultSheet,
+      currentSelectedSheet: selectedSheet,
+      willSelect: sheetToSelect
+    });
+
+    // ✅ CRITICAL: Only set initialized flag AFTER we've set the sheet
+    // This ensures we can update if initialSheet arrives later
+    isInitializingRef.current = true; // Mark as initializing
+    userManuallyChangedSheetRef.current = false; // Reset manual change flag for new workbook
+    
+    // ✅ Set the sheet immediately
+    setSelectedSheet(sheetToSelect);
+    
+    // ✅ Mark workbook as initialized AFTER setting sheet
+    initializedWorkbookIdRef.current = props.workbook.id;
+    lastInitialSheetRef.current = props.initialSheet; // Track the initialSheet value
+    
+    const source = preferredSheet && sheetNames.includes(preferredSheet) 
+      ? (props.initialSheet ? 'from parent prop (saved preference)' : 'from fetched preference')
+      : 'default first sheet';
+    
+    console.log(`ExcelViewer: ✅ Initialized sheet to "${sheetToSelect}" (${source})`, {
+      initialSheet: props.initialSheet,
+      fetchedInitialSheet: fetchedInitialSheet,
+      preferredSheet: preferredSheet,
+      availableSheets: sheetNames,
+      selectedSheet: sheetToSelect,
+      workbookId: props.workbook.id
+    });
+    
+    // Mark initialization complete after a short delay
+    setTimeout(() => {
+      isInitializingRef.current = false;
+      console.log(`ExcelViewer: ✅ Initialization complete, isInitializing set to false`);
+    }, 100);
+  }, [
+    props.workbook?.id,        // ✅ Only re-run when workbook ID changes
+    props.workbook?.fileData,  // ✅ Re-run when fileData loads (for new workbook)
+    props.workbook?.sheets,    // ✅ Re-run when sheets array loads (for new workbook)
+    props.initialSheet,        // ✅ Re-run when initialSheet prop changes (preference loads)
+    fetchedInitialSheet        // ✅ Re-run when we fetch the preference ourselves
+    // ❌ REMOVED: selectedSheet - don't include this, it causes the effect to reset on manual changes
+  ]);
 
   // Reset states when workbook changes
   useEffect(() => {
+    // ✅ CRITICAL: Reset initialization tracking when workbook changes
+    // This allows the initialization effect to run for the new workbook
+    initializedWorkbookIdRef.current = null;
+    userManuallyChangedSheetRef.current = false; // Reset manual change flag
+    defaultSheetForWorkbookRef.current = null; // Reset default sheet tracking
+    setFetchedInitialSheet(undefined); // Reset fetched preference
+    preferenceFetchedRef.current = null; // Reset preference fetch tracking
+    lastInitialSheetRef.current = undefined; // Reset initialSheet tracking
+    
     setSelections([]);
     setIsSelecting(false);
     anchorSelectionStart.current = null;
@@ -1829,6 +2181,142 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     setIsEditWorkbookMappingOpen(false);
     setEditingWorkbookMapping(null);
   }, [props.workbook.id]);
+
+  // ✅ NEW: Handler for saving standalone notes (without mapping or reference files)
+  const handleSaveStandaloneNotes = useCallback(async () => {
+    const engagementId = (props as any).engagementId;
+    const classification = (props as any).classification;
+    const workbook = props.workbook;
+    const setSelectedWorkbook = (props as any).setSelectedWorkbook;
+    const onRefreshMappings = (props as any).onRefreshMappings;
+
+    if (!engagementId || !classification || !workbook?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Engagement ID, classification, and workbook are required to add notes",
+      });
+      return;
+    }
+
+    if (selections.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select cells before adding notes",
+      });
+      return;
+    }
+
+    if (!standaloneNotes.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter some notes",
+      });
+      return;
+    }
+
+    const lastSelection = selections[selections.length - 1];
+    if (!lastSelection || lastSelection.sheet !== selectedSheet) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid selection",
+      });
+      return;
+    }
+
+    setIsSavingStandaloneNotes(true);
+
+    try {
+      // Get classification ID
+      const classificationId = await getClassificationId(classification, engagementId);
+      
+      // Create a minimal evidence entry for notes-only cases
+      // We'll create a text file and upload it to storage
+      const noteText = `Note: ${standaloneNotes.trim()}`;
+      const textBlob = new Blob([noteText], { type: 'text/plain' });
+      
+      // Create a File-like object that uploadFileToStorage can accept
+      // Using a workaround since File constructor might have type issues
+      const textFile = {
+        ...textBlob,
+        name: 'note.txt',
+        lastModified: Date.now(),
+        size: textBlob.size,
+        type: 'text/plain'
+      } as unknown as File;
+      
+      // Upload the text file to storage
+      const uploadResult = await uploadFileToStorage(textFile);
+      
+      // Create evidence record with the uploaded file URL
+      // Note: The backend will store this, but it's just a placeholder for notes-only entries
+      const evidenceData = {
+        engagementId: engagementId,
+        classificationId: classificationId,
+        evidenceUrl: uploadResult.url
+      };
+
+      const response = await createClassificationEvidence(evidenceData);
+      const evidenceId = response.evidence._id;
+
+      // Add reference file to workbook with notes
+      const addRefResult = await addReferenceFileToWorkbook(
+        workbook.id,
+        evidenceId,
+        {
+          sheet: lastSelection.sheet,
+          start: {
+            row: lastSelection.start.row,
+            col: lastSelection.start.col,
+          },
+          end: {
+            row: lastSelection.end.row,
+            col: lastSelection.end.col,
+          },
+          notes: standaloneNotes.trim(),
+        }
+      );
+
+      if (!addRefResult.success) {
+        throw new Error(addRefResult.error || 'Failed to add notes to workbook');
+      }
+
+      // Update workbook state
+      if (setSelectedWorkbook && addRefResult.workbook) {
+        const updatedWorkbook = {
+          ...addRefResult.workbook,
+          id: addRefResult.workbook._id || addRefResult.workbook.id,
+        };
+        setSelectedWorkbook(updatedWorkbook);
+      }
+
+      // Refresh mappings to show the new notes
+      if (onRefreshMappings) {
+        await onRefreshMappings(workbook.id);
+      }
+
+      toast({
+        title: "Success",
+        description: "Notes added successfully",
+      });
+
+      // Close dialog and clear notes
+      setIsAddNotesDialogOpen(false);
+      setStandaloneNotes("");
+    } catch (error: any) {
+      console.error('Error saving standalone notes:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save notes",
+      });
+    } finally {
+      setIsSavingStandaloneNotes(false);
+    }
+  }, [selections, selectedSheet, standaloneNotes, props, toast, setIsSavingStandaloneNotes, setIsAddNotesDialogOpen, setStandaloneNotes]);
 
   // Get engagementId for use in handleCreateETBMapping
   const engagementId = (props as any).engagementId;
@@ -3911,6 +4399,9 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Combine workbook mappings with ETB mappings for display
   const allMappings = React.useMemo(() => {
     const workbookMappings = props.mappings || [];
+    
+    // ✅ CRITICAL: Get current workbook ID to filter mappings
+    const currentWorkbookId = props.workbook?.id || props.workbook?._id;
 
     // Determine source rows based on rowType
     let sourceRows: any[] =
@@ -3923,29 +4414,42 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       sourceRows = fallbackRows;
     }
 
+    // ✅ CRITICAL FIX: Filter mappings to only include those for the current workbook
     const etbMappings =
       sourceRows?.flatMap((row) =>
-        row.mappings?.map((mapping: any) => ({
-          ...mapping,
-          details: mapping.details,
-          color: mapping.color,
-          isActive: mapping.isActive !== false,
-          referenceFiles: mapping.referenceFiles || [],
-          notes: mapping.notes && typeof mapping.notes === 'string' && mapping.notes.trim().length > 0 ? mapping.notes : undefined, // ✅ NEW: Only include notes if non-empty
-          workbookId:
-            mapping.workbookId && typeof mapping.workbookId === 'string'
-              ? {
-                  _id: mapping.workbookId,
-                  name: props.workbook.name || 'Unknown Workbook',
-                }
-              : mapping.workbookId,
-          _evidenceId: props.rowType === 'evidence' ? row.code : undefined,
-        })) || []
+        row.mappings
+          ?.filter((mapping: any) => {
+            // Get workbookId from mapping (could be string ID or object with _id)
+            const mappingWorkbookId = 
+              typeof mapping.workbookId === 'string' 
+                ? mapping.workbookId 
+                : (mapping.workbookId?._id || mapping.workbookId?.id || null);
+            
+            // Only include mappings that belong to the current workbook
+            return mappingWorkbookId && mappingWorkbookId.toString() === currentWorkbookId?.toString();
+          })
+          ?.map((mapping: any) => ({
+            ...mapping,
+            details: mapping.details,
+            color: mapping.color,
+            isActive: mapping.isActive !== false,
+            referenceFiles: mapping.referenceFiles || [],
+            notes: mapping.notes && typeof mapping.notes === 'string' && mapping.notes.trim().length > 0 ? mapping.notes : undefined, // ✅ NEW: Only include notes if non-empty
+            workbookId:
+              mapping.workbookId && typeof mapping.workbookId === 'string'
+                ? {
+                    _id: mapping.workbookId,
+                    name: props.workbook.name || 'Unknown Workbook',
+                  }
+                : mapping.workbookId,
+            _evidenceId: props.rowType === 'evidence' ? row.code : undefined,
+          })) || []
       ) || [];
 
     const combined = [...workbookMappings, ...etbMappings];
     console.log('🔍 allMappings recalculated:', {
       rowType: props.rowType,
+      currentWorkbookId,
       workbookMappingsCount: workbookMappings.length,
       etbMappingsCount: etbMappings.length,
       totalCount: combined.length,
@@ -3966,6 +4470,8 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     parentEtbData,
     selectedSheet,
     props.rowType,
+    props.workbook.id,
+    props.workbook._id,
     props.workbook.name,
     (props.workbook as any)?._mappingsUpdateTimestamp,
     (etbData as any)?._updateTimestamp,
@@ -4002,6 +4508,40 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     const map = new Map<string, string>();
     (props.workbook.referenceFiles || []).forEach((ref: any) => {
       if (!ref?.details || ref.details.sheet !== selectedSheet) return;
+      // Exclude notes-only areas - those go in notesLookupMap
+      // A notes-only area is one that has notes and exactly one evidence (the placeholder file)
+      // OR has notes but no evidence at all
+      const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+      const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+      const evidenceCount = evidenceArray.length;
+      // Skip if this is a notes-only area: has notes AND (no evidence OR exactly one evidence)
+      // Notes-only areas created via "Add Notes" have exactly one placeholder evidence file
+      if (hasNotes && (evidenceCount === 0 || evidenceCount === 1)) return;
+      const { start, end } = ref.details;
+      if (!start || typeof start.row !== 'number') return;
+      const endRow = end?.row ?? start.row;
+      const endCol = end?.col ?? start.col;
+      for (let r = start.row; r <= endRow; r++) {
+        for (let c = start.col; c <= endCol; c++) {
+          map.set(`${r}_${c}`, ref._id);
+        }
+      }
+    });
+    return map;
+  }, [props.workbook.referenceFiles, selectedSheet]);
+
+  // Notes-only lookup map: reference files that have notes but only placeholder evidence (or no evidence)
+  const notesLookupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (props.workbook.referenceFiles || []).forEach((ref: any) => {
+      if (!ref?.details || ref.details.sheet !== selectedSheet) return;
+      // Check if this is notes-only: has notes AND (no evidence OR exactly one evidence placeholder)
+      // Notes-only areas created via "Add Notes" have exactly one placeholder evidence file
+      const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+      const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+      const evidenceCount = evidenceArray.length;
+      // Only include if has notes AND (no evidence OR exactly one evidence - the placeholder)
+      if (!hasNotes || evidenceCount > 1) return; // Skip if no notes or has multiple evidence files
       const { start, end } = ref.details;
       if (!start || typeof start.row !== 'number') return;
       const endRow = end?.row ?? start.row;
@@ -5000,6 +5540,37 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             const rid = hoveredReferenceIdRef.current;
             return rid && referenceLookupMap.get(`${params.data._rowIndex}_${colIndex - 1}`) === rid;
           },
+          'cell-notes': (params: any) => {
+            const { referenceFiles, selectedSheet } = params.context || { referenceFiles: [], selectedSheet: '' };
+            const rowIndex = params.data._rowIndex;
+            const colIdx = colIndex - 1;
+            return (referenceFiles || []).some((ref: any) => {
+              if (!ref || typeof ref !== 'object' || !ref.details) return false;
+              if (ref.details.sheet !== selectedSheet) return false;
+              // Check if this is notes-only: has notes AND (no evidence OR exactly one evidence placeholder)
+              const hasNotes = ref.notes && typeof ref.notes === 'string' && ref.notes.trim().length > 0;
+              const evidenceArray = Array.isArray(ref.evidence) ? ref.evidence : [];
+              const evidenceCount = evidenceArray.length;
+              // Only include if has notes AND (no evidence OR exactly one evidence - the placeholder)
+              if (!hasNotes || evidenceCount > 1) return false;
+              const { start, end } = ref.details;
+              if (!start || typeof start.row !== 'number' || typeof start.col !== 'number') return false;
+              const startRow = start.row;
+              const endRow = (end && typeof end.row === 'number') ? end.row : startRow;
+              const startCol = start.col;
+              const endCol = (end && typeof end.col === 'number') ? end.col : startCol;
+              return (
+                rowIndex >= startRow &&
+                rowIndex <= endRow &&
+                colIdx >= startCol &&
+                colIdx <= endCol
+              );
+            });
+          },
+          'cell-hover-notes': (params: any) => {
+            const nid = hoveredNotesIdRef.current;
+            return nid && notesLookupMap.get(`${params.data._rowIndex}_${colIndex - 1}`) === nid;
+          },
           'cell-selected-mapped': (params: any) => {
             const { selections, allMappings, selectedSheet } = params.context || { selections: [], allMappings: [], selectedSheet: '' };
             const rowIndex = params.data._rowIndex;
@@ -5274,6 +5845,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       setHoverMenu(prev => ({ ...prev, visible: false }));
       hoveredMappingIdRef.current = null;
       hoveredReferenceIdRef.current = null;
+      hoveredNotesIdRef.current = null;
       prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
       isMenuHoveredRef.current = false; // Reset menu hover state
     }, 150); // REDUCED DELAY: Changed from 800ms to 150ms for better responsiveness
@@ -5285,6 +5857,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     // Clear hover IDs
     hoveredMappingIdRef.current = null;
     hoveredReferenceIdRef.current = null;
+    hoveredNotesIdRef.current = null;
     // Reset menu hover flag
     isMenuHoveredRef.current = false;
     // Clear previously hovered nodes
@@ -5385,6 +5958,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         setHoverMenu(prev => ({ ...prev, visible: false }));
         hoveredMappingIdRef.current = null;
         hoveredReferenceIdRef.current = null;
+        hoveredNotesIdRef.current = null;
         prevHoveredRowNodesRef.current = [];
       }
       return;
@@ -5394,20 +5968,26 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     // We only want to refresh the rows that actually change appearance
     const cellKey = `${rowIndex}_${excelColIndex}`;
     const newMappingId = mappingLookupMap.get(cellKey) || null;
-    const newRefId = referenceLookupMap.get(cellKey) || null;
+    // Check for notes-only areas FIRST (priority: mapping > notes > reference)
+    // Notes-only areas should never show "View Reference Files"
+    const newNotesId = notesLookupMap.get(cellKey) || null;
+    // Only check referenceLookupMap if not in notes-only area
+    const newRefId = !newNotesId ? (referenceLookupMap.get(cellKey) || null) : null;
     
     const prevMappingId = hoveredMappingIdRef.current;
     const prevRefId = hoveredReferenceIdRef.current;
+    const prevNotesId = hoveredNotesIdRef.current;
     const prevRowIndex = lastHoveredCellRef.current.row;
 
     // 3. CRITICAL FIX: PREVENT MENU DISAPPEARING
-    // Logic: If we are moving within the SAME mapping/ref area, DO NOT hide the menu.
+    // Logic: If we are moving within the SAME mapping/ref/notes area, DO NOT hide the menu.
     // Only hide if we move to a different area OR an empty area.
     const isSameMappingArea = (newMappingId !== null) && (newMappingId === prevMappingId);
     const isSameReferenceArea = (newRefId !== null) && (newRefId === prevRefId);
-    const isInSameActiveArea = isSameMappingArea || isSameReferenceArea;
+    const isSameNotesArea = (newNotesId !== null) && (newNotesId === prevNotesId);
+    const isInSameActiveArea = isSameMappingArea || isSameReferenceArea || isSameNotesArea;
 
-    if (newMappingId || newRefId) {
+    if (newMappingId || newRefId || newNotesId) {
       // We are over a valid area.
       if (isInSameActiveArea) {
         // We are staying in the same area. DO NOT hide the menu.
@@ -5417,31 +5997,58 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current); // Ensure no hide timer is running
         const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
+        // Determine type and data based on priority: mapping > notes > reference
+        // Notes-only areas should never show "View Reference Files"
+        let menuType: 'mapping' | 'reference' | 'notes' = 'notes';
+        let menuData: any = null;
+        if (newMappingId) {
+          menuType = 'mapping';
+          menuData = allMappings.find(m => m._id === newMappingId);
+        } else if (newNotesId) {
+          menuType = 'notes';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newNotesId);
+        } else if (newRefId) {
+          menuType = 'reference';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId);
+        }
         setHoverMenu({
           visible: true,
           x: rect.left + rect.width / 2,
           y: rect.bottom,
-          type: newMappingId ? 'mapping' : 'reference',
-          data: allMappings.find(m => m._id === newMappingId) || 
-                (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
+          type: menuType as 'mapping' | 'reference' | 'notes',
+          data: menuData
         });
       } else {
         // We switched to a different area (or the IDs changed).
         // Update state and refresh normally.
         hoveredMappingIdRef.current = newMappingId;
         hoveredReferenceIdRef.current = newRefId;
+        hoveredNotesIdRef.current = newNotesId;
         lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
 
         // Update Hover Menu
         if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
         const rect = event.event.target.closest('.ag-cell').getBoundingClientRect();
+        // Determine type and data based on priority: mapping > notes > reference
+        // Notes-only areas should never show "View Reference Files"
+        let menuType: 'mapping' | 'reference' | 'notes' = 'notes';
+        let menuData: any = null;
+        if (newMappingId) {
+          menuType = 'mapping';
+          menuData = allMappings.find(m => m._id === newMappingId);
+        } else if (newNotesId) {
+          menuType = 'notes';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newNotesId);
+        } else if (newRefId) {
+          menuType = 'reference';
+          menuData = (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId);
+        }
         setHoverMenu({
           visible: true,
           x: rect.left + rect.width / 2,
           y: rect.bottom,
-          type: newMappingId ? 'mapping' : 'reference',
-          data: allMappings.find(m => m._id === newMappingId) || 
-                (props.workbook.referenceFiles || []).find((ref: any) => ref._id === newRefId)
+          type: menuType as 'mapping' | 'reference' | 'notes',
+          data: menuData
         });
       }
     } else {
@@ -5449,6 +6056,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       // Hide menu and clear refs.
       hoveredMappingIdRef.current = null;
       hoveredReferenceIdRef.current = null;
+      hoveredNotesIdRef.current = null;
       lastHoveredCellRef.current = { row: rowIndex, col: excelColIndex };
       hideMenuWithDelay();
     }
@@ -5475,15 +6083,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       });
     }
 
-    // Scenario A: Moved within same mapping/ref (or to empty area within same mapping/ref)
+    // Scenario A: Moved within same mapping/ref/notes (or to empty area within same area)
     // Only need to refresh current and previous row
-    if ((newMappingId === prevMappingId && newRefId === prevRefId) && (newMappingId || newRefId)) {
+    if ((newMappingId === prevMappingId && newRefId === prevRefId && newNotesId === prevNotesId) && (newMappingId || newRefId || newNotesId)) {
       if (currNode) nodesToRefresh.push(currNode);
       if (prevNode) nodesToRefresh.push(prevNode);
-      // Track current row for potential future mapping switch
+      // Track current row for potential future area switch
       prevHoveredRowNodesRef.current = currNode ? [currNode] : [];
     } 
-    // Scenario B: Switched Mappings/Refs completely
+    // Scenario B: Switched Mappings/Refs/Notes completely
     // Must refresh previous area (to remove highlight) and current area (to add highlight)
     else {
       // 1. Clear previous highlight from previous row (immediate response)
@@ -5491,12 +6099,15 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
       
       // 2. Clear previous highlight from ENTIRE old area (to avoid ghosting)
       // We only need to do this once per area switch.
-      // Optimization: Only clear if we LEFT mapping completely.
+      // Optimization: Only clear if we LEFT area completely.
       if (prevMappingId && newMappingId !== prevMappingId) {
         // Refresh the previous set of nodes we tracked.
         nodesToRefresh.push(...prevHoveredRowNodesRef.current);
       }
       if (prevRefId && newRefId !== prevRefId) {
+        nodesToRefresh.push(...prevHoveredRowNodesRef.current);
+      }
+      if (prevNotesId && newNotesId !== prevNotesId) {
         nodesToRefresh.push(...prevHoveredRowNodesRef.current);
       }
 
@@ -5511,7 +6122,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     if (nodesToRefresh.length > 0) {
       gridApiRef.current?.refreshCells({ rowNodes: nodesToRefresh, force: true, suppressFlash: true });
     }
-  }, [isSelecting, mappingLookupMap, referenceLookupMap, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
+  }, [isSelecting, mappingLookupMap, referenceLookupMap, notesLookupMap, allMappings, selectedSheet, props.workbook.referenceFiles, hideMenuWithDelay]);
   
   // Add callback to clear hover effects when mouse leaves a cell
   const onCellMouseLeave = useCallback(() => {
@@ -5614,16 +6225,38 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
         }
       });
       
-      // Add a separator
-      const separator = document.createElement('div');
-      separator.style.height = '1px';
-      separator.style.backgroundColor = '#e0e0e0';
-      separator.style.margin = '4px 0';
+      // ✅ NEW: Add Notes menu item
+      const addNotesItem = document.createElement('div');
+      addNotesItem.className = 'context-menu-item';
+      addNotesItem.style.padding = '8px 16px';
+      addNotesItem.style.cursor = 'pointer';
+      addNotesItem.style.fontSize = '14px';
+      addNotesItem.style.transition = 'background-color 0.2s';
+      addNotesItem.innerHTML = 'Add Notes';
+      addNotesItem.addEventListener('click', () => {
+        setIsAddNotesDialogOpen(true);
+        if (document.body.contains(contextMenu)) {
+          document.body.removeChild(contextMenu);
+        }
+      });
+      
+      // Add separators
+      const separator1 = document.createElement('div');
+      separator1.style.height = '1px';
+      separator1.style.backgroundColor = '#e0e0e0';
+      separator1.style.margin = '4px 0';
+      
+      const separator2 = document.createElement('div');
+      separator2.style.height = '1px';
+      separator2.style.backgroundColor = '#e0e0e0';
+      separator2.style.margin = '4px 0';
       
       // Add items to menu
       contextMenu.appendChild(createMappingItem);
-      contextMenu.appendChild(separator);
+      contextMenu.appendChild(separator1);
       contextMenu.appendChild(addReferenceFilesItem);
+      contextMenu.appendChild(separator2);
+      contextMenu.appendChild(addNotesItem);
       
       // Add menu to DOM
       document.body.appendChild(contextMenu);
@@ -5656,7 +6289,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     setTimeout(() => {
       showContextMenu(nativeEvent);
     }, 0);
-  }, [selectedSheet, selections, setSelections, gridApi, loadingEvidenceFiles, uploadingFiles, setIsCreateETBMappingOpen, setIsUploadReferenceFilesDialogOpen]);
+  }, [selectedSheet, selections, setSelections, gridApi, loadingEvidenceFiles, uploadingFiles, setIsCreateETBMappingOpen, setIsUploadReferenceFilesDialogOpen, setIsAddNotesDialogOpen]);
 
   // Add global mouse up handler to stop selection when mouse is released anywhere
   useEffect(() => {
@@ -5677,16 +6310,64 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   // Add click-outside handler to clear selections when clicking outside the grid
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
       // Check if click is outside the grid
       const gridElement = document.querySelector('.ag-root-wrapper');
-      if (gridElement && !gridElement.contains(event.target as Node)) {
-        // Clear selections when clicking outside
+      if (!gridElement || gridElement.contains(target)) {
+        return; // Click is inside the grid, don't clear selections
+      }
+
+      // ✅ FIX: Don't clear selections if any dialogs are open or clicking on dialog/select elements
+      // First, check if any dialogs are currently open - if so, don't clear selections
+      const isAnyDialogOpen = isCreateETBMappingOpen || isEditETBMappingOpen || isUploadReferenceFilesDialogOpen || 
+          isReferenceFilesDialogOpen || isDualOptionsDialogOpen || viewNotesDialogOpen || 
+          isAddNotesDialogOpen || isETBMappingsDialogOpen || isWorkbookMappingsDialogOpen ||
+          isNamedRangesDialogOpen || isCreateNamedRangeOpen || isEditNamedRangeOpen ||
+          isSaveDialogOpen;
+
+      // Check if there's an open Select dropdown in the DOM (even if state hasn't updated yet)
+      const hasOpenSelect = document.querySelector('[data-radix-select-content][data-state="open"]') !== null ||
+                            document.querySelector('[data-radix-select-viewport]') !== null;
+
+      if (isAnyDialogOpen || hasOpenSelect) {
+        // Check if the click is on any dialog, modal, select dropdown, or popover element
+        const isDialogElement = (target as Element).closest('[role="dialog"]') ||
+                                (target as Element).closest('.dialog') ||
+                                (target as Element).closest('[data-radix-dialog-content]') ||
+                                (target as Element).closest('[data-radix-select-content]') ||
+                                (target as Element).closest('[data-radix-select-viewport]') ||
+                                (target as Element).closest('[data-radix-select-item]') ||
+                                (target as Element).closest('[data-radix-select-trigger]') ||
+                                (target as Element).closest('[data-radix-popover-content]') ||
+                                (target as Element).closest('[data-radix-portal]') ||
+                                (target as Element).closest('.custom-context-menu') ||
+                                (target as Element).closest('.custom-context-menu-wrapper') ||
+                                (target as Element).closest('.ag-popup') ||
+                                (target as Element).closest('[class*="Dialog"]') ||
+                                (target as Element).closest('[class*="dialog"]') ||
+                                (target as Element).closest('[class*="Modal"]') ||
+                                (target as Element).closest('[class*="modal"]') ||
+                                // Check for Radix UI Select portal (rendered outside dialog)
+                                (target as Element).closest('[id*="radix-select"]') ||
+                                // Check if parent has any dialog-related attributes
+                                document.querySelector('[role="dialog"][data-state="open"]')?.contains(target) ||
+                                document.querySelector('[data-radix-select-content]')?.contains(target);
+
+        if (isDialogElement) {
+          return; // Click is on a dialog/modal/select, don't clear selections
+        }
+        // If a dialog is open but click is not on dialog elements, still don't clear
+        // (prevents clearing when clicking outside while dialog is open)
+        return;
+      }
+
+      // Clear selections when clicking outside grid and no dialogs are open
         setSelections([]);
         if (gridApi) {
           gridApi.deselectAll();
           gridApi.clearRangeSelection();
           gridApi.refreshCells({ force: true });
-        }
       }
     };
 
@@ -5694,7 +6375,10 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [setSelections, gridApi]);
+  }, [setSelections, gridApi, isCreateETBMappingOpen, isEditETBMappingOpen, isUploadReferenceFilesDialogOpen, 
+      isReferenceFilesDialogOpen, isDualOptionsDialogOpen, viewNotesDialogOpen, isAddNotesDialogOpen, 
+      isETBMappingsDialogOpen, isWorkbookMappingsDialogOpen, isNamedRangesDialogOpen, isCreateNamedRangeOpen, 
+      isEditNamedRangeOpen, isSaveDialogOpen]);
 
   // ✅ NEW: Add effect to watch dialog states and reset hover state when they close
   // This ensures that after closing any dialog, the hover logic is fresh
@@ -5702,10 +6386,10 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
   useEffect(() => {
     // If any of these dialogs are open, we do nothing.
     // If they are ALL closed, we reset the hover state.
-    if (!isETBMappingsDialogOpen && !isReferenceFilesDialogOpen && !viewNotesDialogOpen && !isDualOptionsDialogOpen && !isUploadReferenceFilesDialogOpen && !isCreateETBMappingOpen) {
+    if (!isETBMappingsDialogOpen && !isReferenceFilesDialogOpen && !viewNotesDialogOpen && !isDualOptionsDialogOpen && !isUploadReferenceFilesDialogOpen && !isCreateETBMappingOpen && !isAddNotesDialogOpen) {
       resetHoverState();
     }
-  }, [isETBMappingsDialogOpen, isReferenceFilesDialogOpen, viewNotesDialogOpen, isDualOptionsDialogOpen, isUploadReferenceFilesDialogOpen, isCreateETBMappingOpen, resetHoverState]);
+  }, [isETBMappingsDialogOpen, isReferenceFilesDialogOpen, viewNotesDialogOpen, isDualOptionsDialogOpen, isUploadReferenceFilesDialogOpen, isCreateETBMappingOpen, isAddNotesDialogOpen, resetHoverState]);
 
   // REMOVED: This useEffect was causing flickering
   // cellClassRules in column definitions automatically handle visual updates
@@ -5909,6 +6593,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             border-right: 1px solid rgba(76, 175, 80, 0.2) !important;
           }
           
+          /* Notes-only Area Style */
+          .cell-notes {
+            background-color: #ffebee !important; /* Light Red */
+            border-bottom: 1px solid rgba(244, 67, 54, 0.2) !important;
+            border-right: 1px solid rgba(244, 67, 54, 0.2) !important;
+          }
+          
           /* Hovered Mapping - distinct border */
           .cell-hover-mapping {
             border: 2px solid #2196f3 !important;
@@ -5921,6 +6612,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             border: 2px solid #4caf50 !important;
             z-index: 10 !important;
             background-color: #c8e6c9 !important; /* Darker green on hover */
+          }
+          
+          /* Hovered Notes - distinct border */
+          .cell-hover-notes {
+            border: 2px solid #f44336 !important; /* Light red border */
+            z-index: 10 !important;
+            background-color: #ffcdd2 !important; /* Darker red on hover */
           }
           
           /* Selected + Mapped combination */
@@ -6675,6 +7373,7 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               setHoverMenu(prev => ({ ...prev, visible: false }));
               hoveredMappingIdRef.current = null;
               hoveredReferenceIdRef.current = null;
+              hoveredNotesIdRef.current = null;
               prevHoveredRowNodesRef.current = []; // Clear previous hovered nodes
               isMenuHoveredRef.current = false; // Reset menu hover state
             }
@@ -6719,11 +7418,13 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
             <div className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 rounded-t-lg select-none">
               {hoverMenu.type === 'mapping' ? (
                 <Link className="h-3 w-3 text-blue-500" />
+              ) : hoverMenu.type === 'notes' ? (
+                <StickyNote className="h-3 w-3 text-yellow-600" />
               ) : (
                 <FileText className="h-3 w-3 text-green-500" />
               )}
               <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                {hoverMenu.type === 'mapping' ? 'Mapping' : 'Reference'}
+                {hoverMenu.type === 'mapping' ? 'Mapping' : hoverMenu.type === 'notes' ? 'Notes' : 'Reference'}
               </span>
             </div>
 
@@ -6823,6 +7524,23 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
                     </div>
                   )}
                 </>
+              )}
+
+              {hoverMenu.type === 'notes' && (
+                <div 
+                  className="context-menu-item text-yellow-700 hover:bg-yellow-50" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Cancel hide timeout when clicking menu item
+                    if (menuTimeoutRef.current) clearTimeout(menuTimeoutRef.current);
+                    setViewingNotes({ type: 'reference', data: hoverMenu.data });
+                    setViewNotesDialogOpen(true);
+                    setHoverMenu(prev => ({ ...prev, visible: false }));
+                  }}
+                >
+                  <StickyNote className="h-4 w-4 mr-2" /> View Notes
+                </div>
               )}
             </div>
           </div>
@@ -7166,6 +7884,67 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
               disabled={uploadingFiles}
             >
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ NEW: Add Notes Dialog */}
+      <Dialog open={isAddNotesDialogOpen} onOpenChange={setIsAddNotesDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Notes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-gray-600">
+              Add notes to the selected cells. Notes can be viewed and edited later.
+            </p>
+            {selections.length > 0 && (
+              <div className="p-2 bg-gray-100 rounded">
+                <p className="text-sm font-medium">Selected Range:</p>
+                <p className="text-sm">
+                  {getSelectionText(selections[selections.length - 1])}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="standalone-notes">Notes</Label>
+              <Textarea
+                id="standalone-notes"
+                placeholder="Enter your notes here..."
+                value={standaloneNotes}
+                onChange={(e) => setStandaloneNotes(e.target.value)}
+                className="min-h-[120px]"
+                disabled={isSavingStandaloneNotes}
+              />
+              <p className="text-xs text-gray-500">
+                Add notes to provide context or additional information about the selected cells.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStandaloneNotes("");
+                setIsAddNotesDialogOpen(false);
+              }}
+              disabled={isSavingStandaloneNotes}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveStandaloneNotes}
+              disabled={!standaloneNotes.trim() || isSavingStandaloneNotes}
+            >
+              {isSavingStandaloneNotes ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Notes"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
