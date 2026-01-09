@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useEffect,useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,9 @@ import { fetchCompanies } from '@/lib/api/company';
 
 export const CreateEngagement = () => {
   const {user} = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/admin");
   const [formData, setFormData] = useState({
     clientId: '',
     companyId: '',
@@ -29,7 +32,6 @@ export const CreateEngagement = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { createEngagement } = useEngagements();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { logCreateEngagement } = useActivityLogger();
   
@@ -242,7 +244,7 @@ const [companyError, setCompanyError] = useState<string>('')
         description: "You can now start uploading trial balance and managing this engagement.",
       });
 
-      navigate(`/employee/engagements/${newEngagement._id}`);
+      navigate(isAdminRoute ? `/admin/engagements/${newEngagement._id}` : `/employee/engagements/${newEngagement._id}`);
     } catch (error) {
       toast({
         title: "Error",

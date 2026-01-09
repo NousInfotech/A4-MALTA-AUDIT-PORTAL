@@ -28,6 +28,8 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  FileCheck,
+  Receipt,
 } from "lucide-react";
 import { initializeSocket } from "@/services/api";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +51,8 @@ import { DeleteClientConfirmation } from "@/components/client/DeleteClientConfir
 import { IconReport } from "@tabler/icons-react";
 import FinancialStatusReport from "@/components/fs-review/FinancialStatusReport";
 import FinancialReportParent from "@/components/engagement/FinancialReportParent";
+import { MBRTab } from "@/components/mbr/MBRTab";
+import { TaxTab } from "@/components/tax/TaxTab";
 
 export const EngagementDetails = () => {
   useEffect(() => {
@@ -506,6 +510,21 @@ export const EngagementDetails = () => {
                   </TabsTrigger>
 
                   <TabsTrigger
+                    value="mbr"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <FileCheck className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    MBR
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="tax"
+                    className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
+                  >
+                    <Receipt className="h-4 w-4 mr-1.5 sm:mr-2" />
+                    TAX
+                  </TabsTrigger>
+
+                  <TabsTrigger
                     value="procedures"
                     className="flex-none whitespace-nowrap rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg px-3 sm:px-4"
                   >
@@ -603,6 +622,14 @@ export const EngagementDetails = () => {
 
               <TabsContent value="team" className="space-y-6">
                 <TeamTab engagementId={id!} />
+              </TabsContent>
+
+              <TabsContent value="mbr" className="space-y-6">
+                <MBRTab engagement={engagement} />
+              </TabsContent>
+
+              <TabsContent value="tax" className="space-y-6">
+                <TaxTab engagement={engagement} />
               </TabsContent>
             </div>
           </Tabs>

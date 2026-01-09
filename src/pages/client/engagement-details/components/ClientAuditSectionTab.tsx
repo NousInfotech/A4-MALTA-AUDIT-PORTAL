@@ -14,11 +14,15 @@ import {
   Wallet,
   PieChart,
   Search,
-  FolderOpen
+  FolderOpen,
+  FileCheck,
+  Receipt
 } from "lucide-react";
 import { ClassificationSection } from "@/components/engagement/ClassificationSection";
 import { IncomeStatementSection } from "@/components/engagement/IncomeStatementSection";
 import { BalanceSheetSection } from "@/components/engagement/BalanceSheetSection";
+import { MBRTab } from "@/components/mbr/MBRTab";
+import { TaxTab } from "@/components/tax/TaxTab";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ClientAuditSectionTabProps {
@@ -96,6 +100,14 @@ export const ClientAuditSectionTab: React.FC<ClientAuditSectionTabProps> = ({ en
             <TableIcon className="h-4 w-4 mr-2" />
             ETB
           </TabsTrigger>
+          <TabsTrigger value="MBR" className="rounded-lg">
+          <FileCheck className="h-4 w-4 mr-2" />
+            MBR
+          </TabsTrigger>
+          <TabsTrigger value="tax" className="rounded-lg">
+            <Receipt className="h-4 w-4 mr-2" />
+            Tax
+          </TabsTrigger>
           <TabsTrigger value="adjustments" className="rounded-lg">
             <Calculator className="h-4 w-4 mr-2" />
             Adjustments
@@ -125,6 +137,14 @@ export const ClientAuditSectionTab: React.FC<ClientAuditSectionTabProps> = ({ en
               classification="ETB"
               isReadOnly={true} 
             />
+          </TabsContent>
+
+          <TabsContent value="MBR">
+            <MBRTab engagement={engagement} isReadOnly={true} />
+          </TabsContent>
+
+          <TabsContent value="tax">
+            <TaxTab engagement={engagement} isReadOnly={true} />
           </TabsContent>
 
           <TabsContent value="classifications" className="flex-1 overflow-hidden h-[calc(100vh-250px)]">

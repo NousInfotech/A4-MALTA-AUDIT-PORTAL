@@ -98,6 +98,19 @@ export const engagementApi = {
     });
   },
 
+  addFileEntryToLibrary: async (
+    engagementId: string,
+    category: string,
+    url: string,
+    fileName?: string,
+    fileType?: string
+  ) => {
+    return apiCall(`/api/engagements/${engagementId}/library/add-entry`, {
+      method: 'POST',
+      body: JSON.stringify({ category, url, fileName, fileType }),
+    });
+  },
+
   uploadToLibrary: async (engagementId: string, file: File, category: string) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -1851,6 +1864,75 @@ export const promptApi = {
 }
 
 // Notice Board API
+// MBR API
+export const mbrApi = {
+  getByEngagement: async (engagementId: string) => {
+    return apiCall(`/api/mbr/engagement/${engagementId}`);
+  },
+
+  getById: async (id: string) => {
+    return apiCall(`/api/mbr/${id}`);
+  },
+
+  updateStatus: async (id: string, data: { status: string; employeeId: string; documentUrl?: string; fileId?: string }) => {
+    return apiCall(`/api/mbr/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  uploadDocument: async (id: string, file: File, employeeId: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('employeeId', employeeId);
+    
+    return apiCall(`/api/mbr/${id}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+};
+
+// Tax API
+export const taxApi = {
+  getByEngagement: async (engagementId: string) => {
+    return apiCall(`/api/tax/engagement/${engagementId}`);
+  },
+
+  getById: async (id: string) => {
+    return apiCall(`/api/tax/${id}`);
+  },
+
+  updateStatus: async (id: string, data: { status: string; employeeId: string; documentUrl?: string; fileId?: string }) => {
+    return apiCall(`/api/tax/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  uploadDocument: async (id: string, file: File, employeeId: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('employeeId', employeeId);
+    
+    return apiCall(`/api/tax/${id}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  uploadDraftDocument: async (id: string, file: File, employeeId: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('employeeId', employeeId);
+    
+    return apiCall(`/api/tax/${id}/upload-draft`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+};
+
 export const noticeBoardApi = {
   // Create a new notice
   create: async (data: {

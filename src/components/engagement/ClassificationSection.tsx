@@ -231,6 +231,7 @@ import {
 import { msDriveworkbookApi, db_WorkbookApi } from "@/lib/api/workbookApi";
 import { getExtendedTBWithLinkedFiles, deleteWorkbookFromLinkedFilesInExtendedTB, updateLinkedExcelFilesInExtendedTB } from "@/lib/api/extendedTrialBalanceApi";
 import { getWorkingPaperWithLinkedFiles, updateLinkedExcelFilesInWP } from "@/lib/api/workingPaperApi";
+import { engagementApi } from "@/services/api";
 
 
 import ProcedureView from "../procedures/ProcedureView";
@@ -9691,7 +9692,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         const response = await createClassificationEvidence(evidenceData);
 
-
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagement.id,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // Convert API response to EvidenceFile format
 
@@ -11579,7 +11595,22 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
         const response = await createClassificationEvidence(evidenceData);
 
-
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagement.id,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // Convert API response to EvidenceFile format
 

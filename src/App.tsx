@@ -136,6 +136,9 @@ const App = () => (
                         <Route path="users" element={<UserManagement />} />
                         <Route path="clients/new" element={<AddClient />} />
                         <Route path="logs" element={<AuditorLogs />} />
+                        <Route path="engagements" element={<EngagementManagement />} />
+                        <Route path="engagements/new" element={<CreateEngagement />} />
+                        <Route path="engagements/:id" element={<EngagementDetails />} />
                         <Route path="isqm" element={<AdminISQMQuestionnairePage />} />
                         <Route path="branding" element={<BrandingSettings />} />
                         <Route path="notice-board" element={<NoticeBoardManagement />} />

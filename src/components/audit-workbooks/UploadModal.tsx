@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db_WorkbookApi, msDriveworkbookApi } from "@/lib/api/workbookApi"; 
 import { parseExcelRange, zeroIndexToExcelCol } from "./utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { engagementApi } from "@/services/api";
 
 interface UploadModalProps {
   onClose: () => void;
@@ -42,6 +43,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const processFile = async (file: File) => {
     setIsUploading(true); 
+    
+    // Store the original file name before any processing
+    const originalFileName = file.name;
 
     const reader = new FileReader();
 
@@ -223,6 +227,35 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
         // Ensure fileData is populated for frontend display immediately
         newWorkbookFromDB.fileData = processedFileData;
+
+        // Add workbook to EngagementLibrary with category "Workbooks"
+        try {
+          if (webUrl) {
+            // Use the original file name from the user's upload, not the cloud storage name
+            // Extract file type from original file name
+            const fileExt = originalFileName.split(".").pop()?.toLowerCase() || "xlsx";
+            await engagementApi.addFileEntryToLibrary(
+              engagementId,
+              "Workbooks",
+              webUrl,
+              originalFileName, // Use the original file name from user's file
+              fileExt // Use the file extension as file type
+            );
+            console.log('✅ Workbook added to EngagementLibrary with category "Workbooks"', {
+              originalFileName,
+              cloudFileName,
+              fileType: fileExt
+            });
+          }
+        } catch (libraryError: any) {
+          console.error('Failed to add workbook to library:', libraryError);
+          // Don't fail the upload if library entry fails
+          toast({
+            variant: "default",
+            title: "Workbook uploaded",
+            description: "Workbook saved but failed to add to library",
+          });
+        }
 
         onUploadSuccess(newWorkbookFromDB);
         // onClose(); // Close only after successful saving and processing

@@ -136,6 +136,7 @@ import {
 import { uploadFileToStorage, validateFile } from "@/lib/file-upload-service";
 import { createClassificationEvidence } from "@/lib/api/classification-evidence-api";
 import { getClassificationId } from "@/lib/classification-mapping";
+import { engagementApi } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -992,6 +993,23 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
 
         const response = await createClassificationEvidence(evidenceData);
         const evidenceId = response.evidence._id;
+
+        // Add evidence file to EngagementLibrary with category "Evidence Files"
+        try {
+          // Extract file type from file name
+          const fileExt = uploadResult.fileName.split(".").pop()?.toLowerCase() || "";
+          await engagementApi.addFileEntryToLibrary(
+            engagementId,
+            "Evidence Files",
+            uploadResult.url,
+            uploadResult.fileName, // Use the original file name
+            fileExt // Use the file extension as file type
+          );
+          console.log('✅ Evidence file added to EngagementLibrary with category "Evidence Files"');
+        } catch (libraryError: any) {
+          console.error('Failed to add evidence file to library:', libraryError);
+          // Don't fail the upload if library entry fails
+        }
 
         // ✅ IMPORTANT: Add reference file to workbook WITHOUT creating a mapping
         // Reference files and mappings are completely separate concepts

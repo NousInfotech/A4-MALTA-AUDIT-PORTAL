@@ -83,6 +83,10 @@ const categories = [
   "Borrowings & loans",
   "Taxation",
   "Going Concern",
+  "Workbooks",
+  "Evidence Files",
+  "MBR Documents",
+  "Tax Documents",
   "Others",
 ]
 
