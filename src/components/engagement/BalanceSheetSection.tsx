@@ -256,17 +256,6 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       return -v; // Reverse the sign
     }
 
-    // Detect contra-assets (only for Assets)
-    // Contra-assets must always reduce assets (force negative)
-    const isContra =
-      name.includes("accumulated") ||
-      name.includes("provision") ||
-      name.includes("allowance") ||
-      name.includes("depreciation") ||
-      name.includes("depn") ||
-      name.includes("prov for");
-
-    if (isContra) return Math.abs(v) * -1;
 
     // For Assets (non-contra), return raw ETB sign
     return v;
@@ -659,6 +648,7 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
     // Round to whole number
     const roundedValue = Math.round(value);
 
+
     // Return "-" if value is zero
     if (roundedValue === 0) {
       return "-";
@@ -670,6 +660,8 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(Math.abs(roundedValue));
+
+
 
     // Show negative values in parentheses
     return roundedValue < 0 ? `(${formatted})` : formatted;
@@ -692,8 +684,10 @@ export const BalanceSheetSection: React.FC<BalanceSheetSectionProps> = ({
       maximumFractionDigits: 0,
     }).format(Math.abs(roundedValue));
 
+    const formattedValue = roundedValue < 0 ? `(${formatted})` : formatted;
+
     // Show negative values in parentheses
-    return roundedValue < 0 ? `(${formatted})` : formatted;
+    return formattedValue
   };
 
   // Format totals: rounded to whole numbers, with parentheses for negative values
