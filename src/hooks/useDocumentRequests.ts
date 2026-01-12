@@ -29,12 +29,10 @@ export const useDocumentRequests = (engagementId?: string) => {
     
     try {
       setLoading(true);
-      console.log('🔍 Fetching document requests for engagement:', engagementId);
       const data = await documentRequestApi.getByEngagement(engagementId);
-      console.log('📋 Fetched document requests data:', data);
       setRequests(data);
     } catch (error) {
-      console.error('❌ Error fetching document requests:', error);
+      console.error('Error fetching document requests:', error);
       toast({
         title: "Error",
         description: "Failed to fetch document requests",

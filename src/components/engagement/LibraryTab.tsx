@@ -87,12 +87,24 @@ const categories = [
   "Evidence Files",
   "MBR Documents",
   "Tax Documents",
+  "Document Requests",
   "Others",
 ]
 
 interface LibraryTabProps {
   engagement: any
   requests: any[]
+}
+
+interface EngagementFolder {
+  _id: string
+  name: string
+  category: string
+  parentId?: string | { _id: string } | null
+  engagement: string
+  path: string
+  createdAt: Date | string
+  createdBy?: string
 }
 
 interface LibraryFile {
@@ -109,6 +121,7 @@ interface LibraryFile {
   fileType?: string
   description?: string
   tags?: string[]
+  folderId?: string | null
 }
 interface DeleteConfirmationDialogProps {
   deleteDialogOpen: boolean
@@ -149,6 +162,11 @@ const DeleteConfirmationDialog = ({
 )
 
 export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
+  // Use engagement requests directly (filtered by engagementId)
+  const allRequests = useMemo(() => {
+    return requests || []
+  }, [requests])
+  
   const [selectedFolder, setSelectedFolder] = useState<string>(categories[0])
   const [viewMode, setViewMode] = useState<"grid" | "list">("list")
   const [uploading, setUploading] = useState(false)
@@ -190,6 +208,9 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   const [fileDescription, setFileDescription] = useState("")
   const [fileTags, setFileTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
+  
+  // Document Requests virtual folder state
+  const [documentRequestCategory, setDocumentRequestCategory] = useState<string | null>(null)
   
   // Folder path for breadcrumb navigation (currently just category, but prepared for nested folders)
   const getFolderPath = useCallback((folder: string): string[] => {
@@ -614,24 +635,118 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
+  // Get document request categories (virtual folders)
+  const documentRequestCategories = useMemo(() => {
+    if (selectedFolder !== "Document Requests") return []
+    const categories = new Set<string>()
+    if (allRequests && Array.isArray(allRequests)) {
+      allRequests.forEach((req: any) => {
+        if (req.category) {
+          categories.add(req.category)
+        }
+      })
+    }
+    return Array.from(categories).sort()
+  }, [allRequests, selectedFolder])
+
+  // Convert document request documents to LibraryFile format
+  const documentRequestFiles = useMemo(() => {
+    if (selectedFolder !== "Document Requests") return []
+    if (!documentRequestCategory) return []
+
+    const files: LibraryFile[] = []
+    
+    if (!allRequests || !Array.isArray(allRequests)) {
+      return files
+    }
+    
+    const filteredRequests = allRequests.filter((req: any) => req.category === documentRequestCategory)
+    
+    filteredRequests.forEach((req: any) => {
+        // Single documents
+        if (req.documents && Array.isArray(req.documents)) {
+          req.documents.forEach((doc: any, index: number) => {
+            if (doc.url) {
+              files.push({
+                _id: `${req._id}_doc_${index}`,
+                category: "DocumentRequests",
+                url: doc.url,
+                fileName: doc.uploadedFileName || doc.name || `document_${index}`,
+                createdAt: doc.uploadedAt || req.requestedAt || new Date().toISOString(),
+                fileType: doc.uploadedFileName?.split(".").pop()?.toLowerCase(),
+                description: req.description || doc.name,
+              })
+            }
+          })
+        }
+        
+        // Multiple documents
+        if (req.multipleDocuments && Array.isArray(req.multipleDocuments)) {
+          req.multipleDocuments.forEach((multiDoc: any) => {
+            if (multiDoc.multiple && Array.isArray(multiDoc.multiple)) {
+              multiDoc.multiple.forEach((item: any, itemIndex: number) => {
+                if (item.url) {
+                  files.push({
+                    _id: `${req._id}_multi_${multiDoc._id || 'multi'}_${itemIndex}`,
+                    category: "DocumentRequests",
+                    url: item.url,
+                    fileName: item.uploadedFileName || item.label || `document_${itemIndex}`,
+                    createdAt: item.uploadedAt || req.requestedAt || new Date().toISOString(),
+                    fileType: item.uploadedFileName?.split(".").pop()?.toLowerCase(),
+                    description: `${req.description || multiDoc.name} - ${item.label}`,
+                  })
+                }
+              })
+            }
+          })
+        }
+      })
+    
+    return files
+  }, [allRequests, selectedFolder, documentRequestCategory])
+
   // Get subfolders of current folder
   const currentSubfolders = useMemo(() => {
+    // If "Document Requests" is selected and no category subfolder is selected, show document request categories
+    if (selectedFolder === "Document Requests" && !documentRequestCategory && !currentFolder) {
+      const virtualFolders = documentRequestCategories.map((cat) => ({
+        _id: `doc_req_cat_${cat}`,
+        name: cat,
+        category: "DocumentRequests",
+        parentId: null,
+        engagement: engagement._id,
+        path: `DocumentRequests/${cat}`,
+        createdAt: new Date(),
+        createdBy: "",
+      })) as EngagementFolder[]
+      return virtualFolders
+    }
+    
     if (!currentFolder) {
       // Show root folders in current category
       return engagementFolders.filter(f => {
-        const parentId = f.parentId?._id || f.parentId
+        const parentId = typeof f.parentId === 'object' && f.parentId?._id ? f.parentId._id : f.parentId
         return !parentId && f.category === selectedFolder
       })
     }
     // Show subfolders of current folder
     return engagementFolders.filter(f => {
-      const parentId = f.parentId?._id || f.parentId
+      const parentId = typeof f.parentId === 'object' && f.parentId?._id ? f.parentId._id : f.parentId
       return parentId === currentFolder._id
     })
-  }, [engagementFolders, currentFolder, selectedFolder])
+  }, [engagementFolders, currentFolder, selectedFolder, documentRequestCategories, documentRequestCategory, engagement._id])
 
   // Navigate into folder
   const navigateToFolder = (folder: EngagementFolder) => {
+    // Handle virtual document request category folders
+    if (selectedFolder === "Document Requests" && folder._id?.startsWith("doc_req_cat_")) {
+      const category = folder.name
+      setDocumentRequestCategory(category)
+      setCurrentFolder(null)
+      setFolderPath([])
+      return
+    }
+    
     setCurrentFolder(folder)
     // Build folder path
     const path: EngagementFolder[] = []
@@ -645,7 +760,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     while (current && !visited.has(current._id)) {
       visited.add(current._id)
       path.unshift(current)
-      const parentId = current.parentId?._id || current.parentId
+      const parentId = typeof current.parentId === 'object' && current.parentId?._id ? current.parentId._id : current.parentId
       if (parentId) {
         current = folderMap.get(String(parentId)) || null
       } else {
@@ -724,7 +839,8 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     if (!folderToDelete) return
     setDeletingFolder(true)
     try {
-      await engagementApi.deleteEngagementFolder(engagement._id, folderToDelete._id)
+      const folderId = typeof folderToDelete._id === 'string' ? folderToDelete._id : folderToDelete._id
+      await engagementApi.deleteEngagementFolder(engagement._id, folderId)
       await fetchLibraryFiles()
       await fetchFolders()
       setDeleteFolderDialogOpen(false)
@@ -758,6 +874,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   useEffect(() => {
     setCurrentFolder(null)
     setFolderPath([])
+    setDocumentRequestCategory(null)
   }, [selectedFolder])
 
   const handleFileUpload = async (files: File[]) => {
@@ -849,6 +966,64 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
   // Enhanced filtering with advanced search
   const filteredFiles = useMemo(() => {
+    // If "Document Requests" is selected, use document request files
+    if (selectedFolder === "Document Requests") {
+      let files = documentRequestFiles
+      
+      // Apply search filter
+      const searchTermLower = localSearchTerm.toLowerCase()
+      if (searchTermLower) {
+        files = files.filter(file => 
+          file.fileName?.toLowerCase().includes(searchTermLower) ||
+          file.description?.toLowerCase().includes(searchTermLower)
+        )
+      }
+      
+      // Apply file type filter
+      if (advancedSearch.fileType && advancedSearch.fileType !== "all") {
+        files = files.filter(file => {
+          const fileExt = file.fileName?.split(".").pop()?.toLowerCase() || ""
+          if (advancedSearch.fileType === "pdf" && fileExt !== "pdf") return false
+          if (advancedSearch.fileType === "docx" && !["docx", "doc"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "xlsx" && !["xlsx", "xls"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "jpg" && !["jpg", "jpeg"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "png" && fileExt !== "png") return false
+          if (advancedSearch.fileType === "zip" && fileExt !== "zip") return false
+          return true
+        })
+      }
+      
+      // Date range filter
+      if (advancedSearch.dateFrom) {
+        const fromDate = new Date(advancedSearch.dateFrom)
+        files = files.filter(file => new Date(file.createdAt) >= fromDate)
+      }
+      if (advancedSearch.dateTo) {
+        const toDate = new Date(advancedSearch.dateTo)
+        toDate.setHours(23, 59, 59, 999)
+        files = files.filter(file => new Date(file.createdAt) <= toDate)
+      }
+      
+      // Sorting
+      files.sort((a, b) => {
+        let comparison = 0
+        switch (advancedSearch.sortBy) {
+          case "fileName":
+            comparison = (a.fileName || "").localeCompare(b.fileName || "")
+            break
+          case "fileSize":
+            comparison = (a.fileSize || 0) - (b.fileSize || 0)
+            break
+          case "createdAt":
+          default:
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        }
+        return advancedSearch.sortOrder === "asc" ? comparison : -comparison
+      })
+      
+      return files
+    }
+    
     // First filter by folder
     let baseFiltered: LibraryFile[]
     if (!currentFolder) {
@@ -913,7 +1088,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     })
 
     return filtered
-  }, [libraryFiles, currentFolder, selectedFolder, localSearchTerm, advancedSearch])
+  }, [libraryFiles, currentFolder, selectedFolder, localSearchTerm, advancedSearch, documentRequestFiles])
 
   // Debounced search effect
   useEffect(() => {
@@ -924,13 +1099,35 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   }, [localSearchTerm])
 
   // Group files by category for folder counts
-  const filesByCategory = libraryFiles.reduce(
-    (acc, file) => {
-      acc[file.category] = (acc[file.category] || 0) + 1
-      return acc
-    },
-    {} as Record<string, number>,
-  )
+  const filesByCategory = useMemo(() => {
+    const counts = libraryFiles.reduce(
+      (acc, file) => {
+        acc[file.category] = (acc[file.category] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+    
+    // Add document request files count
+    if (allRequests && allRequests.length > 0) {
+      let docReqFileCount = 0
+      allRequests.forEach((req: any) => {
+        if (req.documents && Array.isArray(req.documents)) {
+          docReqFileCount += req.documents.filter((doc: any) => doc.url).length
+        }
+        if (req.multipleDocuments && Array.isArray(req.multipleDocuments)) {
+          req.multipleDocuments.forEach((multiDoc: any) => {
+            if (multiDoc.multiple && Array.isArray(multiDoc.multiple)) {
+              docReqFileCount += multiDoc.multiple.filter((item: any) => item.url).length
+            }
+          })
+        }
+      })
+      counts["Document Requests"] = docReqFileCount
+    }
+    
+    return counts
+  }, [libraryFiles, allRequests])
   if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -1096,13 +1293,15 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   disabled={uploading}
                   className="hidden"
                 />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploading ? "Uploading..." : "Upload"}
-                </Button>
+                {selectedFolder !== "Document Requests" && (
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading ? "Uploading..." : "Upload"}
+                  </Button>
+                )}
                 {selectedFiles.size > 0 && (
                   <Button
                     onClick={handleBulkDownload}
@@ -1234,23 +1433,25 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                 </div>
               )}
 
-              {/* Drag and drop zone */}
-              <div
-                ref={dropZoneRef}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-6 text-center transition-all",
-                  isDragOver
-                    ? "border-primary bg-primary/5"
-                    : "border-gray-300 bg-gray-50/50 hover:border-gray-400"
-                )}
-              >
-                <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Drag and drop files here to upload</p>
-                <p className="text-xs text-gray-500 mt-1">File size must be less than 20 MB</p>
-              </div>
+              {/* Drag and drop zone - hidden for Document Requests */}
+              {selectedFolder !== "Document Requests" && (
+                <div
+                  ref={dropZoneRef}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-6 text-center transition-all",
+                    isDragOver
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-300 bg-gray-50/50 hover:border-gray-400"
+                  )}
+                >
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-600">Drag and drop files here to upload</p>
+                  <p className="text-xs text-gray-500 mt-1">File size must be less than 20 MB</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1265,12 +1466,19 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   onClick={() => {
                     setCurrentFolder(null)
                     setFolderPath([])
+                    setDocumentRequestCategory(null)
                   }}
-                  className={!currentFolder ? "font-semibold" : ""}
+                  className={!currentFolder && !documentRequestCategory ? "font-semibold" : ""}
                 >
                   <Home className="h-4 w-4 mr-1" />
                   {selectedFolder}
                 </Button>
+                {selectedFolder === "Document Requests" && documentRequestCategory && (
+                  <>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-semibold">{documentRequestCategory}</span>
+                  </>
+                )}
                 {folderPath.map((folder, idx) => (
                   <React.Fragment key={folder._id}>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -1296,15 +1504,17 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsCreateFolderOpen(true)}
-                >
-                  <FolderInputIcon className="h-4 w-4 mr-2" />
-                  New Folder
-                </Button>
-                {currentFolder && (
+                {selectedFolder !== "Document Requests" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCreateFolderOpen(true)}
+                  >
+                    <FolderInputIcon className="h-4 w-4 mr-2" />
+                    New Folder
+                  </Button>
+                )}
+                {currentFolder && selectedFolder !== "Document Requests" && (
                   <>
                     <Button
                       variant="outline"
@@ -1335,19 +1545,31 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             </div>
 
             {/* Subfolders */}
-            {currentSubfolders.length > 0 && (
-              <div className="mb-4 grid grid-cols-4 gap-2">
-                {currentSubfolders.map((folder) => (
-                  <div
-                    key={folder._id}
-                    onClick={() => navigateToFolder(folder)}
-                    className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                  >
-                    <Folder className="h-5 w-5 text-yellow-600" />
-                    <span className="text-sm font-medium truncate">{folder.name}</span>
-                  </div>
-                ))}
+            {currentSubfolders.length > 0 ? (
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 mb-2">
+                  {selectedFolder === "Document Requests" ? "Document Request Categories" : "Folders"}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {currentSubfolders.map((folder) => (
+                    <div
+                      key={folder._id}
+                      onClick={() => navigateToFolder(folder)}
+                      className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <Folder className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                      <span className="text-sm font-medium truncate" title={folder.name}>{folder.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+            ) : (
+              selectedFolder === "Document Requests" && !documentRequestCategory && (
+                <div className="mb-4 p-4 border rounded-lg bg-gray-50">
+                  <p className="text-sm text-gray-600">No document request categories found.</p>
+                  <p className="text-xs text-gray-500 mt-1">Document requests will appear here once they are created.</p>
+                </div>
+              )
             )}
 
             {viewMode === "list" ? (
@@ -1456,27 +1678,31 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                               </Button>
                             </>
                           )}
-                          <Button
-                            onClick={() => handleViewVersions(file)}
-                            className="p-2 rounded bg-inherit hover:bg-gray-200"
-                            title="Version History"
-                          >
-                            <History className="h-4 w-4 text-gray-600" />
-                          </Button>
-                          <Button
-                            onClick={() => handleViewActivity(file)}
-                            className="p-2 rounded bg-inherit hover:bg-gray-200"
-                            title="Activity Log"
-                          >
-                            <FileCheck className="h-4 w-4 text-gray-600" />
-                          </Button>
-                          <Button
-                            onClick={() => handleOpenMetadata(file)}
-                            className="p-2 rounded bg-inherit hover:bg-gray-200"
-                            title="Edit Metadata"
-                          >
-                            <Pencil className="h-4 w-4 text-gray-600" />
-                          </Button>
+                          {file.category !== "DocumentRequests" && (
+                            <>
+                              <Button
+                                onClick={() => handleViewVersions(file)}
+                                className="p-2 rounded bg-inherit hover:bg-gray-200"
+                                title="Version History"
+                              >
+                                <History className="h-4 w-4 text-gray-600" />
+                              </Button>
+                              <Button
+                                onClick={() => handleViewActivity(file)}
+                                className="p-2 rounded bg-inherit hover:bg-gray-200"
+                                title="Activity Log"
+                              >
+                                <FileCheck className="h-4 w-4 text-gray-600" />
+                              </Button>
+                              <Button
+                                onClick={() => handleOpenMetadata(file)}
+                                className="p-2 rounded bg-inherit hover:bg-gray-200"
+                                title="Edit Metadata"
+                              >
+                                <Pencil className="h-4 w-4 text-gray-600" />
+                              </Button>
+                            </>
+                          )}
                           <Button
                             onClick={() => handleDownload(file)}
                             disabled={downloadingId === file._id}
@@ -1489,37 +1715,39 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                               <Download className="h-4 w-4 text-gray-600" />
                             )}
                           </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
-                                <MoreVertical className="h-4 w-4 text-gray-600" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
-                              {categories.map((category) => (
+                          {file.category !== "DocumentRequests" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                                  <MoreVertical className="h-4 w-4 text-gray-600" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
+                                {categories.map((category) => (
+                                  <DropdownMenuItem
+                                    key={category}
+                                    className="bg-inherit hover:bg-sidebar-foreground"
+                                    onClick={() => changeFolder(category, file.url)}
+                                    disabled={file.category === category}
+                                  >
+                                    <FolderInputIcon className="h-4 w-4 mr-2" />
+                                    Move to {category}
+                                  </DropdownMenuItem>
+                                ))}
                                 <DropdownMenuItem
-                                  key={category}
-                                  className="bg-inherit hover:bg-sidebar-foreground"
-                                  onClick={() => changeFolder(category, file.url)}
-                                  disabled={file.category === category}
+                                  className="text-red-600"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    setFileToDelete(file)
+                                    setDeleteDialogOpen(true)
+                                  }}
                                 >
-                                  <FolderInputIcon className="h-4 w-4 mr-2" />
-                                  Move to {category}
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
                                 </DropdownMenuItem>
-                              ))}
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  setFileToDelete(file)
-                                  setDeleteDialogOpen(true)
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
                       </div>
                     )
@@ -1528,7 +1756,11 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   <div className="text-center py-12 text-gray-500">
                     <Folder className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                     <p>This folder is empty</p>
-                    <p className="text-sm">Drag files here or use the upload button</p>
+                    {selectedFolder === "Document Requests" ? (
+                      <p className="text-sm">No files found in this category</p>
+                    ) : (
+                      <p className="text-sm">Drag files here or use the upload button</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1575,25 +1807,27 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                       <Trash2 className="h-4 w-4" />
                     </Button>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
-                          <FolderInputIcon className="h-4 w-4 text-gray-600" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
-                        {categories.map((category) => (
-                          <DropdownMenuItem
-                            key={category}
-                            className="bg-inherit hover:bg-sidebar-foreground"
-                            onClick={() => changeFolder(category, file.url)}
-                            disabled={file.category === category}
-                          >
-                            Move to {category}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {file.category !== "DocumentRequests" && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button className="p-2 rounded bg-inherit hover:bg-gray-200">
+                            <FolderInputIcon className="h-4 w-4 text-gray-600" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="max-h-44 overflow-y-auto">
+                          {categories.map((category) => (
+                            <DropdownMenuItem
+                              key={category}
+                              className="bg-inherit hover:bg-sidebar-foreground"
+                              onClick={() => changeFolder(category, file.url)}
+                              disabled={file.category === category}
+                            >
+                              Move to {category}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1605,6 +1839,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>
                 {filteredFiles.length} items in {selectedFolder}
+                {selectedFolder === "Document Requests" && documentRequestCategory && ` / ${documentRequestCategory}`}
               </span>
               <span>Created: {new Date(engagement.createdAt).toLocaleDateString()}</span>
             </div>
