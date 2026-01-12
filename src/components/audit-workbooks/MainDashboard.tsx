@@ -90,6 +90,19 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   const [isLinking, setIsLinking] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // ✅ Filter workbooks by classification
+  const filteredWorkbooks = React.useMemo(() => {
+    if (!classification) return workbooks;
+    return workbooks.filter((wb) => wb.classification === classification);
+  }, [workbooks, classification]);
+  
+  console.log('MainDashboard: Filtering workbooks by classification:', {
+    classification,
+    totalWorkbooks: workbooks.length,
+    filteredCount: filteredWorkbooks.length,
+    filteredWorkbooks: filteredWorkbooks.map(wb => ({ id: wb.id, name: wb.name, classification: wb.classification }))
+  });
+
   // Debug useEffect to track state changes
   useEffect(() => {
     console.log("MainDashboard state changed:", {
@@ -713,7 +726,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                 <CardTitle>Master Associated Sheets</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {workbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
+                {filteredWorkbooks.filter((wb) => wb.name === "Working Paper").map((wb) => (
                   <div
                     key={wb.id}
                     onClick={() => onSelectWorkbook(wb)}
@@ -730,7 +743,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                   </button>
                   </div>
                 ))}
-                {workbooks.length === 0 && (
+                {filteredWorkbooks.length === 0 && (
                   <p className="text-sm text-gray-500 text-center py-4">
                     No working paper yet.
                   </p>
@@ -774,7 +787,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                 <CardTitle>Recent Workbooks</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {workbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
+                {filteredWorkbooks.filter((wb) => wb.name !== "Working Paper").map((wb) => (
                   <div
                     key={wb.id}
                     className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
@@ -831,9 +844,9 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
                     </div>
                   </div>
                 ))}
-                {workbooks.length === 0 && (
+                {filteredWorkbooks.length === 0 && (
                   <p className="text-sm text-gray-500 text-center py-4">
-                    No workbooks uploaded yet.
+                    No workbooks uploaded yet for this classification.
                   </p>
                 )}
               </CardContent>

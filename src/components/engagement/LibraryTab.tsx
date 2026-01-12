@@ -66,6 +66,9 @@ import {
   type DocumentVersion,
   type DocumentActivity,
 } from "@/lib/api/global-library"
+import { db_WorkbookApi } from "@/lib/api/workbookApi"
+import { getAllClassificationEvidence } from "@/lib/api/classification-evidence-api"
+import axiosInstance from "@/lib/axiosInstance"
 
 const categories = [
   "Trial Balance",
@@ -211,6 +214,14 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   
   // Document Requests virtual folder state
   const [documentRequestCategory, setDocumentRequestCategory] = useState<string | null>(null)
+  
+  // Classification sections state for Workbooks and Evidence Files
+  const [classificationSections, setClassificationSections] = useState<Array<{ _id: string; classification: string }>>([])
+  const [allClassifications, setAllClassifications] = useState<string[]>([]) // All classifications from ETB
+  const [selectedClassification, setSelectedClassification] = useState<string | null>(null)
+  const [workbooks, setWorkbooks] = useState<any[]>([])
+  const [evidenceFiles, setEvidenceFiles] = useState<any[]>([])
+  const [loadingClassifications, setLoadingClassifications] = useState(false)
   
   // Folder path for breadcrumb navigation (currently just category, but prepared for nested folders)
   const getFolderPath = useCallback((folder: string): string[] => {
@@ -635,6 +646,101 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }
 
+  // Fetch all classification sections for the engagement
+  const fetchClassificationSections = async () => {
+    if (!engagement?._id) return
+    setLoadingClassifications(true)
+    try {
+      const response = await axiosInstance.get('/api/classification-sections', {
+        params: { engagementId: engagement._id }
+      })
+      if (response.data?.classificationSections) {
+        setClassificationSections(response.data.classificationSections)
+      }
+    } catch (error) {
+      console.error("Failed to fetch classification sections:", error)
+    } finally {
+      setLoadingClassifications(false)
+    }
+  }
+
+  // Fetch all classifications from ETB (similar to TrialBalanceTab)
+  const fetchAllClassifications = async () => {
+    if (!engagement?._id) return
+    try {
+      const base = import.meta.env.VITE_APIURL
+      if (!base) {
+        console.warn("VITE_APIURL is not set")
+        return
+      }
+
+      const { data: session } = await supabase.auth.getSession()
+      const token = session?.session?.access_token
+
+      const response = await fetch(`${base}/api/engagements/${engagement._id}/etb`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+
+      if (response.ok) {
+        const etbData = await response.json()
+        const rows = etbData.rows || []
+
+        // Extract all unique classifications
+        const classifications = new Set<string>()
+        rows.forEach((row: any) => {
+          if (row.classification) {
+            classifications.add(row.classification)
+          }
+        })
+
+        setAllClassifications(Array.from(classifications))
+      } else {
+        console.warn("Failed to fetch ETB data for classifications")
+      }
+    } catch (error) {
+      console.error("Error fetching classifications from ETB:", error)
+    }
+  }
+
+  // Fetch workbooks filtered by classification
+  const fetchWorkbooks = async (classification?: string) => {
+    if (!engagement?._id) return
+    try {
+      const result = await db_WorkbookApi.listAllWorkbooksForEngagement(engagement._id)
+      if (result.success && result.data) {
+        let filtered = result.data
+        if (classification) {
+          filtered = result.data.filter((wb: any) => wb.classification === classification)
+        }
+        setWorkbooks(filtered || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch workbooks:", error)
+      setWorkbooks([])
+    }
+  }
+
+  // Fetch evidence files filtered by classification
+  const fetchEvidenceFiles = async (classificationId?: string) => {
+    if (!engagement?._id) return
+    try {
+      // If classificationId is provided, fetch filtered evidence
+      // Otherwise, fetch all evidence files for the engagement
+      const response = await getAllClassificationEvidence(engagement._id, classificationId)
+      if (response?.evidence) {
+        setEvidenceFiles(response.evidence)
+      } else {
+        // Ensure we set empty array if no evidence is returned
+        setEvidenceFiles([])
+      }
+    } catch (error) {
+      console.error("Failed to fetch evidence files:", error)
+      setEvidenceFiles([])
+    }
+  }
+
   // Get document request categories (virtual folders)
   const documentRequestCategories = useMemo(() => {
     if (selectedFolder !== "Document Requests") return []
@@ -705,6 +811,117 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     return files
   }, [allRequests, selectedFolder, documentRequestCategory])
 
+  // Convert workbooks to LibraryFile format
+  const workbookFiles = useMemo(() => {
+    if (selectedFolder !== "Workbooks") return []
+    if (!selectedClassification) return []
+
+    const files: LibraryFile[] = []
+    
+    const filteredWorkbooks = workbooks.filter((wb: any) => wb.classification === selectedClassification)
+    
+    filteredWorkbooks.forEach((wb: any) => {
+      if (wb.webUrl || wb.cloudFileId) {
+        files.push({
+          _id: wb._id || wb.id,
+          category: "Workbooks",
+          url: wb.webUrl || wb.cloudFileId || "",
+          fileName: wb.name || `workbook_${wb._id || wb.id}`,
+          createdAt: wb.uploadedDate || wb.createdAt || new Date().toISOString(),
+          fileType: "xlsx",
+          description: `Workbook: ${wb.name || ""} - Classification: ${wb.classification || ""}`,
+        })
+      }
+    })
+    
+    return files
+  }, [workbooks, selectedFolder, selectedClassification])
+
+  // Convert evidence files to LibraryFile format
+  const evidenceLibraryFiles = useMemo(() => {
+    if (selectedFolder !== "Evidence Files") return []
+    if (!selectedClassification) return []
+
+    const files: LibraryFile[] = []
+    
+    // Find the classification section ID for the selected classification
+    const classificationSection = classificationSections.find(
+      (section) => section.classification === selectedClassification
+    )
+    
+    if (classificationSection) {
+      const filteredEvidence = evidenceFiles.filter((evidence: any) => {
+        const classificationId = typeof evidence.classificationId === 'object' 
+          ? evidence.classificationId._id 
+          : evidence.classificationId
+        return classificationId === classificationSection._id
+      })
+      
+      filteredEvidence.forEach((evidence: any) => {
+        if (evidence.evidenceUrl) {
+          const fileName = evidence.evidenceUrl.split('/').pop() || `evidence_${evidence._id}`
+          files.push({
+            _id: evidence._id,
+            category: "Evidence Files",
+            url: evidence.evidenceUrl,
+            fileName: decodeURIComponent(fileName),
+            createdAt: evidence.createdAt || new Date().toISOString(),
+            fileType: fileName.split(".").pop()?.toLowerCase(),
+            description: `Evidence file for ${selectedClassification}`,
+            uploadedBy: evidence.uploadedBy?.userId,
+            uploadedByName: evidence.uploadedBy?.name,
+            uploadedByRole: evidence.uploadedBy?.role,
+          })
+        }
+      })
+    }
+    
+    return files
+  }, [evidenceFiles, selectedFolder, selectedClassification, classificationSections])
+
+  // Group classifications by first 3 levels (same logic as TrialBalanceTab)
+  const groupedClassifications = useMemo(() => {
+    const grouped: { [key: string]: string[] } = {}
+    allClassifications.forEach((classification) => {
+      const parts = classification.split(" > ")
+      if (parts.length < 3) return // ignore level 1–2
+
+      // Group by first 3 levels (the parent)
+      const groupKey = parts.slice(0, 3).join(" > ")
+      if (!grouped[groupKey]) grouped[groupKey] = []
+      grouped[groupKey].push(classification)
+    })
+    return grouped
+  }, [allClassifications])
+
+  // Helper function to check if a classification is a leaf node (same as TrialBalanceTab)
+  const isLeafNode = useCallback((key: string) => {
+    const allKeys = Object.keys(groupedClassifications)
+    return !allKeys.some(
+      (otherKey) =>
+        otherKey !== key &&
+        otherKey.startsWith(key + " > ")
+    )
+  }, [groupedClassifications])
+
+  // Get level 3 classification items (leaf nodes only) for Workbooks and Evidence Files
+  const level3Classifications = useMemo(() => {
+    return Object.keys(groupedClassifications)
+      .filter((key) => {
+        const parts = key.split(" > ")
+        if (parts.length < 3) return false
+        return isLeafNode(key)
+      })
+      .sort()
+  }, [groupedClassifications, isLeafNode])
+
+  // Format classification for display (same as TrialBalanceTab)
+  const formatClassificationForDisplay = useCallback((classification: string) => {
+    if (!classification) return "—"
+    const parts = classification.split(" > ")
+    return parts.length >= 3 ? parts[2] : parts[parts.length - 1]
+  }, [])
+
   // Get subfolders of current folder
   const currentSubfolders = useMemo(() => {
     // If "Document Requests" is selected and no category subfolder is selected, show document request categories
@@ -722,6 +939,34 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       return virtualFolders
     }
     
+    // If "Workbooks" or "Evidence Files" is selected and no classification subfolder is selected, show level 3 classification items
+    if ((selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") && !selectedClassification && !currentFolder) {
+      // Find classification sections that match the level 3 classifications
+      const virtualFolders = level3Classifications
+        .map((classification) => {
+          // Find the classification section for this classification
+          const section = classificationSections.find(
+            (s) => s.classification === classification
+          )
+          if (!section) return null
+
+          return {
+            _id: `classification_${section._id}`,
+            name: classification,
+            displayName: formatClassificationForDisplay(classification),
+            category: selectedFolder,
+            parentId: null,
+            engagement: engagement._id,
+            path: `${selectedFolder}/${classification}`,
+            createdAt: new Date(),
+            createdBy: "",
+          } as EngagementFolder & { displayName: string }
+        })
+        .filter((folder): folder is EngagementFolder & { displayName: string } => folder !== null)
+      
+      return virtualFolders
+    }
+    
     if (!currentFolder) {
       // Show root folders in current category
       return engagementFolders.filter(f => {
@@ -734,7 +979,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       const parentId = typeof f.parentId === 'object' && f.parentId?._id ? f.parentId._id : f.parentId
       return parentId === currentFolder._id
     })
-  }, [engagementFolders, currentFolder, selectedFolder, documentRequestCategories, documentRequestCategory, engagement._id])
+  }, [engagementFolders, currentFolder, selectedFolder, documentRequestCategories, documentRequestCategory, engagement._id, classificationSections, selectedClassification, level3Classifications])
 
   // Navigate into folder
   const navigateToFolder = (folder: EngagementFolder) => {
@@ -744,6 +989,24 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       setDocumentRequestCategory(category)
       setCurrentFolder(null)
       setFolderPath([])
+      return
+    }
+    
+    // Handle virtual classification folders for Workbooks and Evidence Files
+    if ((selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") && folder._id?.startsWith("classification_")) {
+      const classificationSectionId = folder._id.replace("classification_", "")
+      const classification = folder.name
+      setSelectedClassification(classification)
+      setCurrentFolder(null)
+      setFolderPath([])
+      
+      // Fetch files for the selected classification
+      if (selectedFolder === "Workbooks") {
+        fetchWorkbooks(classification)
+      } else if (selectedFolder === "Evidence Files") {
+        // Don't fetch filtered evidence files - we already have all files and filter in the memo
+        // The evidenceLibraryFiles memo will handle filtering based on selectedClassification
+      }
       return
     }
     
@@ -867,6 +1130,11 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     if (engagement?._id) {
       fetchLibraryFiles()
       fetchFolders()
+      // Fetch all evidence files upfront to get accurate count
+      // Call without classificationId to fetch all evidence files for the engagement
+      fetchEvidenceFiles(undefined)
+      // Fetch all workbooks upfront to get accurate count
+      fetchWorkbooks()
     }
   }, [engagement?._id])
 
@@ -875,6 +1143,20 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     setCurrentFolder(null)
     setFolderPath([])
     setDocumentRequestCategory(null)
+    setSelectedClassification(null)
+    
+    // Fetch classification sections and classifications when Workbooks or Evidence Files is selected
+    if (selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") {
+      fetchClassificationSections()
+      fetchAllClassifications()
+      // Refresh files when folder is selected (in case new files were added)
+      // Always fetch ALL files (without classification filter) to maintain accurate count
+      if (selectedFolder === "Workbooks") {
+        fetchWorkbooks() // Fetch all workbooks
+      } else if (selectedFolder === "Evidence Files") {
+        fetchEvidenceFiles() // Fetch all evidence files (without classificationId)
+      }
+    }
   }, [selectedFolder])
 
   const handleFileUpload = async (files: File[]) => {
@@ -966,6 +1248,122 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
 
   // Enhanced filtering with advanced search
   const filteredFiles = useMemo(() => {
+    // If "Workbooks" is selected, use workbook files
+    if (selectedFolder === "Workbooks") {
+      let files = workbookFiles
+      
+      // Apply search filter
+      const searchTermLower = localSearchTerm.toLowerCase()
+      if (searchTermLower) {
+        files = files.filter(file => 
+          file.fileName?.toLowerCase().includes(searchTermLower) ||
+          file.description?.toLowerCase().includes(searchTermLower)
+        )
+      }
+      
+      // Apply file type filter
+      if (advancedSearch.fileType && advancedSearch.fileType !== "all") {
+        files = files.filter(file => {
+          const fileExt = file.fileName?.split(".").pop()?.toLowerCase() || ""
+          if (advancedSearch.fileType === "pdf" && fileExt !== "pdf") return false
+          if (advancedSearch.fileType === "docx" && !["docx", "doc"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "xlsx" && !["xlsx", "xls"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "jpg" && !["jpg", "jpeg"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "png" && fileExt !== "png") return false
+          if (advancedSearch.fileType === "zip" && fileExt !== "zip") return false
+          return true
+        })
+      }
+      
+      // Date range filter
+      if (advancedSearch.dateFrom) {
+        const fromDate = new Date(advancedSearch.dateFrom)
+        files = files.filter(file => new Date(file.createdAt) >= fromDate)
+      }
+      if (advancedSearch.dateTo) {
+        const toDate = new Date(advancedSearch.dateTo)
+        toDate.setHours(23, 59, 59, 999)
+        files = files.filter(file => new Date(file.createdAt) <= toDate)
+      }
+      
+      // Sorting
+      files.sort((a, b) => {
+        let comparison = 0
+        switch (advancedSearch.sortBy) {
+          case "fileName":
+            comparison = (a.fileName || "").localeCompare(b.fileName || "")
+            break
+          case "fileSize":
+            comparison = (a.fileSize || 0) - (b.fileSize || 0)
+            break
+          case "createdAt":
+          default:
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        }
+        return advancedSearch.sortOrder === "asc" ? comparison : -comparison
+      })
+      
+      return files
+    }
+    
+    // If "Evidence Files" is selected, use evidence files
+    if (selectedFolder === "Evidence Files") {
+      let files = evidenceLibraryFiles
+      
+      // Apply search filter
+      const searchTermLower = localSearchTerm.toLowerCase()
+      if (searchTermLower) {
+        files = files.filter(file => 
+          file.fileName?.toLowerCase().includes(searchTermLower) ||
+          file.description?.toLowerCase().includes(searchTermLower)
+        )
+      }
+      
+      // Apply file type filter
+      if (advancedSearch.fileType && advancedSearch.fileType !== "all") {
+        files = files.filter(file => {
+          const fileExt = file.fileName?.split(".").pop()?.toLowerCase() || ""
+          if (advancedSearch.fileType === "pdf" && fileExt !== "pdf") return false
+          if (advancedSearch.fileType === "docx" && !["docx", "doc"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "xlsx" && !["xlsx", "xls"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "jpg" && !["jpg", "jpeg"].includes(fileExt)) return false
+          if (advancedSearch.fileType === "png" && fileExt !== "png") return false
+          if (advancedSearch.fileType === "zip" && fileExt !== "zip") return false
+          return true
+        })
+      }
+      
+      // Date range filter
+      if (advancedSearch.dateFrom) {
+        const fromDate = new Date(advancedSearch.dateFrom)
+        files = files.filter(file => new Date(file.createdAt) >= fromDate)
+      }
+      if (advancedSearch.dateTo) {
+        const toDate = new Date(advancedSearch.dateTo)
+        toDate.setHours(23, 59, 59, 999)
+        files = files.filter(file => new Date(file.createdAt) <= toDate)
+      }
+      
+      // Sorting
+      files.sort((a, b) => {
+        let comparison = 0
+        switch (advancedSearch.sortBy) {
+          case "fileName":
+            comparison = (a.fileName || "").localeCompare(b.fileName || "")
+            break
+          case "fileSize":
+            comparison = (a.fileSize || 0) - (b.fileSize || 0)
+            break
+          case "createdAt":
+          default:
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        }
+        return advancedSearch.sortOrder === "asc" ? comparison : -comparison
+      })
+      
+      return files
+    }
+    
     // If "Document Requests" is selected, use document request files
     if (selectedFolder === "Document Requests") {
       let files = documentRequestFiles
@@ -1088,7 +1486,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     })
 
     return filtered
-  }, [libraryFiles, currentFolder, selectedFolder, localSearchTerm, advancedSearch, documentRequestFiles])
+  }, [libraryFiles, currentFolder, selectedFolder, localSearchTerm, advancedSearch, documentRequestFiles, workbookFiles, evidenceLibraryFiles])
 
   // Debounced search effect
   useEffect(() => {
@@ -1126,8 +1524,15 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       counts["Document Requests"] = docReqFileCount
     }
     
+    // Add workbooks count (always show count, even if 0)
+    counts["Workbooks"] = workbooks?.length || 0
+    
+    // Add evidence files count (always show count, even if 0)
+    // This ensures the count updates when evidenceFiles state changes
+    counts["Evidence Files"] = evidenceFiles?.length || 0
+    
     return counts
-  }, [libraryFiles, allRequests])
+  }, [libraryFiles, allRequests, workbooks, evidenceFiles])
   if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -1293,7 +1698,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   disabled={uploading}
                   className="hidden"
                 />
-                {selectedFolder !== "Document Requests" && (
+                {selectedFolder !== "Document Requests" && selectedFolder !== "Workbooks" && selectedFolder !== "Evidence Files" && (
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
@@ -1433,8 +1838,8 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                 </div>
               )}
 
-              {/* Drag and drop zone - hidden for Document Requests */}
-              {selectedFolder !== "Document Requests" && (
+              {/* Drag and drop zone - hidden for Document Requests, Workbooks, and Evidence Files */}
+              {selectedFolder !== "Document Requests" && selectedFolder !== "Workbooks" && selectedFolder !== "Evidence Files" && (
                 <div
                   ref={dropZoneRef}
                   onDragOver={handleDragOver}
@@ -1467,8 +1872,9 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                     setCurrentFolder(null)
                     setFolderPath([])
                     setDocumentRequestCategory(null)
+                    setSelectedClassification(null)
                   }}
-                  className={!currentFolder && !documentRequestCategory ? "font-semibold" : ""}
+                  className={!currentFolder && !documentRequestCategory && !selectedClassification ? "font-semibold" : ""}
                 >
                   <Home className="h-4 w-4 mr-1" />
                   {selectedFolder}
@@ -1477,6 +1883,12 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                   <>
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                     <span className="text-sm font-semibold">{documentRequestCategory}</span>
+                  </>
+                )}
+                {(selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") && selectedClassification && (
+                  <>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-semibold">{formatClassificationForDisplay(selectedClassification)}</span>
                   </>
                 )}
                 {folderPath.map((folder, idx) => (
@@ -1504,7 +1916,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                {selectedFolder !== "Document Requests" && (
+                {selectedFolder !== "Document Requests" && selectedFolder !== "Workbooks" && selectedFolder !== "Evidence Files" && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1514,7 +1926,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                     New Folder
                   </Button>
                 )}
-                {currentFolder && selectedFolder !== "Document Requests" && (
+                {currentFolder && selectedFolder !== "Document Requests" && selectedFolder !== "Workbooks" && selectedFolder !== "Evidence Files" && (
                   <>
                     <Button
                       variant="outline"
@@ -1548,28 +1960,44 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
             {currentSubfolders.length > 0 ? (
               <div className="mb-4">
                 <div className="text-sm font-medium text-gray-700 mb-2">
-                  {selectedFolder === "Document Requests" ? "Document Request Categories" : "Folders"}
+                  {selectedFolder === "Document Requests" ? "Document Request Categories" : 
+                   (selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") ? "Classification Sections" : 
+                   "Folders"}
                 </div>
                 <div className="grid grid-cols-4 gap-2">
-                  {currentSubfolders.map((folder) => (
-                    <div
-                      key={folder._id}
-                      onClick={() => navigateToFolder(folder)}
-                      className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                    >
-                      <Folder className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                      <span className="text-sm font-medium truncate" title={folder.name}>{folder.name}</span>
-                    </div>
-                  ))}
+                  {currentSubfolders.map((folder) => {
+                    // Use displayName if available (for level 3 classifications), otherwise use name
+                    const displayName = (folder as any).displayName || folder.name
+                    return (
+                      <div
+                        key={folder._id}
+                        onClick={() => navigateToFolder(folder)}
+                        className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                      >
+                        <Folder className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                        <span className="text-sm font-medium truncate" title={displayName}>{displayName}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ) : (
-              selectedFolder === "Document Requests" && !documentRequestCategory && (
+              (selectedFolder === "Document Requests" && !documentRequestCategory) || 
+              ((selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") && !selectedClassification) ? (
                 <div className="mb-4 p-4 border rounded-lg bg-gray-50">
-                  <p className="text-sm text-gray-600">No document request categories found.</p>
-                  <p className="text-xs text-gray-500 mt-1">Document requests will appear here once they are created.</p>
+                  {selectedFolder === "Document Requests" ? (
+                    <>
+                      <p className="text-sm text-gray-600">No document request categories found.</p>
+                      <p className="text-xs text-gray-500 mt-1">Document requests will appear here once they are created.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600">No classification sections found.</p>
+                      <p className="text-xs text-gray-500 mt-1">Classification sections will appear here once they are created.</p>
+                    </>
+                  )}
                 </div>
-              )
+              ) : null
             )}
 
             {viewMode === "list" ? (
@@ -1758,6 +2186,8 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                     <p>This folder is empty</p>
                     {selectedFolder === "Document Requests" ? (
                       <p className="text-sm">No files found in this category</p>
+                    ) : (selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") ? (
+                      <p className="text-sm">No files found in this classification section</p>
                     ) : (
                       <p className="text-sm">Drag files here or use the upload button</p>
                     )}
@@ -1840,6 +2270,7 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
               <span>
                 {filteredFiles.length} items in {selectedFolder}
                 {selectedFolder === "Document Requests" && documentRequestCategory && ` / ${documentRequestCategory}`}
+                {(selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") && selectedClassification && ` / ${formatClassificationForDisplay(selectedClassification)}`}
               </span>
               <span>Created: {new Date(engagement.createdAt).toLocaleDateString()}</span>
             </div>

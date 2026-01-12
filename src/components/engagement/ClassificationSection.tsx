@@ -1137,21 +1137,34 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
     );
   };
 
-  // ✅ MODIFIED: Load ALL evidence files for the engagement (not filtered by classification)
+  // ✅ MODIFIED: Load evidence files filtered by current classification
   // Extract loadEvidenceFiles as a reusable function using useCallback
   const loadEvidenceFiles = useCallback(async () => {
-    if (!engagement.id) {
+    if (!engagement.id || !classification) {
       setEvidenceFiles([]);
       return;
     }
 
     try {
-      console.log('Starting to load ALL evidence files for engagement...');
-      // ✅ Load all evidence files for the engagement, not just the current classification
-      const response = await getAllClassificationEvidence(engagement.id);
+      console.log('Starting to load evidence files for classification:', classification);
+      
+      // Get classificationId for the current classification
+      const classificationId = await getClassificationId(classification, engagement.id);
+      console.log(`Loading evidence files for classification: ${classification} -> ${classificationId}`);
+      
+      // ✅ Load evidence files filtered by classificationId
+      const response = await getAllClassificationEvidence(engagement.id, classificationId);
 
       // Convert API response to EvidenceFile format and fetch linked workbooks
-      const evidenceFilesPromises = response.evidence.map(async (evidence) => {
+      // Filter by classificationId to ensure only files for this classification are shown
+      const filteredEvidence = response.evidence.filter((evidence: any) => {
+        const evidenceClassificationId = typeof evidence.classificationId === 'object' 
+          ? evidence.classificationId._id 
+          : evidence.classificationId;
+        return evidenceClassificationId === classificationId;
+      });
+      
+      const evidenceFilesPromises = filteredEvidence.map(async (evidence) => {
         try {
           // Fetch detailed evidence with linked workbooks and mappings
           const detailedEvidence = await getEvidenceWithMappings(evidence._id);
@@ -1206,7 +1219,9 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
 
       setEvidenceFiles(evidenceFiles);
 
-      console.log(`Loaded ${evidenceFiles.length} evidence files (ALL classifications) with linked workbooks:`, {
+      console.log(`Loaded ${evidenceFiles.length} evidence files for classification "${classification}" with linked workbooks:`, {
+        classification,
+        classificationId,
         filesWithLinkedWorkbooks: evidenceFiles.filter(f => f.linkedWorkbooks && f.linkedWorkbooks.length > 0).length
       });
     } catch (error: any) {
@@ -1214,7 +1229,7 @@ export const ClassificationSection: React.FC<ClassificationSectionProps> = ({
       toast(error.message || 'Failed to load evidence files', { variant: 'destructive' });
       setEvidenceFiles([]);
     }
-  }, [engagement.id]);
+  }, [engagement.id, classification]);
 
   // Helper function to format date for linked files
   const formatDateForLinkedFiles = (dateString: string) => {
