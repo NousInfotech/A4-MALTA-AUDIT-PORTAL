@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { engagementApi } from "@/services/api";
+import { engagementApi, documentRequestApi } from "@/services/api";
 import {
   ArrowLeft,
   Building2,
@@ -576,7 +576,10 @@ export const EngagementDetails = () => {
               </TabsContent>
 
               <TabsContent value="library" className="space-y-6">
-                <LibraryTab engagement={engagement} requests={requests} />
+                <LibraryTab 
+                  engagement={engagement} 
+                  requests={requests}
+                />
               </TabsContent>
 
               <TabsContent value="trial-balance" className="space-y-6">
