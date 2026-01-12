@@ -99,6 +99,9 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
 }) => {
   const totalSharesSum = calculateTotalSharesSum(values);
   const [localErrors, setLocalErrors] = useState<ShareClassErrors>(errors);
+  const [perShareValueInput, setPerShareValueInput] = useState(
+    values.perShareValue !== 0 ? values.perShareValue.toString() : ""
+  );
   
   useEffect(() => {
     // Only update localErrors from props if there's a real change (initial load or external change)
@@ -106,6 +109,14 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
         setLocalErrors(errors);
     }
   }, [errors]);
+
+  useEffect(() => {
+    // Sync local input string if the numeric value changes from outside (e.g. form reset)
+    const currentInputNumeric = parseFloat(perShareValueInput) || 0;
+    if (values.perShareValue !== currentInputNumeric) {
+      setPerShareValueInput(values.perShareValue !== 0 ? values.perShareValue.toString() : "");
+    }
+  }, [values.perShareValue]);
 
   /**
    * Centralized validation function for Authorized/Issued/Total Shares sum.
@@ -229,7 +240,10 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
     key: "authorizedShares" | "issuedShares" | "perShareValue",
     value: string
   ) => {
-    const parsedValue = parseInt(value, 10);
+    if (key === "perShareValue") {
+      setPerShareValueInput(value);
+    }
+    const parsedValue = key === "perShareValue" ? parseFloat(value) : parseInt(value, 10);
     const newValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
     
     const updatedValues = { ...values, [key]: newValue };
@@ -298,8 +312,9 @@ export const ShareClassInput: React.FC<ShareClassInputProps> = ({
             <Input
               id="perShareValue"
               type="number"
+              step="0.0001"
               min={0}
-              value={values.perShareValue || ""}
+              value={perShareValueInput}
               onChange={(e) => handleGeneralValueChange("perShareValue", e.target.value)}
               className="pl-8 rounded-xl border-gray-200"
               placeholder="Enter Per Share Value"

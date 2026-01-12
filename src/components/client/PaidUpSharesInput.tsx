@@ -14,6 +14,18 @@ export const PaidUpSharesInput: React.FC<PaidUpSharesInputProps> = ({
   onChange,
   className
 }) => {
+  const [inputValue, setInputValue] = React.useState(
+    value !== undefined && value !== null ? value.toString() : ""
+  );
+
+  React.useEffect(() => {
+    // Sync local input string if the numeric value changes from outside
+    const currentInputNumeric = parseFloat(inputValue) || 0;
+    if (value !== currentInputNumeric) {
+      setInputValue(value !== undefined && value !== null ? value.toString() : "");
+    }
+  }, [value]);
+
   return (
     <div className={`p-4 rounded-2xl bg-white/60 backdrop-blur border border-gray-200 shadow-sm space-y-3 mt-2 ${className}`}>
       <div className="flex items-center justify-between">
@@ -21,7 +33,7 @@ export const PaidUpSharesInput: React.FC<PaidUpSharesInputProps> = ({
           Paid Up Shares Percentage
         </Label>
         <span className="text-sm font-semibold text-gray-800">
-          {value || 0}%
+          {typeof value === 'number' ? value.toFixed(2) : 0}%
         </span>
       </div>
 
@@ -30,9 +42,13 @@ export const PaidUpSharesInput: React.FC<PaidUpSharesInputProps> = ({
           type="range"
           min="0"
           max="100"
-          step="1"
+          step="0.01"
           value={value ?? 0}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            setInputValue(val.toString());
+            onChange(val);
+          }}
           className="flex-1 h-2 rounded-lg bg-gradient-to-r from-blue-300 to-blue-600 accent-blue-600 cursor-pointer"
         />
 
@@ -40,11 +56,16 @@ export const PaidUpSharesInput: React.FC<PaidUpSharesInputProps> = ({
           type="number"
           min="0"
           max="100"
-          value={value === undefined || value === null ? "" : value}
+          step="0.01"
+          value={inputValue}
           onChange={(e) => {
             let val = e.target.value;
+            setInputValue(val);
+            
             if (val === "") return onChange("");
-            let numVal = Number(val);
+            let numVal = parseFloat(val);
+            if (Number.isNaN(numVal)) return;
+
             if (numVal > 100) numVal = 100;
             if (numVal < 0) numVal = 0;
             onChange(numVal);
