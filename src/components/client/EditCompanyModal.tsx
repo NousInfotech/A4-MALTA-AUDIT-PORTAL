@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, X } from "lucide-react";
 import { ShareholdingCompaniesManager } from "./ShareholdingCompaniesManager";
+import { searchCompaniesGlobal } from "@/lib/api/company";
 
 const industryOptions = [
   "Technology",
@@ -180,10 +181,13 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
   const [shareClassValues, setShareClassValues] = useState<ShareClassValues>(
     () => getDefaultShareClassValues()
   );
+  const [perShareValueInput, setPerShareValueInput] = useState("");
 
   const [shareClassErrors, setShareClassErrors] = useState<ShareClassErrors>(
     () => getDefaultShareClassErrors()
   );
+  const [isCheckingRegNumber, setIsCheckingRegNumber] = useState(false);
+  const [regNumberDuplicateError, setRegNumberDuplicateError] = useState("");
 
   // Store original share class values when company is loaded (for validation)
   const [originalShareClassValues, setOriginalShareClassValues] = useState<ShareClassValues>(
@@ -291,7 +295,10 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     key: "authorizedShares" | "issuedShares" | "perShareValue",
     value: string
   ) => {
-    const parsedValue = parseInt(value, 10);
+    if (key === "perShareValue") {
+      setPerShareValueInput(value);
+    }
+    const parsedValue = key === "perShareValue" ? parseFloat(value) : parseInt(value, 10);
     const newValue = Number.isNaN(parsedValue) ? 0 : parsedValue;
 
     setShareClassValues((prev) => {
@@ -451,6 +458,55 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     });
   };
 
+  const checkRegistrationNumberExists = useCallback(async (regNumber: string) => {
+    if (!regNumber || regNumber.trim().length === 0) {
+      setRegNumberDuplicateError("");
+      return;
+    }
+
+    // Don't check if it's the same as the current company's registration number
+    if (company && regNumber.trim().toLowerCase() === (company.registrationNumber || "").toLowerCase()) {
+      setRegNumberDuplicateError("");
+      return;
+    }
+
+    setIsCheckingRegNumber(true);
+    setRegNumberDuplicateError("");
+
+    try {
+      const response = await searchCompaniesGlobal({ search: regNumber.trim() });
+      if (response.success && response.data && response.data.length > 0) {
+        // Filter for exact match (case-insensitive) and exclude the current company
+        const exactMatch = response.data.find(
+          (c: any) => 
+            c.registrationNumber?.toLowerCase().trim() === regNumber.toLowerCase().trim() && 
+            c._id !== company._id
+        );
+
+        if (exactMatch) {
+          setRegNumberDuplicateError(`This registration number is already taken by ${exactMatch.name}.`);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking registration number:", error);
+    } finally {
+      setIsCheckingRegNumber(false);
+    }
+  }, [company]);
+
+  // Debounced registration number validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (formData.registrationNumber) {
+        checkRegistrationNumberExists(formData.registrationNumber);
+      } else {
+        setRegNumberDuplicateError("");
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.registrationNumber, checkRegistrationNumberExists]);
+
   const validateField = (fieldName: string, value: string) => {
     const trimmedValue = value.trim();
     if (!trimmedValue) {
@@ -481,7 +537,7 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
     const registrationNumberValid = !!formData.registrationNumber.trim();
     const addressValid = !!formData.address.trim();
 
-    return nameValid && registrationNumberValid && addressValid && !hasShareClassErrors;
+    return nameValid && registrationNumberValid && addressValid && !hasShareClassErrors && !regNumberDuplicateError;
   };
 
   useEffect(() => {
@@ -511,26 +567,24 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
         description: company.description || "",
       });
 
-      // Set share class values
-      setShareClassValues({
-        ...parsedShareValues,
-        authorizedShares: Number(company.authorizedShares) || 0,
-        issuedShares: Number(company.issuedShares) || calculateTotalSharesSum(parsedShareValues),
-        perShareValue:
-          typeof company.perShareValue === "object"
-            ? Number(company.perShareValue?.value) || 0
-            : Number(company.perShareValue) || 0,
-      });
-      // Store original values for validation
-      setOriginalShareClassValues({
-        ...parsedShareValues,
-        authorizedShares: Number(company.authorizedShares) || 0,
-        issuedShares: Number(company.issuedShares) || calculateTotalSharesSum(parsedShareValues),
-        perShareValue:
-          typeof company.perShareValue === "object"
-            ? Number(company.perShareValue?.value) || 0
-            : Number(company.perShareValue) || 0,
-      });
+      const getInitialShareValues = () => {
+        const val = typeof company.perShareValue === "object"
+          ? Number(company.perShareValue?.value) || 0
+          : Number(company.perShareValue) || 0;
+        
+        setPerShareValueInput(val !== 0 ? val.toString() : "");
+
+        return {
+          ...parsedShareValues,
+          authorizedShares: Number(company.authorizedShares) || 0,
+          issuedShares: Number(company.issuedShares) || calculateTotalSharesSum(parsedShareValues),
+          perShareValue: val,
+        };
+      };
+
+      const shareValues = getInitialShareValues();
+      setShareClassValues(shareValues);
+      setOriginalShareClassValues(shareValues);
 
 
 
@@ -662,23 +716,31 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               >
                 Registration Number
               </Label>
-              <Input
-                id="registrationNumber"
-                placeholder="Enter registration number"
-                value={formData.registrationNumber}
-                onChange={(e) => {
-                  setFormData({
-                    ...formData,
-                    registrationNumber: e.target.value,
-                  });
-                  validateField("registrationNumber", e.target.value);
-                }}
-                onBlur={(e) => validateField("registrationNumber", e.target.value)}
-                className={`rounded-xl border-gray-200 ${errors.registrationNumber ? "border-red-500" : ""
+              <div className="relative">
+                <Input
+                  id="registrationNumber"
+                  placeholder="Enter registration number"
+                  value={formData.registrationNumber}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData,
+                      registrationNumber: e.target.value,
+                    });
+                    validateField("registrationNumber", e.target.value);
+                  }}
+                  onBlur={(e) => validateField("registrationNumber", e.target.value)}
+                  className={`rounded-xl border-gray-200 ${
+                    (errors.registrationNumber || regNumberDuplicateError) ? "border-red-500" : ""
                   }`}
-              />
-              {errors.registrationNumber && (
-                <p className="text-sm text-red-500 mt-1">{errors.registrationNumber}</p>
+                />
+                {isCheckingRegNumber && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                )}
+              </div>
+              {(errors.registrationNumber || regNumberDuplicateError) && (
+                <p className="text-sm text-red-500 mt-1">
+                  {regNumberDuplicateError || errors.registrationNumber}
+                </p>
               )}
             </div>
           </div>
@@ -862,15 +924,16 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
                 </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">€</span>
-                  <Input
-                    id="perShareValue"
-                    type="number"
-                    min={0}
-                    value={shareClassValues.perShareValue || ""}
-                    onChange={(e) => handleGeneralValueChange("perShareValue", e.target.value)}
-                    className="pl-8 rounded-xl border-gray-200"
-                    placeholder="Enter Per Share Value"
-                  />
+                    <Input
+                      id="perShareValue"
+                      type="number"
+                      step="0.0001"
+                      min={0}
+                      value={perShareValueInput}
+                      onChange={(e) => handleGeneralValueChange("perShareValue", e.target.value)}
+                      className="pl-8 rounded-xl border-gray-200"
+                      placeholder="Enter Per Share Value"
+                    />
                 </div>
               </div>
             </div>
@@ -1010,11 +1073,10 @@ export const EditCompanyModal: React.FC<EditCompanyModalProps> = ({
               disabled={
                 isSubmitting ||
                 hasShareClassErrors ||
-                !formData.name.trim() ||
-                !formData.registrationNumber.trim() ||
-                !formData.address.trim()
+                isCheckingRegNumber ||
+                !!regNumberDuplicateError
               }
-              className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
+              className="rounded-xl px-6 bg-brand-hover hover:bg-brand-sidebar text-white"
             >
               {isSubmitting ? (
                 <>

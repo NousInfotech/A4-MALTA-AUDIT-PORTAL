@@ -168,6 +168,8 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   });
   const [hasSearched, setHasSearched] = useState(false);
   const [shareClassErrors, setShareClassErrors] = useState(getDefaultShareClassErrors());
+  const [checkingRegNumbers, setCheckingRegNumbers] = useState<Record<number, boolean>>({});
+  const [regNumberErrors, setRegNumberErrors] = useState<Record<number, string>>({});
   const { toast } = useToast();
 
   // Reset global search mode when switching to person mode, enable for companies
@@ -725,8 +727,68 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
   const removeNewEntityForm = (index: number) => {
     if (newEntities.length > 1) {
       setNewEntities(newEntities.filter((_, i) => i !== index));
+      // Remove errors for this index
+      setRegNumberErrors((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+      setCheckingRegNumbers((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
     }
   };
+
+  const checkRegistrationNumberExists = useCallback(async (index: number, regNumber: string) => {
+    if (!regNumber || regNumber.trim().length === 0) {
+      setRegNumberErrors(prev => ({ ...prev, [index]: "" }));
+      return;
+    }
+
+    setCheckingRegNumbers(prev => ({ ...prev, [index]: true }));
+    setRegNumberErrors(prev => ({ ...prev, [index]: "" }));
+
+    try {
+      const response = await searchCompaniesGlobal({ search: regNumber.trim() });
+      if (response.success && response.data && response.data.length > 0) {
+        // Filter for exact match (case-insensitive)
+        const exactMatch = response.data.find(
+          (c: any) => c.registrationNumber?.toLowerCase().trim() === regNumber.toLowerCase().trim()
+        );
+
+        if (exactMatch) {
+          setRegNumberErrors(prev => ({
+            ...prev,
+            [index]: `This registration number is already taken by ${exactMatch.name}.`
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Error checking registration number:", error);
+    } finally {
+      setCheckingRegNumbers(prev => ({ ...prev, [index]: false }));
+    }
+  }, []);
+
+  // Debounced registration number validation for new entities
+  useEffect(() => {
+    if (entityType !== "company") return;
+
+    const timeouts = newEntities.map((entity, index) => {
+      if (entity.registrationNumber) {
+        return setTimeout(() => {
+          checkRegistrationNumberExists(index, entity.registrationNumber!);
+        }, 500);
+      }
+      return null;
+    });
+
+    return () => {
+      timeouts.forEach(t => t && clearTimeout(t));
+    };
+  }, [newEntities.map(e => e.registrationNumber).join(','), entityType, checkRegistrationNumberExists]);
 
   const validateForm = (): string | null => {
     // Validate shares don't exceed remaining
@@ -782,6 +844,11 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
     // Check if at least one entity is selected or created
     if (selectedExistingEntities.length === 0 && filledNewEntities.length === 0) {
       return "Please select at least one existing entity or create a new one";
+    }
+
+    // Check for registration number duplicates
+    if (Object.values(regNumberErrors).some(err => !!err)) {
+      return "Some registration numbers are already taken";
     }
 
     return null;
@@ -1590,14 +1657,22 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
                             <Label>
                               Registration Number <span className="text-red-500">*</span>
                             </Label>
-                            <Input
-                              placeholder="Enter registration number"
-                              value={entity.registrationNumber || ""}
-                              onChange={(e) =>
-                                handleNewEntityChange(entityIndex, "registrationNumber", e.target.value)
-                              }
-                              className="rounded-lg"
-                            />
+                            <div className="relative">
+                              <Input
+                                placeholder="Enter registration number"
+                                value={entity.registrationNumber || ""}
+                                onChange={(e) =>
+                                  handleNewEntityChange(entityIndex, "registrationNumber", e.target.value)
+                                }
+                                className={`rounded-lg ${regNumberErrors[entityIndex] ? 'border-red-500' : ''}`}
+                              />
+                              {checkingRegNumbers[entityIndex] && (
+                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                              )}
+                            </div>
+                            {regNumberErrors[entityIndex] && (
+                              <p className="text-xs text-red-500 mt-1">{regNumberErrors[entityIndex]}</p>
+                            )}
                           </div>
                           <div>
                             <ShareClassInput
@@ -1827,7 +1902,12 @@ export const AddShareholderModal: React.FC<AddShareholderModalProps> = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || Object.keys(shareValidationErrors).length > 0}
+            disabled={
+              isSubmitting || 
+              Object.keys(shareValidationErrors).length > 0 || 
+              Object.values(regNumberErrors).some(err => !!err) || 
+              Object.values(checkingRegNumbers).some(loading => !!loading)
+            }
             className="bg-brand-hover hover:bg-brand-sidebar text-white rounded-xl"
           >
             {isSubmitting ? (
