@@ -292,10 +292,10 @@ export default function WorkBookApp({
   const [allWorkbookLogs, setAllWorkbookLogs] = useState<AuditLogEntry[]>([]); // NEW STATE for all logs
   const [isLoadingAllWorkbookLogs, setIsLoadingAllWorkbookLogs] =
     useState(false); // NEW STATE for logs loading
+  // ✅ UNUSED: Working paper cloud info - kept for potential future use but not displayed/uploaded
   const [workingPaperCloudInfo, setWorkingPaperCloudInfo] = useState(null);
-  const [hasAttemptedWorkingPaperUpload, setHasAttemptedWorkingPaperUpload] =
-    useState(false);
-  const [isUploadingWorkingPaper, setIsUploadingWorkingPaper] = useState(false);
+  // ✅ UNUSED: Working paper sheet data - fetched from cloud but never displayed/uploaded
+  const [unusedWorkingPaperSheetData, setUnusedWorkingPaperSheetData] = useState<any>(null);
   const [isUpdatingSheets, setIsUpdatingSheets] = useState(false);
   const [etbData, setEtbData] = useState<ETBData | null>(null);
   const [etbLoading, setEtbLoading] = useState(false);
@@ -318,21 +318,53 @@ export default function WorkBookApp({
     []
   );
 
-  useEffect(() => {
-    setHasAttemptedWorkingPaperUpload(false);
-  }, [engagementId, classification]);
-
+  // ✅ UNUSED: Fetch working paper cloud info and sheet data but never display/upload
   useEffect(() => {
     if (engagementId && classification) {
-      const fetchData = async () => {
-        const data = await getWorkingPapersCloudFileId(
-          engagementId,
-          classification
-        );
-        setWorkingPaperCloudInfo(data);
+      const fetchWorkingPaperData = async () => {
+        try {
+          // Fetch cloud file info
+          const cloudInfo = await getWorkingPapersCloudFileId(
+            engagementId,
+            classification
+          );
+          setWorkingPaperCloudInfo(cloudInfo); // ✅ UNUSED: Stored but never used
+
+          // Fetch sheet data from MS Drive cloud but store in unused variable
+          if (cloudInfo?.spreadsheetId) {
+            const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
+              cloudInfo.spreadsheetId
+            );
+
+            if (listSheetsResponse.success && listSheetsResponse.data) {
+              const sheetNames = listSheetsResponse.data.map((ws: any) => ws.name);
+              
+              // Fetch sheet data for each sheet but store in unused variable
+              const unusedSheetData: any = {};
+              for (const sheetName of sheetNames) {
+                try {
+                  const readSheetResponse = await msDriveworkbookApi.readSheet(
+                    cloudInfo.spreadsheetId,
+                    sheetName
+                  );
+                  if (readSheetResponse.success) {
+                    unusedSheetData[sheetName] = readSheetResponse.data;
+                  }
+                } catch (error) {
+                  console.log(`Failed to read sheet ${sheetName} (unused):`, error);
+                }
+              }
+              
+              // ✅ UNUSED: Store sheet data but never display/upload
+              setUnusedWorkingPaperSheetData(unusedSheetData);
+            }
+          }
+        } catch (error) {
+          console.log('Failed to fetch working paper data (unused):', error);
+        }
       };
 
-      fetchData();
+      fetchWorkingPaperData();
     }
   }, [engagementId, classification]);
 
@@ -550,113 +582,8 @@ export default function WorkBookApp({
     }
   }, [selectedWorkbook]);
 
-  const handleWorkingPaperUpload = (newWorkbookFromUploadModal: Workbook) => {
-    setWorkbooks((prev) => {
-      const existingIndex = prev.findIndex(
-        (wb: any) => wb.id === newWorkbookFromUploadModal.id
-      );
-      if (existingIndex > -1) {
-        const updatedWorkbooks = [...prev];
-        updatedWorkbooks[existingIndex] = newWorkbookFromUploadModal;
-        return updatedWorkbooks;
-      } else {
-        return [...prev, newWorkbookFromUploadModal];
-      }
-    });
-
-    toast({
-      title: "Working Paper",
-      description: `Successfully loaded ${newWorkbookFromUploadModal.name}`,
-    });
-
-    setSelectedWorkbook(newWorkbookFromUploadModal);
-
-    if (
-      newWorkbookFromUploadModal.fileData &&
-      Object.keys(newWorkbookFromUploadModal.fileData).length > 0
-    ) {
-      setViewerSelectedSheet(
-        Object.keys(newWorkbookFromUploadModal.fileData)[0]
-      );
-    } else {
-      setViewerSelectedSheet("Sheet1");
-    }
-
-    setRefreshWorkbooksTrigger((prev) => prev + 1); // Trigger refresh after upload
-  };
-
-  const getExcelDatafromCloudAndUploadToDB = async (
-    workingPaperCloudInfo: any
-  ) => {
-    setIsLoadingWorkbooks(true);
-    try {
-      const cloudFileId = workingPaperCloudInfo.spreadsheetId;
-      const listSheetsResponse = await msDriveworkbookApi.listWorksheets(
-        cloudFileId
-      );
-
-      if (!listSheetsResponse.success) {
-        throw new Error(
-          listSheetsResponse.error ||
-          "Failed to list worksheets from uploaded file."
-        );
-      }
-
-      const sheetNames = listSheetsResponse.data.map((ws) => ws.name);
-      const processedFileData: SheetData = {};
-
-      // 3. Create minimal fileData - just sheet names for metadata
-      for (const sheetName of sheetNames) {
-        // Empty placeholder - actual data will be loaded on-demand from MS Drive
-        processedFileData[sheetName] = [[]];
-      }
-
-      // --- NEW STEP: Save the processed workbook metadata and sheet data to our MongoDB ---
-      const category = rowType === 'etb' ? 'lead-sheet' : rowType; // ✅ Tag with category
-      const workbookMetadataForDB = {
-        cloudFileId,
-        name: "Working Paper",
-        webUrl: workingPaperCloudInfo.url,
-        engagementId: engagementId,
-        classification: classification,
-        category: category, // ✅ CRITICAL FIX: Tag workbook with category (lead-sheet, working-paper, evidence)
-        uploadedDate: new Date().toISOString(),
-        version: "v1", // You might have a better versioning strategy
-        uploadedBy: user?.id,
-        lastModifiedBy: user?.id,
-      };
-
-      console.log('WorkBookApp: Uploading workbook with category:', { category, rowType, classification });
-
-      console.log("Saving workbook with sheet names only:", sheetNames);
-      console.log("Workbook metadata:", workbookMetadataForDB);
-
-      // Save to DB with minimal data (no sheet cell data)
-      const saveToDbResponse = await db_WorkbookApi.saveProcessedWorkbook(
-        workbookMetadataForDB,
-        processedFileData
-      );
-
-      if (!saveToDbResponse.success || !saveToDbResponse.data) {
-        throw new Error(
-          saveToDbResponse.error || "Failed to save workbook data to database."
-        );
-      }
-
-      // The backend should return the full Workbook object (with _id, populated sheets if needed)
-      // from the database, which you can then pass to onUploadSuccess.
-      const newWorkbookFromDB = saveToDbResponse.data.workbook;
-
-      // Ensure fileData is populated for frontend display immediately
-      newWorkbookFromDB.fileData = processedFileData;
-
-      handleWorkingPaperUpload(newWorkbookFromDB);
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setIsLoadingWorkbooks(false);
-    }
-  };
+  // ✅ REMOVED: handleWorkingPaperUpload - working papers are never uploaded to DB or displayed
+  // ✅ REMOVED: getExcelDatafromCloudAndUploadToDB - working papers are never uploaded to DB
 
   // NEW: Memoize the fetchWorkbooks function using useCallback
   // ✅ UPDATED: Now fetches ALL workbooks for engagement (like evidence files) - no classification filter
@@ -757,115 +684,58 @@ export default function WorkBookApp({
     }
   }, [engagementId, toast]); // ✅ Removed classification and allClassifications - we fetch ALL workbooks like evidence files
 
-  // to upload working papaer to db
+  // ✅ REMOVED: Working paper upload logic - working papers are never uploaded to DB
 
-  // NEW useEffect to fetch all workbook logs
+  // NEW useEffect to fetch all workbook logs (without working paper upload)
   useEffect(() => {
     const fetchAllWorkbookLogs = async () => {
-      if (!engagementId || !classification || !workingPaperCloudInfo) return;
+      if (!engagementId || !classification) return;
 
       setIsLoadingAllWorkbookLogs(true);
       try {
         const fetchedWorkbooks = await fetchWorkbooks();
 
-        let workingpaperUploadExist = fetchedWorkbooks.find(
-          (wb) => wb.cloudFileId === workingPaperCloudInfo?.spreadsheetId
-        );
-
-        // Only attempt upload if we haven't tried before and the workbook doesn't exist
-        if (!workingpaperUploadExist && !hasAttemptedWorkingPaperUpload) {
-          setHasAttemptedWorkingPaperUpload(true);
-          setIsUploadingWorkingPaper(true); // Start showing loading state
-          await getExcelDatafromCloudAndUploadToDB(workingPaperCloudInfo);
-          setIsUploadingWorkingPaper(false); // Stop showing loading state
-
-          // After upload, fetch workbooks again to get the updated list
-          const updatedWorkbooks = await fetchWorkbooks();
-
-          // Now fetch the logs for all workbooks including the newly uploaded one
-          const allLogs: AuditLogEntry[] = [];
-          for (const workbook of updatedWorkbooks) {
-            try {
-              const logsResponse = await db_WorkbookApi.getWorkbookLogs(
-                workbook.id
+        // Fetch logs for all workbooks
+        const allLogs: AuditLogEntry[] = [];
+        for (const workbook of fetchedWorkbooks) {
+          try {
+            const logsResponse = await db_WorkbookApi.getWorkbookLogs(
+              workbook.id
+            );
+            if (logsResponse.success && logsResponse.data) {
+              const workbookSpecificLogs = logsResponse.data.map(
+                (log: any) => ({
+                  id: log._id || Date.now().toString() + Math.random(),
+                  timestamp: log.timestamp,
+                  user: log.actor || "Unknown User",
+                  action: log.type,
+                  details: log.details?.name
+                    ? `Workbook: ${log.details.name}, Version: ${log.version || "N/A"
+                    }, Action: ${log.type}`
+                    : log.details?.message || JSON.stringify(log.details),
+                  workbookName: workbook.name,
+                })
               );
-              if (logsResponse.success && logsResponse.data) {
-                const workbookSpecificLogs = logsResponse.data.map(
-                  (log: any) => ({
-                    id: log._id || Date.now().toString() + Math.random(),
-                    timestamp: log.timestamp,
-                    user: log.actor || "Unknown User",
-                    action: log.type,
-                    details: log.details?.name
-                      ? `Workbook: ${log.details.name}, Version: ${log.version || "N/A"
-                      }, Action: ${log.type}`
-                      : log.details?.message || JSON.stringify(log.details),
-                    workbookName: workbook.name,
-                  })
-                );
-                allLogs.push(...workbookSpecificLogs);
-              } else {
-                console.warn(
-                  `Failed to fetch logs for workbook ${workbook.name}:`,
-                  logsResponse.error
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Error fetching logs for workbook ${workbook.name}:`,
-                error
+              allLogs.push(...workbookSpecificLogs);
+            } else {
+              console.warn(
+                `Failed to fetch logs for workbook ${workbook.name}:`,
+                logsResponse.error
               );
             }
+          } catch (error) {
+            console.error(
+              `Error fetching logs for workbook ${workbook.name}:`,
+              error
+            );
           }
-
-          allLogs.sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          );
-          setAllWorkbookLogs(allLogs);
-        } else {
-          // If working paper already exists, just fetch logs normally
-          const allLogs: AuditLogEntry[] = [];
-          for (const workbook of fetchedWorkbooks) {
-            try {
-              const logsResponse = await db_WorkbookApi.getWorkbookLogs(
-                workbook.id
-              );
-              if (logsResponse.success && logsResponse.data) {
-                const workbookSpecificLogs = logsResponse.data.map(
-                  (log: any) => ({
-                    id: log._id || Date.now().toString() + Math.random(),
-                    timestamp: log.timestamp,
-                    user: log.actor || "Unknown User",
-                    action: log.type,
-                    details: log.details?.name
-                      ? `Workbook: ${log.details.name}, Version: ${log.version || "N/A"
-                      }, Action: ${log.type}`
-                      : log.details?.message || JSON.stringify(log.details),
-                    workbookName: workbook.name,
-                  })
-                );
-                allLogs.push(...workbookSpecificLogs);
-              } else {
-                console.warn(
-                  `Failed to fetch logs for workbook ${workbook.name}:`,
-                  logsResponse.error
-                );
-              }
-            } catch (error) {
-              console.error(
-                `Error fetching logs for workbook ${workbook.name}:`,
-                error
-              );
-            }
-          }
-
-          allLogs.sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          );
-          setAllWorkbookLogs(allLogs);
         }
+
+        allLogs.sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        setAllWorkbookLogs(allLogs);
       } catch (error) {
         console.error("Error fetching all workbook logs:", error);
         toast({
@@ -874,7 +744,6 @@ export default function WorkBookApp({
           description: `Failed to load workbook history: ${error instanceof Error ? error.message : "Unknown error."
             }`,
         });
-        setIsUploadingWorkingPaper(false); // Make sure to stop loading on error
       } finally {
         setIsLoadingAllWorkbookLogs(false);
       }
@@ -887,8 +756,6 @@ export default function WorkBookApp({
     refreshWorkbooksTrigger,
     fetchWorkbooks,
     toast,
-    workingPaperCloudInfo,
-    hasAttemptedWorkingPaperUpload,
   ]);
 
   // Modify useEffect to depend on refreshWorkbooksTrigger
@@ -2405,7 +2272,7 @@ export default function WorkBookApp({
             onUpdateNamedRange={handleUpdateNamedRange}
             onDeleteNamedRange={handleDeleteNamedRange}
             isLoadingWorkbookData={isLoadingWorkbookData}
-            workingPaperCloudInfo={workingPaperCloudInfo}
+            workingPaperCloudInfo={null}
             updateSheetsInWorkbook={updateSheetsInWorkbook}
             engagementId={engagementId}
             classification={classification}
@@ -2506,18 +2373,15 @@ export default function WorkBookApp({
   if (
     isLoadingWorkbooks ||
     isLoadingAllWorkbookLogs ||
-    isUploadingWorkingPaper ||
     isUpdatingSheets
   ) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
         <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
         <span className="ml-3 text-lg text-gray-700">
-          {isUploadingWorkingPaper
-            ? "Loading Working Paper..."
-            : isUpdatingSheets
-              ? "Updating Sheets..."
-              : "Loading Workbooks..."}
+          {isUpdatingSheets
+            ? "Updating Sheets..."
+            : "Loading Workbooks..."}
         </span>
       </div>
     );
