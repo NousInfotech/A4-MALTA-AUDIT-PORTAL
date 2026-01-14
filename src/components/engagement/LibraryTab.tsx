@@ -74,18 +74,18 @@ const categories = [
   "Trial Balance",
   "Audit Sections",
   "Planning",
-  "Capital & Reserves",
-  "Property, plant and equipment",
-  "Intangible Assets",
-  "Investment Property",
-  "Investment in Subsidiaries & Associates investments",
-  "Receivables",
-  "Payables",
-  "Inventory",
-  "Bank & Cash",
-  "Borrowings & loans",
-  "Taxation",
-  "Going Concern",
+  // "Capital & Reserves",
+  // "Property, plant and equipment",
+  // "Intangible Assets",
+  // "Investment Property",
+  // "Investment in Subsidiaries & Associates investments",
+  // "Receivables",
+  // "Payables",
+  // "Inventory",
+  // "Bank & Cash",
+  // "Borrowings & loans",
+  // "Taxation",
+  // "Going Concern",
   "Workbooks",
   "Evidence Files",
   "MBR Documents",
@@ -982,13 +982,15 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
   }, [engagementFolders, currentFolder, selectedFolder, documentRequestCategories, documentRequestCategory, engagement._id, classificationSections, selectedClassification, level3Classifications])
 
   // Navigate into folder
-  const navigateToFolder = (folder: EngagementFolder) => {
+  const navigateToFolder = async (folder: EngagementFolder) => {
     // Handle virtual document request category folders
     if (selectedFolder === "Document Requests" && folder._id?.startsWith("doc_req_cat_")) {
       const category = folder.name
       setDocumentRequestCategory(category)
       setCurrentFolder(null)
       setFolderPath([])
+      // Refresh library files to get latest document request files
+      await fetchLibraryFiles()
       return
     }
     
@@ -1002,10 +1004,10 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       
       // Fetch files for the selected classification
       if (selectedFolder === "Workbooks") {
-        fetchWorkbooks(classification)
+        await fetchWorkbooks(classification)
       } else if (selectedFolder === "Evidence Files") {
-        // Don't fetch filtered evidence files - we already have all files and filter in the memo
-        // The evidenceLibraryFiles memo will handle filtering based on selectedClassification
+        // Refresh evidence files to get latest data
+        await fetchEvidenceFiles()
       }
       return
     }
@@ -1031,10 +1033,13 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       }
     }
     setFolderPath(path)
+    // Refresh library files and folders when navigating into a folder
+    await fetchLibraryFiles()
+    await fetchFolders()
   }
 
   // Navigate up (back)
-  const navigateUp = () => {
+  const navigateUp = async () => {
     if (folderPath.length > 0) {
       const newPath = [...folderPath]
       newPath.pop()
@@ -1044,6 +1049,9 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
       setCurrentFolder(null)
       setFolderPath([])
     }
+    // Refresh library files and folders when navigating up
+    await fetchLibraryFiles()
+    await fetchFolders()
   }
 
   // Create folder
@@ -1138,12 +1146,28 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
     }
   }, [engagement?._id])
 
+  // Refresh files when currentFolder changes (navigating into/out of folders)
+  // Only for regular folders, not Workbooks/Evidence Files/Document Requests which have their own refresh logic
+  useEffect(() => {
+    if (currentFolder?._id && selectedFolder && 
+        selectedFolder !== "Workbooks" && 
+        selectedFolder !== "Evidence Files" && 
+        selectedFolder !== "Document Requests") {
+      fetchLibraryFiles()
+      fetchFolders()
+    }
+  }, [currentFolder?._id])
+
   // Reset folder navigation when category changes
   useEffect(() => {
     setCurrentFolder(null)
     setFolderPath([])
     setDocumentRequestCategory(null)
     setSelectedClassification(null)
+    
+    // Refresh library files and folders when category changes
+    fetchLibraryFiles()
+    fetchFolders()
     
     // Fetch classification sections and classifications when Workbooks or Evidence Files is selected
     if (selectedFolder === "Workbooks" || selectedFolder === "Evidence Files") {
@@ -1868,11 +1892,14 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     setCurrentFolder(null)
                     setFolderPath([])
                     setDocumentRequestCategory(null)
                     setSelectedClassification(null)
+                    // Refresh files when navigating to root
+                    await fetchLibraryFiles()
+                    await fetchFolders()
                   }}
                   className={!currentFolder && !documentRequestCategory && !selectedClassification ? "font-semibold" : ""}
                 >
@@ -1897,10 +1924,13 @@ export const LibraryTab = ({ engagement, requests }: LibraryTabProps) => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
+                      onClick={async () => {
                         const newPath = folderPath.slice(0, idx + 1)
                         setFolderPath(newPath)
                         setCurrentFolder(folder)
+                        // Refresh files when navigating via breadcrumb
+                        await fetchLibraryFiles()
+                        await fetchFolders()
                       }}
                       className={idx === folderPath.length - 1 ? "font-semibold" : ""}
                     >
