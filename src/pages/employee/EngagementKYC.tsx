@@ -667,6 +667,7 @@ export function EngagementKYC({
       
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('documentIndex', String(documentIndex));
       
       // Upload the document
       await documentRequestApi.uploadSingleDocument(documentRequestId, formData);
