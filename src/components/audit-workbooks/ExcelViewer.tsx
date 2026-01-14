@@ -687,14 +687,35 @@ export const ExcelViewer: React.FC<Omit<ExcelViewerProps,
  */
   const formatExcelDate = (value: any): string => {
     // Check if the value might be an Excel serial date number
-    if (typeof value === 'number' && value > 25569 && value < 2958466) {
-      // Excel stores dates as serial numbers (days since 1900-01-01)
-      const date = new Date((value - 25569) * 86400000);
-      return `At ${date.toLocaleDateString('en-US', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      })}`;
+    // Excel stores dates as serial numbers (days since 1900-01-01)
+    // Use a more restrictive range to avoid converting financial values to dates
+    // Valid Excel dates typically range from 1 (Jan 1, 1900) to ~50000 (around year 2037)
+    // In JavaScript conversion, we use offset 25569, so valid range is approximately 25569 to 50000
+    if (typeof value === 'number') {
+      // Only treat as date if:
+      // 1. Value is within reasonable date range (25569 to 50000 = 1900 to ~2037)
+      // 2. Value is a whole number or has small decimal (time component)
+      // 3. When converted, produces a valid date
+      const isWholeNumber = Number.isInteger(value) || (value % 1 < 0.0001);
+      const isInDateRange = value >= 25569 && value <= 50000;
+      
+      if (isInDateRange && isWholeNumber) {
+        // Convert Excel serial date to JavaScript Date
+        const date = new Date((value - 25569) * 86400000);
+        
+        // Validate that the converted date is actually valid
+        // Check if date is valid and within reasonable year range (1900-2100)
+        if (!isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          if (year >= 1900 && year <= 2100) {
+            return `At ${date.toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}`;
+          }
+        }
+      }
     }
 
     // Check if the value is a date string
