@@ -175,6 +175,7 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const activeTabRef = React.useRef("questions")
   const [proceduresViewMode, setProceduresViewMode] = useState<'procedures' | 'reviews'>('procedures')
+  const [classificationProceduresViewMode, setClassificationProceduresViewMode] = useState<Record<string, 'procedures' | 'reviews'>>({})
   
   // Review state
   const [reviewStatus, setReviewStatus] = useState<string>(procedure?.reviewStatus || "in-progress")
@@ -182,6 +183,13 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [isSavingReview, setIsSavingReview] = useState(false)
   const [isEditingOverallComment, setIsEditingOverallComment] = useState(false)
   const [editOverallCommentValue, setEditOverallCommentValue] = useState<string>("")
+  
+  // Edit Review Dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingReview, setEditingReview] = useState<any>(null)
+  const [editReviewStatus, setEditReviewStatus] = useState<string>("")
+  const [editReviewComments, setEditReviewComments] = useState<string>("")
+  const [isUpdatingReview, setIsUpdatingReview] = useState(false)
   
   // Advanced Review & Sign-off state
   const [reviewerId, setReviewerId] = useState<string>(procedure?.reviewerId || "")
@@ -359,7 +367,6 @@ export const ProcedureView: React.FC<ProcedureViewProps> = ({
   const [generatingProcedures, setGeneratingProcedures] = useState(false)
   const [selectedClassification, setSelectedClassification] = useState<string | null>(currentClassification || null)
   const [classificationTabs, setClassificationTabs] = useState<Record<string, string>>({})
-  const [classificationProceduresViewMode, setClassificationProceduresViewMode] = useState<Record<string, 'procedures' | 'reviews'>>({})
 
   // Track if we're in the middle of generating to prevent reset
   const isGeneratingRef = React.useRef(false)
